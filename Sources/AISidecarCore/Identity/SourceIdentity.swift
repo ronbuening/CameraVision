@@ -1,11 +1,20 @@
 import CryptoKit
 import Foundation
 
+/// Policy used to compute a source-file identity for change detection.
 public enum SourceIdentityPolicy: String, Codable, CaseIterable, Sendable {
+    /// Hash the complete file contents with SHA-256.
     case sha256
+
+    /// Hash file size, mtime, and first/last 4 MiB content digests.
     case fast
 }
 
+/// Stable source-file identity recorded with every scanned image.
+///
+/// The `sha256` field is interpreted according to `policy`. Later phases must
+/// preserve both fields so a fast identity is not mistaken for a full-content
+/// hash.
 public struct SourceIdentity: Codable, Sendable, Equatable {
     public var policy: SourceIdentityPolicy
     public var sha256: String
@@ -16,10 +25,16 @@ public struct SourceIdentity: Codable, Sendable, Equatable {
     }
 }
 
+/// Computes source identities for scanned files.
 public enum SourceIdentityCalculator {
+    // FR1-006a defines the fast policy window as first and last 4 MiB.
     private static let chunkSize = 4 * 1024 * 1024
+
+    // Full-file hashing streams in smaller chunks to avoid loading RAW files
+    // into memory just to identify them.
     private static let streamingChunkSize = 1024 * 1024
 
+    /// Compute the identity for `url` using the selected policy.
     public static func compute(
         for url: URL,
         policy: SourceIdentityPolicy,
@@ -57,6 +72,8 @@ public enum SourceIdentityCalculator {
         let lastOffset = max(Int64(0), size - Int64(chunkSize))
         let last = try digestForRange(in: url, offset: lastOffset, length: min(Int64(chunkSize), size))
 
+        // Version the recipe inside the digest so future fast-policy changes
+        // cannot collide with this Phase 1 identity contract.
         var hasher = SHA256()
         update(&hasher, "aisidecar-source-identity-fast-v1\n")
         update(&hasher, "size:\(size)\n")

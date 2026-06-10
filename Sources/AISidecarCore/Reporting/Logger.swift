@@ -1,5 +1,9 @@
 import Foundation
 
+/// Single structured log event.
+///
+/// JSON output uses stable snake_case field names so later GUI and batch tools
+/// can decode logs with the same model as progress records.
 public struct LogRecord: Codable, Sendable, Equatable {
     public var timestamp: Date
     public var level: LogLevel
@@ -42,6 +46,10 @@ public struct LogRecord: Codable, Sendable, Equatable {
     }
 }
 
+/// Small synchronous logger for CLI presentation.
+///
+/// The sink is injectable so tests can verify rendering without writing to
+/// standard error.
 public struct Logger: Sendable {
     public var minimumLevel: LogLevel
     public var format: LogFormat
@@ -59,6 +67,7 @@ public struct Logger: Sendable {
         self.sink = sink
     }
 
+    /// Render and emit the record when it meets the configured severity level.
     public func log(_ record: LogRecord) throws {
         guard record.level <= minimumLevel else {
             return
@@ -66,10 +75,12 @@ public struct Logger: Sendable {
         sink(try render(record))
     }
 
+    /// Render a log record without writing it.
     public func render(_ record: LogRecord) throws -> String {
         try Self.render(record, format: format)
     }
 
+    /// Shared renderer used by production logging and tests.
     public static func render(_ record: LogRecord, format: LogFormat) throws -> String {
         switch format {
         case .text:

@@ -1,17 +1,20 @@
 import Foundation
 
+/// Requested analysis input roles for Phase 1.
 public enum AnalysisMode: String, Codable, CaseIterable, Sendable {
     case whole
     case subject
     case both
 }
 
+/// Policy for destinations that already contain an output artifact.
 public enum ExistingPolicy: String, Codable, CaseIterable, Sendable {
     case skip
     case overwrite
     case fail
 }
 
+/// Logging severity used by both human-readable and JSON log records.
 public enum LogLevel: String, Codable, CaseIterable, Comparable, Sendable {
     case error
     case warn
@@ -32,11 +35,16 @@ public enum LogLevel: String, Codable, CaseIterable, Comparable, Sendable {
     }
 }
 
+/// Output encoding for CLI logs.
 public enum LogFormat: String, Codable, CaseIterable, Sendable {
     case text
     case json
 }
 
+/// Optional values supplied by the CLI or environment before precedence is resolved.
+///
+/// `nil` means "no override"; it does not mean a falsey value. This distinction
+/// preserves the configured default chain from PW-007.
 public struct RunConfigurationOverrides: Sendable, Equatable {
     public var mode: AnalysisMode?
     public var existing: ExistingPolicy?
@@ -83,6 +91,10 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     }
 }
 
+/// Fully resolved run configuration recorded in provenance.
+///
+/// Values here have already followed the precedence chain
+/// CLI > environment > JSON config > built-in default.
 public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var mode: AnalysisMode
     public var existing: ExistingPolicy

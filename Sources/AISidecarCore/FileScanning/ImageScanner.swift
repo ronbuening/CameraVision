@@ -1,5 +1,10 @@
 import Foundation
 
+/// Discovers Phase 1 source images and records scan-time metadata.
+///
+/// The scanner implements FR1-001 through FR1-006b. It treats unsupported
+/// visible files as recoverable scan errors so a folder batch can continue, but
+/// missing input roots fail because there is no batch to recover.
 public struct ImageScanner {
     private let fileManager: FileManager
 
@@ -7,6 +12,11 @@ public struct ImageScanner {
         self.fileManager = fileManager
     }
 
+    /// Scan one file or one folder using the resolved run configuration.
+    ///
+    /// For file input, `scanRoot` is the file's parent and `relativePath` is the
+    /// file name. For folder input, `relativePath` is rooted at the scanned
+    /// folder and is the value later used for output tree mirroring.
     public func scan(
         inputPath: String,
         recursive: Bool,
@@ -50,6 +60,8 @@ public struct ImageScanner {
     ) throws -> ScanResult {
         let fileURL = fileURL.standardizedFileURL
         let root = fileURL.deletingLastPathComponent()
+        // Direct hidden or sidecar inputs follow the same FR1-005 ignore rule
+        // as folder contents: they are not images and are not batch failures.
         guard !shouldIgnore(url: fileURL, root: root) else {
             return ScanResult(
                 inputPath: fileURL.path,
@@ -86,6 +98,8 @@ public struct ImageScanner {
             for case let url as URL in enumerator {
                 let url = url.standardizedFileURL
                 if shouldIgnore(url: url, root: root) {
+                    // Hidden directories are skipped as containers; otherwise
+                    // their children could reappear as unsupported-file errors.
                     if isDirectory(url) {
                         enumerator.skipDescendants()
                     }
@@ -123,6 +137,8 @@ public struct ImageScanner {
         for candidate in candidates {
             let relativePath = relativePath(for: candidate, root: root)
             guard let type = SupportedImageType(fileExtension: candidate.pathExtension) else {
+                // FR1-004 records unsupported visible files without aborting
+                // the rest of the scan.
                 errors.append(
                     ScanErrorRecord(
                         path: candidate.path,
@@ -158,6 +174,8 @@ public struct ImageScanner {
                     )
                 )
             } catch {
+                // A readable folder may still contain a file whose metadata or
+                // identity cannot be read; keep the batch recoverable.
                 errors.append(
                     ScanErrorRecord(
                         path: candidate.path,
@@ -196,6 +214,7 @@ public struct ImageScanner {
             return true
         }
 
+        // Dot-prefixed path components cover hidden files and hidden folders.
         if components.contains(where: { $0.hasPrefix(".") }) {
             return true
         }
@@ -203,6 +222,8 @@ public struct ImageScanner {
         let lowercasedName = fileName.lowercased()
         return lowercasedName == ".ds_store"
             || lowercasedName.hasPrefix("._")
+            // Existing sidecars are artifacts to ignore in Phase 1 scans, not
+            // source images to analyze or unsupported files to report.
             || lowercasedName.hasSuffix(".ai.json")
             || lowercasedName.hasSuffix(".xmp")
     }
@@ -250,6 +271,8 @@ public struct ImageScanner {
 }
 
 private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
+    // Case-folded ordering keeps dry-scan output stable on case-insensitive
+    // filesystems while preserving a deterministic tiebreaker.
     let lowerLHS = lhs.lowercased()
     let lowerRHS = rhs.lowercased()
     if lowerLHS == lowerRHS {

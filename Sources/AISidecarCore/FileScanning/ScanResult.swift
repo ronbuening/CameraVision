@@ -1,5 +1,9 @@
 import Foundation
 
+/// Recoverable scan error tied to a specific visible input path.
+///
+/// Folder scans use these records for unsupported files and per-file metadata
+/// failures so the batch can continue without losing machine-readable detail.
 public struct ScanErrorRecord: Codable, Sendable, Equatable {
     public var path: String
     public var relativePath: String?
@@ -18,6 +22,11 @@ public struct ScanErrorRecord: Codable, Sendable, Equatable {
     }
 }
 
+/// Machine-readable output for `aisidecar analyze --dry-scan`.
+///
+/// This is intentionally separate from sidecar output: it reports what Phase 1
+/// would scan, with source identities and recoverable scan errors, without
+/// rendering images or writing artifacts.
 public struct ScanResult: Codable, Sendable, Equatable {
     public var schemaVersion: String
     public var inputPath: String

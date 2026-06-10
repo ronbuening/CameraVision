@@ -1,5 +1,10 @@
 import Foundation
 
+/// Source image discovered by a Phase 1 scan.
+///
+/// `relativePath` is rooted at the scan root and is preserved for later output
+/// tree mirroring. `fileExtension` keeps the source spelling while
+/// `detectedType` stores the normalized supported type.
 public struct SourceImage: Codable, Sendable, Equatable {
     public var path: String
     public var relativePath: String

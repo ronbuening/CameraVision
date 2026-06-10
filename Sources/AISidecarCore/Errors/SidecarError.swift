@@ -1,5 +1,9 @@
 import Foundation
 
+/// Frozen Phase 1 error code set.
+///
+/// Raw string values are stable public data because logs, progress records, and
+/// sidecars depend on them across later phases.
 public enum SidecarErrorCode: String, Codable, CaseIterable, Sendable {
     case unsupportedFormat = "E_UNSUPPORTED_FORMAT"
     case decodeFailed = "E_DECODE_FAILED"
@@ -24,6 +28,7 @@ public enum SidecarErrorCode: String, Codable, CaseIterable, Sendable {
     case interrupted = "E_INTERRUPTED"
 }
 
+/// Pipeline stage where a structured error occurred.
 public enum SidecarErrorStage: String, Codable, CaseIterable, Sendable {
     case scan
     case render
@@ -34,6 +39,7 @@ public enum SidecarErrorStage: String, Codable, CaseIterable, Sendable {
     case configuration
 }
 
+/// Structured error record used by logs, scan results, summaries, and sidecars.
 public struct SidecarError: Error, Codable, Sendable, Equatable, LocalizedError {
     public var code: SidecarErrorCode
     public var stage: SidecarErrorStage
@@ -56,6 +62,7 @@ public struct SidecarError: Error, Codable, Sendable, Equatable, LocalizedError 
         self.recoverable = recoverable
     }
 
+    /// Build a fatal configuration error with the stable Phase 1 code.
     public static func configInvalid(_ message: String) -> SidecarError {
         SidecarError(
             code: .configInvalid,

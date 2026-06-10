@@ -21,6 +21,8 @@ struct AnalyzeCommand: ParsableCommand {
         let resolved = try ConfigurationResolver.resolve(cli: shared.overrides)
 
         if dryScan {
+            // `--dry-scan` exits after discovery; `--dry-run` is reserved for
+            // later milestones that would otherwise write sidecars.
             let scanner = ImageScanner()
             let result = try scanner.scan(
                 inputPath: inputPath,
@@ -41,7 +43,7 @@ struct AnalyzeCommand: ParsableCommand {
             LogRecord(
                 level: .info,
                 event: "analyze.scaffold",
-                message: "Analyze pipeline is not implemented until Milestone 1.",
+                message: "Analyze pipeline beyond --dry-scan is not implemented until later Phase 1 milestones.",
                 sourcePath: inputPath,
                 status: "not_implemented"
             )

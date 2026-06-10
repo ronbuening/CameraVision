@@ -1,11 +1,18 @@
 import Foundation
 
+/// Resolves run configuration according to the project-wide precedence rules.
 public enum ConfigurationResolver {
+    /// Default persistent config path required by PW-006.
     public static func defaultConfigPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
         let home = environment["HOME"] ?? NSHomeDirectory()
         return "\(home)/Library/Application Support/aisidecar/config.json"
     }
 
+    /// Build a provenance-ready configuration snapshot.
+    ///
+    /// Precedence is CLI flag > `AISIDECAR_*` environment > JSON config file >
+    /// built-in default. `defaultConfigPath` is injectable so tests remain
+    /// deterministic and do not depend on the user's home directory.
     public static func resolve(
         cli: RunConfigurationOverrides = RunConfigurationOverrides(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -38,11 +45,14 @@ public enum ConfigurationResolver {
         fileManager: FileManager
     ) throws -> AppConfig {
         let lowercasedPath = path.lowercased()
+        // PW-006 intentionally keeps the config format to JSON only.
         if lowercasedPath.hasSuffix(".yaml") || lowercasedPath.hasSuffix(".yml") {
             throw SidecarError.configInvalid("YAML configuration is not supported: \(path)")
         }
 
         guard fileManager.fileExists(atPath: path) else {
+            // An implicit default config may be absent on first run; an explicit
+            // path is treated as user intent and therefore must exist.
             if explicit {
                 throw SidecarError.configInvalid("Configuration file does not exist: \(path)")
             }
@@ -200,6 +210,8 @@ private struct ConfigurationBuilder {
 
 private extension RunConfigurationOverrides {
     func withoutConfigPath() -> RunConfigurationOverrides {
+        // The selected config path controls which file is read, but it is not a
+        // persisted run value and should not participate in provenance.
         RunConfigurationOverrides(
             mode: mode,
             existing: existing,

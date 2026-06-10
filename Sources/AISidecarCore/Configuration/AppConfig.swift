@@ -1,5 +1,6 @@
 import Foundation
 
+/// JSON-backed persistent defaults loaded before environment and CLI overrides.
 public struct AppConfig: Codable, Sendable, Equatable {
     public var mode: AnalysisMode?
     public var existing: ExistingPolicy?
@@ -64,6 +65,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
             .map(\.stringValue)
             .filter { !allowedKeys.contains($0) }
             .sorted()
+        // Unknown keys are rejected so typos in persistent defaults cannot
+        // silently change later batch behavior.
         guard unknownKeys.isEmpty else {
             throw DecodingError.dataCorrupted(
                 .init(

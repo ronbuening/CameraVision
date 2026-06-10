@@ -35,6 +35,8 @@ final class SourceIdentityTests: XCTestCase {
 
         let baseline = try SourceIdentityCalculator.compute(for: file, policy: .fast)
 
+        // This byte is outside the first and last 4 MiB windows, so the fast
+        // identity should remain stable even though the full file changed.
         data[(4 * 1024 * 1024) + 10] ^= 0xff
         try data.write(to: file)
         try setModifiedAt(modifiedAt, for: file)
