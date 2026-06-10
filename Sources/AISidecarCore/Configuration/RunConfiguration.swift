@@ -61,6 +61,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var sourceIdentityPolicy: SourceIdentityPolicy?
     public var derivativeCacheDir: String?
     public var derivativeCacheSizeBytes: Int64?
+    public var subjectCropMarginFraction: Double?
+    public var subjectMergeDominanceThreshold: Double?
 
     public init(
         mode: AnalysisMode? = nil,
@@ -77,7 +79,9 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         debugDerivatives: Bool? = nil,
         sourceIdentityPolicy: SourceIdentityPolicy? = nil,
         derivativeCacheDir: String? = nil,
-        derivativeCacheSizeBytes: Int64? = nil
+        derivativeCacheSizeBytes: Int64? = nil,
+        subjectCropMarginFraction: Double? = nil,
+        subjectMergeDominanceThreshold: Double? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -94,6 +98,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.sourceIdentityPolicy = sourceIdentityPolicy
         self.derivativeCacheDir = derivativeCacheDir
         self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
+        self.subjectCropMarginFraction = subjectCropMarginFraction
+        self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
     }
 }
 
@@ -116,6 +122,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var sourceIdentityPolicy: SourceIdentityPolicy
     public var derivativeCacheDir: String
     public var derivativeCacheSizeBytes: Int64
+    public var subjectCropMarginFraction: Double
+    public var subjectMergeDominanceThreshold: Double
 
     enum CodingKeys: String, CodingKey {
         case mode
@@ -132,6 +140,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case sourceIdentityPolicy = "source_identity_policy"
         case derivativeCacheDir = "derivative_cache_dir"
         case derivativeCacheSizeBytes = "derivative_cache_size_bytes"
+        case subjectCropMarginFraction = "subject_crop_margin_fraction"
+        case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
     }
 
     public init(
@@ -148,7 +158,9 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         debugDerivatives: Bool,
         sourceIdentityPolicy: SourceIdentityPolicy,
         derivativeCacheDir: String = DerivativeCache.defaultDirectoryPath(),
-        derivativeCacheSizeBytes: Int64 = DerivativeCache.defaultSizeCapBytes
+        derivativeCacheSizeBytes: Int64 = DerivativeCache.defaultSizeCapBytes,
+        subjectCropMarginFraction: Double = 0.08,
+        subjectMergeDominanceThreshold: Double = 0.8
     ) {
         self.mode = mode
         self.existing = existing
@@ -164,6 +176,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.sourceIdentityPolicy = sourceIdentityPolicy
         self.derivativeCacheDir = derivativeCacheDir
         self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
+        self.subjectCropMarginFraction = subjectCropMarginFraction
+        self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
     }
 
     public static let builtInDefaults = ResolvedRunConfiguration(
@@ -180,6 +194,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         debugDerivatives: false,
         sourceIdentityPolicy: .sha256,
         derivativeCacheDir: DerivativeCache.defaultDirectoryPath(),
-        derivativeCacheSizeBytes: DerivativeCache.defaultSizeCapBytes
+        derivativeCacheSizeBytes: DerivativeCache.defaultSizeCapBytes,
+        subjectCropMarginFraction: 0.08,
+        subjectMergeDominanceThreshold: 0.8
     )
 }

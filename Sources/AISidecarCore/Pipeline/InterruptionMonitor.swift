@@ -2,7 +2,7 @@ import Darwin
 import Dispatch
 import Foundation
 
-/// Shared interruption state for the synchronous analyze shell pipeline.
+/// Shared interruption state for the analyze shell pipeline.
 ///
 /// Signal handlers only mark intent; the pipeline observes the flag between
 /// files so an in-flight atomic write can finish or remain absent.
@@ -31,8 +31,8 @@ public final class InterruptionMonitor: @unchecked Sendable {
         signal(SIGINT, SIG_IGN)
         signal(SIGTERM, SIG_IGN)
 
-        // A dedicated queue lets signals be observed while the main thread is
-        // running the synchronous CLI pipeline.
+        // A dedicated queue lets signals be observed while the CLI task is
+        // rendering, isolating, or writing the current file.
         let queue = DispatchQueue(label: "aisidecar.signal-monitor")
         let interruptSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: queue)
         interruptSource.setEventHandler { [weak self] in

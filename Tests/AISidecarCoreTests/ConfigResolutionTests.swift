@@ -29,7 +29,9 @@ final class ConfigResolutionTests: XCTestCase {
               "debug_derivatives": true,
               "source_identity_policy": "fast",
               "derivative_cache_dir": "/tmp/aisidecar-cache",
-              "derivative_cache_size_bytes": 1048576
+              "derivative_cache_size_bytes": 1048576,
+              "subject_crop_margin_fraction": 0.12,
+              "subject_merge_dominance_threshold": 0.75
             }
             """
         )
@@ -53,6 +55,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.sourceIdentityPolicy, .fast)
         XCTAssertEqual(resolved.derivativeCacheDir, "/tmp/aisidecar-cache")
         XCTAssertEqual(resolved.derivativeCacheSizeBytes, 1_048_576)
+        XCTAssertEqual(resolved.subjectCropMarginFraction, 0.12)
+        XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.75)
     }
 
     func testEnvironmentOverridesConfigFile() throws {
@@ -76,7 +80,9 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_LOG_LEVEL": "debug",
                 "AISIDECAR_SOURCE_IDENTITY_POLICY": "sha256",
                 "AISIDECAR_DERIVATIVE_CACHE_DIR": "/tmp/env-cache",
-                "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152"
+                "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152",
+                "AISIDECAR_SUBJECT_CROP_MARGIN_FRACTION": "0.15",
+                "AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD": "0.65"
             ],
             defaultConfigPath: configPath
         )
@@ -88,17 +94,23 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.sourceIdentityPolicy, .sha256)
         XCTAssertEqual(resolved.derivativeCacheDir, "/tmp/env-cache")
         XCTAssertEqual(resolved.derivativeCacheSizeBytes, 2_097_152)
+        XCTAssertEqual(resolved.subjectCropMarginFraction, 0.15)
+        XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.65)
     }
 
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
-        let config = AppConfig(sourceIdentityPolicy: .fast)
-        let data = try JSONEncoder().encode(config)
-        let object = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: data) as? [String: String]
+        let config = AppConfig(
+            sourceIdentityPolicy: .fast,
+            subjectCropMarginFraction: 0.12,
+            subjectMergeDominanceThreshold: 0.75
         )
+        let data = try JSONEncoder().encode(config)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        XCTAssertEqual(object["source_identity_policy"], "fast")
+        XCTAssertEqual(object["source_identity_policy"] as? String, "fast")
         XCTAssertNil(object["sourceIdentityPolicy"])
+        XCTAssertEqual(object["subject_crop_margin_fraction"] as? Double, 0.12)
+        XCTAssertEqual(object["subject_merge_dominance_threshold"] as? Double, 0.75)
     }
 
     func testCLIOverridesEnvironment() throws {

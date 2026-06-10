@@ -32,7 +32,7 @@ public struct RawJSONSidecarWriter {
         self.encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     }
 
-    /// Write a raw sidecar shell or return a structured existing-file outcome.
+    /// Write a raw sidecar or return a structured existing-file outcome.
     public func write(
         _ sidecar: RawJSONSidecar,
         to destinationPath: String,

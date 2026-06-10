@@ -2,7 +2,8 @@ import Foundation
 import ArgumentParser
 import AISidecarCore
 
-struct AnalyzeCommand: ParsableCommand {
+@available(macOS 10.15, macCatalyst 13, iOS 13, tvOS 13, watchOS 6, *)
+struct AnalyzeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "analyze",
         abstract: "Analyze one image file or a folder of image files."
@@ -17,7 +18,7 @@ struct AnalyzeCommand: ParsableCommand {
     @OptionGroup
     var shared: SharedOptions
 
-    mutating func run() throws {
+    mutating func run() async throws {
         let resolved = try ConfigurationResolver.resolve(cli: shared.overrides)
 
         if dryScan {
@@ -42,7 +43,7 @@ struct AnalyzeCommand: ParsableCommand {
         let interruptionMonitor = InterruptionMonitor()
         interruptionMonitor.installSignalHandlers()
         let pipeline = AnalyzeShellPipeline(logger: logger)
-        _ = try pipeline.run(
+        _ = try await pipeline.run(
             inputPath: inputPath,
             configuration: resolved,
             interruptionMonitor: interruptionMonitor

@@ -99,6 +99,36 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testInvalidSubjectIsolationConfigFailsAsConfigInvalid() throws {
+        for json in [
+            #"{ "subject_crop_margin_fraction": 0 }"#,
+            #"{ "subject_crop_margin_fraction": 1.1 }"#,
+            #"{ "subject_merge_dominance_threshold": 0 }"#,
+            #"{ "subject_merge_dominance_threshold": 1.1 }"#
+        ] {
+            try assertConfigInvalid {
+                _ = try ConfigurationResolver.resolve(
+                    environment: [:],
+                    defaultConfigPath: writeConfig(json)
+                )
+            }
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_SUBJECT_CROP_MARGIN_FRACTION": "wide"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD": "wide"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     private func assertConfigInvalid(_ operation: () throws -> Void) throws {
         do {
             try operation()

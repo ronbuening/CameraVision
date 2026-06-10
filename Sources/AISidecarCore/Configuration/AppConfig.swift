@@ -16,6 +16,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var sourceIdentityPolicy: SourceIdentityPolicy?
     public var derivativeCacheDir: String?
     public var derivativeCacheSizeBytes: Int64?
+    public var subjectCropMarginFraction: Double?
+    public var subjectMergeDominanceThreshold: Double?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case mode
@@ -32,6 +34,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case sourceIdentityPolicy = "source_identity_policy"
         case derivativeCacheDir = "derivative_cache_dir"
         case derivativeCacheSizeBytes = "derivative_cache_size_bytes"
+        case subjectCropMarginFraction = "subject_crop_margin_fraction"
+        case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
     }
 
     public init(
@@ -48,7 +52,9 @@ public struct AppConfig: Codable, Sendable, Equatable {
         debugDerivatives: Bool? = nil,
         sourceIdentityPolicy: SourceIdentityPolicy? = nil,
         derivativeCacheDir: String? = nil,
-        derivativeCacheSizeBytes: Int64? = nil
+        derivativeCacheSizeBytes: Int64? = nil,
+        subjectCropMarginFraction: Double? = nil,
+        subjectMergeDominanceThreshold: Double? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -64,6 +70,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.sourceIdentityPolicy = sourceIdentityPolicy
         self.derivativeCacheDir = derivativeCacheDir
         self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
+        self.subjectCropMarginFraction = subjectCropMarginFraction
+        self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
     }
 
     public init(from decoder: Decoder) throws {
@@ -102,6 +110,14 @@ public struct AppConfig: Codable, Sendable, Equatable {
         )
         self.derivativeCacheDir = try container.decodeIfPresent(String.self, forKey: .derivativeCacheDir)
         self.derivativeCacheSizeBytes = try container.decodeIfPresent(Int64.self, forKey: .derivativeCacheSizeBytes)
+        self.subjectCropMarginFraction = try container.decodeIfPresent(
+            Double.self,
+            forKey: .subjectCropMarginFraction
+        )
+        self.subjectMergeDominanceThreshold = try container.decodeIfPresent(
+            Double.self,
+            forKey: .subjectMergeDominanceThreshold
+        )
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -120,6 +136,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(sourceIdentityPolicy, forKey: .sourceIdentityPolicy)
         try container.encodeIfPresent(derivativeCacheDir, forKey: .derivativeCacheDir)
         try container.encodeIfPresent(derivativeCacheSizeBytes, forKey: .derivativeCacheSizeBytes)
+        try container.encodeIfPresent(subjectCropMarginFraction, forKey: .subjectCropMarginFraction)
+        try container.encodeIfPresent(subjectMergeDominanceThreshold, forKey: .subjectMergeDominanceThreshold)
     }
 }
 

@@ -15,6 +15,7 @@ public enum DerivativeFormat: String, Codable, Sendable, Equatable {
 public enum DerivativeRole: String, Codable, CaseIterable, Sendable, Equatable {
     case fullResolution = "full_resolution"
     case wholeImage = "whole_image"
+    case subjectIsolated = "subject_isolated"
 }
 
 /// Integer pixel dimensions for rendered artifacts.

@@ -2,8 +2,8 @@ import Foundation
 
 /// Encodes an intentionally empty JSON object.
 ///
-/// Milestone 2 sidecars must reserve object slots for later provenance without
-/// inventing placeholder fields before rendering or model runtime exist.
+/// Sidecars use this for schema slots that were not exercised in a given run,
+/// preserving an object-shaped field without inventing placeholder values.
 public struct EmptyJSONObject: Codable, Sendable, Equatable {
     public init() {}
 
@@ -31,17 +31,17 @@ private struct EmptyCodingKey: CodingKey {
     }
 }
 
-/// Phase 1 raw JSON sidecar shell.
+/// Phase 1 raw JSON sidecar record.
 ///
-/// Milestone 3 records model input profile and derivative provenance while
-/// leaving subject isolation and model runs empty until their milestones.
+/// Milestone 4 records derivative and subject-isolation provenance while still
+/// leaving model runs empty until the model-runtime milestone.
 public struct RawJSONSidecar: Codable, Sendable, Equatable {
     public var schemaVersion: String
     public var source: SourceImage
     public var runConfiguration: ResolvedRunConfiguration
     public var modelInputProfile: ModelInputProfile
     public var derivatives: [DerivativeRecord]
-    public var subjectIsolation: EmptyJSONObject
+    public var subjectIsolation: SubjectIsolationRecord?
     public var modelRuns: [EmptyJSONObject]
     public var errors: [SidecarError]
     public var createdAt: Date
@@ -64,7 +64,7 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         runConfiguration: ResolvedRunConfiguration,
         modelInputProfile: ModelInputProfile = .defaultProfile,
         derivatives: [DerivativeRecord] = [],
-        subjectIsolation: EmptyJSONObject = EmptyJSONObject(),
+        subjectIsolation: SubjectIsolationRecord? = nil,
         modelRuns: [EmptyJSONObject] = [],
         errors: [SidecarError] = [],
         createdAt: Date = Date()
@@ -78,5 +78,35 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         self.modelRuns = modelRuns
         self.errors = errors
         self.createdAt = createdAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.schemaVersion = try container.decode(String.self, forKey: .schemaVersion)
+        self.source = try container.decode(SourceImage.self, forKey: .source)
+        self.runConfiguration = try container.decode(ResolvedRunConfiguration.self, forKey: .runConfiguration)
+        self.modelInputProfile = try container.decode(ModelInputProfile.self, forKey: .modelInputProfile)
+        self.derivatives = try container.decode([DerivativeRecord].self, forKey: .derivatives)
+        self.subjectIsolation = try? container.decode(SubjectIsolationRecord.self, forKey: .subjectIsolation)
+        self.modelRuns = try container.decode([EmptyJSONObject].self, forKey: .modelRuns)
+        self.errors = try container.decode([SidecarError].self, forKey: .errors)
+        self.createdAt = try container.decode(Date.self, forKey: .createdAt)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(source, forKey: .source)
+        try container.encode(runConfiguration, forKey: .runConfiguration)
+        try container.encode(modelInputProfile, forKey: .modelInputProfile)
+        try container.encode(derivatives, forKey: .derivatives)
+        if let subjectIsolation {
+            try container.encode(subjectIsolation, forKey: .subjectIsolation)
+        } else {
+            try container.encode(EmptyJSONObject(), forKey: .subjectIsolation)
+        }
+        try container.encode(modelRuns, forKey: .modelRuns)
+        try container.encode(errors, forKey: .errors)
+        try container.encode(createdAt, forKey: .createdAt)
     }
 }

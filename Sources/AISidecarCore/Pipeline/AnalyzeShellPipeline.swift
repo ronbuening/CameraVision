@@ -1,3 +1,4 @@
+import CoreImage
 import Foundation
 
 /// Result of the analyze shell pipeline.
@@ -26,21 +27,23 @@ public struct AnalyzeShellResult: Sendable, Equatable {
     }
 }
 
-/// Phase 1 analyze pipeline through Milestone 3 rendering.
+/// Phase 1 analyze pipeline through Milestone 4 subject isolation.
 ///
-/// Subject isolation and model runtime remain deferred, but rendered derivative
-/// provenance is now recorded in the raw sidecar.
+/// Model runtime remains deferred, but rendered whole-image and subject
+/// derivative provenance is recorded in the raw sidecar.
 public struct AnalyzeShellPipeline {
     private let fileManager: FileManager
     private let scanner: ImageScanner
     private let writer: RawJSONSidecarWriter
     private let summaryWriter: BatchSummaryWriter
     private let logger: Logger
+    private let maskProvider: any ForegroundMaskProvider
     private let now: @Sendable () -> Date
 
     public init(
         fileManager: FileManager = .default,
         logger: Logger = Logger(),
+        maskProvider: (any ForegroundMaskProvider)? = nil,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.fileManager = fileManager
@@ -48,28 +51,35 @@ public struct AnalyzeShellPipeline {
         self.writer = RawJSONSidecarWriter(fileManager: fileManager)
         self.summaryWriter = BatchSummaryWriter(fileManager: fileManager)
         self.logger = logger
+        if let maskProvider {
+            self.maskProvider = maskProvider
+        } else if #available(macOS 15.0, *) {
+            self.maskProvider = AppleVisionForegroundMaskProvider()
+        } else {
+            self.maskProvider = UnavailableForegroundMaskProvider()
+        }
         self.now = now
     }
 
     /// Run the analyze shell pipeline for one file or one folder.
     ///
     /// Folder runs create progress and summary artifacts unless `dryRun` is set;
-    /// single-file runs write only the sidecar shell and log status.
+    /// single-file runs write only the sidecar and log status.
     public func run(
         inputPath: String,
         configuration: ResolvedRunConfiguration,
         interruptionMonitor: InterruptionMonitor? = nil
-    ) throws -> AnalyzeShellResult {
+    ) async throws -> AnalyzeShellResult {
         let runStartedAt = now()
         let profile = try ModelInputProfileRegistry.resolve(name: configuration.profile)
-        let renderer = ImageRenderer(
-            cache: DerivativeCache(
-                directoryPath: configuration.derivativeCacheDir,
-                sizeCapBytes: configuration.derivativeCacheSizeBytes,
-                fileManager: fileManager,
-                now: now
-            )
+        let cache = DerivativeCache(
+            directoryPath: configuration.derivativeCacheDir,
+            sizeCapBytes: configuration.derivativeCacheSizeBytes,
+            fileManager: fileManager,
+            now: now
         )
+        let renderer = ImageRenderer(cache: cache)
+        let subjectIsolationService = SubjectIsolationService(cache: cache, maskProvider: maskProvider)
         let scanResult = try scanner.scan(
             inputPath: inputPath,
             recursive: configuration.recursive,
@@ -79,7 +89,7 @@ public struct AnalyzeShellPipeline {
         let timestamp = timestampString(for: runStartedAt)
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
         // FR1-012 defines progress and summary artifacts for folder runs; a
-        // single file writes only its sidecar shell and CLI status.
+        // single file writes only its sidecar and CLI status.
         let progressPath = isBatch && !configuration.dryRun
             ? "\(reportDirectory)/batch-progress-\(timestamp).jsonl"
             : nil
@@ -96,8 +106,7 @@ public struct AnalyzeShellPipeline {
 
         func emit(_ record: ProgressRecord) throws {
             records.append(record)
-            // `--dry-run` is the first write-capable milestone's preview mode:
-            // it reports planned sidecars without creating any artifacts.
+            // `--dry-run` reports planned sidecars without creating artifacts.
             if !configuration.dryRun {
                 try progressLog?.append(record)
             }
@@ -153,11 +162,12 @@ public struct AnalyzeShellPipeline {
                     durationMs: durationMs(from: fileStartedAt, to: now())
                 )
             } else {
-                record = process(
+                record = await process(
                     entry,
                     configuration: configuration,
                     profile: profile,
                     renderer: renderer,
+                    subjectIsolationService: subjectIsolationService,
                     fileStartedAt: fileStartedAt
                 )
             }
@@ -210,11 +220,11 @@ public struct AnalyzeShellPipeline {
     }
 
     private func logRecord(for record: ProgressRecord) -> LogRecord {
-        let level: LogLevel = record.status == .failed ? .error : .info
+        let level: LogLevel = record.status == .failed ? .error : (record.errors.isEmpty ? .info : .warn)
         let message: String
         switch record.status {
         case .written:
-            message = "Wrote sidecar."
+            message = record.errors.isEmpty ? "Wrote sidecar." : "Wrote sidecar with recoverable errors."
         case .skippedExisting:
             message = "Skipped existing sidecar."
         case .failed:
@@ -240,8 +250,9 @@ public struct AnalyzeShellPipeline {
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile,
         renderer: ImageRenderer,
+        subjectIsolationService: SubjectIsolationService,
         fileStartedAt: Date
-    ) -> ProgressRecord {
+    ) async -> ProgressRecord {
         if fileManager.fileExists(atPath: entry.sidecarPath) {
             switch configuration.existing {
             case .skip:
@@ -281,11 +292,45 @@ public struct AnalyzeShellPipeline {
                 profile: profile,
                 debugDerivatives: configuration.debugDerivatives
             )
+            var derivatives = rendered.derivatives
+            var subjectIsolation: SubjectIsolationRecord?
+            var errors: [SidecarError] = []
+
+            if configuration.mode != .whole {
+                do {
+                    // FR1-026/027: subject-only failures are terminal for that
+                    // file, while both-mode keeps the whole-image derivative.
+                    let isolation = try await subjectIsolationService.isolate(
+                        source: entry.source,
+                        rendered: rendered,
+                        profile: profile,
+                        configuration: configuration
+                    )
+                    subjectIsolation = isolation.record
+                    if let derivative = isolation.derivative {
+                        derivatives.append(derivative)
+                    }
+                    if let error = isolation.error {
+                        errors.append(error)
+                    }
+                } catch {
+                    let isolationError = subjectIsolationError(from: error)
+                    subjectIsolation = failedSubjectIsolationRecord(
+                        rendered: rendered,
+                        configuration: configuration,
+                        profile: profile
+                    )
+                    errors.append(isolationError)
+                }
+            }
+
             let sidecar = RawJSONSidecar(
                 source: entry.source,
                 runConfiguration: configuration,
                 modelInputProfile: profile,
-                derivatives: rendered.derivatives,
+                derivatives: derivatives,
+                subjectIsolation: subjectIsolation,
+                errors: errors,
                 createdAt: now()
             )
             let outcome = try writer.write(
@@ -293,12 +338,21 @@ public struct AnalyzeShellPipeline {
                 to: entry.sidecarPath,
                 existingPolicy: configuration.existing
             )
+            let progressStatus: ProgressStatus
+            if outcome.status == .written {
+                // A both-mode sidecar can be useful with a recorded isolation
+                // error; subject-only has no valid model input after failure.
+                progressStatus = configuration.mode == .subject && !errors.isEmpty ? .failed : .written
+            } else {
+                progressStatus = .skippedExisting
+            }
             return ProgressRecord(
                 timestamp: now(),
                 sourcePath: entry.source.path,
                 relativePath: entry.source.relativePath,
                 sidecarPath: entry.sidecarPath,
-                status: outcome.status == .written ? .written : .skippedExisting,
+                status: progressStatus,
+                errors: errors,
                 durationMs: durationMs(from: fileStartedAt, to: now())
             )
         } catch {
@@ -341,6 +395,60 @@ public struct AnalyzeShellPipeline {
             code: .renderFailed,
             stage: .render,
             message: "Unable to render derivative before writing \(sidecarPath): \(error.localizedDescription)",
+            recoverable: true
+        )
+    }
+
+    private func subjectIsolationError(from error: Error) -> SidecarError {
+        if let sidecarError = error as? SidecarError, sidecarError.stage == .isolate {
+            return sidecarError
+        }
+        return SidecarError(
+            code: .subjectIsolationFailed,
+            stage: .isolate,
+            message: "Unable to isolate subject: \(error.localizedDescription)",
+            recoverable: true
+        )
+    }
+
+    private func failedSubjectIsolationRecord(
+        rendered: WholeImageRenderResult,
+        configuration: ResolvedRunConfiguration,
+        profile: ModelInputProfile
+    ) -> SubjectIsolationRecord {
+        let analysisDimensions = PixelDimensions(width: rendered.wholeImage.width, height: rendered.wholeImage.height)
+        let fullDimensions = PixelDimensions(width: rendered.fullResolution.width, height: rendered.fullResolution.height)
+        return SubjectIsolationRecord(
+            status: .failed,
+            instanceCount: 0,
+            selectedInstanceIndices: [],
+            mergedInstances: false,
+            instances: [],
+            analysisResolution: analysisDimensions,
+            fullResolution: fullDimensions,
+            scaleFactors: SubjectIsolationScaleFactors(
+                x: Double(fullDimensions.width) / Double(analysisDimensions.width),
+                y: Double(fullDimensions.height) / Double(analysisDimensions.height)
+            ),
+            selectedBoundingBox: nil,
+            cropBoundingBox: nil,
+            cropMarginFraction: configuration.subjectCropMarginFraction,
+            cropMarginPixels: 0,
+            mergeDominanceThreshold: configuration.subjectMergeDominanceThreshold,
+            selectedToUnionAreaRatio: nil,
+            matteRGB: profile.matteRGB,
+            finalDimensions: nil,
+            upscaled: false
+        )
+    }
+}
+
+private struct UnavailableForegroundMaskProvider: ForegroundMaskProvider {
+    func foregroundMasks(in _: CIImage, dimensions _: PixelDimensions) async throws -> ForegroundMaskResult {
+        throw SidecarError(
+            code: .subjectIsolationFailed,
+            stage: .isolate,
+            message: "Apple Vision foreground masking requires macOS 15 or newer.",
             recoverable: true
         )
     }

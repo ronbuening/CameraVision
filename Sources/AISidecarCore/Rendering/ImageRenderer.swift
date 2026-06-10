@@ -46,7 +46,7 @@ public struct ImageRenderer {
         let fullFormat = DerivativeFormat.tiff
         let wholeFormat = profile.preferredWholeImageFormat
 
-        // The derivative set is consumed together by subject isolation later;
+        // The derivative set is consumed together by subject isolation;
         // if either role is absent or corrupt, regenerate both from the source.
         if var fullRecord = try cache.cachedRecord(
             source: source,

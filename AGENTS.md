@@ -2,7 +2,7 @@
 
 ## Project Context
 
-CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state is Phase 1 Milestone 3: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, sidecar naming, output tree mirroring, raw JSON sidecar writes, JSONL progress logs, batch summaries, interruption handling, model input profiles, whole-image rendering, full-resolution render retention, derivative cache, and offline tests.
+CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state is Phase 1 Milestone 4: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, sidecar naming, output tree mirroring, raw JSON sidecar writes, JSONL progress logs, batch summaries, interruption handling, model input profiles, whole-image rendering, full-resolution render retention, derivative cache, subject isolation with the two-resolution Apple Vision/Core Image chain, and offline tests.
 
 Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files. XMP writeback begins in Phase 2.
 
@@ -22,9 +22,10 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 - `Sources/AISidecarCore/FileScanning` owns scanner/source image records.
 - `Sources/AISidecarCore/Identity` owns source content identity hashing.
 - `Sources/AISidecarCore/Rendering` owns model input profiles, render recipes, whole-image rendering, and the derivative cache.
+- `Sources/AISidecarCore/SubjectIsolation` owns foreground mask generation, instance selection/merge policy, two-resolution subject crops, and subject-isolation provenance.
 - `Sources/AISidecarCore/Sidecars` owns raw `.ai.json` sidecar naming, schema records, and atomic writes.
 - `Sources/AISidecarCore/Reporting` owns text/JSON logging, JSONL progress logs, and batch summaries.
-- `Sources/AISidecarCore/Pipeline` owns the current Milestone 3 analyze shell pipeline.
+- `Sources/AISidecarCore/Pipeline` owns the current Milestone 4 analyze shell pipeline.
 - `Sources/AISidecarCLI` owns `aisidecar analyze` command wiring and shared options.
 - `Tests/AISidecarCoreTests` contains offline XCTest coverage.
 
@@ -32,7 +33,7 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 
 - Build and test: `swift test`.
 - CLI help check: `swift run aisidecar analyze --help`.
-- Manual Milestone 3 smoke check: `swift run aisidecar analyze <folder> --recursive --output-dir <tmp-output>`.
+- Manual Milestone 4 smoke check: `swift run aisidecar analyze <image-or-folder> --mode subject --debug-derivatives --output-dir <tmp-output>`.
 - If XCTest is missing because `xcode-select` points at Command Line Tools, run the same commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 
 ## Documentation Index
@@ -48,8 +49,8 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 ## Implementation Guidance
 
 - Implement one milestone at a time unless the user explicitly expands scope.
-- The next planned unit is Phase 1 Milestone 4: subject isolation with the two-resolution Apple Vision/Core Image chain.
-- Do not jump ahead to model runtime or XMP writing while implementing Milestone 4.
+- The next planned unit is Phase 1 Milestone 5: Ollama vision model client.
+- Do not jump ahead to XMP writing while implementing Phase 1 work.
 - Keep config precedence as CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default.
 - Preserve stable raw string values for public enums and error codes because later sidecars and logs depend on them.
 - Follow `agent_docs/commenting_guide.md` whenever creating or updating types, methods, or substantive logic: add `///` documentation for reusable public API and inline comments for intent, constraints, requirement ties, and non-obvious domain behavior rather than restating code.

@@ -95,6 +95,14 @@ public enum ConfigurationResolver {
             derivativeCacheSizeBytes: try int64Value(
                 from: environment["AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES"],
                 key: "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES"
+            ),
+            subjectCropMarginFraction: try doubleValue(
+                from: environment["AISIDECAR_SUBJECT_CROP_MARGIN_FRACTION"],
+                key: "AISIDECAR_SUBJECT_CROP_MARGIN_FRACTION"
+            ),
+            subjectMergeDominanceThreshold: try doubleValue(
+                from: environment["AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD"],
+                key: "AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD"
             )
         )
     }
@@ -136,6 +144,16 @@ public enum ConfigurationResolver {
         }
         return value
     }
+
+    private static func doubleValue(from rawValue: String?, key: String) throws -> Double? {
+        guard let rawValue else {
+            return nil
+        }
+        guard let value = Double(rawValue), value.isFinite else {
+            throw SidecarError.configInvalid("Invalid finite decimal value for \(key): \(rawValue)")
+        }
+        return value
+    }
 }
 
 private struct ConfigurationBuilder {
@@ -153,6 +171,8 @@ private struct ConfigurationBuilder {
     private var sourceIdentityPolicy: SourceIdentityPolicy
     private var derivativeCacheDir: String
     private var derivativeCacheSizeBytes: Int64
+    private var subjectCropMarginFraction: Double
+    private var subjectMergeDominanceThreshold: Double
 
     init(defaults: ResolvedRunConfiguration) {
         self.mode = defaults.mode
@@ -169,6 +189,8 @@ private struct ConfigurationBuilder {
         self.sourceIdentityPolicy = defaults.sourceIdentityPolicy
         self.derivativeCacheDir = defaults.derivativeCacheDir
         self.derivativeCacheSizeBytes = defaults.derivativeCacheSizeBytes
+        self.subjectCropMarginFraction = defaults.subjectCropMarginFraction
+        self.subjectMergeDominanceThreshold = defaults.subjectMergeDominanceThreshold
     }
 
     mutating func apply(config: AppConfig) {
@@ -186,6 +208,8 @@ private struct ConfigurationBuilder {
         if let value = config.sourceIdentityPolicy { sourceIdentityPolicy = value }
         if let value = config.derivativeCacheDir { derivativeCacheDir = value }
         if let value = config.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
+        if let value = config.subjectCropMarginFraction { subjectCropMarginFraction = value }
+        if let value = config.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
     }
 
     mutating func apply(overrides: RunConfigurationOverrides) {
@@ -203,6 +227,8 @@ private struct ConfigurationBuilder {
         if let value = overrides.sourceIdentityPolicy { sourceIdentityPolicy = value }
         if let value = overrides.derivativeCacheDir { derivativeCacheDir = value }
         if let value = overrides.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
+        if let value = overrides.subjectCropMarginFraction { subjectCropMarginFraction = value }
+        if let value = overrides.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
     }
 
     func resolved() throws -> ResolvedRunConfiguration {
@@ -216,6 +242,15 @@ private struct ConfigurationBuilder {
         _ = try ModelInputProfileRegistry.resolve(name: profile)
         guard derivativeCacheSizeBytes > 0 else {
             throw SidecarError.configInvalid("derivative_cache_size_bytes must be greater than zero")
+        }
+        guard subjectCropMarginFraction > 0, subjectCropMarginFraction <= 1, subjectCropMarginFraction.isFinite else {
+            throw SidecarError.configInvalid("subject_crop_margin_fraction must be greater than zero and at most one")
+        }
+        guard subjectMergeDominanceThreshold > 0,
+              subjectMergeDominanceThreshold <= 1,
+              subjectMergeDominanceThreshold.isFinite
+        else {
+            throw SidecarError.configInvalid("subject_merge_dominance_threshold must be greater than zero and at most one")
         }
 
         return ResolvedRunConfiguration(
@@ -232,7 +267,9 @@ private struct ConfigurationBuilder {
             debugDerivatives: debugDerivatives,
             sourceIdentityPolicy: sourceIdentityPolicy,
             derivativeCacheDir: derivativeCacheDir,
-            derivativeCacheSizeBytes: derivativeCacheSizeBytes
+            derivativeCacheSizeBytes: derivativeCacheSizeBytes,
+            subjectCropMarginFraction: subjectCropMarginFraction,
+            subjectMergeDominanceThreshold: subjectMergeDominanceThreshold
         )
     }
 }
@@ -255,7 +292,9 @@ private extension RunConfigurationOverrides {
             debugDerivatives: debugDerivatives,
             sourceIdentityPolicy: sourceIdentityPolicy,
             derivativeCacheDir: derivativeCacheDir,
-            derivativeCacheSizeBytes: derivativeCacheSizeBytes
+            derivativeCacheSizeBytes: derivativeCacheSizeBytes,
+            subjectCropMarginFraction: subjectCropMarginFraction,
+            subjectMergeDominanceThreshold: subjectMergeDominanceThreshold
         )
     }
 }

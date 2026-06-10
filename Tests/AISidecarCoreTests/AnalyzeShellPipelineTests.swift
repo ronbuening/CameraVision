@@ -1,13 +1,14 @@
+import CoreGraphics
 import XCTest
 @testable import AISidecarCore
 
 final class AnalyzeShellPipelineTests: XCTestCase {
-    func testSingleFileRunWritesOnlySidecarWithoutBatchArtifacts() throws {
+    func testSingleFileRunWritesOnlySidecarWithoutBatchArtifacts() async throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let image = try writeTestImage("A.JPG", in: root)
 
-        let result = try AnalyzeShellPipeline(
+        let result = try await AnalyzeShellPipeline(
             logger: Logger(sink: { _ in }),
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_050))
         ).run(
@@ -25,7 +26,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertTrue(batchArtifacts.isEmpty)
     }
 
-    func testRecursiveFolderRunWritesMirroredShellSidecarsProgressLogAndSummary() throws {
+    func testRecursiveFolderRunWritesMirroredShellSidecarsProgressLogAndSummary() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         addTeardownBlock {
@@ -41,7 +42,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000))
         )
 
-        let result = try pipeline.run(
+        let result = try await pipeline.run(
             inputPath: root.path,
             configuration: config(recursive: true, outputDir: output.path, cacheDir: output.appendingPathComponent("cache").path)
         )
@@ -76,7 +77,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertFalse(logs.lines.isEmpty)
     }
 
-    func testDryRunCreatesNoSidecarsProgressLogOrSummary() throws {
+    func testDryRunCreatesNoSidecarsProgressLogOrSummary() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         try FileManager.default.removeItem(at: output)
@@ -86,7 +87,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         }
         _ = try writeFile("A.NEF", data: Data("nef".utf8), in: root)
 
-        let result = try AnalyzeShellPipeline(
+        let result = try await AnalyzeShellPipeline(
             logger: Logger(sink: { _ in }),
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_100))
         ).run(
@@ -106,7 +107,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
     }
 
-    func testRerunWithExistingSkipSkipsAlreadyWrittenSidecars() throws {
+    func testRerunWithExistingSkipSkipsAlreadyWrittenSidecars() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         addTeardownBlock {
@@ -121,12 +122,12 @@ final class AnalyzeShellPipelineTests: XCTestCase {
             cacheDir: output.appendingPathComponent("cache").path
         )
 
-        _ = try AnalyzeShellPipeline(
+        _ = try await AnalyzeShellPipeline(
             logger: Logger(sink: { _ in }),
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_200))
         ).run(inputPath: root.path, configuration: configuration)
 
-        let second = try AnalyzeShellPipeline(
+        let second = try await AnalyzeShellPipeline(
             logger: Logger(sink: { _ in }),
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_300))
         ).run(inputPath: root.path, configuration: configuration)
@@ -136,7 +137,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertEqual(second.summary?.written, 0)
     }
 
-    func testExistingSkipAvoidsRenderingInvalidInput() throws {
+    func testExistingSkipAvoidsRenderingInvalidInput() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         addTeardownBlock {
@@ -148,7 +149,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         try Data("{}".utf8).write(to: existing)
 
-        let result = try AnalyzeShellPipeline(
+        let result = try await AnalyzeShellPipeline(
             logger: Logger(sink: { _ in }),
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_350))
         ).run(
@@ -165,7 +166,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("cache").path))
     }
 
-    func testRenderFailureWritesErrorSidecarAndFailedRecord() throws {
+    func testRenderFailureWritesErrorSidecarAndFailedRecord() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         addTeardownBlock {
@@ -174,7 +175,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         }
         let image = try writeFile("Broken.JPG", data: Data("not an image".utf8), in: root)
 
-        let result = try AnalyzeShellPipeline(
+        let result = try await AnalyzeShellPipeline(
             logger: Logger(sink: { _ in }),
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_360))
         ).run(
@@ -197,7 +198,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertEqual(sidecar.errors.first?.code, .decodeFailed)
     }
 
-    func testDebugDerivativesAreCopiedBesideSourceAndRecorded() throws {
+    func testDebugDerivativesAreCopiedBesideSourceAndRecorded() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         addTeardownBlock {
@@ -206,7 +207,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         }
         let image = try writeTestImage("Bird.JPG", in: root)
 
-        let result = try AnalyzeShellPipeline(
+        let result = try await AnalyzeShellPipeline(
             logger: Logger(sink: { _ in }),
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_370))
         ).run(
@@ -239,7 +240,124 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         })
     }
 
-    func testInterruptedRunWritesInterruptedSummaryWithoutPartialSidecar() throws {
+    func testSubjectModeWritesSubjectDerivativeAndIsolationRecord() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Subject.JPG", width: 120, height: 80, in: root)
+
+        let result = try await AnalyzeShellPipeline(
+            logger: Logger(sink: { _ in }),
+            maskProvider: StaticForegroundMaskProvider([
+                StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
+            ]),
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_380))
+        ).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .subject,
+                debugDerivatives: true,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let sidecar = try decoder.decode(
+            RawJSONSidecar.self,
+            from: Data(contentsOf: output.appendingPathComponent("Subject.JPG.ai.json"))
+        )
+        XCTAssertEqual(sidecar.derivatives.map(\.role), [.fullResolution, .wholeImage, .subjectIsolated])
+        XCTAssertEqual(sidecar.subjectIsolation?.status, .success)
+        XCTAssertEqual(sidecar.subjectIsolation?.selectedInstanceIndices, [1])
+        XCTAssertTrue(sidecar.errors.isEmpty)
+        let subjectDerivative = try XCTUnwrap(sidecar.derivatives.first { $0.role == .subjectIsolated })
+        XCTAssertEqual(
+            subjectDerivative.debugPath,
+            root.appendingPathComponent("Subject.JPG.aisidecar.subject_isolated.jpg").path
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(subjectDerivative.debugPath)))
+    }
+
+    func testSubjectModeNoForegroundWritesFailureSidecarWithoutSubjectDerivative() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("NoForeground.JPG", width: 120, height: 80, in: root)
+
+        let result = try await AnalyzeShellPipeline(
+            logger: Logger(sink: { _ in }),
+            maskProvider: StaticForegroundMaskProvider([]),
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_390))
+        ).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .subject,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.failed])
+        XCTAssertEqual(result.records.first?.errors.first?.code, .subjectIsolationNoForeground)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let sidecar = try decoder.decode(
+            RawJSONSidecar.self,
+            from: Data(contentsOf: output.appendingPathComponent("NoForeground.JPG.ai.json"))
+        )
+        XCTAssertEqual(sidecar.subjectIsolation?.status, .noForeground)
+        XCTAssertEqual(sidecar.errors.first?.code, .subjectIsolationNoForeground)
+        XCTAssertFalse(sidecar.derivatives.contains { $0.role == .subjectIsolated })
+    }
+
+    func testBothModeNoForegroundWritesWholeSidecarWithRecoverableError() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Both.JPG", width: 120, height: 80, in: root)
+
+        let result = try await AnalyzeShellPipeline(
+            logger: Logger(sink: { _ in }),
+            maskProvider: StaticForegroundMaskProvider([]),
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_395))
+        ).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .both,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        XCTAssertEqual(result.records.first?.errors.first?.code, .subjectIsolationNoForeground)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let sidecar = try decoder.decode(
+            RawJSONSidecar.self,
+            from: Data(contentsOf: output.appendingPathComponent("Both.JPG.ai.json"))
+        )
+        XCTAssertEqual(sidecar.derivatives.map(\.role), [.fullResolution, .wholeImage])
+        XCTAssertEqual(sidecar.subjectIsolation?.status, .noForeground)
+        XCTAssertEqual(sidecar.errors.first?.code, .subjectIsolationNoForeground)
+    }
+
+    func testInterruptedRunWritesInterruptedSummaryWithoutPartialSidecar() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         addTeardownBlock {
@@ -250,7 +368,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         let monitor = InterruptionMonitor()
         monitor.requestInterruption()
 
-        let result = try AnalyzeShellPipeline(
+        let result = try await AnalyzeShellPipeline(
             logger: Logger(sink: { _ in }),
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_400))
         ).run(
@@ -274,12 +392,13 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         recursive: Bool,
         outputDir: String?,
         existing: ExistingPolicy = .skip,
+        mode: AnalysisMode = .whole,
         dryRun: Bool = false,
         debugDerivatives: Bool = false,
         cacheDir: String
     ) -> ResolvedRunConfiguration {
         ResolvedRunConfiguration(
-            mode: .both,
+            mode: mode,
             existing: existing,
             recursive: recursive,
             outputDir: outputDir,

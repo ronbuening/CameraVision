@@ -1,8 +1,8 @@
 # Implementation Plan - Phase 1 CLI Raw JSON Sidecar Generator
 
-Version: 0.4
+Version: 0.5
 Date: 2026-06-10
-Supersedes: 0.1, 0.2, 0.3
+Supersedes: 0.1, 0.2, 0.3, 0.4
 Implements: Phase 1 Requirements v0.2 (`01-cli-raw-json-sidecar-requirements.md`)
 Binary: `aisidecar` (subcommand: `analyze`)
 Core library: `AISidecarCore`
@@ -14,16 +14,16 @@ Traceability in this plan points at the v0.2 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-3 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, records model input profile and derivative provenance, applies `--existing`, writes folder-run JSONL progress logs and batch summaries, and handles interruption through the analyze shell pipeline. It does not yet isolate subjects, call Ollama, or write XMP.
+Phase 1 Milestones 0-4 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, writes folder-run JSONL progress logs and batch summaries, and handles interruption through the analyze shell pipeline. It does not yet call Ollama or write XMP.
 
 Latest verification for this baseline:
 
 ```text
-swift test                                      61 tests, 0 failures
+swift test                                      74 tests, 0 failures
 swift run aisidecar analyze --help             passed
 ```
 
-The next implementation unit is Milestone 4: Subject Isolation.
+The next implementation unit is Milestone 5: Ollama Vision Model Client.
 
 ## 1. Implementation Position
 
@@ -106,7 +106,9 @@ AI-Sidecar-Tagger/
       SubjectIsolation/
         SubjectIsolationService.swift   // two-resolution chain FR1-021a-d
         InstanceSelectionPolicy.swift   // FR1-019a-c selection + merge
-        SubjectMaskResult.swift
+        AppleVisionForegroundMaskProvider.swift
+        MaskGeometry.swift
+        SubjectIsolationTypes.swift
       ModelRuntime/
         VisionModelRunner.swift         // protocol, FR1-031
         OllamaVisionRunner.swift        // FR1-030a-f
@@ -125,11 +127,11 @@ AI-Sidecar-Tagger/
         BatchSummary.swift              // FR1-012 derived from log
         Logger.swift                    // text + json formats
       Pipeline/
-        AnalyzeShellPipeline.swift      // scanner -> renderer -> sidecar shell path
+        AnalyzeShellPipeline.swift      // scanner -> renderer -> isolation -> sidecar path
         InterruptionMonitor.swift       // SIGINT/SIGTERM interruption state
         AnalyzePipeline.swift           // PW-015 staged concurrency
     AISidecarCLI/
-      main.swift
+      AISidecarCommand.swift
       SharedOptions.swift               // PW-004 glossary, composed by all subcommands
       AnalyzeCommand.swift
   Tests/
@@ -193,9 +195,9 @@ Exit criteria: a recursive run over the duplicate-basename fixture tree produces
 
 Implemented notes:
 
-1. `AnalyzeShellPipeline` was introduced in Milestone 2 for the durable scan/write layer and is extended in Milestone 3 through whole-image rendering.
+1. `AnalyzeShellPipeline` was introduced in Milestone 2 for the durable scan/write layer, extended in Milestone 3 through whole-image rendering, and extended in Milestone 4 through subject isolation.
 2. Folder runs write `batch-progress-<ISO-timestamp>.jsonl` and `batch-summary-<ISO-timestamp>.json` in `--output-dir` when supplied, otherwise beside the scan root.
-3. Single-file runs write only the sidecar shell and log user-facing status; progress and summary artifacts remain folder-run outputs.
+3. Single-file runs write only the per-image sidecar and log user-facing status; progress and summary artifacts remain folder-run outputs.
 4. `--dry-run` reports intended sidecar actions without writing sidecars, progress logs, or summaries.
 5. `SIGINT`/`SIGTERM` are converted into interruption state; completed records are preserved, current writes remain atomic, and the summary records `E_INTERRUPTED` when writable.
 
@@ -237,7 +239,7 @@ Implemented notes:
 3. Offline tests cover generated JPEG/PNG/TIFF rendering, all 8 EXIF orientation values, sRGB/profile checks, cache reuse, cache corruption misses, LRU eviction, debug derivative copies, render failure sidecars, and existing-skip render avoidance.
 4. RAW/NEF verification remains a manual smoke check unless legally shareable RAW fixtures are added.
 
-## 8. Milestone 4 - Subject Isolation (Two-Resolution Chain)
+## 8. Milestone 4 - Subject Isolation (Two-Resolution Chain, Implemented)
 
 Implements FR1-019 through FR1-027. The chain, in order:
 
@@ -251,6 +253,16 @@ Implements FR1-019 through FR1-027. The chain, in order:
 Failure behavior: `--mode subject` writes `E_SUBJECT_ISOLATION_NO_FOREGROUND` with no whole-image substitution (FR1-026); `--mode both` completes the whole-image run and records the failure (FR1-027).
 
 Exit criteria: AC1-005 demonstrated — a fixture frame whose subject occupies ≤ 10% of the long edge yields a subject derivative with measurably more native subject pixels than a crop of the 2048 px derivative could contain; AC1-006 demonstrated on a multi-bird fixture.
+
+Implemented notes:
+
+1. `SubjectIsolationService` runs on the cached whole-image derivative for analysis, maps selected masks and boxes back to the cached full-resolution render, composites onto the profile matte, and writes a cached `subject_isolated` JPEG derivative.
+2. `ForegroundMaskProvider` keeps tests deterministic: production uses `AppleVisionForegroundMaskProvider`, while XCTest injects exact mask fixtures. Automated tests therefore remain offline and do not depend on Apple Vision detecting synthetic subjects.
+3. Subject derivative cache keys include the render recipe plus subject-isolation settings (`subject_crop_margin_fraction`, `subject_merge_dominance_threshold`, and matte RGB) so config changes cannot reuse stale crops.
+4. `subject_crop_margin_fraction` and `subject_merge_dominance_threshold` are available through JSON config and `AISIDECAR_*` environment overrides, validated as finite values in `(0, 1]`, and recorded in `run_configuration`.
+5. `RawJSONSidecar.subject_isolation` now decodes to `SubjectIsolationRecord` when isolation runs and encodes `{}` when isolation was not attempted, preserving the Phase 1 top-level schema slot.
+6. `--mode subject` records `E_SUBJECT_ISOLATION_NO_FOREGROUND` as a failed per-file result with no whole-image substitution; `--mode both` writes the whole-image derivative set and records the isolation error as recoverable sidecar/progress provenance.
+7. Offline tests cover instance selection, merge threshold behavior, edge-clamped margins, no-upscale behavior, no-foreground errors, both-mode recovery, debug derivative copies, and the AC1-005 two-resolution small-subject case. A real-photo Apple Vision smoke check remains recommended before evaluating production mask quality.
 
 ## 9. Milestone 5 - Ollama Vision Model Client
 
@@ -324,8 +336,13 @@ ModelInputProfileTests    aspect-preserving resize, long-edge and total-pixel
                           enforcement, no-upscale default
 RenderRecipeTests         all 8 EXIF orientations baked correctly,
                           sRGB conversion and profile embedding
-InstanceSelectionTests    largest-area selection, center tiebreak, merge-rule
+InstanceSelectionPolicyTests
+                          largest-area selection, center tiebreak, merge-rule
                           dominance ratio, multi-instance recording
+SubjectIsolationServiceTests
+                          deterministic mask fixtures for two-resolution crop
+                          mapping, edge-clamped margins, no foreground,
+                          no-upscale default, and subject cache separation
 JSONSidecarTests          schema version, provenance completeness (digest,
                           runtime version, prompt hash, seed, thinking flag),
                           error-object serialization, unknown-field preservation
