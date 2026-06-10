@@ -9,6 +9,7 @@ final class ConfigResolutionTests: XCTestCase {
         )
 
         XCTAssertEqual(resolved, .builtInDefaults)
+        XCTAssertEqual(resolved.sourceIdentityPolicy, .sha256)
     }
 
     func testConfigFileOverridesDefaults() throws {
@@ -25,7 +26,8 @@ final class ConfigResolutionTests: XCTestCase {
               "log_level": "debug",
               "log_format": "json",
               "dry_run": true,
-              "debug_derivatives": true
+              "debug_derivatives": true,
+              "source_identity_policy": "fast"
             }
             """
         )
@@ -46,6 +48,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.logFormat, .json)
         XCTAssertTrue(resolved.dryRun)
         XCTAssertTrue(resolved.debugDerivatives)
+        XCTAssertEqual(resolved.sourceIdentityPolicy, .fast)
     }
 
     func testEnvironmentOverridesConfigFile() throws {
@@ -55,7 +58,8 @@ final class ConfigResolutionTests: XCTestCase {
               "mode": "whole",
               "existing": "fail",
               "model": "file:model",
-              "log_level": "error"
+              "log_level": "error",
+              "source_identity_policy": "fast"
             }
             """
         )
@@ -65,7 +69,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_MODE": "subject",
                 "AISIDECAR_EXISTING": "overwrite",
                 "AISIDECAR_MODEL": "env:model",
-                "AISIDECAR_LOG_LEVEL": "debug"
+                "AISIDECAR_LOG_LEVEL": "debug",
+                "AISIDECAR_SOURCE_IDENTITY_POLICY": "sha256"
             ],
             defaultConfigPath: configPath
         )
@@ -74,6 +79,18 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.existing, .overwrite)
         XCTAssertEqual(resolved.model, "env:model")
         XCTAssertEqual(resolved.logLevel, .debug)
+        XCTAssertEqual(resolved.sourceIdentityPolicy, .sha256)
+    }
+
+    func testSourceIdentityPolicyUsesStableJSONKey() throws {
+        let config = AppConfig(sourceIdentityPolicy: .fast)
+        let data = try JSONEncoder().encode(config)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: String]
+        )
+
+        XCTAssertEqual(object["source_identity_policy"], "fast")
+        XCTAssertNil(object["sourceIdentityPolicy"])
     }
 
     func testCLIOverridesEnvironment() throws {

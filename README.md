@@ -4,7 +4,7 @@ CameraVision is a local macOS utility for generating AI-assisted image metadata 
 
 ## Current State
 
-Milestone 0 of Phase 1 is implemented.
+Milestone 1 of Phase 1 is implemented.
 
 The repository currently contains:
 
@@ -15,16 +15,16 @@ The repository currently contains:
 - Configuration resolution with precedence: CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default.
 - The frozen Phase 1 structured error taxonomy.
 - Text and JSON log rendering.
-- Offline XCTest coverage for config resolution, validation, logging, and error serialization.
+- File and folder scanning with supported-extension filtering, hidden/system/sidecar exclusion, relative path recording, and source identity hashing.
+- `aisidecar analyze ... --dry-scan` JSON output.
+- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, and source identity.
 
 Not implemented yet:
 
-- Image scanning and source identity.
 - RAW/JPEG rendering and derivative caching.
 - Apple Vision subject isolation.
 - Ollama model calls.
 - Raw `.ai.json` sidecar writing.
-- `--dry-scan` behavior.
 - XMP output of any kind.
 
 ## Repository Layout
@@ -65,6 +65,6 @@ env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode
 
 ## Next Steps
 
-The next planned implementation unit is Phase 1 Milestone 1: scanner and source identity. That work should add file/folder scan behavior, supported image extension filtering, hidden and sidecar exclusion, relative path recording, source identity hashing, and `--dry-scan` output.
+The next planned implementation unit is Phase 1 Milestone 2: sidecar naming, output tree mirroring, atomic writes, progress logging, and batch summaries.
 
-Milestone 1 should preserve the Milestone 0 boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and presentation, and tests must remain offline with no Ollama or network dependency.
+Milestone 2 should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and presentation, and tests must remain offline with no Ollama or network dependency.

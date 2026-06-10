@@ -75,6 +75,11 @@ public enum ConfigurationResolver {
             debugDerivatives: try boolValue(
                 from: environment["AISIDECAR_DEBUG_DERIVATIVES"],
                 key: "AISIDECAR_DEBUG_DERIVATIVES"
+            ),
+            sourceIdentityPolicy: try enumValue(
+                SourceIdentityPolicy.self,
+                from: environment["AISIDECAR_SOURCE_IDENTITY_POLICY"],
+                key: "AISIDECAR_SOURCE_IDENTITY_POLICY"
             )
         )
     }
@@ -120,6 +125,7 @@ private struct ConfigurationBuilder {
     private var logFormat: LogFormat
     private var dryRun: Bool
     private var debugDerivatives: Bool
+    private var sourceIdentityPolicy: SourceIdentityPolicy
 
     init(defaults: ResolvedRunConfiguration) {
         self.mode = defaults.mode
@@ -133,6 +139,7 @@ private struct ConfigurationBuilder {
         self.logFormat = defaults.logFormat
         self.dryRun = defaults.dryRun
         self.debugDerivatives = defaults.debugDerivatives
+        self.sourceIdentityPolicy = defaults.sourceIdentityPolicy
     }
 
     mutating func apply(config: AppConfig) {
@@ -147,6 +154,7 @@ private struct ConfigurationBuilder {
         if let value = config.logFormat { logFormat = value }
         if let value = config.dryRun { dryRun = value }
         if let value = config.debugDerivatives { debugDerivatives = value }
+        if let value = config.sourceIdentityPolicy { sourceIdentityPolicy = value }
     }
 
     mutating func apply(overrides: RunConfigurationOverrides) {
@@ -161,6 +169,7 @@ private struct ConfigurationBuilder {
         if let value = overrides.logFormat { logFormat = value }
         if let value = overrides.dryRun { dryRun = value }
         if let value = overrides.debugDerivatives { debugDerivatives = value }
+        if let value = overrides.sourceIdentityPolicy { sourceIdentityPolicy = value }
     }
 
     func resolved() throws -> ResolvedRunConfiguration {
@@ -183,7 +192,8 @@ private struct ConfigurationBuilder {
             logLevel: logLevel,
             logFormat: logFormat,
             dryRun: dryRun,
-            debugDerivatives: debugDerivatives
+            debugDerivatives: debugDerivatives,
+            sourceIdentityPolicy: sourceIdentityPolicy
         )
     }
 }
@@ -201,7 +211,8 @@ private extension RunConfigurationOverrides {
             logLevel: logLevel,
             logFormat: logFormat,
             dryRun: dryRun,
-            debugDerivatives: debugDerivatives
+            debugDerivatives: debugDerivatives,
+            sourceIdentityPolicy: sourceIdentityPolicy
         )
     }
 }

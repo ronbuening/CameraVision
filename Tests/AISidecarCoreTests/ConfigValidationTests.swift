@@ -58,6 +58,22 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testInvalidSourceIdentityPolicyFailsAsConfigInvalid() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "source_identity_policy": "quick" }"#)
+            )
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_SOURCE_IDENTITY_POLICY": "quick"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     private func assertConfigInvalid(_ operation: () throws -> Void) throws {
         do {
             try operation()

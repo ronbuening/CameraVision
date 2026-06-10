@@ -2,7 +2,7 @@
 
 ## Project Context
 
-CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state is Phase 1 Milestone 0 only: package scaffold, CLI surface, config resolution, structured errors, logging, and offline tests.
+CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state is Phase 1 Milestone 1: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, and offline tests.
 
 Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files. XMP writeback begins in Phase 2.
 
@@ -19,6 +19,8 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 - `Package.swift` defines `AISidecarCore`, `AISidecarCLI`, and `AISidecarCoreTests`.
 - `Sources/AISidecarCore/Configuration` owns config defaults and precedence.
 - `Sources/AISidecarCore/Errors` owns the frozen Phase 1 error code set.
+- `Sources/AISidecarCore/FileScanning` owns scanner/source image records.
+- `Sources/AISidecarCore/Identity` owns source content identity hashing.
 - `Sources/AISidecarCore/Reporting` owns text and JSON logging.
 - `Sources/AISidecarCLI` owns `aisidecar analyze` scaffolding and shared options.
 - `Tests/AISidecarCoreTests` contains offline XCTest coverage.
@@ -41,7 +43,7 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 ## Implementation Guidance
 
 - Implement one milestone at a time unless the user explicitly expands scope.
-- For Phase 1 Milestone 1, start with scanner/source identity and `--dry-scan`; do not jump ahead to rendering, model runtime, or sidecar writing.
+- For Phase 1 Milestone 2, start with sidecar naming, output tree mirroring, atomic writes, progress logging, and batch summaries; do not jump ahead to rendering, model runtime, or XMP writing.
 - Keep config precedence as CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default.
 - Preserve stable raw string values for public enums and error codes because later sidecars and logs depend on them.
 - Add or update tests with each behavior change. Prefer focused unit tests in `AISidecarCoreTests`.

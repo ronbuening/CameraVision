@@ -50,6 +50,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var logFormat: LogFormat?
     public var dryRun: Bool?
     public var debugDerivatives: Bool?
+    public var sourceIdentityPolicy: SourceIdentityPolicy?
 
     public init(
         mode: AnalysisMode? = nil,
@@ -63,7 +64,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         logLevel: LogLevel? = nil,
         logFormat: LogFormat? = nil,
         dryRun: Bool? = nil,
-        debugDerivatives: Bool? = nil
+        debugDerivatives: Bool? = nil,
+        sourceIdentityPolicy: SourceIdentityPolicy? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -77,6 +79,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.logFormat = logFormat
         self.dryRun = dryRun
         self.debugDerivatives = debugDerivatives
+        self.sourceIdentityPolicy = sourceIdentityPolicy
     }
 }
 
@@ -92,6 +95,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var logFormat: LogFormat
     public var dryRun: Bool
     public var debugDerivatives: Bool
+    public var sourceIdentityPolicy: SourceIdentityPolicy
 
     enum CodingKeys: String, CodingKey {
         case mode
@@ -105,6 +109,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case logFormat = "log_format"
         case dryRun = "dry_run"
         case debugDerivatives = "debug_derivatives"
+        case sourceIdentityPolicy = "source_identity_policy"
     }
 
     public init(
@@ -118,7 +123,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         logLevel: LogLevel,
         logFormat: LogFormat,
         dryRun: Bool,
-        debugDerivatives: Bool
+        debugDerivatives: Bool,
+        sourceIdentityPolicy: SourceIdentityPolicy
     ) {
         self.mode = mode
         self.existing = existing
@@ -131,6 +137,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.logFormat = logFormat
         self.dryRun = dryRun
         self.debugDerivatives = debugDerivatives
+        self.sourceIdentityPolicy = sourceIdentityPolicy
     }
 
     public static let builtInDefaults = ResolvedRunConfiguration(
@@ -144,6 +151,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         logLevel: .info,
         logFormat: .text,
         dryRun: false,
-        debugDerivatives: false
+        debugDerivatives: false,
+        sourceIdentityPolicy: .sha256
     )
 }

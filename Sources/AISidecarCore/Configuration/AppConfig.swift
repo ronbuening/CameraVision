@@ -12,6 +12,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var logFormat: LogFormat?
     public var dryRun: Bool?
     public var debugDerivatives: Bool?
+    public var sourceIdentityPolicy: SourceIdentityPolicy?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case mode
@@ -25,6 +26,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case logFormat = "log_format"
         case dryRun = "dry_run"
         case debugDerivatives = "debug_derivatives"
+        case sourceIdentityPolicy = "source_identity_policy"
     }
 
     public init(
@@ -38,7 +40,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         logLevel: LogLevel? = nil,
         logFormat: LogFormat? = nil,
         dryRun: Bool? = nil,
-        debugDerivatives: Bool? = nil
+        debugDerivatives: Bool? = nil,
+        sourceIdentityPolicy: SourceIdentityPolicy? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -51,6 +54,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.logFormat = logFormat
         self.dryRun = dryRun
         self.debugDerivatives = debugDerivatives
+        self.sourceIdentityPolicy = sourceIdentityPolicy
     }
 
     public init(from decoder: Decoder) throws {
@@ -81,6 +85,10 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.logFormat = try container.decodeIfPresent(LogFormat.self, forKey: .logFormat)
         self.dryRun = try container.decodeIfPresent(Bool.self, forKey: .dryRun)
         self.debugDerivatives = try container.decodeIfPresent(Bool.self, forKey: .debugDerivatives)
+        self.sourceIdentityPolicy = try container.decodeIfPresent(
+            SourceIdentityPolicy.self,
+            forKey: .sourceIdentityPolicy
+        )
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -96,6 +104,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(logFormat, forKey: .logFormat)
         try container.encodeIfPresent(dryRun, forKey: .dryRun)
         try container.encodeIfPresent(debugDerivatives, forKey: .debugDerivatives)
+        try container.encodeIfPresent(sourceIdentityPolicy, forKey: .sourceIdentityPolicy)
     }
 }
 
