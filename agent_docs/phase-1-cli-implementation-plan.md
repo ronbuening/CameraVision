@@ -1,8 +1,8 @@
 # Implementation Plan - Phase 1 CLI Raw JSON Sidecar Generator
 
-Version: 0.5
+Version: 0.6
 Date: 2026-06-10
-Supersedes: 0.1, 0.2, 0.3, 0.4
+Supersedes: 0.1, 0.2, 0.3, 0.4, 0.5
 Implements: Phase 1 Requirements v0.2 (`01-cli-raw-json-sidecar-requirements.md`)
 Binary: `aisidecar` (subcommand: `analyze`)
 Core library: `AISidecarCore`
@@ -14,12 +14,12 @@ Traceability in this plan points at the v0.2 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-4 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, writes folder-run JSONL progress logs and batch summaries, and handles interruption through the analyze shell pipeline. It does not yet call Ollama or write XMP.
+Phase 1 Milestones 0-4.5 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, writes folder-run JSONL progress logs and batch summaries, and handles interruption through the analyze shell pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before model integration. It does not yet call Ollama or write XMP.
 
 Latest verification for this baseline:
 
 ```text
-swift test                                      74 tests, 0 failures
+swift test                                      83 tests, 0 failures
 swift run aisidecar analyze --help             passed
 ```
 
@@ -274,6 +274,26 @@ Implemented notes:
 5. `RawJSONSidecar.subject_isolation` now decodes to `SubjectIsolationRecord` when isolation runs and encodes `{}` when isolation was not attempted, preserving the Phase 1 top-level schema slot.
 6. `--mode subject` records `E_SUBJECT_ISOLATION_NO_FOREGROUND` as a failed per-file result with no whole-image substitution; `--mode both` writes the whole-image derivative set and records the isolation error as recoverable sidecar/progress provenance.
 7. Offline tests cover instance selection, merge threshold behavior, edge-clamped margins, no-upscale behavior, no-foreground errors, both-mode recovery, debug derivative copies, and the AC1-005 two-resolution small-subject case. A real-photo Apple Vision smoke check remains recommended before evaluating production mask quality.
+
+## 8.5. Milestone 4.5 - Model Input Export (Implemented)
+
+Purpose: inspect exactly what Milestone 5 will send to the model without writing raw `.ai.json` sidecars or calling Ollama.
+
+Command:
+
+```bash
+aisidecar analyze <image-or-folder> --mode both --recursive --existing overwrite --export-model-inputs <destination-folder>
+```
+
+Implemented notes:
+
+1. `AnalyzeCommand` routes `--export-model-inputs` to `ModelInputExportPipeline`; `--dry-scan` still exits after scanning, and export mode rejects `--dry-run` and `--debug-derivatives` with `E_CONFIG_INVALID`.
+2. Export mode reuses the scanner, `ImageRenderer`, derivative cache, `SubjectIsolationService`, resolved model input profile, `--mode`, `--recursive`, `--existing`, profile, cache, and subject-isolation configuration.
+3. The export directory mirrors source relative paths and writes only model-input roles: `whole_image` and/or `subject_isolated`. Full-resolution TIFF renders remain cache-only.
+4. A timestamped `model-input-export-<ISO-8601-timestamp>.json` manifest records schema version `ai-sidecar-model-input-export/1.0`, run inputs, resolved profile, per-source export status, output provenance, subject-isolation records, structured errors, and summary counts.
+5. `--existing overwrite` replaces export files atomically, `skip` leaves existing export files untouched and records `skipped_existing`, and `fail` records `E_SIDECAR_EXISTS` before rendering affected sources.
+6. No XMP, raw JSON sidecars, progress logs, batch summaries, or model runs are written by export mode.
+7. Offline tests cover single-file export, recursive tree mirroring, subject-only export, no-foreground subject and both-mode behavior, existing policies, and incompatible flag rejection.
 
 ## 9. Milestone 5 - Ollama Vision Model Client
 

@@ -15,6 +15,9 @@ struct AnalyzeCommand: AsyncParsableCommand {
     @Flag(help: "Print the scan result with identities and relative paths, then exit.")
     var dryScan = false
 
+    @Option(help: "Export rendered model-input images into this folder and write a manifest.")
+    var exportModelInputs: String?
+
     @OptionGroup
     var shared: SharedOptions
 
@@ -42,6 +45,18 @@ struct AnalyzeCommand: AsyncParsableCommand {
         let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
         let interruptionMonitor = InterruptionMonitor()
         interruptionMonitor.installSignalHandlers()
+        if let exportModelInputs {
+            try ModelInputExportPipeline.validate(configuration: resolved)
+            let pipeline = ModelInputExportPipeline(logger: logger)
+            _ = try await pipeline.run(
+                inputPath: inputPath,
+                exportDirectoryPath: exportModelInputs,
+                configuration: resolved,
+                interruptionMonitor: interruptionMonitor
+            )
+            return
+        }
+
         let pipeline = AnalyzeShellPipeline(logger: logger)
         _ = try await pipeline.run(
             inputPath: inputPath,
