@@ -45,6 +45,7 @@ agent_docs/           Requirements, implementation plans, and agent guidance.
 - `agent_docs/02-cli-xmp-sidecar-requirements.md` - Phase 2 requirements.
 - `agent_docs/03-cli-normalized-batch-tagger-requirements.md` - Phase 3 requirements.
 - `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` - Phase 4 requirements.
+- `agent_docs/commenting_guide.md` - Commenting rules for Swift source and tests.
 - `agent_docs/agent-md-best-practices.md` - Guidance used for `AGENTS.md`.
 
 ## Build And Test

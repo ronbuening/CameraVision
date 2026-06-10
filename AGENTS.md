@@ -38,6 +38,7 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 - `agent_docs/02-cli-xmp-sidecar-requirements.md`: read before Phase 2/XMP work.
 - `agent_docs/03-cli-normalized-batch-tagger-requirements.md`: read before Phase 3 normalization work.
 - `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md`: read before GUI work.
+- `agent_docs/commenting_guide.md`: read before adding or revising substantive code comments.
 - `agent_docs/agent-md-best-practices.md`: read before changing this file.
 
 ## Implementation Guidance
@@ -46,6 +47,7 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 - For Phase 1 Milestone 2, start with sidecar naming, output tree mirroring, atomic writes, progress logging, and batch summaries; do not jump ahead to rendering, model runtime, or XMP writing.
 - Keep config precedence as CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default.
 - Preserve stable raw string values for public enums and error codes because later sidecars and logs depend on them.
+- Follow `agent_docs/commenting_guide.md`: comments should explain intent, constraints, requirement ties, and non-obvious domain behavior rather than restating code.
 - Add or update tests with each behavior change. Prefer focused unit tests in `AISidecarCoreTests`.
 - `Package.resolved` is tracked to keep dependency resolution reproducible.
 - `.vscode/` is ignored; do not include editor-local launch settings in commits.
