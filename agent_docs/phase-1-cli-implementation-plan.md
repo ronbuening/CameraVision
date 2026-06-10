@@ -82,14 +82,18 @@ Testing:
 
 ## 3. Repository Layout
 
+This section separates the current Milestone 4 layout from planned Phase 1
+additions so file names remain accurate while the later milestones stay visible.
+
 ```text
-AI-Sidecar-Tagger/
+CameraVision/
   Package.swift
   Sources/
     AISidecarCore/
       Configuration/
         AppConfig.swift                 // PW-006/007 resolution + validation
-        ResolvedRunConfiguration.swift  // PW-008: resolved values for provenance
+        ConfigurationResolver.swift
+        RunConfiguration.swift          // PW-008: resolved values for provenance
       Errors/
         SidecarError.swift              // PW-009/010 enumerated codes
       FileScanning/
@@ -109,14 +113,6 @@ AI-Sidecar-Tagger/
         AppleVisionForegroundMaskProvider.swift
         MaskGeometry.swift
         SubjectIsolationTypes.swift
-      ModelRuntime/
-        VisionModelRunner.swift         // protocol, FR1-031
-        OllamaVisionRunner.swift        // FR1-030a-f
-        MockVisionModelRunner.swift
-        RecordedFixtureRunner.swift
-        ModelRunOptions.swift           // temp, seed, thinking, keep_alive, timeout
-        PromptRegistry.swift            // FR1-046 versioned + hashed prompts
-        ResponseSchemas.swift           // FR1-045 two schemas as format payloads
       Sidecars/
         RawJSONSidecar.swift            // FR1-039..045
         RawJSONSidecarWriter.swift      // atomic writes FR1-012d, --existing FR1-010
@@ -129,17 +125,32 @@ AI-Sidecar-Tagger/
       Pipeline/
         AnalyzeShellPipeline.swift      // scanner -> renderer -> isolation -> sidecar path
         InterruptionMonitor.swift       // SIGINT/SIGTERM interruption state
-        AnalyzePipeline.swift           // PW-015 staged concurrency
     AISidecarCLI/
       AISidecarCommand.swift
       SharedOptions.swift               // PW-004 glossary, composed by all subcommands
       AnalyzeCommand.swift
   Tests/
     AISidecarCoreTests/                 // suite in Section 12
-  Fixtures/
-    model-responses/                    // recorded real responses incl. malformed
-    golden-sidecars/
-    README.md
+```
+
+Planned Phase 1 additions:
+
+```text
+Sources/AISidecarCore/
+  ModelRuntime/
+    VisionModelRunner.swift             // protocol, FR1-031
+    OllamaVisionRunner.swift            // FR1-030a-f
+    MockVisionModelRunner.swift
+    RecordedFixtureRunner.swift
+    ModelRunOptions.swift               // temp, seed, thinking, keep_alive, timeout
+    PromptRegistry.swift                // FR1-046 versioned + hashed prompts
+    ResponseSchemas.swift               // FR1-045 two schemas as format payloads
+  Pipeline/
+    AnalyzePipeline.swift               // PW-015 staged concurrency
+Fixtures/
+  model-responses/                      // recorded real responses incl. malformed
+  golden-sidecars/
+  README.md
 ```
 
 ## 4. Milestone 0 - Project Scaffold (Implemented)
@@ -147,7 +158,7 @@ AI-Sidecar-Tagger/
 Tasks:
 
 1. Create the Swift package: `AISidecarCore` library, `aisidecar` executable, test target; macOS 15 platform; Swift 6 strict concurrency.
-2. Implement ArgumentParser subcommand scaffolding with `SharedOptions` carrying the PW-004 glossary (`--mode`, `--existing`, `--recursive`, `--output-dir`, `--model`, `--model-endpoint`, `--profile`, `--config`, `--log-level`, `--log-format`, `--dry-run`, `--debug-derivatives`).
+2. Implement ArgumentParser subcommand wiring with `SharedOptions` carrying the PW-004 glossary (`--mode`, `--existing`, `--recursive`, `--output-dir`, `--model`, `--model-endpoint`, `--profile`, `--config`, `--log-level`, `--log-format`, `--dry-run`, `--debug-derivatives`).
 3. Implement the error taxonomy (PW-009/010) as a Swift error type with stable string codes and `stage`/`recoverable` metadata.
 4. Implement `Logger` with `text` and `json` output formats; JSON log records share field names with the progress log so the Phase 4 GUI consumes both with one decoder.
 5. Implement configuration resolution (PW-006/007) with validation failing as `E_CONFIG_INVALID`; `ResolvedRunConfiguration` snapshots the outcome for provenance (PW-008).
@@ -187,11 +198,11 @@ Tasks:
 2. `--output-dir` relative-tree mirroring (FR1-009); pre-write collision detection including case-insensitive filesystem collisions, failing affected files with `E_SIDECAR_COLLISION` without aborting the batch (FR1-009a).
 3. `--existing <skip|overwrite|fail>` (FR1-010).
 4. Atomic writes everywhere: temp file in destination directory, rename (FR1-012d).
-5. Minimal sidecar shell (FR1-039 structure) written before any model integration exists.
+5. Minimal raw sidecar record (FR1-039 structure) written before any model integration exists.
 6. `ProgressLog` (FR1-012a): append-only JSONL, one flushed record per completed file; `BatchSummary` derived from the log at run end, named `batch-summary-<ISO-timestamp>.json` (FR1-012).
 7. Signal handling for the interruption contract (FR1-012b): in-flight sidecar complete or absent, never partial; summary carries `E_INTERRUPTED` when writable. `--existing skip` is thereby the resume mechanism (FR1-012c) with no extra machinery.
 
-Exit criteria: a recursive run over the duplicate-basename fixture tree produces a mirrored shell tree, progress log, and summary; `kill -INT` mid-run leaves no partial JSON; an immediate re-run with `--existing skip` touches only the remainder.
+Exit criteria: a recursive run over the duplicate-basename fixture tree produces a mirrored raw-sidecar tree, progress log, and summary; `kill -INT` mid-run leaves no partial JSON; an immediate re-run with `--existing skip` touches only the remainder.
 
 Implemented notes:
 

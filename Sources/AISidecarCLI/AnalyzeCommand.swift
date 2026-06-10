@@ -22,8 +22,8 @@ struct AnalyzeCommand: AsyncParsableCommand {
         let resolved = try ConfigurationResolver.resolve(cli: shared.overrides)
 
         if dryScan {
-            // `--dry-scan` exits after discovery; `--dry-run` is reserved for
-            // later milestones that would otherwise write sidecars.
+            // `--dry-scan` exits after discovery; pipeline-level `--dry-run`
+            // still plans sidecars without rendering or writing artifacts.
             let scanner = ImageScanner()
             let result = try scanner.scan(
                 inputPath: inputPath,

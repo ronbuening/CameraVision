@@ -19,6 +19,7 @@ public struct AppleVisionForegroundMaskProvider: ForegroundMaskProvider {
         }
     }
 
+    /// Generate per-instance masks and geometry in the whole-image derivative coordinate space.
     public func foregroundMasks(in analysisImage: CIImage, dimensions: PixelDimensions) async throws -> ForegroundMaskResult {
         let handler = ImageRequestHandler(analysisImage, orientation: .up)
         let request = GenerateForegroundInstanceMaskRequest()

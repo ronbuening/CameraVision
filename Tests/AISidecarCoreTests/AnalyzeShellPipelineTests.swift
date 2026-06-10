@@ -26,7 +26,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertTrue(batchArtifacts.isEmpty)
     }
 
-    func testRecursiveFolderRunWritesMirroredShellSidecarsProgressLogAndSummary() async throws {
+    func testRecursiveFolderRunWritesMirroredRawSidecarsProgressLogAndSummary() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         addTeardownBlock {

@@ -11,7 +11,7 @@ The repository currently contains:
 - A Swift Package Manager project targeting macOS 15 and Swift 6.
 - `AISidecarCore`, the shared library where reusable project logic lives.
 - `aisidecar`, the command-line executable.
-- `aisidecar analyze` command scaffolding with the Phase 1 shared flag surface.
+- `aisidecar analyze` command wiring with the Phase 1 shared flag surface.
 - Configuration resolution with precedence: CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default.
 - The frozen Phase 1 structured error taxonomy.
 - Text and JSON log rendering.

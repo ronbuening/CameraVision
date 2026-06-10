@@ -3,6 +3,9 @@ import CoreImage
 import Foundation
 
 /// Normalized rectangle recorded for Vision foreground instances.
+///
+/// Coordinates are fractions of the analysis image with origin matching Core
+/// Image mask coordinates; the service maps them back to full-resolution pixels.
 public struct NormalizedBoundingBox: Codable, Sendable, Equatable {
     public var x: Double
     public var y: Double
