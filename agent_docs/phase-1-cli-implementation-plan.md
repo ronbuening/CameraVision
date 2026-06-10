@@ -1,8 +1,8 @@
 # Implementation Plan - Phase 1 CLI Raw JSON Sidecar Generator
 
-Version: 0.3
+Version: 0.4
 Date: 2026-06-10
-Supersedes: 0.1, 0.2
+Supersedes: 0.1, 0.2, 0.3
 Implements: Phase 1 Requirements v0.2 (`01-cli-raw-json-sidecar-requirements.md`)
 Binary: `aisidecar` (subcommand: `analyze`)
 Core library: `AISidecarCore`
@@ -11,6 +11,20 @@ Default model: `gemma4:26b-a4b-it-qat` (installed locally; verified at startup p
 Runtime: Ollama local HTTP API, `POST /api/chat`
 
 Traceability in this plan points at the v0.2 requirement IDs (PW-xxx, FR1-xxx). The review-finding IDs used in plan v0.2 are retired now that the findings are folded into the requirements themselves.
+
+## 0. Current Implementation Status
+
+Phase 1 Milestones 0-2 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, writes minimal sidecar shells atomically, applies `--existing`, writes folder-run JSONL progress logs and batch summaries, and handles interruption through the Milestone 2 shell pipeline. It does not yet render derivatives, isolate subjects, call Ollama, or write XMP.
+
+Latest verification for this baseline:
+
+```text
+swift test                                      41 tests, 0 failures
+swift run aisidecar analyze --help             passed
+manual recursive folder smoke with --output-dir passed
+```
+
+The next implementation unit is Milestone 3: Rendering and Derivative Cache.
 
 ## 1. Implementation Position
 
@@ -106,11 +120,14 @@ AI-Sidecar-Tagger/
         RawJSONSidecar.swift            // FR1-039..045
         RawJSONSidecarWriter.swift      // atomic writes FR1-012d, --existing FR1-010
         SidecarNaming.swift             // FR1-008/009 tree mirroring + collisions
+        AtomicFileWriter.swift           // shared temp-file + rename helper
       Reporting/
         ProgressLog.swift               // FR1-012a JSONL
         BatchSummary.swift              // FR1-012 derived from log
         Logger.swift                    // text + json formats
       Pipeline/
+        AnalyzeShellPipeline.swift      // Milestone 2 scanner -> sidecar shell path
+        InterruptionMonitor.swift       // SIGINT/SIGTERM interruption state
         AnalyzePipeline.swift           // PW-015 staged concurrency
     AISidecarCLI/
       main.swift
@@ -124,7 +141,7 @@ AI-Sidecar-Tagger/
     README.md
 ```
 
-## 4. Milestone 0 - Project Scaffold
+## 4. Milestone 0 - Project Scaffold (Implemented)
 
 Tasks:
 
@@ -137,7 +154,7 @@ Tasks:
 
 Exit criteria: `aisidecar analyze --help` prints valid usage; config precedence and error-code serialization have passing unit tests.
 
-## 5. Milestone 1 - Scanner and Source Identity
+## 5. Milestone 1 - Scanner and Source Identity (Implemented)
 
 Tasks:
 
@@ -161,7 +178,7 @@ struct SourceImage: Codable, Sendable {
 
 Exit criteria: `aisidecar analyze <folder> --recursive --dry-scan` is correct against a fixture tree containing duplicate basenames in different subfolders, hidden files, and unsupported types.
 
-## 6. Milestone 2 - Sidecar Naming, Output Tree, Progress Log
+## 6. Milestone 2 - Sidecar Naming, Output Tree, Progress Log (Implemented)
 
 Tasks:
 
@@ -175,7 +192,15 @@ Tasks:
 
 Exit criteria: a recursive run over the duplicate-basename fixture tree produces a mirrored shell tree, progress log, and summary; `kill -INT` mid-run leaves no partial JSON; an immediate re-run with `--existing skip` touches only the remainder.
 
-## 7. Milestone 3 - Rendering and Derivative Cache
+Implemented notes:
+
+1. `AnalyzeShellPipeline` is the temporary Milestone 2 pipeline and remains deliberately narrower than the later full `AnalyzePipeline`.
+2. Folder runs write `batch-progress-<ISO-timestamp>.jsonl` and `batch-summary-<ISO-timestamp>.json` in `--output-dir` when supplied, otherwise beside the scan root.
+3. Single-file runs write only the sidecar shell and log user-facing status; progress and summary artifacts remain folder-run outputs.
+4. `--dry-run` reports intended sidecar actions without writing sidecars, progress logs, or summaries.
+5. `SIGINT`/`SIGTERM` are converted into interruption state; completed records are preserved, current writes remain atomic, and the summary records `E_INTERRUPTED` when writable.
+
+## 7. Milestone 3 - Rendering and Derivative Cache (Next)
 
 Tasks:
 

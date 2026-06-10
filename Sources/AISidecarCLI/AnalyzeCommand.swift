@@ -39,14 +39,13 @@ struct AnalyzeCommand: ParsableCommand {
         }
 
         let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
-        try logger.log(
-            LogRecord(
-                level: .info,
-                event: "analyze.scaffold",
-                message: "Analyze pipeline beyond --dry-scan is not implemented until later Phase 1 milestones.",
-                sourcePath: inputPath,
-                status: "not_implemented"
-            )
+        let interruptionMonitor = InterruptionMonitor()
+        interruptionMonitor.installSignalHandlers()
+        let pipeline = AnalyzeShellPipeline(logger: logger)
+        _ = try pipeline.run(
+            inputPath: inputPath,
+            configuration: resolved,
+            interruptionMonitor: interruptionMonitor
         )
     }
 }
