@@ -14,6 +14,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var dryRun: Bool?
     public var debugDerivatives: Bool?
     public var sourceIdentityPolicy: SourceIdentityPolicy?
+    public var derivativeCacheDir: String?
+    public var derivativeCacheSizeBytes: Int64?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case mode
@@ -28,6 +30,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case dryRun = "dry_run"
         case debugDerivatives = "debug_derivatives"
         case sourceIdentityPolicy = "source_identity_policy"
+        case derivativeCacheDir = "derivative_cache_dir"
+        case derivativeCacheSizeBytes = "derivative_cache_size_bytes"
     }
 
     public init(
@@ -42,7 +46,9 @@ public struct AppConfig: Codable, Sendable, Equatable {
         logFormat: LogFormat? = nil,
         dryRun: Bool? = nil,
         debugDerivatives: Bool? = nil,
-        sourceIdentityPolicy: SourceIdentityPolicy? = nil
+        sourceIdentityPolicy: SourceIdentityPolicy? = nil,
+        derivativeCacheDir: String? = nil,
+        derivativeCacheSizeBytes: Int64? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -56,6 +62,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.dryRun = dryRun
         self.debugDerivatives = debugDerivatives
         self.sourceIdentityPolicy = sourceIdentityPolicy
+        self.derivativeCacheDir = derivativeCacheDir
+        self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
     }
 
     public init(from decoder: Decoder) throws {
@@ -92,6 +100,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
             SourceIdentityPolicy.self,
             forKey: .sourceIdentityPolicy
         )
+        self.derivativeCacheDir = try container.decodeIfPresent(String.self, forKey: .derivativeCacheDir)
+        self.derivativeCacheSizeBytes = try container.decodeIfPresent(Int64.self, forKey: .derivativeCacheSizeBytes)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -108,6 +118,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(dryRun, forKey: .dryRun)
         try container.encodeIfPresent(debugDerivatives, forKey: .debugDerivatives)
         try container.encodeIfPresent(sourceIdentityPolicy, forKey: .sourceIdentityPolicy)
+        try container.encodeIfPresent(derivativeCacheDir, forKey: .derivativeCacheDir)
+        try container.encodeIfPresent(derivativeCacheSizeBytes, forKey: .derivativeCacheSizeBytes)
     }
 }
 

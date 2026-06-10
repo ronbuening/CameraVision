@@ -10,7 +10,7 @@ enum AtomicFileWriter {
     ) throws {
         let destination = destination.standardizedFileURL
         let directory = destination.deletingLastPathComponent()
-        let temporary = directory.appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString).tmp")
+        let temporary = temporaryURL(for: destination, in: directory)
 
         do {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -33,6 +33,50 @@ enum AtomicFileWriter {
             )
         }
     }
+
+    static func writeFile(
+        to destination: URL,
+        fileManager: FileManager = .default,
+        writer: (URL) throws -> Void
+    ) throws {
+        let destination = destination.standardizedFileURL
+        let directory = destination.deletingLastPathComponent()
+        let temporary = temporaryURL(for: destination, in: directory)
+
+        do {
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            try writer(temporary)
+            // Image encoders write directly to URLs, so this preserves the same
+            // sibling-temp rename contract used for JSON artifacts.
+            guard rename(temporary.path, destination.path) == 0 else {
+                throw POSIXWriteError(message: String(cString: strerror(errno)))
+            }
+        } catch let error as SidecarError {
+            try? fileManager.removeItem(at: temporary)
+            throw error
+        } catch {
+            try? fileManager.removeItem(at: temporary)
+            throw SidecarError(
+                code: .writeFailed,
+                stage: .write,
+                message: "Unable to write \(destination.path): \(error.localizedDescription)",
+                recoverable: true
+            )
+        }
+    }
+}
+
+private func temporaryURL(for destination: URL, in directory: URL) -> URL {
+    let pathExtension = destination.pathExtension
+    let baseName = pathExtension.isEmpty
+        ? destination.lastPathComponent
+        : destination.deletingPathExtension().lastPathComponent
+    // Some Image I/O encoders inspect the destination extension, so temp files
+    // keep the final extension while still living beside the final artifact.
+    let fileName = pathExtension.isEmpty
+        ? ".\(baseName).\(UUID().uuidString).tmp"
+        : ".\(baseName).\(UUID().uuidString).\(pathExtension)"
+    return directory.appendingPathComponent(fileName)
 }
 
 private struct POSIXWriteError: LocalizedError {

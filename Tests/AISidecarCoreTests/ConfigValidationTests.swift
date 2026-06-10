@@ -74,6 +74,31 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testUnknownModelInputProfileFailsAsConfigInvalid() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "profile": "custom-profile" }"#)
+            )
+        }
+    }
+
+    func testInvalidDerivativeCacheSizeFailsAsConfigInvalid() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "derivative_cache_size_bytes": 0 }"#)
+            )
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "large"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     private func assertConfigInvalid(_ operation: () throws -> Void) throws {
         do {
             try operation()

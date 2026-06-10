@@ -90,6 +90,11 @@ public enum ConfigurationResolver {
                 SourceIdentityPolicy.self,
                 from: environment["AISIDECAR_SOURCE_IDENTITY_POLICY"],
                 key: "AISIDECAR_SOURCE_IDENTITY_POLICY"
+            ),
+            derivativeCacheDir: environment["AISIDECAR_DERIVATIVE_CACHE_DIR"],
+            derivativeCacheSizeBytes: try int64Value(
+                from: environment["AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES"],
+                key: "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES"
             )
         )
     }
@@ -121,6 +126,16 @@ public enum ConfigurationResolver {
             throw SidecarError.configInvalid("Invalid boolean value for \(key): \(rawValue)")
         }
     }
+
+    private static func int64Value(from rawValue: String?, key: String) throws -> Int64? {
+        guard let rawValue else {
+            return nil
+        }
+        guard let value = Int64(rawValue), value > 0 else {
+            throw SidecarError.configInvalid("Invalid positive integer value for \(key): \(rawValue)")
+        }
+        return value
+    }
 }
 
 private struct ConfigurationBuilder {
@@ -136,6 +151,8 @@ private struct ConfigurationBuilder {
     private var dryRun: Bool
     private var debugDerivatives: Bool
     private var sourceIdentityPolicy: SourceIdentityPolicy
+    private var derivativeCacheDir: String
+    private var derivativeCacheSizeBytes: Int64
 
     init(defaults: ResolvedRunConfiguration) {
         self.mode = defaults.mode
@@ -150,6 +167,8 @@ private struct ConfigurationBuilder {
         self.dryRun = defaults.dryRun
         self.debugDerivatives = defaults.debugDerivatives
         self.sourceIdentityPolicy = defaults.sourceIdentityPolicy
+        self.derivativeCacheDir = defaults.derivativeCacheDir
+        self.derivativeCacheSizeBytes = defaults.derivativeCacheSizeBytes
     }
 
     mutating func apply(config: AppConfig) {
@@ -165,6 +184,8 @@ private struct ConfigurationBuilder {
         if let value = config.dryRun { dryRun = value }
         if let value = config.debugDerivatives { debugDerivatives = value }
         if let value = config.sourceIdentityPolicy { sourceIdentityPolicy = value }
+        if let value = config.derivativeCacheDir { derivativeCacheDir = value }
+        if let value = config.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
     }
 
     mutating func apply(overrides: RunConfigurationOverrides) {
@@ -180,6 +201,8 @@ private struct ConfigurationBuilder {
         if let value = overrides.dryRun { dryRun = value }
         if let value = overrides.debugDerivatives { debugDerivatives = value }
         if let value = overrides.sourceIdentityPolicy { sourceIdentityPolicy = value }
+        if let value = overrides.derivativeCacheDir { derivativeCacheDir = value }
+        if let value = overrides.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
     }
 
     func resolved() throws -> ResolvedRunConfiguration {
@@ -189,6 +212,10 @@ private struct ConfigurationBuilder {
               endpoint.host != nil
         else {
             throw SidecarError.configInvalid("Invalid model endpoint URL: \(modelEndpoint)")
+        }
+        _ = try ModelInputProfileRegistry.resolve(name: profile)
+        guard derivativeCacheSizeBytes > 0 else {
+            throw SidecarError.configInvalid("derivative_cache_size_bytes must be greater than zero")
         }
 
         return ResolvedRunConfiguration(
@@ -203,7 +230,9 @@ private struct ConfigurationBuilder {
             logFormat: logFormat,
             dryRun: dryRun,
             debugDerivatives: debugDerivatives,
-            sourceIdentityPolicy: sourceIdentityPolicy
+            sourceIdentityPolicy: sourceIdentityPolicy,
+            derivativeCacheDir: derivativeCacheDir,
+            derivativeCacheSizeBytes: derivativeCacheSizeBytes
         )
     }
 }
@@ -224,7 +253,9 @@ private extension RunConfigurationOverrides {
             logFormat: logFormat,
             dryRun: dryRun,
             debugDerivatives: debugDerivatives,
-            sourceIdentityPolicy: sourceIdentityPolicy
+            sourceIdentityPolicy: sourceIdentityPolicy,
+            derivativeCacheDir: derivativeCacheDir,
+            derivativeCacheSizeBytes: derivativeCacheSizeBytes
         )
     }
 }

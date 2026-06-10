@@ -1,6 +1,6 @@
 import Foundation
 
-/// Result of the Milestone 2 analyze shell pipeline.
+/// Result of the analyze shell pipeline.
 public struct AnalyzeShellResult: Sendable, Equatable {
     public var scanResult: ScanResult
     public var records: [ProgressRecord]
@@ -26,10 +26,10 @@ public struct AnalyzeShellResult: Sendable, Equatable {
     }
 }
 
-/// Narrow Phase 1 Milestone 2 pipeline: scanner to raw sidecar shell artifacts.
+/// Phase 1 analyze pipeline through Milestone 3 rendering.
 ///
-/// Rendering, subject isolation, and model runtime are intentionally deferred to
-/// later milestones; this pipeline establishes the durable write/progress layer.
+/// Subject isolation and model runtime remain deferred, but rendered derivative
+/// provenance is now recorded in the raw sidecar.
 public struct AnalyzeShellPipeline {
     private let fileManager: FileManager
     private let scanner: ImageScanner
@@ -51,7 +51,7 @@ public struct AnalyzeShellPipeline {
         self.now = now
     }
 
-    /// Run the Milestone 2 shell pipeline for one file or one folder.
+    /// Run the analyze shell pipeline for one file or one folder.
     ///
     /// Folder runs create progress and summary artifacts unless `dryRun` is set;
     /// single-file runs write only the sidecar shell and log status.
@@ -61,6 +61,15 @@ public struct AnalyzeShellPipeline {
         interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> AnalyzeShellResult {
         let runStartedAt = now()
+        let profile = try ModelInputProfileRegistry.resolve(name: configuration.profile)
+        let renderer = ImageRenderer(
+            cache: DerivativeCache(
+                directoryPath: configuration.derivativeCacheDir,
+                sizeCapBytes: configuration.derivativeCacheSizeBytes,
+                fileManager: fileManager,
+                now: now
+            )
+        )
         let scanResult = try scanner.scan(
             inputPath: inputPath,
             recursive: configuration.recursive,
@@ -144,52 +153,13 @@ public struct AnalyzeShellPipeline {
                     durationMs: durationMs(from: fileStartedAt, to: now())
                 )
             } else {
-                let sidecar = RawJSONSidecar(
-                    source: entry.source,
-                    runConfiguration: configuration,
-                    createdAt: now()
+                record = process(
+                    entry,
+                    configuration: configuration,
+                    profile: profile,
+                    renderer: renderer,
+                    fileStartedAt: fileStartedAt
                 )
-                do {
-                    let outcome = try writer.write(
-                        sidecar,
-                        to: entry.sidecarPath,
-                        existingPolicy: configuration.existing
-                    )
-                    record = ProgressRecord(
-                        timestamp: now(),
-                        sourcePath: entry.source.path,
-                        relativePath: entry.source.relativePath,
-                        sidecarPath: entry.sidecarPath,
-                        status: outcome.status == .written ? .written : .skippedExisting,
-                        durationMs: durationMs(from: fileStartedAt, to: now())
-                    )
-                } catch let error as SidecarError {
-                    record = ProgressRecord(
-                        timestamp: now(),
-                        sourcePath: entry.source.path,
-                        relativePath: entry.source.relativePath,
-                        sidecarPath: entry.sidecarPath,
-                        status: .failed,
-                        errors: [error],
-                        durationMs: durationMs(from: fileStartedAt, to: now())
-                    )
-                } catch {
-                    let sidecarError = SidecarError(
-                        code: .writeFailed,
-                        stage: .write,
-                        message: "Unable to write \(entry.sidecarPath): \(error.localizedDescription)",
-                        recoverable: true
-                    )
-                    record = ProgressRecord(
-                        timestamp: now(),
-                        sourcePath: entry.source.path,
-                        relativePath: entry.source.relativePath,
-                        sidecarPath: entry.sidecarPath,
-                        status: .failed,
-                        errors: [sidecarError],
-                        durationMs: durationMs(from: fileStartedAt, to: now())
-                    )
-                }
             }
 
             try emit(record)
@@ -262,6 +232,116 @@ public struct AnalyzeShellPipeline {
             sidecarPath: record.sidecarPath,
             status: record.status.rawValue,
             errors: record.errors
+        )
+    }
+
+    private func process(
+        _ entry: SidecarPlanEntry,
+        configuration: ResolvedRunConfiguration,
+        profile: ModelInputProfile,
+        renderer: ImageRenderer,
+        fileStartedAt: Date
+    ) -> ProgressRecord {
+        if fileManager.fileExists(atPath: entry.sidecarPath) {
+            switch configuration.existing {
+            case .skip:
+                return ProgressRecord(
+                    timestamp: now(),
+                    sourcePath: entry.source.path,
+                    relativePath: entry.source.relativePath,
+                    sidecarPath: entry.sidecarPath,
+                    status: .skippedExisting,
+                    durationMs: durationMs(from: fileStartedAt, to: now())
+                )
+            case .fail:
+                return ProgressRecord(
+                    timestamp: now(),
+                    sourcePath: entry.source.path,
+                    relativePath: entry.source.relativePath,
+                    sidecarPath: entry.sidecarPath,
+                    status: .failed,
+                    errors: [
+                        SidecarError(
+                            code: .sidecarExists,
+                            stage: .write,
+                            message: "Sidecar already exists: \(entry.sidecarPath)",
+                            recoverable: true
+                        )
+                    ],
+                    durationMs: durationMs(from: fileStartedAt, to: now())
+                )
+            case .overwrite:
+                break
+            }
+        }
+
+        do {
+            let rendered = try renderer.renderWholeImageSet(
+                source: entry.source,
+                profile: profile,
+                debugDerivatives: configuration.debugDerivatives
+            )
+            let sidecar = RawJSONSidecar(
+                source: entry.source,
+                runConfiguration: configuration,
+                modelInputProfile: profile,
+                derivatives: rendered.derivatives,
+                createdAt: now()
+            )
+            let outcome = try writer.write(
+                sidecar,
+                to: entry.sidecarPath,
+                existingPolicy: configuration.existing
+            )
+            return ProgressRecord(
+                timestamp: now(),
+                sourcePath: entry.source.path,
+                relativePath: entry.source.relativePath,
+                sidecarPath: entry.sidecarPath,
+                status: outcome.status == .written ? .written : .skippedExisting,
+                durationMs: durationMs(from: fileStartedAt, to: now())
+            )
+        } catch {
+            let renderError = sidecarError(from: error, sidecarPath: entry.sidecarPath)
+            var errors = [renderError]
+            let errorSidecar = RawJSONSidecar(
+                source: entry.source,
+                runConfiguration: configuration,
+                modelInputProfile: profile,
+                errors: [renderError],
+                createdAt: now()
+            )
+            do {
+                _ = try writer.write(
+                    errorSidecar,
+                    to: entry.sidecarPath,
+                    existingPolicy: configuration.existing
+                )
+            } catch {
+                errors.append(sidecarError(from: error, sidecarPath: entry.sidecarPath))
+            }
+
+            return ProgressRecord(
+                timestamp: now(),
+                sourcePath: entry.source.path,
+                relativePath: entry.source.relativePath,
+                sidecarPath: entry.sidecarPath,
+                status: .failed,
+                errors: errors,
+                durationMs: durationMs(from: fileStartedAt, to: now())
+            )
+        }
+    }
+
+    private func sidecarError(from error: Error, sidecarPath: String) -> SidecarError {
+        if let sidecarError = error as? SidecarError {
+            return sidecarError
+        }
+        return SidecarError(
+            code: .renderFailed,
+            stage: .render,
+            message: "Unable to render derivative before writing \(sidecarPath): \(error.localizedDescription)",
+            recoverable: true
         )
     }
 }

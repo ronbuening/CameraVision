@@ -59,6 +59,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var dryRun: Bool?
     public var debugDerivatives: Bool?
     public var sourceIdentityPolicy: SourceIdentityPolicy?
+    public var derivativeCacheDir: String?
+    public var derivativeCacheSizeBytes: Int64?
 
     public init(
         mode: AnalysisMode? = nil,
@@ -73,7 +75,9 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         logFormat: LogFormat? = nil,
         dryRun: Bool? = nil,
         debugDerivatives: Bool? = nil,
-        sourceIdentityPolicy: SourceIdentityPolicy? = nil
+        sourceIdentityPolicy: SourceIdentityPolicy? = nil,
+        derivativeCacheDir: String? = nil,
+        derivativeCacheSizeBytes: Int64? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -88,6 +92,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.dryRun = dryRun
         self.debugDerivatives = debugDerivatives
         self.sourceIdentityPolicy = sourceIdentityPolicy
+        self.derivativeCacheDir = derivativeCacheDir
+        self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
     }
 }
 
@@ -108,6 +114,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var dryRun: Bool
     public var debugDerivatives: Bool
     public var sourceIdentityPolicy: SourceIdentityPolicy
+    public var derivativeCacheDir: String
+    public var derivativeCacheSizeBytes: Int64
 
     enum CodingKeys: String, CodingKey {
         case mode
@@ -122,6 +130,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case dryRun = "dry_run"
         case debugDerivatives = "debug_derivatives"
         case sourceIdentityPolicy = "source_identity_policy"
+        case derivativeCacheDir = "derivative_cache_dir"
+        case derivativeCacheSizeBytes = "derivative_cache_size_bytes"
     }
 
     public init(
@@ -136,7 +146,9 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         logFormat: LogFormat,
         dryRun: Bool,
         debugDerivatives: Bool,
-        sourceIdentityPolicy: SourceIdentityPolicy
+        sourceIdentityPolicy: SourceIdentityPolicy,
+        derivativeCacheDir: String = DerivativeCache.defaultDirectoryPath(),
+        derivativeCacheSizeBytes: Int64 = DerivativeCache.defaultSizeCapBytes
     ) {
         self.mode = mode
         self.existing = existing
@@ -150,6 +162,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.dryRun = dryRun
         self.debugDerivatives = debugDerivatives
         self.sourceIdentityPolicy = sourceIdentityPolicy
+        self.derivativeCacheDir = derivativeCacheDir
+        self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
     }
 
     public static let builtInDefaults = ResolvedRunConfiguration(
@@ -164,6 +178,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         logFormat: .text,
         dryRun: false,
         debugDerivatives: false,
-        sourceIdentityPolicy: .sha256
+        sourceIdentityPolicy: .sha256,
+        derivativeCacheDir: DerivativeCache.defaultDirectoryPath(),
+        derivativeCacheSizeBytes: DerivativeCache.defaultSizeCapBytes
     )
 }

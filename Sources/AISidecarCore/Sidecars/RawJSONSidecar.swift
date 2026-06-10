@@ -31,16 +31,16 @@ private struct EmptyCodingKey: CodingKey {
     }
 }
 
-/// Minimal Phase 1 raw JSON sidecar shell.
+/// Phase 1 raw JSON sidecar shell.
 ///
-/// Milestone 2 writes the durable artifact before rendering and model runtime
-/// exist, so model and derivative arrays remain empty by construction.
+/// Milestone 3 records model input profile and derivative provenance while
+/// leaving subject isolation and model runs empty until their milestones.
 public struct RawJSONSidecar: Codable, Sendable, Equatable {
     public var schemaVersion: String
     public var source: SourceImage
     public var runConfiguration: ResolvedRunConfiguration
-    public var modelInputProfile: EmptyJSONObject
-    public var derivatives: [EmptyJSONObject]
+    public var modelInputProfile: ModelInputProfile
+    public var derivatives: [DerivativeRecord]
     public var subjectIsolation: EmptyJSONObject
     public var modelRuns: [EmptyJSONObject]
     public var errors: [SidecarError]
@@ -62,8 +62,8 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         schemaVersion: String = "ai-sidecar-json/1.0",
         source: SourceImage,
         runConfiguration: ResolvedRunConfiguration,
-        modelInputProfile: EmptyJSONObject = EmptyJSONObject(),
-        derivatives: [EmptyJSONObject] = [],
+        modelInputProfile: ModelInputProfile = .defaultProfile,
+        derivatives: [DerivativeRecord] = [],
         subjectIsolation: EmptyJSONObject = EmptyJSONObject(),
         modelRuns: [EmptyJSONObject] = [],
         errors: [SidecarError] = [],

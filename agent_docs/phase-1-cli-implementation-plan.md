@@ -14,17 +14,16 @@ Traceability in this plan points at the v0.2 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-2 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, writes minimal sidecar shells atomically, applies `--existing`, writes folder-run JSONL progress logs and batch summaries, and handles interruption through the Milestone 2 shell pipeline. It does not yet render derivatives, isolate subjects, call Ollama, or write XMP.
+Phase 1 Milestones 0-3 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, records model input profile and derivative provenance, applies `--existing`, writes folder-run JSONL progress logs and batch summaries, and handles interruption through the analyze shell pipeline. It does not yet isolate subjects, call Ollama, or write XMP.
 
 Latest verification for this baseline:
 
 ```text
-swift test                                      41 tests, 0 failures
+swift test                                      61 tests, 0 failures
 swift run aisidecar analyze --help             passed
-manual recursive folder smoke with --output-dir passed
 ```
 
-The next implementation unit is Milestone 3: Rendering and Derivative Cache.
+The next implementation unit is Milestone 4: Subject Isolation.
 
 ## 1. Implementation Position
 
@@ -126,7 +125,7 @@ AI-Sidecar-Tagger/
         BatchSummary.swift              // FR1-012 derived from log
         Logger.swift                    // text + json formats
       Pipeline/
-        AnalyzeShellPipeline.swift      // Milestone 2 scanner -> sidecar shell path
+        AnalyzeShellPipeline.swift      // scanner -> renderer -> sidecar shell path
         InterruptionMonitor.swift       // SIGINT/SIGTERM interruption state
         AnalyzePipeline.swift           // PW-015 staged concurrency
     AISidecarCLI/
@@ -194,13 +193,13 @@ Exit criteria: a recursive run over the duplicate-basename fixture tree produces
 
 Implemented notes:
 
-1. `AnalyzeShellPipeline` is the temporary Milestone 2 pipeline and remains deliberately narrower than the later full `AnalyzePipeline`.
+1. `AnalyzeShellPipeline` was introduced in Milestone 2 for the durable scan/write layer and is extended in Milestone 3 through whole-image rendering.
 2. Folder runs write `batch-progress-<ISO-timestamp>.jsonl` and `batch-summary-<ISO-timestamp>.json` in `--output-dir` when supplied, otherwise beside the scan root.
 3. Single-file runs write only the sidecar shell and log user-facing status; progress and summary artifacts remain folder-run outputs.
 4. `--dry-run` reports intended sidecar actions without writing sidecars, progress logs, or summaries.
 5. `SIGINT`/`SIGTERM` are converted into interruption state; completed records are preserved, current writes remain atomic, and the summary records `E_INTERRUPTED` when writable.
 
-## 7. Milestone 3 - Rendering and Derivative Cache (Next)
+## 7. Milestone 3 - Rendering and Derivative Cache (Implemented)
 
 Tasks:
 
@@ -230,6 +229,13 @@ Default model input profile (calibrated in Milestone 9):
 Calibration note: vision-language models tile and downsample internally, so the model's *effective* input resolution may sit below these ceilings. The profile is justified empirically in Milestone 9, not assumed.
 
 Exit criteria: a NEF and a JPEG in each of the 8 EXIF orientations produce orientation-correct, sRGB-tagged, profile-conforming derivatives; a second run reuses cached full-resolution renders; cache eviction has tests.
+
+Implemented notes:
+
+1. The sidecar now records the resolved `model_input_profile` object and derivative provenance for `full_resolution` and `whole_image` roles.
+2. The derivative cache defaults to `~/Library/Caches/aisidecar/derivatives`, supports `derivative_cache_dir` and `derivative_cache_size_bytes` config/env overrides, and uses a manifest-backed LRU policy.
+3. Offline tests cover generated JPEG/PNG/TIFF rendering, all 8 EXIF orientation values, sRGB/profile checks, cache reuse, cache corruption misses, LRU eviction, debug derivative copies, render failure sidecars, and existing-skip render avoidance.
+4. RAW/NEF verification remains a manual smoke check unless legally shareable RAW fixtures are added.
 
 ## 8. Milestone 4 - Subject Isolation (Two-Resolution Chain)
 
@@ -333,8 +339,10 @@ GoldenSidecarTests        full pipeline against RecordedFixtureRunner produces
 ProgressLogTests          append-only integrity; summary derivation;
                           interruption leaves no partial sidecar
 ConfigResolutionTests     flag > env > file > default precedence; E_CONFIG_INVALID
-CacheTests                content-addressed reuse, LRU eviction at cap,
+DerivativeCacheTests      content-addressed reuse, LRU eviction at cap,
                           debug-derivative copy semantics
+ImageRendererTests        generated JPEG/PNG/TIFF rendering, orientation
+                          provenance, cache reuse, decode failure errors
 ```
 
 Fixture policy: recorded model responses (including malformed and fenced cases) and synthetic or public-domain images live in the repository; private photographs are used only locally and never committed. No test requires a network or a live Ollama instance.

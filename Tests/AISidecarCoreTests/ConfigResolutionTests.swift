@@ -22,12 +22,14 @@ final class ConfigResolutionTests: XCTestCase {
               "output_dir": "/tmp/sidecars",
               "model": "custom:model",
               "model_endpoint": "http://127.0.0.1:11434",
-              "profile": "custom-profile",
+              "profile": "gemma4-26b-default",
               "log_level": "debug",
               "log_format": "json",
               "dry_run": true,
               "debug_derivatives": true,
-              "source_identity_policy": "fast"
+              "source_identity_policy": "fast",
+              "derivative_cache_dir": "/tmp/aisidecar-cache",
+              "derivative_cache_size_bytes": 1048576
             }
             """
         )
@@ -43,12 +45,14 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.outputDir, "/tmp/sidecars")
         XCTAssertEqual(resolved.model, "custom:model")
         XCTAssertEqual(resolved.modelEndpoint.absoluteString, "http://127.0.0.1:11434")
-        XCTAssertEqual(resolved.profile, "custom-profile")
+        XCTAssertEqual(resolved.profile, "gemma4-26b-default")
         XCTAssertEqual(resolved.logLevel, .debug)
         XCTAssertEqual(resolved.logFormat, .json)
         XCTAssertTrue(resolved.dryRun)
         XCTAssertTrue(resolved.debugDerivatives)
         XCTAssertEqual(resolved.sourceIdentityPolicy, .fast)
+        XCTAssertEqual(resolved.derivativeCacheDir, "/tmp/aisidecar-cache")
+        XCTAssertEqual(resolved.derivativeCacheSizeBytes, 1_048_576)
     }
 
     func testEnvironmentOverridesConfigFile() throws {
@@ -70,7 +74,9 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_EXISTING": "overwrite",
                 "AISIDECAR_MODEL": "env:model",
                 "AISIDECAR_LOG_LEVEL": "debug",
-                "AISIDECAR_SOURCE_IDENTITY_POLICY": "sha256"
+                "AISIDECAR_SOURCE_IDENTITY_POLICY": "sha256",
+                "AISIDECAR_DERIVATIVE_CACHE_DIR": "/tmp/env-cache",
+                "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152"
             ],
             defaultConfigPath: configPath
         )
@@ -80,6 +86,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.model, "env:model")
         XCTAssertEqual(resolved.logLevel, .debug)
         XCTAssertEqual(resolved.sourceIdentityPolicy, .sha256)
+        XCTAssertEqual(resolved.derivativeCacheDir, "/tmp/env-cache")
+        XCTAssertEqual(resolved.derivativeCacheSizeBytes, 2_097_152)
     }
 
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
