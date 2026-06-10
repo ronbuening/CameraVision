@@ -1,0 +1,58 @@
+# AGENTS.md
+
+## Project Context
+
+CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state is Phase 1 Milestone 0 only: package scaffold, CLI surface, config resolution, structured errors, logging, and offline tests.
+
+Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files. XMP writeback begins in Phase 2.
+
+## Architecture Rules
+
+- Put reusable behavior in `Sources/AISidecarCore`.
+- Keep `Sources/AISidecarCLI` limited to argument parsing, command wiring, and user-facing presentation.
+- Preserve the single executable shape: `aisidecar` with phase-specific subcommands.
+- Preserve Swift 6 strict concurrency and macOS 15 minimum deployment.
+- Keep tests deterministic and offline. Unit tests must not require Ollama, model downloads, images, or network access.
+
+## Current Layout
+
+- `Package.swift` defines `AISidecarCore`, `AISidecarCLI`, and `AISidecarCoreTests`.
+- `Sources/AISidecarCore/Configuration` owns config defaults and precedence.
+- `Sources/AISidecarCore/Errors` owns the frozen Phase 1 error code set.
+- `Sources/AISidecarCore/Reporting` owns text and JSON logging.
+- `Sources/AISidecarCLI` owns `aisidecar analyze` scaffolding and shared options.
+- `Tests/AISidecarCoreTests` contains offline XCTest coverage.
+
+## Commands
+
+- Build and test: `swift test`.
+- CLI help check: `swift run aisidecar analyze --help`.
+- If XCTest is missing because `xcode-select` points at Command Line Tools, run the same commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
+
+## Documentation Index
+
+- `agent_docs/01-cli-raw-json-sidecar-requirements.md`: read before Phase 1 work.
+- `agent_docs/phase-1-cli-implementation-plan.md`: read before implementing any Phase 1 milestone.
+- `agent_docs/02-cli-xmp-sidecar-requirements.md`: read before Phase 2/XMP work.
+- `agent_docs/03-cli-normalized-batch-tagger-requirements.md`: read before Phase 3 normalization work.
+- `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md`: read before GUI work.
+- `agent_docs/agent-md-best-practices.md`: read before changing this file.
+
+## Implementation Guidance
+
+- Implement one milestone at a time unless the user explicitly expands scope.
+- For Phase 1 Milestone 1, start with scanner/source identity and `--dry-scan`; do not jump ahead to rendering, model runtime, or sidecar writing.
+- Keep config precedence as CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default.
+- Preserve stable raw string values for public enums and error codes because later sidecars and logs depend on them.
+- Add or update tests with each behavior change. Prefer focused unit tests in `AISidecarCoreTests`.
+- `Package.resolved` is tracked to keep dependency resolution reproducible.
+- `.vscode/` is ignored; do not include editor-local launch settings in commits.
+
+## Compaction Instructions
+
+When compacting or summarizing active work, preserve:
+
+- The current milestone and acceptance criteria.
+- The modified file list.
+- The latest build and test command results.
+- Any relevant `agent_docs/` files already consulted.
