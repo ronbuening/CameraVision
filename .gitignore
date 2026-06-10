@@ -216,3 +216,33 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Swift / Xcode
+.build/
+.swiftpm/xcode/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+
+# Xcode user-specific settings
+xcuserdata/
+*.xcuserdatad/
+
+# Swift Package Manager
+Packages/
+
+# CocoaPods / Carthage
+Pods/
+Carthage/Build/
+
+# App archives and signing
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.mobileprovision
+*.provisionprofile
+
+# macOS
+.DS_Store
