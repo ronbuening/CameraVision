@@ -6,14 +6,13 @@ Milestone 9a is timing, schema-validity, and conservative default calibration on
 
 Place rights-cleared benchmark images in `benchmarks/samples/` and list them in `benchmarks/samples/manifest.json`.
 
-For the first committed corpus, target:
+For the first committed corpus, use:
 
-- 3 JPEG files.
-- 3 HEIC files.
-- Varied dimensions and file sizes.
-- Total committed corpus size under 25 MB because this repository does not have Git LFS configured.
+- 23 JPG files from public domain US Department of the Interior imagery.
+- Varied wildlife, landscape, landmark, architecture, cultural, and people-centered subjects.
+- Varied dimensions, aspect ratios, and file sizes, including high-resolution images.
 
-TIFF, NEF, and RAF timing remain deferred/manual until rights-cleared samples are available.
+HEIC, TIFF, NEF, and RAF timing remain deferred/manual until rights-cleared samples are available.
 
 ## Running
 

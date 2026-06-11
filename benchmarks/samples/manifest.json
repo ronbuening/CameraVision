@@ -1,4 +1,143 @@
 {
   "schema_version": "aisidecar-benchmark-samples/1.0",
-  "samples": []
+  "samples": [
+    {
+      "path": "AmericanBison1.jpg",
+      "format": "jpg",
+      "description": "American bison JPG benchmark sample, 5666x3777.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "AmericanThreeToedWoodpecker.jpg",
+      "format": "jpg",
+      "description": "American three-toed woodpecker JPG benchmark sample, 4860x3240.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "AncientBuilding.jpg",
+      "format": "jpg",
+      "description": "Ancient building JPG benchmark sample, 5677x3785.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "BaldEagle.jpg",
+      "format": "jpg",
+      "description": "Bald eagle JPG benchmark sample, 5065x3377.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "BaroqueCeiling2.jpg",
+      "format": "jpg",
+      "description": "Baroque ceiling JPG benchmark sample, 3908x5862.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "BrokenStatue.jpg",
+      "format": "jpg",
+      "description": "Broken statue JPG benchmark sample, 6000x4000.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "BrownBear1.jpg",
+      "format": "jpg",
+      "description": "Brown bear JPG benchmark sample, 3914x2609.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "BrownBear3.jpg",
+      "format": "jpg",
+      "description": "Brown bear JPG benchmark sample, 6000x4000.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "BrownPelicanOiled.jpg",
+      "format": "jpg",
+      "description": "Brown pelican JPG benchmark sample, 5616x3744.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "CanadaJay1.jpg",
+      "format": "jpg",
+      "description": "Canada jay JPG benchmark sample, 5425x3617.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "CanadaJay2.jpg",
+      "format": "jpg",
+      "description": "Canada jay JPG benchmark sample, 5030x3353.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "CoalMine.jpg",
+      "format": "jpg",
+      "description": "Coal mine panorama JPG benchmark sample, 10016x3291.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "DesertTortoise.jpg",
+      "format": "jpg",
+      "description": "Desert tortoise JPG benchmark sample, 5152x3864.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "FireworksOverNationalMall.jpg",
+      "format": "jpg",
+      "description": "Fireworks over the National Mall JPG benchmark sample, 5232x3488.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "GreatHornedOwlLouisiana.jpg",
+      "format": "jpg",
+      "description": "Great horned owl JPG benchmark sample, 3321x2476.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "ParkRangerSelfie.jpg",
+      "format": "jpg",
+      "description": "Park ranger selfie JPG benchmark sample, 5575x3717.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "RedFoxBombayHook.jpg",
+      "format": "jpg",
+      "description": "Red fox JPG benchmark sample, 2048x1366.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "RedTailedHawk.jpg",
+      "format": "jpg",
+      "description": "Red-tailed hawk JPG benchmark sample, 5152x3864.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "Singer2.jpg",
+      "format": "jpg",
+      "description": "Singer JPG benchmark sample, 6000x4000.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "SnowCoveredMountains.jpg",
+      "format": "jpg",
+      "description": "Snow-covered mountains JPG benchmark sample, 5866x3911.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "StatueOfLiberty1.jpg",
+      "format": "jpg",
+      "description": "Statue of Liberty JPG benchmark sample, 3903x5855.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "SunsetAtNationalMall.jpg",
+      "format": "jpg",
+      "description": "Sunset at the National Mall JPG benchmark sample, 3211x4817.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    },
+    {
+      "path": "WallabyVictoriaAustrailia.jpg",
+      "format": "jpg",
+      "description": "Wallaby JPG benchmark sample, 5393x3595.",
+      "rights": "public domain imagery from the US Department of the Interior"
+    }
+  ]
 }
