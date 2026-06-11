@@ -32,9 +32,6 @@ private struct EmptyCodingKey: CodingKey {
 }
 
 /// Phase 1 raw JSON sidecar record.
-///
-/// Milestone 4 records derivative and subject-isolation provenance while still
-/// leaving model runs empty until the model-runtime milestone.
 public struct RawJSONSidecar: Codable, Sendable, Equatable {
     public var schemaVersion: String
     public var source: SourceImage
@@ -42,7 +39,7 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
     public var modelInputProfile: ModelInputProfile
     public var derivatives: [DerivativeRecord]
     public var subjectIsolation: SubjectIsolationRecord?
-    public var modelRuns: [EmptyJSONObject]
+    public var modelRuns: [ModelRunRecord]
     public var errors: [SidecarError]
     public var createdAt: Date
 
@@ -65,7 +62,7 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         modelInputProfile: ModelInputProfile = .defaultProfile,
         derivatives: [DerivativeRecord] = [],
         subjectIsolation: SubjectIsolationRecord? = nil,
-        modelRuns: [EmptyJSONObject] = [],
+        modelRuns: [ModelRunRecord] = [],
         errors: [SidecarError] = [],
         createdAt: Date = Date()
     ) {
@@ -88,7 +85,7 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         self.modelInputProfile = try container.decode(ModelInputProfile.self, forKey: .modelInputProfile)
         self.derivatives = try container.decode([DerivativeRecord].self, forKey: .derivatives)
         self.subjectIsolation = try? container.decode(SubjectIsolationRecord.self, forKey: .subjectIsolation)
-        self.modelRuns = try container.decode([EmptyJSONObject].self, forKey: .modelRuns)
+        self.modelRuns = try container.decode([ModelRunRecord].self, forKey: .modelRuns)
         self.errors = try container.decode([SidecarError].self, forKey: .errors)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
