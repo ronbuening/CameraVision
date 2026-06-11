@@ -4,8 +4,11 @@ import ImageIO
 import Vision
 
 /// Apple Vision foreground-instance provider for the production isolation path.
+///
+/// The provider has no mutable public state; unchecked sendability is limited
+/// to the internal `CIContext` used while converting Vision masks to geometry.
 @available(macOS 15.0, *)
-public struct AppleVisionForegroundMaskProvider: ForegroundMaskProvider {
+public struct AppleVisionForegroundMaskProvider: ForegroundMaskProvider, @unchecked Sendable {
     private let context: CIContext
 
     public init() {

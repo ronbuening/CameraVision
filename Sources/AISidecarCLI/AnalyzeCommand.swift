@@ -57,7 +57,7 @@ struct AnalyzeCommand: AsyncParsableCommand {
             return
         }
 
-        let pipeline = AnalyzeShellPipeline(logger: logger)
+        let pipeline = AnalyzePipeline(logger: logger, runner: OllamaVisionRunner())
         _ = try await pipeline.run(
             inputPath: inputPath,
             configuration: resolved,

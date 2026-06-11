@@ -244,7 +244,10 @@ public struct SubjectIsolationRecord: Codable, Sendable, Equatable {
 }
 
 /// One foreground instance mask at analysis resolution.
-public struct ForegroundInstanceMask {
+///
+/// `CIImage` is treated as immutable image recipe data while it moves through
+/// the isolation worker that requested it.
+public struct ForegroundInstanceMask: @unchecked Sendable {
     public var record: SubjectInstanceRecord
     public var maskImage: CIImage
 
@@ -255,7 +258,10 @@ public struct ForegroundInstanceMask {
 }
 
 /// Foreground masks returned from the Apple Vision provider or a test fixture.
-public struct ForegroundMaskResult {
+///
+/// Instances are consumed by the same isolation operation that receives them;
+/// this unchecked boundary keeps Core Image details out of the public protocol.
+public struct ForegroundMaskResult: @unchecked Sendable {
     public var instances: [ForegroundInstanceMask]
 
     public init(instances: [ForegroundInstanceMask]) {
@@ -264,12 +270,12 @@ public struct ForegroundMaskResult {
 }
 
 /// Mask-generation seam that keeps XCTest deterministic while production uses Apple Vision.
-public protocol ForegroundMaskProvider {
+public protocol ForegroundMaskProvider: Sendable {
     func foregroundMasks(in analysisImage: CIImage, dimensions: PixelDimensions) async throws -> ForegroundMaskResult
 }
 
 /// Result returned by the subject-isolation service for one source image.
-public struct SubjectIsolationResult {
+public struct SubjectIsolationResult: Sendable {
     public var record: SubjectIsolationRecord
     public var derivative: DerivativeRecord?
     public var error: SidecarError?

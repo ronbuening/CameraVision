@@ -18,6 +18,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var derivativeCacheSizeBytes: Int64?
     public var subjectCropMarginFraction: Double?
     public var subjectMergeDominanceThreshold: Double?
+    /// Bounded render/isolation worker count; model calls remain serialized.
+    public var stageConcurrency: Int?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case mode
@@ -36,6 +38,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case derivativeCacheSizeBytes = "derivative_cache_size_bytes"
         case subjectCropMarginFraction = "subject_crop_margin_fraction"
         case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
+        case stageConcurrency = "stage_concurrency"
     }
 
     public init(
@@ -54,7 +57,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         derivativeCacheDir: String? = nil,
         derivativeCacheSizeBytes: Int64? = nil,
         subjectCropMarginFraction: Double? = nil,
-        subjectMergeDominanceThreshold: Double? = nil
+        subjectMergeDominanceThreshold: Double? = nil,
+        stageConcurrency: Int? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -72,6 +76,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
         self.subjectCropMarginFraction = subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
+        self.stageConcurrency = stageConcurrency
     }
 
     public init(from decoder: Decoder) throws {
@@ -118,6 +123,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
             Double.self,
             forKey: .subjectMergeDominanceThreshold
         )
+        self.stageConcurrency = try container.decodeIfPresent(Int.self, forKey: .stageConcurrency)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -138,6 +144,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(derivativeCacheSizeBytes, forKey: .derivativeCacheSizeBytes)
         try container.encodeIfPresent(subjectCropMarginFraction, forKey: .subjectCropMarginFraction)
         try container.encodeIfPresent(subjectMergeDominanceThreshold, forKey: .subjectMergeDominanceThreshold)
+        try container.encodeIfPresent(stageConcurrency, forKey: .stageConcurrency)
     }
 }
 

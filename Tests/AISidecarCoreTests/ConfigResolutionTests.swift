@@ -31,7 +31,8 @@ final class ConfigResolutionTests: XCTestCase {
               "derivative_cache_dir": "/tmp/aisidecar-cache",
               "derivative_cache_size_bytes": 1048576,
               "subject_crop_margin_fraction": 0.12,
-              "subject_merge_dominance_threshold": 0.75
+              "subject_merge_dominance_threshold": 0.75,
+              "stage_concurrency": 3
             }
             """
         )
@@ -57,6 +58,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.derivativeCacheSizeBytes, 1_048_576)
         XCTAssertEqual(resolved.subjectCropMarginFraction, 0.12)
         XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.75)
+        XCTAssertEqual(resolved.stageConcurrency, 3)
     }
 
     func testEnvironmentOverridesConfigFile() throws {
@@ -82,7 +84,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_DERIVATIVE_CACHE_DIR": "/tmp/env-cache",
                 "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152",
                 "AISIDECAR_SUBJECT_CROP_MARGIN_FRACTION": "0.15",
-                "AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD": "0.65"
+                "AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD": "0.65",
+                "AISIDECAR_STAGE_CONCURRENCY": "5"
             ],
             defaultConfigPath: configPath
         )
@@ -96,13 +99,15 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.derivativeCacheSizeBytes, 2_097_152)
         XCTAssertEqual(resolved.subjectCropMarginFraction, 0.15)
         XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.65)
+        XCTAssertEqual(resolved.stageConcurrency, 5)
     }
 
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
         let config = AppConfig(
             sourceIdentityPolicy: .fast,
             subjectCropMarginFraction: 0.12,
-            subjectMergeDominanceThreshold: 0.75
+            subjectMergeDominanceThreshold: 0.75,
+            stageConcurrency: 3
         )
         let data = try JSONEncoder().encode(config)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -111,6 +116,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertNil(object["sourceIdentityPolicy"])
         XCTAssertEqual(object["subject_crop_margin_fraction"] as? Double, 0.12)
         XCTAssertEqual(object["subject_merge_dominance_threshold"] as? Double, 0.75)
+        XCTAssertEqual(object["stage_concurrency"] as? Int, 3)
     }
 
     func testCLIOverridesEnvironment() throws {
@@ -120,14 +126,16 @@ final class ConfigResolutionTests: XCTestCase {
                 existing: .skip,
                 model: "cli:model",
                 modelEndpoint: "http://localhost:9999",
-                logFormat: .json
+                logFormat: .json,
+                stageConcurrency: 7
             ),
             environment: [
                 "AISIDECAR_MODE": "subject",
                 "AISIDECAR_EXISTING": "overwrite",
                 "AISIDECAR_MODEL": "env:model",
                 "AISIDECAR_MODEL_ENDPOINT": "http://localhost:1111",
-                "AISIDECAR_LOG_FORMAT": "text"
+                "AISIDECAR_LOG_FORMAT": "text",
+                "AISIDECAR_STAGE_CONCURRENCY": "5"
             ],
             defaultConfigPath: missingConfigPath()
         )
@@ -137,6 +145,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.model, "cli:model")
         XCTAssertEqual(resolved.modelEndpoint.absoluteString, "http://localhost:9999")
         XCTAssertEqual(resolved.logFormat, .json)
+        XCTAssertEqual(resolved.stageConcurrency, 7)
     }
 
     func testCLIConfigPathChoosesAlternateJSON() throws {

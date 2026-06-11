@@ -103,6 +103,10 @@ public enum ConfigurationResolver {
             subjectMergeDominanceThreshold: try doubleValue(
                 from: environment["AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD"],
                 key: "AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD"
+            ),
+            stageConcurrency: try intValue(
+                from: environment["AISIDECAR_STAGE_CONCURRENCY"],
+                key: "AISIDECAR_STAGE_CONCURRENCY"
             )
         )
     }
@@ -145,6 +149,16 @@ public enum ConfigurationResolver {
         return value
     }
 
+    private static func intValue(from rawValue: String?, key: String) throws -> Int? {
+        guard let rawValue else {
+            return nil
+        }
+        guard let value = Int(rawValue), value > 0 else {
+            throw SidecarError.configInvalid("Invalid positive integer value for \(key): \(rawValue)")
+        }
+        return value
+    }
+
     private static func doubleValue(from rawValue: String?, key: String) throws -> Double? {
         guard let rawValue else {
             return nil
@@ -173,6 +187,7 @@ private struct ConfigurationBuilder {
     private var derivativeCacheSizeBytes: Int64
     private var subjectCropMarginFraction: Double
     private var subjectMergeDominanceThreshold: Double
+    private var stageConcurrency: Int
 
     init(defaults: ResolvedRunConfiguration) {
         self.mode = defaults.mode
@@ -191,6 +206,7 @@ private struct ConfigurationBuilder {
         self.derivativeCacheSizeBytes = defaults.derivativeCacheSizeBytes
         self.subjectCropMarginFraction = defaults.subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = defaults.subjectMergeDominanceThreshold
+        self.stageConcurrency = defaults.stageConcurrency
     }
 
     mutating func apply(config: AppConfig) {
@@ -210,6 +226,7 @@ private struct ConfigurationBuilder {
         if let value = config.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
         if let value = config.subjectCropMarginFraction { subjectCropMarginFraction = value }
         if let value = config.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
+        if let value = config.stageConcurrency { stageConcurrency = value }
     }
 
     mutating func apply(overrides: RunConfigurationOverrides) {
@@ -229,6 +246,7 @@ private struct ConfigurationBuilder {
         if let value = overrides.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
         if let value = overrides.subjectCropMarginFraction { subjectCropMarginFraction = value }
         if let value = overrides.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
+        if let value = overrides.stageConcurrency { stageConcurrency = value }
     }
 
     func resolved() throws -> ResolvedRunConfiguration {
@@ -252,6 +270,9 @@ private struct ConfigurationBuilder {
         else {
             throw SidecarError.configInvalid("subject_merge_dominance_threshold must be greater than zero and at most one")
         }
+        guard stageConcurrency > 0 else {
+            throw SidecarError.configInvalid("stage_concurrency must be greater than zero")
+        }
 
         return ResolvedRunConfiguration(
             mode: mode,
@@ -269,7 +290,8 @@ private struct ConfigurationBuilder {
             derivativeCacheDir: derivativeCacheDir,
             derivativeCacheSizeBytes: derivativeCacheSizeBytes,
             subjectCropMarginFraction: subjectCropMarginFraction,
-            subjectMergeDominanceThreshold: subjectMergeDominanceThreshold
+            subjectMergeDominanceThreshold: subjectMergeDominanceThreshold,
+            stageConcurrency: stageConcurrency
         )
     }
 }
@@ -294,7 +316,8 @@ private extension RunConfigurationOverrides {
             derivativeCacheDir: derivativeCacheDir,
             derivativeCacheSizeBytes: derivativeCacheSizeBytes,
             subjectCropMarginFraction: subjectCropMarginFraction,
-            subjectMergeDominanceThreshold: subjectMergeDominanceThreshold
+            subjectMergeDominanceThreshold: subjectMergeDominanceThreshold,
+            stageConcurrency: stageConcurrency
         )
     }
 }

@@ -14,16 +14,16 @@ Traceability in this plan points at the v0.2 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-6 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, writes folder-run JSONL progress logs and batch summaries, and handles interruption through the analyze shell pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The `AISidecarCore/ModelRuntime` layer now contains the Ollama client, mock and recorded-fixture runners, response parsing, v1.1 prompt registry, and v1.1 response schemas. The analyze pipeline does not yet call Ollama or write XMP.
+Phase 1 Milestones 0-7 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The `AISidecarCore/ModelRuntime` layer contains the Ollama client, mock and recorded-fixture runners, response parsing, v1.1 prompt registry, and v1.1 response schemas. The analyze pipeline does not write XMP.
 
 Latest verification for this baseline:
 
 ```text
-swift test                                      100 tests, 1 skipped, 0 failures
+swift test                                      106 tests, 1 skipped, 0 failures
 swift run aisidecar analyze --help             passed
 ```
 
-The next implementation unit is Milestone 7: Full Analyze Command and Pipeline.
+The next implementation unit is Milestone 8: Tests and Fixtures.
 
 ## 1. Implementation Position
 
@@ -124,7 +124,8 @@ CameraVision/
         BatchSummary.swift              // FR1-012 derived from log
         Logger.swift                    // text + json formats
       Pipeline/
-        AnalyzeShellPipeline.swift      // scanner -> renderer -> isolation -> sidecar path
+        AnalyzePipeline.swift           // full scanner -> renderer -> isolation -> model -> sidecar path
+        AnalyzeShellPipeline.swift      // earlier shell path retained for offline regression coverage
         ModelInputExportPipeline.swift  // diagnostic pre-model export path
         InterruptionMonitor.swift       // SIGINT/SIGTERM interruption state
       ModelRuntime/
@@ -151,9 +152,6 @@ CameraVision/
 Remaining planned Phase 1 additions:
 
 ```text
-Sources/AISidecarCore/
-  Pipeline/
-    AnalyzePipeline.swift               // PW-015 staged concurrency
 Fixtures/
   model-responses/                      // recorded real responses incl. malformed
   golden-sidecars/
@@ -284,7 +282,7 @@ Implemented notes:
 
 ## 8.5. Milestone 4.5 - Model Input Export (Implemented)
 
-Purpose: inspect exactly what Milestone 5 will send to the model without writing raw `.ai.json` sidecars or calling Ollama.
+Purpose: inspect exactly which rendered derivatives the full analyze pipeline sends to the model without writing raw `.ai.json` sidecars or calling Ollama.
 
 Command:
 
@@ -360,7 +358,7 @@ Implemented notes:
 7. `ModelRuntimeTests` now asserts that an Ollama chat request can carry the complete v1.1 whole-image schema as the `format` payload.
 8. Live prompt-quality checks remain opt-in; default `swift test` remains deterministic and offline.
 
-## 11. Milestone 7 - Full Analyze Command and Pipeline
+## 11. Milestone 7 - Full Analyze Command and Pipeline (Implemented)
 
 Tasks:
 
@@ -381,6 +379,14 @@ aisidecar analyze ./Birds --recursive --mode subject --output-dir ./ai-json --ex
 ```
 
 Exit criteria: a mixed RAW/JPEG folder yields one sidecar per processable image, mirrored under `--output-dir`, two model runs per image in `both` mode (AC1-004, AC1-008); interrupt-and-resume completes only the remainder (AC1-011).
+
+Implemented notes:
+
+1. `AnalyzePipeline` is the normal CLI path and wires scanner → renderer → isolation → model runner → sidecar writer.
+2. `stage_concurrency` is resolved through JSON config and `AISIDECAR_STAGE_CONCURRENCY`, recorded in sidecar provenance, and defaults to physical performance cores with an active-processor fallback.
+3. Render/isolation preparation uses a bounded task group; model calls are serialized and role-ordered as `whole_image`, then `subject_isolated`.
+4. Model prepare failures fail fast before progress logs, summaries, sidecars, or derivative cache writes for pending model work.
+5. Offline `AnalyzePipelineTests` cover model-run sidecars, both-mode two-run output, model failure recording, prepare fail-fast behavior, existing-skip resume, and single-flight model execution.
 
 ## 12. Milestone 8 - Tests and Fixtures
 

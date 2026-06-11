@@ -10,6 +10,7 @@ public struct DerivativeCache {
     private let now: @Sendable () -> Date
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private static let manifestLock = NSLock()
 
     public init(
         directoryPath: String,
@@ -58,6 +59,12 @@ public struct DerivativeCache {
             return nil
         }
 
+        Self.manifestLock.lock()
+        defer { Self.manifestLock.unlock() }
+
+        guard fileManager.fileExists(atPath: url.path) else {
+            return nil
+        }
         var manifest = try loadManifest()
         guard let entry = manifest.entries[url.lastPathComponent] else {
             return nil
@@ -89,6 +96,12 @@ public struct DerivativeCache {
         writer: (URL) throws -> Void
     ) throws -> DerivativeRecord {
         let url = artifactURL(source: source, recipeVersion: recipeVersion, role: role, format: format)
+        // PW-015 lets multiple render workers share one derivative cache. The
+        // manifest is a single JSON file, so index reads/writes and eviction
+        // must be serialized even when image preparation runs concurrently.
+        Self.manifestLock.lock()
+        defer { Self.manifestLock.unlock() }
+
         do {
             try AtomicFileWriter.writeFile(to: url, fileManager: fileManager, writer: writer)
             let attributes = try fileManager.attributesOfItem(atPath: url.path)

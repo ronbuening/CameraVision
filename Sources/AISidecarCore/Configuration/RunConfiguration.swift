@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Requested analysis input roles for Phase 1.
@@ -63,6 +64,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var derivativeCacheSizeBytes: Int64?
     public var subjectCropMarginFraction: Double?
     public var subjectMergeDominanceThreshold: Double?
+    /// Optional override for the bounded render/isolation stage only.
+    public var stageConcurrency: Int?
 
     public init(
         mode: AnalysisMode? = nil,
@@ -81,7 +84,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         derivativeCacheDir: String? = nil,
         derivativeCacheSizeBytes: Int64? = nil,
         subjectCropMarginFraction: Double? = nil,
-        subjectMergeDominanceThreshold: Double? = nil
+        subjectMergeDominanceThreshold: Double? = nil,
+        stageConcurrency: Int? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -100,6 +104,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
         self.subjectCropMarginFraction = subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
+        self.stageConcurrency = stageConcurrency
     }
 }
 
@@ -124,6 +129,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var derivativeCacheSizeBytes: Int64
     public var subjectCropMarginFraction: Double
     public var subjectMergeDominanceThreshold: Double
+    /// Bounded render/isolation workers; the model stage still has one request in flight.
+    public var stageConcurrency: Int
 
     enum CodingKeys: String, CodingKey {
         case mode
@@ -142,6 +149,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case derivativeCacheSizeBytes = "derivative_cache_size_bytes"
         case subjectCropMarginFraction = "subject_crop_margin_fraction"
         case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
+        case stageConcurrency = "stage_concurrency"
     }
 
     public init(
@@ -160,7 +168,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         derivativeCacheDir: String = DerivativeCache.defaultDirectoryPath(),
         derivativeCacheSizeBytes: Int64 = DerivativeCache.defaultSizeCapBytes,
         subjectCropMarginFraction: Double = 0.08,
-        subjectMergeDominanceThreshold: Double = 0.8
+        subjectMergeDominanceThreshold: Double = 0.8,
+        stageConcurrency: Int = Self.defaultStageConcurrency()
     ) {
         self.mode = mode
         self.existing = existing
@@ -178,6 +187,21 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
         self.subjectCropMarginFraction = subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
+        self.stageConcurrency = stageConcurrency
+    }
+
+    /// Default bounded render/isolation worker count for PW-015.
+    ///
+    /// Apple Silicon exposes physical performance cores through this sysctl.
+    /// Other macOS hardware falls back to the active processor count while
+    /// preserving a positive worker count for configuration provenance.
+    public static func defaultStageConcurrency() -> Int {
+        var value: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        if sysctlbyname("hw.perflevel0.physicalcpu", &value, &size, nil, 0) == 0, value > 0 {
+            return Int(value)
+        }
+        return max(1, ProcessInfo.processInfo.activeProcessorCount)
     }
 
     public static let builtInDefaults = ResolvedRunConfiguration(
@@ -196,6 +220,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         derivativeCacheDir: DerivativeCache.defaultDirectoryPath(),
         derivativeCacheSizeBytes: DerivativeCache.defaultSizeCapBytes,
         subjectCropMarginFraction: 0.08,
-        subjectMergeDominanceThreshold: 0.8
+        subjectMergeDominanceThreshold: 0.8,
+        stageConcurrency: ResolvedRunConfiguration.defaultStageConcurrency()
     )
 }

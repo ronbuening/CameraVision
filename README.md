@@ -4,7 +4,7 @@ CameraVision is a local macOS utility for generating AI-assisted image metadata 
 
 ## Current State
 
-Milestone 5 of Phase 1 is implemented.
+Milestone 7 of Phase 1 is implemented.
 
 The repository currently contains:
 
@@ -22,19 +22,22 @@ The repository currently contains:
 - Whole-image rendering with EXIF orientation baking, sRGB output, full-resolution render retention, and profile-conforming JPEG derivatives.
 - Content-addressed derivative caching with manifest-backed LRU eviction and configurable cache directory/size.
 - Subject isolation with Apple Vision foreground masks, deterministic instance selection/merge policy, full-resolution crop/matte compositing, and `subject_isolated` derivative provenance.
-- Diagnostic model-input export via `--export-model-inputs` for reviewing the exact images that future model calls will receive.
+- Diagnostic model-input export via `--export-model-inputs` for reviewing the exact images that model calls receive.
+- Versioned whole-image and subject-isolated prompts plus bundled v1.1 response schemas.
 - A reusable Ollama vision model runtime layer with tag/digest verification, runtime provenance, `/api/chat` request encoding, response parsing, schema validation, retry/error classification, and mock/recorded-fixture runners.
+- Full `aisidecar analyze` model execution with populated `model_runs` records, prompt/schema provenance, model digest/runtime provenance, raw response preservation, and parsed JSON when valid.
+- Bounded render/isolation preparation through `stage_concurrency`, feeding a serialized single-flight model stage.
 - JSON/env configuration for subject crop margin and merge dominance threshold.
+- JSON/env configuration for `stage_concurrency`.
 - Atomic writes for sidecars and batch summaries.
 - `--existing skip|overwrite|fail` handling.
 - Optional `--debug-derivatives` copies beside source images.
 - Folder-run JSONL progress logs and derived batch summaries.
-- SIGINT/SIGTERM-aware interruption handling for the analyze shell pipeline.
-- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, source identity, sidecar naming/writing, rendering, derivative cache behavior, subject-isolation geometry/pipeline behavior, model-runtime behavior, progress logs, summaries, and the shell pipeline.
+- SIGINT/SIGTERM-aware interruption handling for the full analyze pipeline.
+- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, source identity, sidecar naming/writing, rendering, derivative cache behavior, subject-isolation geometry/pipeline behavior, model-runtime behavior, progress logs, summaries, diagnostic export, the shell pipeline, and the full analyze pipeline.
 
 Not implemented yet:
 
-- Full `aisidecar analyze` pipeline wiring that executes model calls and writes populated `model_runs`.
 - XMP output of any kind.
 
 ## Repository Layout
@@ -48,7 +51,7 @@ Sources/
     Identity/          Source content identity hashing.
     ModelRuntime/      Ollama runner, model-run records, JSON schema validation, and test runners.
     Rendering/         Model input profiles, render recipes, renderer, and derivative cache.
-    Pipeline/          Analyze shell pipeline and diagnostic model-input export.
+    Pipeline/          Full analyze pipeline, analyze shell pipeline, and diagnostic model-input export.
     Reporting/         CLI logs, JSONL progress logs, batch summaries.
     Sidecars/          Raw JSON sidecar naming, schema records, and atomic writes.
     SubjectIsolation/  Foreground masks, instance selection, two-resolution crops.
@@ -89,12 +92,12 @@ env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode
 
 ## Current Analyze Behavior
 
-`aisidecar analyze` currently performs the Milestone 4 shell pipeline. It scans inputs, computes source identities, renders full-resolution and whole-image derivatives, optionally isolates foreground subjects for `--mode subject|both`, writes schema-versioned `.ai.json` sidecars with model input profile, derivative provenance, and subject-isolation provenance, records recoverable per-file errors, and writes batch progress/summary artifacts for folder runs. Milestone 5 adds the reusable Ollama client in `AISidecarCore`, but the CLI analyze path still does not call Ollama or write XMP until the full pipeline milestone.
+`aisidecar analyze` currently performs the Milestone 7 full pipeline. It scans inputs, computes source identities, verifies the configured Ollama model tag at startup, renders full-resolution and whole-image derivatives, optionally isolates foreground subjects for `--mode subject|both`, runs the model with versioned prompts and response schemas, and writes schema-versioned `.ai.json` sidecars with model input profile, derivative provenance, subject-isolation provenance, and populated `model_runs`. Folder runs write JSONL progress and batch summary artifacts. The render/isolation stage is bounded by `stage_concurrency`, while model requests are serialized with one in-flight request.
 
-For pre-model visual validation, `--export-model-inputs <folder>` switches `analyze` into the Milestone 4.5 diagnostic export path. It renders through the same cache and subject-isolation pipeline, mirrors source relative paths under the export folder, writes only `whole_image` and/or `subject_isolated` model-input files, and writes a timestamped `model-input-export-*.json` manifest. It does not write `.ai.json` sidecars, progress logs, batch summaries, XMP, or model output. `--dry-run` and `--debug-derivatives` are rejected in this mode because export mode writes only to the requested export folder.
+For visual validation, `--export-model-inputs <folder>` switches `analyze` into the diagnostic export path. It renders through the same cache and subject-isolation pipeline, mirrors source relative paths under the export folder, writes only `whole_image` and/or `subject_isolated` model-input files, and writes a timestamped `model-input-export-*.json` manifest. It does not write `.ai.json` sidecars, progress logs, batch summaries, XMP, or model output. `--dry-run` and `--debug-derivatives` are rejected in this mode because export mode writes only to the requested export folder.
 
 ## Next Steps
 
-The next planned implementation unit is Phase 1 Milestone 6: prompts and response schemas.
+The next planned implementation unit is Phase 1 Milestone 8: tests and fixtures.
 
-Milestone 6 should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and tests must remain offline with no Ollama or network dependency.
+Milestone 8 should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.
