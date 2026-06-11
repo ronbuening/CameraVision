@@ -19,7 +19,7 @@ Phase 1 Milestones 0-8 are implemented. The current `aisidecar analyze` path sca
 Latest verification for this baseline:
 
 ```text
-swift test                                      128 tests, 1 skipped, 0 failures
+swift test                                      129 tests, 1 skipped, 0 failures
 swift run aisidecar analyze --help             passed
 swift run aisidecar purge --help               passed
 swift run aisidecar --help                     passed
@@ -390,7 +390,7 @@ Implemented notes:
 2. `stage_concurrency` is resolved through JSON config and `AISIDECAR_STAGE_CONCURRENCY`, recorded in sidecar provenance, and defaults to physical performance cores with an active-processor fallback.
 3. Render/isolation preparation uses a bounded task group; model calls are serialized and role-ordered as `whole_image`, then `subject_isolated`.
 4. Model prepare failures fail fast before progress logs, summaries, sidecars, or derivative cache writes for pending model work.
-5. Offline `AnalyzePipelineTests` cover model-run sidecars, both-mode two-run output, model failure recording, prepare fail-fast behavior, existing-skip resume, cache clear-on-start and clear-after-success behavior, and single-flight model execution.
+5. Offline `AnalyzePipelineTests` cover model-run sidecars, both-mode two-run output, both-mode no-foreground recovery through a whole-image run, model failure recording, prepare fail-fast behavior, existing-skip resume, cache clear-on-start and clear-after-success behavior, and single-flight model execution.
 
 ## 12. Milestone 8 - Tests and Fixtures
 

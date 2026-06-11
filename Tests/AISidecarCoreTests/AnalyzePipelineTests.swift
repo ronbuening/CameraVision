@@ -85,6 +85,40 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(maxInFlight, 1)
     }
 
+    func testBothModeNoForegroundWritesWholeRunWithRecoverableError() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("NoForeground.JPG", width: 120, height: 80, in: root)
+        let runner = RecordingVisionModelRunner()
+
+        let result = try await pipeline(
+            maskProvider: StaticForegroundMaskProvider([]),
+            runner: runner
+        ).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .both,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        XCTAssertEqual(result.records.first?.errors.map(\.code), [.subjectIsolationNoForeground])
+        let sidecar = try decodeSidecar(output.appendingPathComponent("NoForeground.JPG.ai.json"))
+        XCTAssertEqual(sidecar.derivatives.map(\.role), [.fullResolution, .wholeImage])
+        XCTAssertEqual(sidecar.subjectIsolation?.status, .noForeground)
+        XCTAssertEqual(sidecar.modelRuns.map(\.inputRole), [.wholeImage])
+        XCTAssertEqual(sidecar.errors.map(\.code), [.subjectIsolationNoForeground])
+        let calls = await runner.capturedCalls()
+        XCTAssertEqual(calls.map(\.inputRole), [.wholeImage])
+    }
+
     func testModelFailureIsPreservedInRunTopLevelErrorsAndProgress() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
