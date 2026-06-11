@@ -531,7 +531,7 @@ final class ModelRuntimeTests: XCTestCase {
             height: 32,
             colorSpace: .sRGB,
             appliedOrientation: AppliedOrientation(exifValue: 1),
-            recipeVersion: "render-v1-test",
+            recipeVersion: "render-v2-test",
             sha256: sha256,
             sourceIdentity: SourceIdentity(policy: .sha256, sha256: String(repeating: "a", count: 64))
         )

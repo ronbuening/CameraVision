@@ -402,23 +402,39 @@ public struct AnalyzePipeline {
             )
             let renderer = ImageRenderer(cache: cache)
             let subjectIsolationService = SubjectIsolationService(cache: cache, maskProvider: maskProvider)
-            let rendered = try renderer.renderWholeImageSet(
-                source: entry.source,
-                profile: profile,
-                debugDerivatives: configuration.debugDerivatives
-            )
-            let renderMs = Self.durationMs(from: renderStartedAt, to: now())
-            var derivatives = rendered.derivatives
+            var derivatives: [DerivativeRecord] = []
             var subjectIsolation: SubjectIsolationRecord?
             var errors: [SidecarError] = []
+            var renderMs = 0
             var subjectIsolationMs = 0
 
-            if configuration.mode != .whole {
+            switch configuration.mode {
+            case .whole:
+                let rendered = try renderer.renderWholeImage(
+                    source: entry.source,
+                    profile: profile,
+                    debugDerivatives: configuration.debugDerivatives
+                )
+                derivatives = rendered.derivatives
+                renderMs = Self.durationMs(from: renderStartedAt, to: now())
+            case .subject, .both:
+                let prepared = try renderer.prepareSourceRender(source: entry.source, profile: profile)
+                if configuration.mode == .both {
+                    let whole = try renderer.renderWholeImageDerivative(
+                        source: entry.source,
+                        prepared: prepared,
+                        profile: profile,
+                        debugDerivatives: configuration.debugDerivatives
+                    )
+                    derivatives.append(whole)
+                }
+                renderMs = Self.durationMs(from: renderStartedAt, to: now())
+
                 let isolationStartedAt = now()
                 do {
                     let isolation = try await subjectIsolationService.isolate(
                         source: entry.source,
-                        rendered: rendered,
+                        prepared: prepared,
                         profile: profile,
                         configuration: configuration
                     )
@@ -434,7 +450,7 @@ public struct AnalyzePipeline {
                     subjectIsolationMs = Self.durationMs(from: isolationStartedAt, to: now())
                     let isolationError = subjectIsolationError(from: error)
                     subjectIsolation = failedSubjectIsolationRecord(
-                        rendered: rendered,
+                        prepared: prepared,
                         configuration: configuration,
                         profile: profile
                     )
@@ -752,12 +768,12 @@ public struct AnalyzePipeline {
     }
 
     private static func failedSubjectIsolationRecord(
-        rendered: WholeImageRenderResult,
+        prepared: PreparedSourceRender,
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile
     ) -> SubjectIsolationRecord {
-        let analysisDimensions = PixelDimensions(width: rendered.wholeImage.width, height: rendered.wholeImage.height)
-        let fullDimensions = PixelDimensions(width: rendered.fullResolution.width, height: rendered.fullResolution.height)
+        let analysisDimensions = prepared.analysisDimensions
+        let fullDimensions = prepared.fullDimensions
         return SubjectIsolationRecord(
             status: .failed,
             instanceCount: 0,

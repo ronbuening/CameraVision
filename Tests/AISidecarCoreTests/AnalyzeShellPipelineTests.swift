@@ -63,10 +63,10 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let sidecar = try decoder.decode(RawJSONSidecar.self, from: Data(contentsOf: juneSidecar))
-        XCTAssertEqual(sidecar.schemaVersion, "ai-sidecar-json/1.1")
+        XCTAssertEqual(sidecar.schemaVersion, "ai-sidecar-json/1.2")
         XCTAssertEqual(sidecar.source.relativePath, "2026/06/_DSC1234.JPG")
         XCTAssertEqual(sidecar.modelInputProfile.name, "gemma4-26b-default")
-        XCTAssertEqual(sidecar.derivatives.map(\.role), [.fullResolution, .wholeImage])
+        XCTAssertEqual(sidecar.derivatives.map(\.role), [.wholeImage])
         XCTAssertTrue(sidecar.modelRuns.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("2026/06/_DSC1234.xmp").path))
 
@@ -230,10 +230,10 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertEqual(
             sidecar.derivatives.compactMap(\.debugPath).sorted(),
             [
-                root.appendingPathComponent("Bird.JPG.aisidecar.full_resolution.tiff").path,
                 root.appendingPathComponent("Bird.JPG.aisidecar.whole_image.jpg").path
             ].sorted()
         )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Bird.JPG.aisidecar.full_resolution.tiff").path))
         XCTAssertTrue(sidecar.derivatives.allSatisfy { derivative in
             guard let debugPath = derivative.debugPath else { return false }
             return FileManager.default.fileExists(atPath: debugPath)
@@ -273,10 +273,13 @@ final class AnalyzeShellPipelineTests: XCTestCase {
             RawJSONSidecar.self,
             from: Data(contentsOf: output.appendingPathComponent("Subject.JPG.ai.json"))
         )
-        XCTAssertEqual(sidecar.derivatives.map(\.role), [.fullResolution, .wholeImage, .subjectIsolated])
+        XCTAssertEqual(sidecar.derivatives.map(\.role), [.subjectIsolated])
         XCTAssertEqual(sidecar.subjectIsolation?.status, .success)
         XCTAssertEqual(sidecar.subjectIsolation?.selectedInstanceIndices, [1])
         XCTAssertTrue(sidecar.errors.isEmpty)
+        let cacheNames = try FileManager.default.contentsOfDirectory(atPath: output.appendingPathComponent("cache").path)
+        XCTAssertFalse(cacheNames.contains { $0.contains("whole_image") })
+        XCTAssertFalse(cacheNames.contains { $0.contains("full_resolution") })
         let subjectDerivative = try XCTUnwrap(sidecar.derivatives.first { $0.role == .subjectIsolated })
         XCTAssertEqual(
             subjectDerivative.debugPath,
@@ -352,7 +355,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
             RawJSONSidecar.self,
             from: Data(contentsOf: output.appendingPathComponent("Both.JPG.ai.json"))
         )
-        XCTAssertEqual(sidecar.derivatives.map(\.role), [.fullResolution, .wholeImage])
+        XCTAssertEqual(sidecar.derivatives.map(\.role), [.wholeImage])
         XCTAssertEqual(sidecar.subjectIsolation?.status, .noForeground)
         XCTAssertEqual(sidecar.errors.first?.code, .subjectIsolationNoForeground)
     }

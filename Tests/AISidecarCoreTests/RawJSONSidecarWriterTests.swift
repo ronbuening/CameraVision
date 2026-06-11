@@ -24,7 +24,7 @@ final class RawJSONSidecarWriterTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let decoded = try decoder.decode(RawJSONSidecar.self, from: data)
-        XCTAssertEqual(decoded.schemaVersion, "ai-sidecar-json/1.1")
+        XCTAssertEqual(decoded.schemaVersion, "ai-sidecar-json/1.2")
         XCTAssertEqual(decoded.source.relativePath, "Bird.NEF")
         XCTAssertTrue(decoded.derivatives.isEmpty)
         XCTAssertTrue(decoded.modelRuns.isEmpty)

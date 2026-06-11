@@ -61,18 +61,20 @@ final class GoldenSidecarTests: XCTestCase {
             sizeCapBytes: configuration.derivativeCacheSizeBytes,
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_003_000))
         )
-        let rendered = try ImageRenderer(cache: cache).renderWholeImageSet(
+        let renderer = ImageRenderer(cache: cache)
+        let prepared = try renderer.prepareSourceRender(source: source, profile: profile)
+        let whole = try renderer.renderWholeImageDerivative(
             source: source,
+            prepared: prepared,
             profile: profile,
             debugDerivatives: false
         )
         let isolation = try await SubjectIsolationService(cache: cache, maskProvider: maskProvider).isolate(
             source: source,
-            rendered: rendered,
+            prepared: prepared,
             profile: profile,
             configuration: configuration
         )
-        let whole = try XCTUnwrap(rendered.derivatives.first { $0.role == .wholeImage })
         let subject = try XCTUnwrap(isolation.derivative)
         let context = ModelRuntimeContext(
             model: "gemma4:26b-a4b-it-qat",

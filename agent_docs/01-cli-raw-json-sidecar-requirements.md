@@ -225,11 +225,11 @@ FR1-016b - All model-input derivatives shall be converted to sRGB with the profi
 
 FR1-017 - The renderer shall record the render recipe version, output format, width, height, color space, applied orientation, and SHA-256 hash of each derivative.
 
-FR1-017a - The renderer shall produce and retain (in cache) a full-resolution render of the source — the RAW pipeline output at native size — because the subject-isolation chain crops from it (FR1-021a-d). Full-resolution renders are regenerable from source plus recipe, so cache eviction of them is always safe.
+FR1-017a - When subject isolation is requested, the renderer shall produce a full-resolution render of the source — the RAW pipeline output at native size — in memory only because the subject-isolation chain crops from it (FR1-021a-d). It shall not write or retain a cache-backed full-resolution TIFF for new runs.
 
 FR1-018 - Temporary derivatives shall be stored in an application cache by default and shall not be written beside the source image unless `--debug-derivatives` is enabled, in which case they are copied (not moved) beside the source.
 
-FR1-018a - The derivative cache shall use content-addressed keys (`<source-sha256>-<recipe-version>-<role>.<ext>`), enabling reuse across re-runs with unchanged recipes; shall enforce a configurable size cap with LRU eviction (default 20 GiB); and shall be clearable via an explicit maintenance command.
+FR1-018a - The derivative cache shall use content-addressed keys (`<source-sha256>-<recipe-version>-<role>.<ext>`), enabling reuse across re-runs with unchanged recipes; shall enforce a configurable size cap with LRU eviction (default 20 GiB); and shall be clearable via an explicit maintenance command. New runs shall write at most two cached image artifacts per source: `whole_image` when whole-image analysis is requested and `subject_isolated` when subject isolation succeeds. The cache index manifest is not counted as a derivative image artifact.
 
 FR1-018b - Analyze shall retain derivative cache artifacts by default. It shall support opt-in clearing before the run uses the cache and after a fully successful run through JSON config, `AISIDECAR_*` environment overrides, and matching CLI flags. A run with failed per-file records or interruption shall not perform the post-success clear.
 
@@ -251,9 +251,9 @@ The crop shall be taken through a two-resolution chain. Masking the already-down
 
 FR1-021a - The foreground mask request shall run at an analysis-friendly resolution (the whole-image derivative is suitable; masking does not need full resolution).
 
-FR1-021b - The selected mask and bounding box shall be mapped back to the full-resolution render (FR1-017a), with scale factors recorded.
+FR1-021b - The selected mask and bounding box shall be mapped back to the in-memory full-resolution render (FR1-017a), with scale factors recorded.
 
-FR1-021c - The crop, margin expansion, mask application, and matte compositing shall be performed on the full-resolution render.
+FR1-021c - The crop, margin expansion, mask application, and matte compositing shall be performed on the in-memory full-resolution render.
 
 FR1-021d - The composited crop shall then be downsized to the model input profile.
 

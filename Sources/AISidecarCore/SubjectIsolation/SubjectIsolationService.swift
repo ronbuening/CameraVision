@@ -4,7 +4,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Runs the Phase 1 two-resolution subject-isolation chain.
+/// Runs the Phase 1 subject-isolation chain without caching native renders.
 public struct SubjectIsolationService {
     private let cache: DerivativeCache
     private let maskProvider: any ForegroundMaskProvider
@@ -26,21 +26,21 @@ public struct SubjectIsolationService {
     /// Create or reuse a subject-isolated derivative and return sidecar provenance.
     public func isolate(
         source: SourceImage,
-        rendered: WholeImageRenderResult,
+        prepared: PreparedSourceRender,
         profile: ModelInputProfile,
         configuration: ResolvedRunConfiguration
     ) async throws -> SubjectIsolationResult {
-        let analysisDimensions = PixelDimensions(width: rendered.wholeImage.width, height: rendered.wholeImage.height)
-        let fullDimensions = PixelDimensions(width: rendered.fullResolution.width, height: rendered.fullResolution.height)
+        let analysisDimensions = prepared.analysisDimensions
+        let fullDimensions = prepared.fullDimensions
         let scaleFactors = SubjectIsolationScaleFactors(
             x: Double(fullDimensions.width) / Double(analysisDimensions.width),
             y: Double(fullDimensions.height) / Double(analysisDimensions.height)
         )
         let matteRGB = normalizedMatteRGB(profile.matteRGB)
-        // Vision runs at analysis resolution; all crop and matte work below is
-        // mapped back to the full-resolution render to preserve subject pixels.
+        // Vision runs at analysis resolution; all crop and matte work below maps
+        // back to the in-memory native render to preserve subject pixels.
         let foreground = try await maskProvider.foregroundMasks(
-            in: try loadImage(at: rendered.wholeImage.cachePath),
+            in: prepared.analysisImage,
             dimensions: analysisDimensions
         )
         let instances = foreground.instances.map(\.record).sorted { $0.index < $1.index }
@@ -91,18 +91,16 @@ public struct SubjectIsolationService {
             allowUpscale: profile.allowUpscaleSubjectByDefault
         )
         let upscaled = finalDimensions.width > cropBox.width || finalDimensions.height > cropBox.height
-        let recipe = RenderRecipe(profile: profile)
         let subjectRecipeVersion = self.subjectRecipeVersion(
-            renderRecipeVersion: recipe.version,
+            renderRecipeVersion: prepared.recipeVersion,
             configuration: configuration,
             matteRGB: matteRGB
         )
         let format = DerivativeFormat.jpeg
         let derivative = try subjectDerivative(
             source: source,
-            rendered: rendered,
+            prepared: prepared,
             profile: profile,
-            recipe: recipe,
             recipeVersion: subjectRecipeVersion,
             format: format,
             finalDimensions: finalDimensions,
@@ -137,9 +135,8 @@ public struct SubjectIsolationService {
 
     private func subjectDerivative(
         source: SourceImage,
-        rendered: WholeImageRenderResult,
+        prepared: PreparedSourceRender,
         profile: ModelInputProfile,
-        recipe: RenderRecipe,
         recipeVersion: String,
         format: DerivativeFormat,
         finalDimensions: PixelDimensions,
@@ -161,14 +158,14 @@ public struct SubjectIsolationService {
             return cached
         }
 
-        let fullImage = try loadImage(at: rendered.fullResolution.cachePath)
         let composited = try subjectComposite(
-            fullImage: fullImage,
+            fullImage: prepared.fullImage,
             fullDimensions: fullDimensions,
             selectedMasks: selectedMasks,
             cropBox: cropBox,
             matteRGB: matteRGB
         )
+        let recipe = RenderRecipe(profile: profile)
         let finalImage = recipe.resized(composited, to: finalDimensions)
         var record = try cache.store(
             source: source,
@@ -177,7 +174,7 @@ public struct SubjectIsolationService {
             format: format,
             dimensions: finalDimensions,
             colorSpace: profile.colorSpace,
-            appliedOrientation: rendered.fullResolution.appliedOrientation
+            appliedOrientation: prepared.appliedOrientation
         ) { destination in
             try writeJPEG(image: finalImage, to: destination, quality: profile.jpegQuality)
         }
@@ -197,7 +194,7 @@ public struct SubjectIsolationService {
         // including both prevents stale cache hits after margin/merge changes.
         [
             renderRecipeVersion,
-            "subject-v1",
+            "subject-v2",
             "margin-\(stableDecimal(configuration.subjectCropMarginFraction))",
             "merge-\(stableDecimal(configuration.subjectMergeDominanceThreshold))",
             "matte-\(matteRGB.map(String.init).joined(separator: "-"))"
@@ -250,13 +247,6 @@ public struct SubjectIsolationService {
             ]
         )
         return blended.transformed(by: CGAffineTransform(translationX: -cropRect.minX, y: -cropRect.minY))
-    }
-
-    private func loadImage(at path: String) throws -> CIImage {
-        guard let image = CIImage(contentsOf: URL(fileURLWithPath: path), options: [.applyOrientationProperty: false]) else {
-            throw MaskGeometry.isolationFailed("Unable to load cached derivative for subject isolation: \(path)")
-        }
-        return image
     }
 
     private func normalizedMatteRGB(_ values: [Int]) -> [Int] {

@@ -4,22 +4,50 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Output from rendering the whole-image derivative set for one source image.
+/// In-memory source render shared by whole-image and subject-isolation branches.
+///
+/// The full-resolution image is intentionally not cache-backed; it exists only
+/// while a source image is being prepared so subject crops can preserve native
+/// pixels without writing an intermediate TIFF artifact.
+public struct PreparedSourceRender: @unchecked Sendable {
+    public var fullImage: CIImage
+    public var fullDimensions: PixelDimensions
+    public var analysisImage: CIImage
+    public var analysisDimensions: PixelDimensions
+    public var appliedOrientation: AppliedOrientation
+    public var recipeVersion: String
+
+    public init(
+        fullImage: CIImage,
+        fullDimensions: PixelDimensions,
+        analysisImage: CIImage,
+        analysisDimensions: PixelDimensions,
+        appliedOrientation: AppliedOrientation,
+        recipeVersion: String
+    ) {
+        self.fullImage = fullImage
+        self.fullDimensions = fullDimensions
+        self.analysisImage = analysisImage
+        self.analysisDimensions = analysisDimensions
+        self.appliedOrientation = appliedOrientation
+        self.recipeVersion = recipeVersion
+    }
+}
+
+/// Output from rendering the whole-image model input for one source image.
 public struct WholeImageRenderResult: Sendable, Equatable {
-    public var fullResolution: DerivativeRecord
     public var wholeImage: DerivativeRecord
 
-    public init(fullResolution: DerivativeRecord, wholeImage: DerivativeRecord) {
-        self.fullResolution = fullResolution
+    public init(wholeImage: DerivativeRecord) {
         self.wholeImage = wholeImage
     }
 
     public var derivatives: [DerivativeRecord] {
-        [fullResolution, wholeImage]
+        [wholeImage]
     }
 }
 
-/// Renders full-resolution and model-profile whole-image derivatives.
+/// Prepares source pixels and writes model-input derivatives.
 public struct ImageRenderer {
     private let cache: DerivativeCache
     private let context: CIContext
@@ -36,72 +64,93 @@ public struct ImageRenderer {
         }
     }
 
-    /// Render or reuse the full-resolution and whole-image derivatives.
-    public func renderWholeImageSet(
+    /// Decode and orient source pixels, keeping the native render in memory only.
+    public func prepareSourceRender(source: SourceImage, profile: ModelInputProfile) throws -> PreparedSourceRender {
+        let recipe = RenderRecipe(profile: profile)
+        let loaded = try loadSourceImage(source)
+        let orientation = try recipe.resolveOrientation(from: loaded.properties)
+        let baked = recipe.bakeOrientation(loaded.image, orientation: orientation)
+        let fullExtent = baked.extent.integral
+        let fullDimensions = PixelDimensions(width: Int(fullExtent.width), height: Int(fullExtent.height))
+        let analysisDimensions = try recipe.wholeImageDimensions(for: baked)
+        let analysisImage = recipe.resized(baked, to: analysisDimensions)
+        return PreparedSourceRender(
+            fullImage: baked,
+            fullDimensions: fullDimensions,
+            analysisImage: analysisImage,
+            analysisDimensions: analysisDimensions,
+            appliedOrientation: orientation,
+            recipeVersion: recipe.version
+        )
+    }
+
+    /// Render or reuse the whole-image model-input derivative.
+    public func renderWholeImage(
         source: SourceImage,
         profile: ModelInputProfile,
         debugDerivatives: Bool
     ) throws -> WholeImageRenderResult {
         let recipe = RenderRecipe(profile: profile)
-        let fullFormat = DerivativeFormat.tiff
         let wholeFormat = profile.preferredWholeImageFormat
 
-        // The derivative set is consumed together by subject isolation;
-        // if either role is absent or corrupt, regenerate both from the source.
-        if var fullRecord = try cache.cachedRecord(
-            source: source,
-            recipeVersion: recipe.version,
-            role: .fullResolution,
-            format: fullFormat
-        ), var wholeRecord = try cache.cachedRecord(
+        if var wholeRecord = try cache.cachedRecord(
             source: source,
             recipeVersion: recipe.version,
             role: .wholeImage,
             format: wholeFormat
         ) {
             if debugDerivatives {
-                fullRecord = try cache.copyDebugArtifact(record: fullRecord, source: source)
                 wholeRecord = try cache.copyDebugArtifact(record: wholeRecord, source: source)
             }
-            return WholeImageRenderResult(fullResolution: fullRecord, wholeImage: wholeRecord)
+            return WholeImageRenderResult(wholeImage: wholeRecord)
         }
 
-        let loaded = try loadSourceImage(source)
-        let orientation = try recipe.resolveOrientation(from: loaded.properties)
-        let baked = recipe.bakeOrientation(loaded.image, orientation: orientation)
-        let fullDimensions = PixelDimensions(width: Int(baked.extent.width), height: Int(baked.extent.height))
-        let wholeDimensions = try recipe.wholeImageDimensions(for: baked)
-        let wholeImage = recipe.resized(baked, to: wholeDimensions)
-
-        var fullRecord = try cache.store(
+        let prepared = try prepareSourceRender(source: source, profile: profile)
+        let wholeRecord = try renderWholeImageDerivative(
             source: source,
-            recipeVersion: recipe.version,
-            role: .fullResolution,
-            format: fullFormat,
-            dimensions: fullDimensions,
-            colorSpace: profile.colorSpace,
-            appliedOrientation: orientation
-        ) { destination in
-            try writeTIFF(image: baked, to: destination)
+            prepared: prepared,
+            profile: profile,
+            debugDerivatives: debugDerivatives
+        )
+        return WholeImageRenderResult(wholeImage: wholeRecord)
+    }
+
+    /// Write or reuse the whole-image derivative from an already prepared source render.
+    public func renderWholeImageDerivative(
+        source: SourceImage,
+        prepared: PreparedSourceRender,
+        profile: ModelInputProfile,
+        debugDerivatives: Bool
+    ) throws -> DerivativeRecord {
+        let format = profile.preferredWholeImageFormat
+        if var cached = try cache.cachedRecord(
+            source: source,
+            recipeVersion: prepared.recipeVersion,
+            role: .wholeImage,
+            format: format
+        ) {
+            if debugDerivatives {
+                cached = try cache.copyDebugArtifact(record: cached, source: source)
+            }
+            return cached
         }
 
         var wholeRecord = try cache.store(
             source: source,
-            recipeVersion: recipe.version,
+            recipeVersion: prepared.recipeVersion,
             role: .wholeImage,
-            format: wholeFormat,
-            dimensions: wholeDimensions,
+            format: format,
+            dimensions: prepared.analysisDimensions,
             colorSpace: profile.colorSpace,
-            appliedOrientation: orientation
+            appliedOrientation: prepared.appliedOrientation
         ) { destination in
-            try writeJPEG(image: wholeImage, to: destination, quality: profile.jpegQuality)
+            try writeJPEG(image: prepared.analysisImage, to: destination, quality: profile.jpegQuality)
         }
 
         if debugDerivatives {
-            fullRecord = try cache.copyDebugArtifact(record: fullRecord, source: source)
             wholeRecord = try cache.copyDebugArtifact(record: wholeRecord, source: source)
         }
-        return WholeImageRenderResult(fullResolution: fullRecord, wholeImage: wholeRecord)
+        return wholeRecord
     }
 
     private func loadSourceImage(_ source: SourceImage) throws -> LoadedImage {
@@ -143,19 +192,6 @@ public struct ImageRenderer {
         }
         let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
         return properties ?? [:]
-    }
-
-    private func writeTIFF(image: CIImage, to destination: URL) throws {
-        do {
-            try writeImageIO(image: image, to: destination, typeIdentifier: UTType.tiff.identifier, properties: [:])
-        } catch {
-            throw SidecarError(
-                code: .renderFailed,
-                stage: .render,
-                message: "Unable to encode TIFF derivative \(destination.path): \(error.localizedDescription)",
-                recoverable: true
-            )
-        }
     }
 
     private func writeJPEG(image: CIImage, to destination: URL, quality: Double) throws {

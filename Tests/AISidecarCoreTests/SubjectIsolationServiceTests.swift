@@ -10,13 +10,9 @@ final class SubjectIsolationServiceTests: XCTestCase {
         let source = try testSourceImage(for: image)
         let profile = smallAnalysisProfile()
         let cache = DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 20_000_000)
-        let rendered = try ImageRenderer(cache: cache).renderWholeImageSet(
-            source: source,
-            profile: profile,
-            debugDerivatives: false
-        )
-        XCTAssertEqual(rendered.wholeImage.width, 200)
-        XCTAssertEqual(rendered.wholeImage.height, 100)
+        let prepared = try ImageRenderer(cache: cache).prepareSourceRender(source: source, profile: profile)
+        XCTAssertEqual(prepared.analysisDimensions.width, 200)
+        XCTAssertEqual(prepared.analysisDimensions.height, 100)
 
         let service = SubjectIsolationService(
             cache: cache,
@@ -26,7 +22,7 @@ final class SubjectIsolationServiceTests: XCTestCase {
         )
         let result = try await service.isolate(
             source: source,
-            rendered: rendered,
+            prepared: prepared,
             profile: profile,
             configuration: config(profile: profile)
         )
@@ -40,6 +36,12 @@ final class SubjectIsolationServiceTests: XCTestCase {
         XCTAssertGreaterThan(derivative.width, 20)
         XCTAssertEqual(derivative.role, .subjectIsolated)
         XCTAssertFalse(result.record.upscaled)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cache.artifactURL(
+            source: source,
+            recipeVersion: prepared.recipeVersion,
+            role: .wholeImage,
+            format: profile.preferredWholeImageFormat
+        ).path))
     }
 
     func testMultiInstanceMergeRecordsSelectionAndBoxes() async throws {
@@ -49,11 +51,7 @@ final class SubjectIsolationServiceTests: XCTestCase {
         let source = try testSourceImage(for: image)
         let profile = ModelInputProfile.defaultProfile
         let cache = DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 20_000_000)
-        let rendered = try ImageRenderer(cache: cache).renderWholeImageSet(
-            source: source,
-            profile: profile,
-            debugDerivatives: false
-        )
+        let prepared = try ImageRenderer(cache: cache).prepareSourceRender(source: source, profile: profile)
         let service = SubjectIsolationService(
             cache: cache,
             maskProvider: StaticForegroundMaskProvider([
@@ -64,7 +62,7 @@ final class SubjectIsolationServiceTests: XCTestCase {
 
         let result = try await service.isolate(
             source: source,
-            rendered: rendered,
+            prepared: prepared,
             profile: profile,
             configuration: config(profile: profile)
         )
@@ -83,11 +81,7 @@ final class SubjectIsolationServiceTests: XCTestCase {
         let source = try testSourceImage(for: image)
         let profile = ModelInputProfile.defaultProfile
         let cache = DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 20_000_000)
-        let rendered = try ImageRenderer(cache: cache).renderWholeImageSet(
-            source: source,
-            profile: profile,
-            debugDerivatives: false
-        )
+        let prepared = try ImageRenderer(cache: cache).prepareSourceRender(source: source, profile: profile)
         let service = SubjectIsolationService(
             cache: cache,
             maskProvider: StaticForegroundMaskProvider([
@@ -97,7 +91,7 @@ final class SubjectIsolationServiceTests: XCTestCase {
 
         let result = try await service.isolate(
             source: source,
-            rendered: rendered,
+            prepared: prepared,
             profile: profile,
             configuration: config(profile: profile)
         )
@@ -116,16 +110,12 @@ final class SubjectIsolationServiceTests: XCTestCase {
         let source = try testSourceImage(for: image)
         let profile = ModelInputProfile.defaultProfile
         let cache = DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 20_000_000)
-        let rendered = try ImageRenderer(cache: cache).renderWholeImageSet(
-            source: source,
-            profile: profile,
-            debugDerivatives: false
-        )
+        let prepared = try ImageRenderer(cache: cache).prepareSourceRender(source: source, profile: profile)
         let service = SubjectIsolationService(cache: cache, maskProvider: StaticForegroundMaskProvider([]))
 
         let result = try await service.isolate(
             source: source,
-            rendered: rendered,
+            prepared: prepared,
             profile: profile,
             configuration: config(profile: profile)
         )
@@ -143,11 +133,7 @@ final class SubjectIsolationServiceTests: XCTestCase {
         let source = try testSourceImage(for: image)
         let profile = ModelInputProfile.defaultProfile
         let cache = DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 20_000_000)
-        let rendered = try ImageRenderer(cache: cache).renderWholeImageSet(
-            source: source,
-            profile: profile,
-            debugDerivatives: false
-        )
+        let prepared = try ImageRenderer(cache: cache).prepareSourceRender(source: source, profile: profile)
         let service = SubjectIsolationService(
             cache: cache,
             maskProvider: StaticForegroundMaskProvider([
@@ -157,13 +143,13 @@ final class SubjectIsolationServiceTests: XCTestCase {
 
         let first = try await service.isolate(
             source: source,
-            rendered: rendered,
+            prepared: prepared,
             profile: profile,
             configuration: config(profile: profile, margin: 0.08)
         )
         let second = try await service.isolate(
             source: source,
-            rendered: rendered,
+            prepared: prepared,
             profile: profile,
             configuration: config(profile: profile, margin: 0.20)
         )

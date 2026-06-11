@@ -7,26 +7,9 @@
       },
       "cache_path" : "<cache-path>",
       "color_space" : "sRGB",
-      "format" : "tiff",
-      "height" : 80,
-      "recipe_version" : "render-v1-gemma4-26b-default",
-      "role" : "full_resolution",
-      "sha256" : "<sha256>",
-      "source_identity" : {
-        "policy" : "sha256",
-        "sha256" : "<sha256>"
-      },
-      "width" : 120
-    },
-    {
-      "applied_orientation" : {
-        "exif_value" : 1
-      },
-      "cache_path" : "<cache-path>",
-      "color_space" : "sRGB",
       "format" : "jpeg",
       "height" : 80,
-      "recipe_version" : "render-v1-gemma4-26b-default",
+      "recipe_version" : "render-v2-gemma4-26b-default",
       "role" : "whole_image",
       "sha256" : "<sha256>",
       "source_identity" : {
@@ -43,7 +26,7 @@
       "color_space" : "sRGB",
       "format" : "jpeg",
       "height" : 31,
-      "recipe_version" : "render-v1-gemma4-26b-default-subject-v1-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v2-margin-0.080000-merge-0.800000-matte-128-128-128",
       "role" : "subject_isolated",
       "sha256" : "<sha256>",
       "source_identity" : {
@@ -246,7 +229,7 @@
     "subject_crop_margin_fraction" : 0.08,
     "subject_merge_dominance_threshold" : 0.8
   },
-  "schema_version" : "ai-sidecar-json/1.1",
+  "schema_version" : "ai-sidecar-json/1.2",
   "source" : {
     "detected_type" : "jpg",
     "file_extension" : "JPG",

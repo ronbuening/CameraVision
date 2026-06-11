@@ -14,7 +14,7 @@ Traceability in this plan points at the v0.3 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-8 and the Milestone 9a benchmark harness are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command. The Milestone 9a benchmark harness is available through `aisidecar benchmark`, with the legacy script retained as a compatibility wrapper. The `AISidecarCore/ModelRuntime` layer contains the Ollama client, mock and recorded-fixture runners, response parsing, schema-constrained response repair, v1.3 prompt registry, and v1.3 response schemas with conditional `species` candidates for biological target genres. The `AISidecarCore/Sidecars` layer now includes a schema-evolution document wrapper for preserving additive 1.x unknown fields on rewrite. The analyze pipeline does not write XMP.
+Phase 1 Milestones 0-8 and the Milestone 9a benchmark harness are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders whole-image model-input derivatives when requested, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain using an in-memory native render, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command; new runs write at most `whole_image` and `subject_isolated` image artifacts per source, excluding the cache manifest. The Milestone 9a benchmark harness is available through `aisidecar benchmark`, with the legacy script retained as a compatibility wrapper. The `AISidecarCore/ModelRuntime` layer contains the Ollama client, mock and recorded-fixture runners, response parsing, schema-constrained response repair, v1.3 prompt registry, and v1.3 response schemas with conditional `species` candidates for biological target genres. The `AISidecarCore/Sidecars` layer now includes a schema-evolution document wrapper for preserving additive 1.x unknown fields on rewrite. The analyze pipeline does not write XMP.
 
 Latest verification for this baseline:
 
@@ -234,9 +234,9 @@ Tasks:
 1. `RenderRecipe` implementing the two hard rules:
    - orientation baked into pixels for every derivative, applied value recorded, explicit orientation passed wherever an unbaked image reaches Vision (FR1-016a);
    - sRGB conversion with embedded profile, target space a profile field with sRGB the only shipped default (FR1-016b).
-2. `ImageRenderer` producing, per source: the **full-resolution render** retained in cache (FR1-017a) and the model-profile whole-image derivative downsized from it (FR1-013/014). `CIRAWFilter` for RAW; Image I/O elsewhere (FR1-016).
+2. `ImageRenderer` producing an in-memory native render when needed for subject isolation (FR1-017a) and a model-profile whole-image derivative when whole-image analysis is requested (FR1-013/014). `CIRAWFilter` for RAW; Image I/O elsewhere (FR1-016).
 3. Derivative provenance: recipe version, format, dimensions, color space, orientation, SHA-256 (FR1-017).
-4. `DerivativeCache` (FR1-018a): keys `<source-sha256>-<recipe-version>-<role>.<ext>`; configurable cap, default 20 GiB, LRU eviction, explicit purge; eviction of full-resolution renders is always safe because they are regenerable from source plus recipe. `--debug-derivatives` copies beside the source (FR1-018).
+4. `DerivativeCache` (FR1-018a): keys `<source-sha256>-<recipe-version>-<role>.<ext>`; configurable cap, default 20 GiB, LRU eviction, explicit purge; new runs cache only model-input image artifacts (`whole_image` and/or `subject_isolated`), excluding the cache index manifest. `--debug-derivatives` copies persisted model-input derivatives beside the source (FR1-018).
 
 Default model input profile (calibrated in Milestone 9):
 
@@ -256,11 +256,11 @@ Default model input profile (calibrated in Milestone 9):
 
 Calibration note: vision-language models tile and downsample internally, so the model's *effective* input resolution may sit below these ceilings. The profile is justified empirically in Milestone 9, not assumed.
 
-Exit criteria: a NEF and a JPEG in each of the 8 EXIF orientations produce orientation-correct, sRGB-tagged, profile-conforming derivatives; a second run reuses cached full-resolution renders; cache eviction has tests.
+Exit criteria: a NEF and a JPEG in each of the 8 EXIF orientations produce orientation-correct, sRGB-tagged, profile-conforming derivatives; a second run reuses cached whole-image renders; cache eviction has tests.
 
 Implemented notes:
 
-1. The sidecar now records the resolved `model_input_profile` object and derivative provenance for `full_resolution` and `whole_image` roles.
+1. The sidecar now records the resolved `model_input_profile` object and derivative provenance for model-input roles. New runs no longer emit cache-backed `full_resolution` derivative records.
 2. The derivative cache defaults to `~/Library/Caches/aisidecar/derivatives`, supports `derivative_cache_dir` and `derivative_cache_size_bytes` config/env overrides, and uses a manifest-backed LRU policy.
 3. `clear_derivative_cache_on_start` and `clear_derivative_cache_after_success` are resolved through JSON config, `AISIDECAR_*` environment variables, and matching CLI flags; post-success clearing runs only when the invocation has no failed records and is not interrupted.
 4. `aisidecar purge` resolves only derivative-cache settings, honors `--config`, `--cache-dir`, `AISIDECAR_CONFIG`, and `AISIDECAR_DERIVATIVE_CACHE_DIR`, and does not validate model runtime settings.
@@ -273,8 +273,8 @@ Implements FR1-019 through FR1-027. The chain, in order:
 
 1. Run the Vision foreground instance mask request at analysis resolution — the whole-image derivative is suitable; masking does not need full resolution (FR1-021a).
 2. Apply `InstanceSelectionPolicy` (FR1-019a): largest mask area, tie-broken by centroid proximity to frame center. Apply the merge rule (FR1-019b): instances merge when the selected instance's box dominates the union box at the configured ratio (default ≥ 80%) — bodies segmented apart from tails or wingtips are one subject.
-3. Map the selected mask and bounding box to the full-resolution render with recorded scale factors (FR1-021b).
-4. Expand the box by the margin (default 8% of the longer box side, clamped; FR1-022); crop, blend-with-mask, and composite onto the neutral matte on the full-resolution render (FR1-021c).
+3. Map the selected mask and bounding box to the in-memory full-resolution render with recorded scale factors (FR1-021b).
+4. Expand the box by the margin (default 8% of the longer box side, clamped; FR1-022); crop, blend-with-mask, and composite onto the neutral matte on the in-memory full-resolution render (FR1-021c).
 5. Downsize to the profile (FR1-021d). Never upscale by default; native-size submission is recorded when the crop is smaller than the profile allows (FR1-024).
 6. Record in the sidecar: `instance_count`, selected indices, merge flag, per-instance normalized boxes, analysis resolution, scale factors, margin, matte color, final dimensions (FR1-019c and provenance).
 
@@ -284,12 +284,12 @@ Exit criteria: AC1-005 demonstrated — a fixture frame whose subject occupies �
 
 Implemented notes:
 
-1. `SubjectIsolationService` runs on the cached whole-image derivative for analysis, maps selected masks and boxes back to the cached full-resolution render, composites onto the profile matte, and writes a cached `subject_isolated` JPEG derivative.
+1. `SubjectIsolationService` runs on an in-memory analysis-resolution image, maps selected masks and boxes back to an in-memory full-resolution render, composites onto the profile matte, and writes a cached `subject_isolated` JPEG derivative.
 2. `ForegroundMaskProvider` keeps tests deterministic: production uses `AppleVisionForegroundMaskProvider`, while XCTest injects exact mask fixtures. Automated tests therefore remain offline and do not depend on Apple Vision detecting synthetic subjects.
 3. Subject derivative cache keys include the render recipe plus subject-isolation settings (`subject_crop_margin_fraction`, `subject_merge_dominance_threshold`, and matte RGB) so config changes cannot reuse stale crops.
 4. `subject_crop_margin_fraction` and `subject_merge_dominance_threshold` are available through JSON config and `AISIDECAR_*` environment overrides, validated as finite values in `(0, 1]`, and recorded in `run_configuration`.
 5. `RawJSONSidecar.subject_isolation` now decodes to `SubjectIsolationRecord` when isolation runs and encodes `{}` when isolation was not attempted, preserving the Phase 1 top-level schema slot.
-6. `--mode subject` records `E_SUBJECT_ISOLATION_NO_FOREGROUND` as a failed per-file result with no whole-image substitution; `--mode both` writes the whole-image derivative set and records the isolation error as recoverable sidecar/progress provenance.
+6. `--mode subject` records `E_SUBJECT_ISOLATION_NO_FOREGROUND` as a failed per-file result with no whole-image substitution; `--mode both` writes the whole-image derivative and records the isolation error as recoverable sidecar/progress provenance.
 7. Offline tests cover instance selection, merge threshold behavior, edge-clamped margins, no-upscale behavior, no-foreground errors, both-mode recovery, debug derivative copies, and the AC1-005 two-resolution small-subject case. A real-photo Apple Vision smoke check remains recommended before evaluating production mask quality.
 
 ## 8.5. Milestone 4.5 - Model Input Export (Implemented)
@@ -306,7 +306,7 @@ Implemented notes:
 
 1. `AnalyzeCommand` routes `--export-model-inputs` to `ModelInputExportPipeline`; `--dry-scan` still exits after scanning, and export mode rejects `--dry-run` and `--debug-derivatives` with `E_CONFIG_INVALID`.
 2. Export mode reuses the scanner, `ImageRenderer`, derivative cache, `SubjectIsolationService`, resolved model input profile, `--mode`, `--recursive`, `--existing`, profile, cache, and subject-isolation configuration.
-3. The export directory mirrors source relative paths and writes only model-input roles: `whole_image` and/or `subject_isolated`. Full-resolution TIFF renders remain cache-only.
+3. The export directory mirrors source relative paths and writes only model-input roles: `whole_image` and/or `subject_isolated`. Full-resolution TIFF renders are not written for new export runs.
 4. A timestamped `model-input-export-<ISO-8601-timestamp>.json` manifest records schema version `ai-sidecar-model-input-export/1.0`, run inputs, resolved profile, per-source export status, output provenance, subject-isolation records, structured errors, and summary counts.
 5. `--existing overwrite` replaces export files atomically, `skip` leaves existing export files untouched and records `skipped_existing`, and `fail` records `E_SIDECAR_EXISTS` before rendering affected sources.
 6. No XMP, raw JSON sidecars, progress logs, batch summaries, or model runs are written by export mode.
@@ -478,8 +478,8 @@ Mitigation: FR1-030b startup verification with fail-fast and installed-tag listi
 Risk: Apple foreground masks fail on distant or low-contrast wildlife subjects.
 Mitigation: per-image structured failure, whole-image mode unaffected; failure rate measured by subject class in Milestone 9 so the limitation is quantified, not anecdotal.
 
-Risk: full-resolution renders inflate the cache (45 MP RAW intermediates).
-Mitigation: 20 GiB LRU cap; full-resolution renders are regenerable from source plus recipe, so eviction, opt-in run-boundary clearing, and explicit purge are safe.
+Risk: native-resolution subject isolation can increase per-worker memory use on high-megapixel RAW files.
+Mitigation: native renders are kept in memory only for the active render/isolation worker, no full-resolution TIFF is cached, `stage_concurrency` bounds concurrent workers, and the cache retains only reusable model-input artifacts.
 
 Risk: structured-output or thinking-mode behavior shifts across Ollama or model updates.
 Mitigation: runtime version and digest in provenance; recorded-fixture tests catch response-shape drift on upgrade before it reaches real batches.

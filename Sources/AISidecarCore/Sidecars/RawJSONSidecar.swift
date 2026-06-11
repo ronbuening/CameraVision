@@ -93,7 +93,7 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
     }
 
     public init(
-        schemaVersion: String = "ai-sidecar-json/1.1",
+        schemaVersion: String = "ai-sidecar-json/1.2",
         source: SourceImage,
         runConfiguration: ResolvedRunConfiguration,
         modelInputProfile: ModelInputProfile = .defaultProfile,

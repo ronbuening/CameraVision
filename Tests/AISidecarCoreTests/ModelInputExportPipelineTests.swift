@@ -73,6 +73,7 @@ final class ModelInputExportPipelineTests: XCTestCase {
             try? FileManager.default.removeItem(at: export)
         }
         let image = try writeTestImage("Subject.JPG", width: 120, height: 80, in: root)
+        let cache = root.appendingPathComponent("cache")
 
         let result = try await pipeline(maskProvider: StaticForegroundMaskProvider([
             StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
@@ -82,7 +83,7 @@ final class ModelInputExportPipelineTests: XCTestCase {
             configuration: config(
                 recursive: false,
                 mode: .subject,
-                cacheDir: root.appendingPathComponent("cache").path
+                cacheDir: cache.path
             )
         )
 
@@ -93,6 +94,9 @@ final class ModelInputExportPipelineTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: export.appendingPathComponent("Subject.JPG.aisidecar.subject_isolated.jpg").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("Subject.JPG.aisidecar.whole_image.jpg").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("Subject.JPG.aisidecar.full_resolution.tiff").path))
+        let cacheNames = try cacheContents(at: cache)
+        XCTAssertFalse(cacheNames.contains { $0.contains("whole_image") })
+        XCTAssertFalse(cacheNames.contains { $0.contains("full_resolution") })
     }
 
     func testBothModeNoForegroundExportsWholeImageAndRecordsPartialError() async throws {

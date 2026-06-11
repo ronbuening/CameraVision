@@ -437,30 +437,48 @@ public struct ModelInputExportPipeline {
                 )
             }
 
-            let rendered = try renderer.renderWholeImageSet(
-                source: entry.source,
-                profile: profile,
-                debugDerivatives: false
-            )
             var outputs: [ModelInputExportOutput] = []
             var subjectIsolation: SubjectIsolationRecord?
             var errors: [SidecarError] = []
 
-            if let wholeOutput = entry.plannedOutput(for: .wholeImage) {
-                outputs.append(
-                    try exportArtifact(
-                        rendered.wholeImage,
-                        to: wholeOutput,
-                        existing: configuration.existing
-                    )
+            switch configuration.mode {
+            case .whole:
+                let rendered = try renderer.renderWholeImage(
+                    source: entry.source,
+                    profile: profile,
+                    debugDerivatives: false
                 )
-            }
+                if let wholeOutput = entry.plannedOutput(for: .wholeImage) {
+                    outputs.append(
+                        try exportArtifact(
+                            rendered.wholeImage,
+                            to: wholeOutput,
+                            existing: configuration.existing
+                        )
+                    )
+                }
+            case .subject, .both:
+                let prepared = try renderer.prepareSourceRender(source: entry.source, profile: profile)
+                if let wholeOutput = entry.plannedOutput(for: .wholeImage) {
+                    let whole = try renderer.renderWholeImageDerivative(
+                        source: entry.source,
+                        prepared: prepared,
+                        profile: profile,
+                        debugDerivatives: false
+                    )
+                    outputs.append(
+                        try exportArtifact(
+                            whole,
+                            to: wholeOutput,
+                            existing: configuration.existing
+                        )
+                    )
+                }
 
-            if configuration.mode != .whole {
                 do {
                     let isolation = try await subjectIsolationService.isolate(
                         source: entry.source,
-                        rendered: rendered,
+                        prepared: prepared,
                         profile: profile,
                         configuration: configuration
                     )
@@ -481,7 +499,7 @@ public struct ModelInputExportPipeline {
                 } catch {
                     let isolationError = subjectIsolationError(from: error)
                     subjectIsolation = failedSubjectIsolationRecord(
-                        rendered: rendered,
+                        prepared: prepared,
                         configuration: configuration,
                         profile: profile
                     )
@@ -605,12 +623,12 @@ public struct ModelInputExportPipeline {
     }
 
     private func failedSubjectIsolationRecord(
-        rendered: WholeImageRenderResult,
+        prepared: PreparedSourceRender,
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile
     ) -> SubjectIsolationRecord {
-        let analysisDimensions = PixelDimensions(width: rendered.wholeImage.width, height: rendered.wholeImage.height)
-        let fullDimensions = PixelDimensions(width: rendered.fullResolution.width, height: rendered.fullResolution.height)
+        let analysisDimensions = prepared.analysisDimensions
+        let fullDimensions = prepared.fullDimensions
         return SubjectIsolationRecord(
             status: .failed,
             instanceCount: 0,

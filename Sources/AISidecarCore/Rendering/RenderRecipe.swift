@@ -25,7 +25,7 @@ public struct RenderRecipe: Sendable, Equatable {
         self.profile = profile
         // The profile name participates in the recipe version so cache keys
         // cannot collide when future profiles produce different dimensions.
-        self.version = "render-v1-\(profile.name)"
+        self.version = "render-v2-\(profile.name)"
     }
 
     /// Resolve Image I/O orientation metadata, defaulting absent orientation to 1.

@@ -8,7 +8,7 @@ final class JSONSidecarTests: XCTestCase {
         let json = try jsonValue(for: sidecar)
         let object = try XCTUnwrap(json.objectValue)
 
-        XCTAssertEqual(object["schema_version"]?.stringValue, "ai-sidecar-json/1.1")
+        XCTAssertEqual(object["schema_version"]?.stringValue, "ai-sidecar-json/1.2")
         XCTAssertNotNil(object["source"])
         XCTAssertNotNil(object["run_configuration"])
         XCTAssertNotNil(object["model_input_profile"])
@@ -73,11 +73,11 @@ final class JSONSidecarTests: XCTestCase {
 
     func testSidecarDocumentAcceptsMinorVersionAndRejectsHigherMajorVersion() throws {
         var sidecar = makeSidecar()
-        sidecar.schemaVersion = "ai-sidecar-json/1.1"
+        sidecar.schemaVersion = "ai-sidecar-json/1.2"
         let data = try encodedData(for: sidecar)
 
         let document = try RawJSONSidecarDocument(data: data)
-        XCTAssertEqual(document.sidecar.schemaVersion, "ai-sidecar-json/1.1")
+        XCTAssertEqual(document.sidecar.schemaVersion, "ai-sidecar-json/1.2")
 
         var unsupported = sidecar
         unsupported.schemaVersion = "ai-sidecar-json/2.0"
@@ -92,7 +92,7 @@ final class JSONSidecarTests: XCTestCase {
 
     func testSidecarDocumentPreservesUnknownFieldsOnRewrite() throws {
         var originalObject = try XCTUnwrap(try jsonValue(for: makeSidecar()).objectValue)
-        originalObject["schema_version"] = .string("ai-sidecar-json/1.1")
+        originalObject["schema_version"] = .string("ai-sidecar-json/1.2")
         originalObject["future_top_level"] = .object(["kept": .bool(true)])
 
         var source = try XCTUnwrap(originalObject["source"]?.objectValue)
@@ -157,7 +157,7 @@ final class JSONSidecarTests: XCTestCase {
             height: 32,
             colorSpace: .sRGB,
             appliedOrientation: AppliedOrientation(exifValue: 1),
-            recipeVersion: "render-v1-test",
+            recipeVersion: "render-v2-test",
             sha256: String(repeating: "b", count: 64),
             sourceIdentity: source.identity
         )

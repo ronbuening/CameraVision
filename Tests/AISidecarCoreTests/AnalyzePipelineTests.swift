@@ -105,7 +105,7 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(result.records.map(\.status), [.written, .written])
         for relativePath in ["Birds/A.JPG.ai.json", "Birds/B.JPG.ai.json"] {
             let sidecar = try decodeSidecar(output.appendingPathComponent(relativePath))
-            XCTAssertEqual(sidecar.derivatives.map(\.role), [.fullResolution, .wholeImage, .subjectIsolated])
+            XCTAssertEqual(sidecar.derivatives.map(\.role), [.wholeImage, .subjectIsolated])
             XCTAssertEqual(sidecar.modelRuns.map(\.inputRole), [.wholeImage, .subjectIsolated])
             XCTAssertEqual(sidecar.subjectIsolation?.status, .success)
         }
@@ -146,7 +146,7 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(result.records.map(\.status), [.written])
         XCTAssertEqual(result.records.first?.errors.map(\.code), [.subjectIsolationNoForeground])
         let sidecar = try decodeSidecar(output.appendingPathComponent("NoForeground.JPG.ai.json"))
-        XCTAssertEqual(sidecar.derivatives.map(\.role), [.fullResolution, .wholeImage])
+        XCTAssertEqual(sidecar.derivatives.map(\.role), [.wholeImage])
         XCTAssertEqual(sidecar.subjectIsolation?.status, .noForeground)
         XCTAssertEqual(sidecar.modelRuns.map(\.inputRole), [.wholeImage])
         XCTAssertEqual(sidecar.errors.map(\.code), [.subjectIsolationNoForeground])
