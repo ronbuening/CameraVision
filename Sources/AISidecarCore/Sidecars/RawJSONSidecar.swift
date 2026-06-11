@@ -31,6 +31,41 @@ private struct EmptyCodingKey: CodingKey {
     }
 }
 
+/// Per-file pipeline timing recorded in Phase 1 raw sidecars.
+///
+/// Values are wall-clock milliseconds measured by the analyze pipeline. The
+/// model timing here is the aggregate local pipeline wait for model calls;
+/// runtime-supplied Ollama counters live on each `model_runs` record.
+public struct PipelineTimingRecord: Codable, Sendable, Equatable {
+    public var pipelineElapsedMs: Int
+    public var renderMs: Int
+    public var subjectIsolationMs: Int
+    public var modelMs: Int
+    public var writeMs: Int
+
+    enum CodingKeys: String, CodingKey {
+        case pipelineElapsedMs = "pipeline_elapsed_ms"
+        case renderMs = "render_ms"
+        case subjectIsolationMs = "subject_isolation_ms"
+        case modelMs = "model_ms"
+        case writeMs = "write_ms"
+    }
+
+    public init(
+        pipelineElapsedMs: Int,
+        renderMs: Int,
+        subjectIsolationMs: Int,
+        modelMs: Int,
+        writeMs: Int
+    ) {
+        self.pipelineElapsedMs = pipelineElapsedMs
+        self.renderMs = renderMs
+        self.subjectIsolationMs = subjectIsolationMs
+        self.modelMs = modelMs
+        self.writeMs = writeMs
+    }
+}
+
 /// Phase 1 raw JSON sidecar record.
 public struct RawJSONSidecar: Codable, Sendable, Equatable {
     public var schemaVersion: String
@@ -41,6 +76,7 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
     public var subjectIsolation: SubjectIsolationRecord?
     public var modelRuns: [ModelRunRecord]
     public var errors: [SidecarError]
+    public var timing: PipelineTimingRecord?
     public var createdAt: Date
 
     enum CodingKeys: String, CodingKey {
@@ -52,11 +88,12 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         case subjectIsolation = "subject_isolation"
         case modelRuns = "model_runs"
         case errors
+        case timing
         case createdAt = "created_at"
     }
 
     public init(
-        schemaVersion: String = "ai-sidecar-json/1.0",
+        schemaVersion: String = "ai-sidecar-json/1.1",
         source: SourceImage,
         runConfiguration: ResolvedRunConfiguration,
         modelInputProfile: ModelInputProfile = .defaultProfile,
@@ -64,6 +101,7 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         subjectIsolation: SubjectIsolationRecord? = nil,
         modelRuns: [ModelRunRecord] = [],
         errors: [SidecarError] = [],
+        timing: PipelineTimingRecord? = nil,
         createdAt: Date = Date()
     ) {
         self.schemaVersion = schemaVersion
@@ -74,6 +112,7 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         self.subjectIsolation = subjectIsolation
         self.modelRuns = modelRuns
         self.errors = errors
+        self.timing = timing
         self.createdAt = createdAt
     }
 
@@ -87,6 +126,7 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         self.subjectIsolation = try? container.decode(SubjectIsolationRecord.self, forKey: .subjectIsolation)
         self.modelRuns = try container.decode([ModelRunRecord].self, forKey: .modelRuns)
         self.errors = try container.decode([SidecarError].self, forKey: .errors)
+        self.timing = try container.decodeIfPresent(PipelineTimingRecord.self, forKey: .timing)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 
@@ -98,12 +138,13 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         try container.encode(modelInputProfile, forKey: .modelInputProfile)
         try container.encode(derivatives, forKey: .derivatives)
         if let subjectIsolation {
-            try container.encode(subjectIsolation, forKey: .subjectIsolation)
+        try container.encode(subjectIsolation, forKey: .subjectIsolation)
         } else {
             try container.encode(EmptyJSONObject(), forKey: .subjectIsolation)
         }
         try container.encode(modelRuns, forKey: .modelRuns)
         try container.encode(errors, forKey: .errors)
+        try container.encodeIfPresent(timing, forKey: .timing)
         try container.encode(createdAt, forKey: .createdAt)
     }
 }

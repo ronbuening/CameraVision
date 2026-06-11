@@ -35,9 +35,44 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertFalse(run.promptSHA256.isEmpty)
         XCTAssertFalse(run.responseSchemaVersion.isEmpty)
         XCTAssertEqual(run.requestOptions.keepAlive, "30m")
+        XCTAssertFalse(run.requestOptions.thinkingEnabled)
         XCTAssertEqual(run.inputDerivativeSHA256, sidecar.derivatives.first { $0.role == .wholeImage }?.sha256)
         XCTAssertEqual(sidecar.runConfiguration.stageConcurrency, 2)
+        XCTAssertNotNil(sidecar.timing)
+        XCTAssertEqual(sidecar.timing?.subjectIsolationMs, 0)
+        XCTAssertEqual(sidecar.timing?.modelMs, 0)
+        XCTAssertEqual(sidecar.timing?.writeMs, 0)
         XCTAssertTrue(sidecar.errors.isEmpty)
+    }
+
+    func testPipelineUsesConfiguredKeepAliveAndKeepsThinkingDisabled() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("A.JPG", in: root)
+        let runner = RecordingVisionModelRunner()
+
+        _ = try await pipeline(runner: runner).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path,
+                modelKeepAlive: "5m"
+            )
+        )
+
+        let sidecar = try decodeSidecar(output.appendingPathComponent("A.JPG.ai.json"))
+        let capturedCalls = await runner.capturedCalls()
+        let captured = try XCTUnwrap(capturedCalls.first)
+        XCTAssertEqual(sidecar.runConfiguration.modelKeepAlive, "5m")
+        XCTAssertEqual(sidecar.modelRuns.first?.requestOptions.keepAlive, "5m")
+        XCTAssertEqual(captured.keepAlive, "5m")
+        XCTAssertFalse(captured.thinkingEnabled)
     }
 
     func testBothModeWritesTwoRunsPerImageAndSerializesModelCalls() async throws {
@@ -406,6 +441,7 @@ final class AnalyzePipelineTests: XCTestCase {
         mode: AnalysisMode,
         cacheDir: String,
         stageConcurrency: Int = 2,
+        modelKeepAlive: String = ModelRunOptions.default.keepAlive,
         clearDerivativeCacheOnStart: Bool = false,
         clearDerivativeCacheAfterSuccess: Bool = false
     ) -> ResolvedRunConfiguration {
@@ -416,6 +452,7 @@ final class AnalyzePipelineTests: XCTestCase {
             outputDir: outputDir,
             model: ResolvedRunConfiguration.builtInDefaults.model,
             modelEndpoint: ResolvedRunConfiguration.builtInDefaults.modelEndpoint,
+            modelKeepAlive: modelKeepAlive,
             profile: ResolvedRunConfiguration.builtInDefaults.profile,
             logLevel: .debug,
             logFormat: .json,
@@ -463,6 +500,8 @@ private struct CapturedModelCall: Sendable, Equatable {
     var derivativeSHA256: String
     var promptVersion: String
     var schemaVersion: String
+    var keepAlive: String
+    var thinkingEnabled: Bool
 }
 
 private struct RoleFailure: Sendable {
@@ -534,7 +573,9 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
                 inputRole: inputRole,
                 derivativeSHA256: image.sha256,
                 promptVersion: prompt.version,
-                schemaVersion: schema.version
+                schemaVersion: schema.version,
+                keepAlive: options.keepAlive,
+                thinkingEnabled: options.thinkingEnabled
             )
         )
         if delayNanoseconds > 0 {

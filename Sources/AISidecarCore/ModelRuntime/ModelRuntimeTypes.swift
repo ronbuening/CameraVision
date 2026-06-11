@@ -155,6 +155,54 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
     }
 }
 
+/// Runtime-supplied model timing counters returned by Ollama `/api/chat`.
+///
+/// Ollama reports durations in nanoseconds. These fields remain optional
+/// because mock runners, recorded fixtures, and alternative runtimes may not
+/// expose the same counters.
+public struct ModelRuntimeMetrics: Codable, Sendable, Equatable {
+    public var totalDurationNs: Int64?
+    public var loadDurationNs: Int64?
+    public var promptEvalCount: Int?
+    public var promptEvalDurationNs: Int64?
+    public var evalCount: Int?
+    public var evalDurationNs: Int64?
+
+    enum CodingKeys: String, CodingKey {
+        case totalDurationNs = "total_duration_ns"
+        case loadDurationNs = "load_duration_ns"
+        case promptEvalCount = "prompt_eval_count"
+        case promptEvalDurationNs = "prompt_eval_duration_ns"
+        case evalCount = "eval_count"
+        case evalDurationNs = "eval_duration_ns"
+    }
+
+    public init(
+        totalDurationNs: Int64? = nil,
+        loadDurationNs: Int64? = nil,
+        promptEvalCount: Int? = nil,
+        promptEvalDurationNs: Int64? = nil,
+        evalCount: Int? = nil,
+        evalDurationNs: Int64? = nil
+    ) {
+        self.totalDurationNs = totalDurationNs
+        self.loadDurationNs = loadDurationNs
+        self.promptEvalCount = promptEvalCount
+        self.promptEvalDurationNs = promptEvalDurationNs
+        self.evalCount = evalCount
+        self.evalDurationNs = evalDurationNs
+    }
+
+    public var isEmpty: Bool {
+        totalDurationNs == nil
+            && loadDurationNs == nil
+            && promptEvalCount == nil
+            && promptEvalDurationNs == nil
+            && evalCount == nil
+            && evalDurationNs == nil
+    }
+}
+
 /// Classifies one model response captured during primary analysis or repair.
 public enum ModelResponseAttemptKind: String, Codable, Sendable, Equatable {
     case primary
@@ -172,6 +220,7 @@ public struct ModelResponseAttemptRecord: Codable, Sendable, Equatable {
     public var parsedResponseJSON: JSONValue?
     public var jsonValid: Bool
     public var durationMs: Int
+    public var runtimeMetrics: ModelRuntimeMetrics?
     public var error: SidecarError?
 
     enum CodingKeys: String, CodingKey {
@@ -184,6 +233,7 @@ public struct ModelResponseAttemptRecord: Codable, Sendable, Equatable {
         case parsedResponseJSON = "parsed_response_json"
         case jsonValid = "json_valid"
         case durationMs = "duration_ms"
+        case runtimeMetrics = "runtime_metrics"
         case error
     }
 
@@ -197,6 +247,7 @@ public struct ModelResponseAttemptRecord: Codable, Sendable, Equatable {
         parsedResponseJSON: JSONValue?,
         jsonValid: Bool,
         durationMs: Int,
+        runtimeMetrics: ModelRuntimeMetrics? = nil,
         error: SidecarError?
     ) {
         self.kind = kind
@@ -208,6 +259,7 @@ public struct ModelResponseAttemptRecord: Codable, Sendable, Equatable {
         self.parsedResponseJSON = parsedResponseJSON
         self.jsonValid = jsonValid
         self.durationMs = durationMs
+        self.runtimeMetrics = runtimeMetrics
         self.error = error
     }
 }
@@ -228,6 +280,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
     public var parsedResponseJSON: JSONValue?
     public var jsonValid: Bool
     public var durationMs: Int
+    public var runtimeMetrics: ModelRuntimeMetrics?
     public var error: SidecarError?
     public var responseAttempts: [ModelResponseAttemptRecord]?
 
@@ -246,6 +299,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         case parsedResponseJSON = "parsed_response_json"
         case jsonValid = "json_valid"
         case durationMs = "duration_ms"
+        case runtimeMetrics = "runtime_metrics"
         case error
         case responseAttempts = "response_attempts"
     }
@@ -265,6 +319,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         parsedResponseJSON: JSONValue?,
         jsonValid: Bool,
         durationMs: Int,
+        runtimeMetrics: ModelRuntimeMetrics? = nil,
         error: SidecarError?,
         responseAttempts: [ModelResponseAttemptRecord]? = nil
     ) {
@@ -282,6 +337,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         self.parsedResponseJSON = parsedResponseJSON
         self.jsonValid = jsonValid
         self.durationMs = durationMs
+        self.runtimeMetrics = runtimeMetrics
         self.error = error
         self.responseAttempts = responseAttempts
     }
@@ -306,6 +362,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         }
         try container.encode(jsonValid, forKey: .jsonValid)
         try container.encode(durationMs, forKey: .durationMs)
+        try container.encodeIfPresent(runtimeMetrics, forKey: .runtimeMetrics)
         try container.encode(error, forKey: .error)
         try container.encodeIfPresent(responseAttempts, forKey: .responseAttempts)
     }

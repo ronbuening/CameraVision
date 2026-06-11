@@ -60,7 +60,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 options: options,
                 runtime: runtime
             )
-            let rawText = try await chatResponseText(request, endpoint: runtime.endpoint, options: options)
+            let chat = try await chatResponse(request, endpoint: runtime.endpoint, options: options)
+            let rawText = chat.message.content
             let evaluation = evaluateModelResponse(rawText, schema: schema)
             let primaryAttempt = responseAttempt(
                 kind: .primary,
@@ -69,6 +70,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 options: options,
                 rawResponseText: rawText,
                 evaluation: evaluation,
+                runtimeMetrics: chat.runtimeMetrics,
                 startedAt: primaryStartedAt
             )
             if evaluation.jsonValid {
@@ -82,6 +84,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
                     rawResponseText: rawText,
                     parsedResponseJSON: evaluation.parsedResponseJSON,
                     jsonValid: true,
+                    runtimeMetrics: chat.runtimeMetrics,
                     startedAt: startedAt,
                     error: nil
                 )
@@ -113,11 +116,12 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 )
 
                 do {
-                    let repairRawText = try await chatResponseText(
+                    let repairChat = try await chatResponse(
                         repairRequest,
                         endpoint: runtime.endpoint,
                         options: repairOptions
                     )
+                    let repairRawText = repairChat.message.content
                     let repairEvaluation = evaluateModelResponse(repairRawText, schema: schema)
                     let repairAttempt = responseAttempt(
                         kind: .repair,
@@ -126,6 +130,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
                         options: repairOptions,
                         rawResponseText: repairRawText,
                         evaluation: repairEvaluation,
+                        runtimeMetrics: repairChat.runtimeMetrics,
                         startedAt: repairStartedAt
                     )
                     attempts.append(repairAttempt)
@@ -142,6 +147,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
                             rawResponseText: repairRawText,
                             parsedResponseJSON: repairEvaluation.parsedResponseJSON,
                             jsonValid: true,
+                            runtimeMetrics: repairChat.runtimeMetrics,
                             startedAt: startedAt,
                             error: nil,
                             responseAttempts: attempts
@@ -161,6 +167,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
                         rawResponseText: latestRawText,
                         parsedResponseJSON: finalAttempt.parsedResponseJSON,
                         jsonValid: false,
+                        runtimeMetrics: finalAttempt.runtimeMetrics,
                         startedAt: startedAt,
                         error: error,
                         responseAttempts: attempts
@@ -178,6 +185,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 rawResponseText: finalAttempt.rawResponseText,
                 parsedResponseJSON: finalAttempt.parsedResponseJSON,
                 jsonValid: false,
+                runtimeMetrics: finalAttempt.runtimeMetrics,
                 startedAt: startedAt,
                 error: finalAttempt.error,
                 responseAttempts: attempts.count > 1 ? attempts : nil
@@ -306,14 +314,13 @@ public struct OllamaVisionRunner: VisionModelRunner {
         )
     }
 
-    private func chatResponseText(
+    private func chatResponse(
         _ request: OllamaHTTPRequest,
         endpoint: URL,
         options: ModelRunOptions
-    ) async throws -> String {
+    ) async throws -> OllamaChatResponse {
         let response = try await sendChatWithRetries(request, endpoint: endpoint, options: options)
-        let chat = try decodeChatResponse(response)
-        return chat.message.content
+        return try decodeChatResponse(response)
     }
 
     private func sendChatWithRetries(
@@ -403,6 +410,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
         options: ModelRunOptions,
         rawResponseText: String,
         evaluation: ModelResponseEvaluation,
+        runtimeMetrics: ModelRuntimeMetrics?,
         startedAt: Date
     ) -> ModelResponseAttemptRecord {
         ModelResponseAttemptRecord(
@@ -415,6 +423,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
             parsedResponseJSON: evaluation.parsedResponseJSON,
             jsonValid: evaluation.jsonValid,
             durationMs: durationMs(from: startedAt, to: now()),
+            runtimeMetrics: runtimeMetrics,
             error: evaluation.error
         )
     }
@@ -464,6 +473,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
         rawResponseText: String,
         parsedResponseJSON: JSONValue?,
         jsonValid: Bool,
+        runtimeMetrics: ModelRuntimeMetrics? = nil,
         startedAt: Date,
         error: SidecarError?,
         responseAttempts: [ModelResponseAttemptRecord]? = nil
@@ -483,6 +493,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
             parsedResponseJSON: parsedResponseJSON,
             jsonValid: jsonValid,
             durationMs: durationMs(from: startedAt, to: now()),
+            runtimeMetrics: runtimeMetrics,
             error: error,
             responseAttempts: responseAttempts
         )
@@ -614,6 +625,34 @@ private struct OllamaChatOptions: Encodable {
 
 private struct OllamaChatResponse: Decodable {
     var message: OllamaChatResponseMessage
+    var totalDuration: Int64?
+    var loadDuration: Int64?
+    var promptEvalCount: Int?
+    var promptEvalDuration: Int64?
+    var evalCount: Int?
+    var evalDuration: Int64?
+
+    enum CodingKeys: String, CodingKey {
+        case message
+        case totalDuration = "total_duration"
+        case loadDuration = "load_duration"
+        case promptEvalCount = "prompt_eval_count"
+        case promptEvalDuration = "prompt_eval_duration"
+        case evalCount = "eval_count"
+        case evalDuration = "eval_duration"
+    }
+
+    var runtimeMetrics: ModelRuntimeMetrics? {
+        let metrics = ModelRuntimeMetrics(
+            totalDurationNs: totalDuration,
+            loadDurationNs: loadDuration,
+            promptEvalCount: promptEvalCount,
+            promptEvalDurationNs: promptEvalDuration,
+            evalCount: evalCount,
+            evalDurationNs: evalDuration
+        )
+        return metrics.isEmpty ? nil : metrics
+    }
 }
 
 private struct OllamaChatResponseMessage: Decodable {

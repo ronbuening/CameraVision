@@ -91,6 +91,30 @@ public struct ModelInputProfile: Codable, Sendable, Equatable {
         allowUpscaleSubjectByDefault: false
     )
 
+    public static let benchmark1024Profile = ModelInputProfile(
+        name: "gemma4-26b-benchmark-1024",
+        maxLongEdge: 1_024,
+        maxTotalPixels: 1_048_576,
+        colorSpace: .sRGB,
+        preferredWholeImageFormat: .jpeg,
+        jpegQuality: 0.9,
+        preferredSubjectFormat: "jpeg-neutral-matte",
+        matteRGB: [128, 128, 128],
+        allowUpscaleSubjectByDefault: false
+    )
+
+    public static let benchmark1536Profile = ModelInputProfile(
+        name: "gemma4-26b-benchmark-1536",
+        maxLongEdge: 1_536,
+        maxTotalPixels: 2_359_296,
+        colorSpace: .sRGB,
+        preferredWholeImageFormat: .jpeg,
+        jpegQuality: 0.9,
+        preferredSubjectFormat: "jpeg-neutral-matte",
+        matteRGB: [128, 128, 128],
+        allowUpscaleSubjectByDefault: false
+    )
+
     /// Compute an aspect-preserving fit inside the profile's pixel ceilings.
     public func fittedDimensions(width: Int, height: Int, allowUpscale: Bool = false) throws -> PixelDimensions {
         guard width > 0, height > 0 else {
@@ -114,11 +138,17 @@ public struct ModelInputProfile: Codable, Sendable, Equatable {
 
 /// Resolves profile names accepted by Phase 1 configuration.
 public enum ModelInputProfileRegistry {
+    public static let profiles: [ModelInputProfile] = [
+        .defaultProfile,
+        .benchmark1024Profile,
+        .benchmark1536Profile
+    ]
+
     /// Return the built-in profile or fail configuration resolution.
     public static func resolve(name: String) throws -> ModelInputProfile {
-        guard name == ModelInputProfile.defaultProfile.name else {
+        guard let profile = profiles.first(where: { $0.name == name }) else {
             throw SidecarError.configInvalid("Unknown model input profile: \(name)")
         }
-        return .defaultProfile
+        return profile
     }
 }

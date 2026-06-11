@@ -8,13 +8,14 @@ final class JSONSidecarTests: XCTestCase {
         let json = try jsonValue(for: sidecar)
         let object = try XCTUnwrap(json.objectValue)
 
-        XCTAssertEqual(object["schema_version"]?.stringValue, "ai-sidecar-json/1.0")
+        XCTAssertEqual(object["schema_version"]?.stringValue, "ai-sidecar-json/1.1")
         XCTAssertNotNil(object["source"])
         XCTAssertNotNil(object["run_configuration"])
         XCTAssertNotNil(object["model_input_profile"])
         XCTAssertEqual(object["subject_isolation"], .object([:]))
         XCTAssertEqual(object["derivatives"]?.arrayValue?.count, 1)
         XCTAssertEqual(object["model_runs"]?.arrayValue?.count, 1)
+        XCTAssertNil(object["timing"])
     }
 
     func testModelRunProvenanceCompletenessIsSerializable() throws {
@@ -31,6 +32,25 @@ final class JSONSidecarTests: XCTestCase {
         XCTAssertEqual(run.requestOptions.seed, 123)
         XCTAssertFalse(run.requestOptions.thinkingEnabled)
         XCTAssertEqual(run.inputDerivativeSHA256, sidecar.derivatives.first?.sha256)
+    }
+
+    func testRawSidecarDecodesLegacySchemaWithoutTimingOrRuntimeMetrics() throws {
+        var object = try XCTUnwrap(try jsonValue(for: makeSidecar()).objectValue)
+        object["schema_version"] = .string("ai-sidecar-json/1.0")
+        object["timing"] = nil
+        var modelRuns = try XCTUnwrap(object["model_runs"]?.arrayValue)
+        var modelRun = try XCTUnwrap(modelRuns.first?.objectValue)
+        modelRun["runtime_metrics"] = nil
+        modelRuns[0] = .object(modelRun)
+        object["model_runs"] = .array(modelRuns)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(RawJSONSidecar.self, from: try encodedData(for: .object(object)))
+
+        XCTAssertEqual(decoded.schemaVersion, "ai-sidecar-json/1.0")
+        XCTAssertNil(decoded.timing)
+        XCTAssertNil(decoded.modelRuns.first?.runtimeMetrics)
     }
 
     func testStructuredErrorsUseStableMachineReadableFields() throws {

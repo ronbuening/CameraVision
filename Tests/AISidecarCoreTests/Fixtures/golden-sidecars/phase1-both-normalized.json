@@ -236,6 +236,7 @@
     "mode" : "both",
     "model" : "gemma4:26b-a4b-it-qat",
     "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
     "model_response_repair_attempts" : 1,
     "output_dir" : "<directory>",
     "profile" : "gemma4-26b-default",
@@ -245,7 +246,7 @@
     "subject_crop_margin_fraction" : 0.08,
     "subject_merge_dominance_threshold" : 0.8
   },
-  "schema_version" : "ai-sidecar-json/1.0",
+  "schema_version" : "ai-sidecar-json/1.1",
   "source" : {
     "detected_type" : "jpg",
     "file_extension" : "JPG",
@@ -320,5 +321,12 @@
     "selected_to_union_area_ratio" : 1,
     "status" : "success",
     "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 0,
+    "pipeline_elapsed_ms" : 0,
+    "render_ms" : 0,
+    "subject_isolation_ms" : 0,
+    "write_ms" : 0
   }
 }

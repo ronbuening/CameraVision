@@ -124,6 +124,7 @@ public enum ConfigurationResolver {
             outputDir: environment["AISIDECAR_OUTPUT_DIR"],
             model: environment["AISIDECAR_MODEL"],
             modelEndpoint: environment["AISIDECAR_MODEL_ENDPOINT"],
+            modelKeepAlive: environment["AISIDECAR_MODEL_KEEP_ALIVE"],
             profile: environment["AISIDECAR_PROFILE"],
             logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
             logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
@@ -245,6 +246,7 @@ private struct ConfigurationBuilder {
     private var outputDir: String?
     private var model: String
     private var modelEndpoint: String
+    private var modelKeepAlive: String
     private var profile: String
     private var logLevel: LogLevel
     private var logFormat: LogFormat
@@ -267,6 +269,7 @@ private struct ConfigurationBuilder {
         self.outputDir = defaults.outputDir
         self.model = defaults.model
         self.modelEndpoint = defaults.modelEndpoint.absoluteString
+        self.modelKeepAlive = defaults.modelKeepAlive
         self.profile = defaults.profile
         self.logLevel = defaults.logLevel
         self.logFormat = defaults.logFormat
@@ -290,6 +293,7 @@ private struct ConfigurationBuilder {
         if let value = config.outputDir { outputDir = value }
         if let value = config.model { model = value }
         if let value = config.modelEndpoint { modelEndpoint = value }
+        if let value = config.modelKeepAlive { modelKeepAlive = value }
         if let value = config.profile { profile = value }
         if let value = config.logLevel { logLevel = value }
         if let value = config.logFormat { logFormat = value }
@@ -313,6 +317,7 @@ private struct ConfigurationBuilder {
         if let value = overrides.outputDir { outputDir = value }
         if let value = overrides.model { model = value }
         if let value = overrides.modelEndpoint { modelEndpoint = value }
+        if let value = overrides.modelKeepAlive { modelKeepAlive = value }
         if let value = overrides.profile { profile = value }
         if let value = overrides.logLevel { logLevel = value }
         if let value = overrides.logFormat { logFormat = value }
@@ -336,6 +341,9 @@ private struct ConfigurationBuilder {
               endpoint.host != nil
         else {
             throw SidecarError.configInvalid("Invalid model endpoint URL: \(modelEndpoint)")
+        }
+        guard !modelKeepAlive.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw SidecarError.configInvalid("model_keep_alive must not be empty")
         }
         _ = try ModelInputProfileRegistry.resolve(name: profile)
         guard derivativeCacheSizeBytes > 0 else {
@@ -364,6 +372,7 @@ private struct ConfigurationBuilder {
             outputDir: outputDir,
             model: model,
             modelEndpoint: endpoint,
+            modelKeepAlive: modelKeepAlive,
             profile: profile,
             logLevel: logLevel,
             logFormat: logFormat,
@@ -393,6 +402,7 @@ private extension RunConfigurationOverrides {
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,
+            modelKeepAlive: modelKeepAlive,
             profile: profile,
             logLevel: logLevel,
             logFormat: logFormat,

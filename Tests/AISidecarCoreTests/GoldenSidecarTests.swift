@@ -200,7 +200,7 @@ final class GoldenSidecarTests: XCTestCase {
             return .string("<directory>")
         case "created_at", "modified_at":
             return .string("<timestamp>")
-        case "duration_ms", "file_size":
+        case "duration_ms", "file_size", "pipeline_elapsed_ms", "render_ms", "subject_isolation_ms", "model_ms", "write_ms":
             return .number(0)
         case "sha256":
             return .string("<sha256>")

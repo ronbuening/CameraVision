@@ -8,6 +8,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var outputDir: String?
     public var model: String?
     public var modelEndpoint: String?
+    public var modelKeepAlive: String?
     public var profile: String?
     public var logLevel: LogLevel?
     public var logFormat: LogFormat?
@@ -32,6 +33,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case outputDir = "output_dir"
         case model
         case modelEndpoint = "model_endpoint"
+        case modelKeepAlive = "model_keep_alive"
         case profile
         case logLevel = "log_level"
         case logFormat = "log_format"
@@ -55,6 +57,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         outputDir: String? = nil,
         model: String? = nil,
         modelEndpoint: String? = nil,
+        modelKeepAlive: String? = nil,
         profile: String? = nil,
         logLevel: LogLevel? = nil,
         logFormat: LogFormat? = nil,
@@ -76,6 +79,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.outputDir = outputDir
         self.model = model
         self.modelEndpoint = modelEndpoint
+        self.modelKeepAlive = modelKeepAlive
         self.profile = profile
         self.logLevel = logLevel
         self.logFormat = logFormat
@@ -117,6 +121,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
         self.modelEndpoint = try container.decodeIfPresent(String.self, forKey: .modelEndpoint)
+        self.modelKeepAlive = try container.decodeIfPresent(String.self, forKey: .modelKeepAlive)
         self.profile = try container.decodeIfPresent(String.self, forKey: .profile)
         self.logLevel = try container.decodeIfPresent(LogLevel.self, forKey: .logLevel)
         self.logFormat = try container.decodeIfPresent(LogFormat.self, forKey: .logFormat)
@@ -153,6 +158,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(outputDir, forKey: .outputDir)
         try container.encodeIfPresent(model, forKey: .model)
         try container.encodeIfPresent(modelEndpoint, forKey: .modelEndpoint)
+        try container.encodeIfPresent(modelKeepAlive, forKey: .modelKeepAlive)
         try container.encodeIfPresent(profile, forKey: .profile)
         try container.encodeIfPresent(logLevel, forKey: .logLevel)
         try container.encodeIfPresent(logFormat, forKey: .logFormat)

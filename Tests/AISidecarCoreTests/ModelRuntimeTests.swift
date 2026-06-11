@@ -106,7 +106,15 @@ final class ModelRuntimeTests: XCTestCase {
         try inputData.write(to: imageURL)
         let rawResponse = wholeImageModelResponseJSON()
         let transport = RecordingOllamaTransport([
-            .success(chatResponse(content: rawResponse))
+            .success(chatResponse(
+                content: rawResponse,
+                totalDuration: 21_000_000,
+                loadDuration: 2_000_000,
+                promptEvalCount: 31,
+                promptEvalDuration: 3_000_000,
+                evalCount: 41,
+                evalDuration: 4_000_000
+            ))
         ])
         let runner = OllamaVisionRunner(
             transport: transport,
@@ -131,6 +139,12 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(record.rawResponseText, rawResponse)
         XCTAssertEqual(record.inputDerivativeSHA256, "image-sha")
         XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.3.0")
+        XCTAssertEqual(record.runtimeMetrics?.totalDurationNs, 21_000_000)
+        XCTAssertEqual(record.runtimeMetrics?.loadDurationNs, 2_000_000)
+        XCTAssertEqual(record.runtimeMetrics?.promptEvalCount, 31)
+        XCTAssertEqual(record.runtimeMetrics?.promptEvalDurationNs, 3_000_000)
+        XCTAssertEqual(record.runtimeMetrics?.evalCount, 41)
+        XCTAssertEqual(record.runtimeMetrics?.evalDurationNs, 4_000_000)
         let requests = await transport.capturedRequests()
         let request = try XCTUnwrap(requests.first)
         XCTAssertEqual(request.method, "POST")
@@ -660,12 +674,40 @@ private func jsonResponse(_ json: String, statusCode: Int = 200) -> OllamaHTTPRe
     OllamaHTTPResponse(statusCode: statusCode, data: Data(json.utf8))
 }
 
-private func chatResponse(content: String, statusCode: Int = 200) -> OllamaHTTPResponse {
+private func chatResponse(
+    content: String,
+    statusCode: Int = 200,
+    totalDuration: Int64? = nil,
+    loadDuration: Int64? = nil,
+    promptEvalCount: Int? = nil,
+    promptEvalDuration: Int64? = nil,
+    evalCount: Int? = nil,
+    evalDuration: Int64? = nil
+) -> OllamaHTTPResponse {
     let escaped = content
         .replacingOccurrences(of: "\\", with: "\\\\")
         .replacingOccurrences(of: "\"", with: "\\\"")
         .replacingOccurrences(of: "\n", with: "\\n")
-    return jsonResponse(#"{"message":{"content":""# + escaped + #""}}"#, statusCode: statusCode)
+    var fields = [#""message":{"content":""# + escaped + #""}"#]
+    if let totalDuration {
+        fields.append(#""total_duration":"# + "\(totalDuration)")
+    }
+    if let loadDuration {
+        fields.append(#""load_duration":"# + "\(loadDuration)")
+    }
+    if let promptEvalCount {
+        fields.append(#""prompt_eval_count":"# + "\(promptEvalCount)")
+    }
+    if let promptEvalDuration {
+        fields.append(#""prompt_eval_duration":"# + "\(promptEvalDuration)")
+    }
+    if let evalCount {
+        fields.append(#""eval_count":"# + "\(evalCount)")
+    }
+    if let evalDuration {
+        fields.append(#""eval_duration":"# + "\(evalDuration)")
+    }
+    return jsonResponse("{\(fields.joined(separator: ","))}", statusCode: statusCode)
 }
 
 private func decodeJSONObject(from data: Data) throws -> [String: JSONValue] {

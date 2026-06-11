@@ -26,6 +26,18 @@ final class ModelInputProfileTests: XCTestCase {
         }
     }
 
+    func testBenchmarkProfilesUseNamedLongEdgeSweeps() throws {
+        let profile1024 = try ModelInputProfileRegistry.resolve(name: "gemma4-26b-benchmark-1024")
+        let profile1536 = try ModelInputProfileRegistry.resolve(name: "gemma4-26b-benchmark-1536")
+
+        XCTAssertEqual(profile1024.maxLongEdge, 1_024)
+        XCTAssertEqual(profile1024.maxTotalPixels, 1_048_576)
+        XCTAssertEqual(profile1536.maxLongEdge, 1_536)
+        XCTAssertEqual(profile1536.maxTotalPixels, 2_359_296)
+        XCTAssertEqual(profile1024.preferredSubjectFormat, ModelInputProfile.defaultProfile.preferredSubjectFormat)
+        XCTAssertEqual(profile1536.matteRGB, ModelInputProfile.defaultProfile.matteRGB)
+    }
+
     func testResizeMathPreservesAspectAndDoesNotUpscale() throws {
         let profile = ModelInputProfile.defaultProfile
 

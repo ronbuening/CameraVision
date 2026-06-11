@@ -12,6 +12,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.sourceIdentityPolicy, .sha256)
         XCTAssertFalse(resolved.clearDerivativeCacheOnStart)
         XCTAssertFalse(resolved.clearDerivativeCacheAfterSuccess)
+        XCTAssertEqual(resolved.modelKeepAlive, "30m")
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 1)
     }
 
@@ -25,6 +26,7 @@ final class ConfigResolutionTests: XCTestCase {
               "output_dir": "/tmp/sidecars",
               "model": "custom:model",
               "model_endpoint": "http://127.0.0.1:11434",
+              "model_keep_alive": "5m",
               "profile": "gemma4-26b-default",
               "log_level": "debug",
               "log_format": "json",
@@ -54,6 +56,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.outputDir, "/tmp/sidecars")
         XCTAssertEqual(resolved.model, "custom:model")
         XCTAssertEqual(resolved.modelEndpoint.absoluteString, "http://127.0.0.1:11434")
+        XCTAssertEqual(resolved.modelKeepAlive, "5m")
         XCTAssertEqual(resolved.profile, "gemma4-26b-default")
         XCTAssertEqual(resolved.logLevel, .debug)
         XCTAssertEqual(resolved.logFormat, .json)
@@ -88,6 +91,7 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_MODE": "subject",
                 "AISIDECAR_EXISTING": "overwrite",
                 "AISIDECAR_MODEL": "env:model",
+                "AISIDECAR_MODEL_KEEP_ALIVE": "0",
                 "AISIDECAR_LOG_LEVEL": "debug",
                 "AISIDECAR_SOURCE_IDENTITY_POLICY": "sha256",
                 "AISIDECAR_DERIVATIVE_CACHE_DIR": "/tmp/env-cache",
@@ -105,6 +109,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.mode, .subject)
         XCTAssertEqual(resolved.existing, .overwrite)
         XCTAssertEqual(resolved.model, "env:model")
+        XCTAssertEqual(resolved.modelKeepAlive, "0")
         XCTAssertEqual(resolved.logLevel, .debug)
         XCTAssertEqual(resolved.sourceIdentityPolicy, .sha256)
         XCTAssertEqual(resolved.derivativeCacheDir, "/tmp/env-cache")
@@ -119,6 +124,7 @@ final class ConfigResolutionTests: XCTestCase {
 
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
         let config = AppConfig(
+            modelKeepAlive: "5m",
             sourceIdentityPolicy: .fast,
             clearDerivativeCacheOnStart: true,
             clearDerivativeCacheAfterSuccess: true,
@@ -132,6 +138,7 @@ final class ConfigResolutionTests: XCTestCase {
 
         XCTAssertEqual(object["source_identity_policy"] as? String, "fast")
         XCTAssertNil(object["sourceIdentityPolicy"])
+        XCTAssertEqual(object["model_keep_alive"] as? String, "5m")
         XCTAssertEqual(object["clear_derivative_cache_on_start"] as? Bool, true)
         XCTAssertEqual(object["clear_derivative_cache_after_success"] as? Bool, true)
         XCTAssertEqual(object["subject_crop_margin_fraction"] as? Double, 0.12)
@@ -147,6 +154,7 @@ final class ConfigResolutionTests: XCTestCase {
                 existing: .skip,
                 model: "cli:model",
                 modelEndpoint: "http://localhost:9999",
+                modelKeepAlive: "15m",
                 logFormat: .json,
                 clearDerivativeCacheOnStart: true,
                 clearDerivativeCacheAfterSuccess: true,
@@ -158,6 +166,7 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_EXISTING": "overwrite",
                 "AISIDECAR_MODEL": "env:model",
                 "AISIDECAR_MODEL_ENDPOINT": "http://localhost:1111",
+                "AISIDECAR_MODEL_KEEP_ALIVE": "0",
                 "AISIDECAR_LOG_FORMAT": "text",
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_ON_START": "false",
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS": "false",
@@ -171,6 +180,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.existing, .skip)
         XCTAssertEqual(resolved.model, "cli:model")
         XCTAssertEqual(resolved.modelEndpoint.absoluteString, "http://localhost:9999")
+        XCTAssertEqual(resolved.modelKeepAlive, "15m")
         XCTAssertEqual(resolved.logFormat, .json)
         XCTAssertTrue(resolved.clearDerivativeCacheOnStart)
         XCTAssertTrue(resolved.clearDerivativeCacheAfterSuccess)

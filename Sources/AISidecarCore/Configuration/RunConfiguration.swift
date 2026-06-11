@@ -53,6 +53,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var outputDir: String?
     public var model: String?
     public var modelEndpoint: String?
+    public var modelKeepAlive: String?
     public var profile: String?
     public var configPath: String?
     public var logLevel: LogLevel?
@@ -78,6 +79,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         outputDir: String? = nil,
         model: String? = nil,
         modelEndpoint: String? = nil,
+        modelKeepAlive: String? = nil,
         profile: String? = nil,
         configPath: String? = nil,
         logLevel: LogLevel? = nil,
@@ -100,6 +102,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.outputDir = outputDir
         self.model = model
         self.modelEndpoint = modelEndpoint
+        self.modelKeepAlive = modelKeepAlive
         self.profile = profile
         self.configPath = configPath
         self.logLevel = logLevel
@@ -160,6 +163,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var outputDir: String?
     public var model: String
     public var modelEndpoint: URL
+    public var modelKeepAlive: String
     public var profile: String
     public var logLevel: LogLevel
     public var logFormat: LogFormat
@@ -184,6 +188,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case outputDir = "output_dir"
         case model
         case modelEndpoint = "model_endpoint"
+        case modelKeepAlive = "model_keep_alive"
         case profile
         case logLevel = "log_level"
         case logFormat = "log_format"
@@ -207,6 +212,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         outputDir: String?,
         model: String,
         modelEndpoint: URL,
+        modelKeepAlive: String = ModelRunOptions.default.keepAlive,
         profile: String,
         logLevel: LogLevel,
         logFormat: LogFormat,
@@ -228,6 +234,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.outputDir = outputDir
         self.model = model
         self.modelEndpoint = modelEndpoint
+        self.modelKeepAlive = modelKeepAlive
         self.profile = profile
         self.logLevel = logLevel
         self.logFormat = logFormat
@@ -265,6 +272,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         outputDir: nil,
         model: "gemma4:26b-a4b-it-qat",
         modelEndpoint: URL(string: "http://localhost:11434")!,
+        modelKeepAlive: ModelRunOptions.default.keepAlive,
         profile: "gemma4-26b-default",
         logLevel: .info,
         logFormat: .text,
@@ -289,6 +297,10 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
         self.model = try container.decode(String.self, forKey: .model)
         self.modelEndpoint = try container.decode(URL.self, forKey: .modelEndpoint)
+        self.modelKeepAlive = try container.decodeIfPresent(
+            String.self,
+            forKey: .modelKeepAlive
+        ) ?? Self.builtInDefaults.modelKeepAlive
         self.profile = try container.decode(String.self, forKey: .profile)
         self.logLevel = try container.decode(LogLevel.self, forKey: .logLevel)
         self.logFormat = try container.decode(LogFormat.self, forKey: .logFormat)

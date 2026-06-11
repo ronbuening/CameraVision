@@ -246,3 +246,7 @@ Carthage/Build/
 
 # macOS
 .DS_Store
+
+# Local benchmark output and scratch caches
+benchmarks/milestone9a-*/
+benchmarks/milestone9a-self-test-*/

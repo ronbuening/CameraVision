@@ -392,6 +392,7 @@ public struct AnalyzePipeline {
         maskProvider: any ForegroundMaskProvider,
         now: @escaping @Sendable () -> Date
     ) async -> PreparedAnalysis {
+        let renderStartedAt = now()
         do {
             let cache = DerivativeCache(
                 directoryPath: configuration.derivativeCacheDir,
@@ -406,11 +407,14 @@ public struct AnalyzePipeline {
                 profile: profile,
                 debugDerivatives: configuration.debugDerivatives
             )
+            let renderMs = Self.durationMs(from: renderStartedAt, to: now())
             var derivatives = rendered.derivatives
             var subjectIsolation: SubjectIsolationRecord?
             var errors: [SidecarError] = []
+            var subjectIsolationMs = 0
 
             if configuration.mode != .whole {
+                let isolationStartedAt = now()
                 do {
                     let isolation = try await subjectIsolationService.isolate(
                         source: entry.source,
@@ -425,7 +429,9 @@ public struct AnalyzePipeline {
                     if let error = isolation.error {
                         errors.append(error)
                     }
+                    subjectIsolationMs = Self.durationMs(from: isolationStartedAt, to: now())
                 } catch {
+                    subjectIsolationMs = Self.durationMs(from: isolationStartedAt, to: now())
                     let isolationError = subjectIsolationError(from: error)
                     subjectIsolation = failedSubjectIsolationRecord(
                         rendered: rendered,
@@ -440,11 +446,16 @@ public struct AnalyzePipeline {
                 PreparedRenderedAnalysis(
                     derivatives: derivatives,
                     subjectIsolation: subjectIsolation,
-                    errors: errors
+                    errors: errors,
+                    renderMs: renderMs,
+                    subjectIsolationMs: subjectIsolationMs
                 )
             )
         } catch {
-            return .renderFailed(sidecarError(from: error, sidecarPath: entry.sidecarPath))
+            return .renderFailed(
+                sidecarError(from: error, sidecarPath: entry.sidecarPath),
+                renderMs: Self.durationMs(from: renderStartedAt, to: now())
+            )
         }
     }
 
@@ -457,23 +468,26 @@ public struct AnalyzePipeline {
         startedAt: Date
     ) async -> ProgressRecord {
         switch prepared {
-        case .renderFailed(let error):
+        case .renderFailed(let error, let renderMs):
             return writeFailureSidecar(
                 source: entry.source,
                 sidecarPath: entry.sidecarPath,
                 configuration: configuration,
                 profile: profile,
                 errors: [error],
+                renderMs: renderMs,
                 startedAt: startedAt
             )
         case .prepared(let prepared):
+            let modelStartedAt = now()
             let modelRuns = await runModelRuns(
                 derivatives: prepared.derivatives,
                 configuration: configuration,
                 runtime: runtime
             )
+            let modelMs = durationMs(from: modelStartedAt, to: now())
             let errors = prepared.errors + modelRuns.compactMap(\.error)
-            let sidecar = RawJSONSidecar(
+            var sidecar = RawJSONSidecar(
                 source: entry.source,
                 runConfiguration: configuration,
                 modelInputProfile: profile,
@@ -481,15 +495,29 @@ public struct AnalyzePipeline {
                 subjectIsolation: prepared.subjectIsolation,
                 modelRuns: modelRuns,
                 errors: errors,
+                timing: PipelineTimingRecord(
+                    pipelineElapsedMs: durationMs(from: startedAt, to: now()),
+                    renderMs: prepared.renderMs,
+                    subjectIsolationMs: prepared.subjectIsolationMs,
+                    modelMs: modelMs,
+                    writeMs: 0
+                ),
                 createdAt: now()
             )
 
             do {
+                let writeStartedAt = now()
                 let outcome = try writer.write(
                     sidecar,
                     to: entry.sidecarPath,
                     existingPolicy: configuration.existing
                 )
+                let writeMs = durationMs(from: writeStartedAt, to: now())
+                if outcome.status == .written {
+                    sidecar.timing?.writeMs = writeMs
+                    sidecar.timing?.pipelineElapsedMs = durationMs(from: startedAt, to: now())
+                    _ = try writer.write(sidecar, to: entry.sidecarPath, existingPolicy: .overwrite)
+                }
                 let status: ProgressStatus
                 switch outcome.status {
                 case .skippedExisting:
@@ -526,18 +554,33 @@ public struct AnalyzePipeline {
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile,
         errors: [SidecarError],
+        renderMs: Int,
         startedAt: Date
     ) -> ProgressRecord {
-        let errorSidecar = RawJSONSidecar(
+        var errorSidecar = RawJSONSidecar(
             source: source,
             runConfiguration: configuration,
             modelInputProfile: profile,
             errors: errors,
+            timing: PipelineTimingRecord(
+                pipelineElapsedMs: durationMs(from: startedAt, to: now()),
+                renderMs: renderMs,
+                subjectIsolationMs: 0,
+                modelMs: 0,
+                writeMs: 0
+            ),
             createdAt: now()
         )
         var progressErrors = errors
         do {
-            _ = try writer.write(errorSidecar, to: sidecarPath, existingPolicy: configuration.existing)
+            let writeStartedAt = now()
+            let outcome = try writer.write(errorSidecar, to: sidecarPath, existingPolicy: configuration.existing)
+            let writeMs = durationMs(from: writeStartedAt, to: now())
+            if outcome.status == .written {
+                errorSidecar.timing?.writeMs = writeMs
+                errorSidecar.timing?.pipelineElapsedMs = durationMs(from: startedAt, to: now())
+                _ = try writer.write(errorSidecar, to: sidecarPath, existingPolicy: .overwrite)
+            }
         } catch {
             progressErrors.append(Self.sidecarError(from: error, sidecarPath: sidecarPath))
         }
@@ -574,6 +617,7 @@ public struct AnalyzePipeline {
         runtime: ModelRuntimeContext
     ) async -> ModelRunRecord {
         var options = ModelRunOptions.default
+        options.keepAlive = configuration.modelKeepAlive
         options.responseRepairAttempts = configuration.modelResponseRepairAttempts
         do {
             let prompt = try PromptRegistry.prompt(for: role)
@@ -638,6 +682,10 @@ public struct AnalyzePipeline {
     }
 
     private func durationMs(from start: Date, to end: Date) -> Int {
+        Self.durationMs(from: start, to: end)
+    }
+
+    private static func durationMs(from start: Date, to end: Date) -> Int {
         max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
     }
 
@@ -750,13 +798,15 @@ private enum EntryAction: Sendable {
 
 private enum PreparedAnalysis: Sendable {
     case prepared(PreparedRenderedAnalysis)
-    case renderFailed(SidecarError)
+    case renderFailed(SidecarError, renderMs: Int)
 }
 
 private struct PreparedRenderedAnalysis: Sendable {
     var derivatives: [DerivativeRecord]
     var subjectIsolation: SubjectIsolationRecord?
     var errors: [SidecarError]
+    var renderMs: Int
+    var subjectIsolationMs: Int
 }
 
 private struct PipelineUnavailableForegroundMaskProvider: ForegroundMaskProvider {

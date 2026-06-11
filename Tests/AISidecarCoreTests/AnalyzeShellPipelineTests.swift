@@ -63,7 +63,7 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let sidecar = try decoder.decode(RawJSONSidecar.self, from: Data(contentsOf: juneSidecar))
-        XCTAssertEqual(sidecar.schemaVersion, "ai-sidecar-json/1.0")
+        XCTAssertEqual(sidecar.schemaVersion, "ai-sidecar-json/1.1")
         XCTAssertEqual(sidecar.source.relativePath, "2026/06/_DSC1234.JPG")
         XCTAssertEqual(sidecar.modelInputProfile.name, "gemma4-26b-default")
         XCTAssertEqual(sidecar.derivatives.map(\.role), [.fullResolution, .wholeImage])
