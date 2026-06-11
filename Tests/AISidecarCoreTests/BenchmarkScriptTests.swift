@@ -12,13 +12,9 @@ final class BenchmarkScriptTests: XCTestCase {
         XCTAssertNotNil(manifest?["samples"] as? [Any])
 
         let script = try String(contentsOf: scriptURL, encoding: .utf8)
-        XCTAssertTrue(script.contains("--self-test"))
-        XCTAssertTrue(script.contains("--spec"))
-        XCTAssertTrue(script.contains("aggregateSidecars"))
-        XCTAssertTrue(script.contains("\"clear_derivative_cache_after_success\": true"))
-        XCTAssertTrue(script.contains("cleanupScratchInputs"))
-        XCTAssertTrue(script.contains("removeIfExists(cacheDir)"))
-        XCTAssertTrue(script.contains("yyyy-MM-dd-HHmmss"))
+        XCTAssertTrue(script.contains("\"swift\", \"run\", \"aisidecar\", \"benchmark\""))
+        XCTAssertTrue(script.contains("CommandLine.arguments.dropFirst()"))
+        XCTAssertTrue(script.contains("process.currentDirectoryURL = repoRoot"))
     }
 
     private func packageRoot() -> URL {

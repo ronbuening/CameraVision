@@ -19,25 +19,26 @@ HEIC, TIFF, NEF, and RAF timing remain deferred/manual until rights-cleared samp
 Offline aggregation self-test:
 
 ```sh
-swift benchmarks/run-milestone9a.swift --self-test
+swift run aisidecar benchmark --self-test
 ```
 
 Full benchmark run with the default local model:
 
 ```sh
-swift benchmarks/run-milestone9a.swift
+swift run aisidecar benchmark
 ```
 
 Useful options:
 
 ```sh
-swift benchmarks/run-milestone9a.swift --model gemma4:26b-a4b-it-qat --iterations 1
-swift benchmarks/run-milestone9a.swift --samples benchmarks/samples/manifest.json --output-dir benchmarks
-swift benchmarks/run-milestone9a.swift --skip-build
-swift benchmarks/run-milestone9a.swift --skip-build --spec profile-gemma4-26b-benchmark-1024-whole --spec source-identity-sha256 --max-hash-copies 60
+swift run aisidecar benchmark --model gemma4:26b-a4b-it-qat --iterations 1
+swift run aisidecar benchmark --samples benchmarks/samples/manifest.json --output-dir benchmarks
+swift run aisidecar benchmark --skip-build
+swift run aisidecar benchmark --skip-build --binary .build/release/aisidecar
+swift run aisidecar benchmark --skip-build --spec profile-gemma4-26b-benchmark-1024-whole --spec source-identity-sha256 --max-hash-copies 60
 ```
 
-The script builds `.build/release/aisidecar`, runs the Milestone 9a matrix, checks that no `.xmp` files were created under each run directory, and writes date/time stamped results:
+The command builds `.build/release/aisidecar`, runs the Milestone 9a matrix, checks that no `.xmp` files were created under each run directory, and writes date/time stamped results:
 
 ```text
 benchmarks/milestone9a-YYYY-MM-DD-HHMMSS/
@@ -45,11 +46,17 @@ benchmarks/milestone9a-YYYY-MM-DD-HHMMSS/
   benchmark-results-YYYY-MM-DD-HHMMSS.md
 ```
 
-Generated `benchmarks/milestone9a-*` and self-test output directories are ignored by git because they contain machine-local timing data, copied sample inputs, sidecars, logs, and scratch caches. Each benchmark spec enables derivative cache clearing in the generated config and the script removes the per-spec cache directory after collecting metrics. The copied `input-samples/` and `hash-input-*` scratch directories are removed after the result report is written.
+The legacy script remains available as a compatibility wrapper around `aisidecar benchmark`:
+
+```sh
+swift benchmarks/run-milestone9a.swift --self-test
+```
+
+Generated `benchmarks/milestone9a-*` and self-test output directories are ignored by git because they contain machine-local timing data, copied sample inputs, sidecars, logs, and scratch caches. Each benchmark spec enables derivative cache clearing in the generated config and the command removes the per-spec cache directory after collecting metrics. The copied `input-samples/` and `hash-input-*` scratch directories are removed after the result report is written.
 
 ## Matrix
 
-The script measures:
+The command measures:
 
 - Profile sweep: `gemma4-26b-benchmark-1024`, `gemma4-26b-benchmark-1536`, and `gemma4-26b-default` for `whole` and `subject` modes.
 - `model_keep_alive`: `0`, `5m`, and `30m`.

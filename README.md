@@ -4,14 +4,15 @@ CameraVision is a local macOS utility for generating AI-assisted image metadata 
 
 ## Current State
 
-The Phase 1 Milestone 8 test and fixture completion pass is implemented on top of the full Milestone 7 analyze pipeline.
+Phase 1 Milestones 0-8 and the Milestone 9a benchmark harness are implemented. Phase 1 still produces only auditable raw AI JSON sidecars; XMP writeback starts in Phase 2.
 
 The repository currently contains:
 
 - A Swift Package Manager project targeting macOS 15 and Swift 6.
 - `AISidecarCore`, the shared library where reusable project logic lives.
 - `aisidecar`, the command-line executable.
-- `aisidecar analyze` command wiring with the Phase 1 shared flag surface, plus `aisidecar purge` for derivative cache maintenance.
+- `aisidecar analyze` command wiring with the Phase 1 shared flag surface, `aisidecar benchmark` for Milestone 9a timing/validity runs, and `aisidecar purge` for derivative cache maintenance.
+- A reusable `AISidecarCore/Benchmarking` harness for benchmark specs, result documents, sidecar metric aggregation, no-XMP checks, scratch cleanup, and offline self-test.
 - Configuration resolution with precedence: CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default.
 - The frozen Phase 1 structured error taxonomy.
 - Text and JSON log rendering.
@@ -23,7 +24,7 @@ The repository currently contains:
 - Content-addressed derivative caching with manifest-backed LRU eviction, configurable cache directory/size, opt-in start/success cache clearing, and explicit purge command.
 - Subject isolation with Apple Vision foreground masks, deterministic instance selection/merge policy, full-resolution crop/matte compositing, and `subject_isolated` derivative provenance.
 - Diagnostic model-input export via `--export-model-inputs` for reviewing the exact images that model calls receive.
-- Versioned whole-image and subject-isolated prompts plus bundled v1.2 response schemas.
+- Versioned whole-image and subject-isolated prompts plus bundled v1.3 response schemas.
 - A reusable Ollama vision model runtime layer with tag/digest verification, runtime provenance, `/api/chat` request encoding, response parsing, schema validation, schema-constrained response repair, retry/error classification, and mock/recorded-fixture runners.
 - Full `aisidecar analyze` model execution with populated `model_runs` records, prompt/schema provenance, model digest/runtime provenance, raw response preservation, parsed JSON when valid, and optional per-attempt response provenance when repair is used.
 - Bounded render/isolation preparation through `stage_concurrency`, feeding a serialized single-flight model stage.
@@ -45,6 +46,7 @@ Not implemented yet:
 ```text
 Sources/
   AISidecarCore/       Shared engine code for all phases.
+    Benchmarking/      Milestone 9a benchmark runner, result documents, and aggregation.
     Configuration/     Config defaults, validation, and precedence.
     Errors/            Frozen Phase 1 structured error taxonomy.
     FileScanning/      Input discovery and source image records.
@@ -78,10 +80,13 @@ The project uses SwiftPM and depends on Swift ArgumentParser.
 ```bash
 swift test
 swift run aisidecar analyze --help
+swift run aisidecar benchmark --help
 swift run aisidecar purge --help
+swift run aisidecar benchmark --self-test
 swift run aisidecar analyze <folder> --recursive --output-dir <tmp-output>
 swift run aisidecar analyze <image-or-folder> --mode subject --debug-derivatives --output-dir <tmp-output>
 swift run aisidecar analyze <image-or-folder> --mode both --export-model-inputs <tmp-output>
+swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --output-dir <tmp-output>
 ```
 
 If `xcode-select` points at Command Line Tools and XCTest is unavailable, run SwiftPM through the installed Xcode developer directory:
@@ -89,6 +94,7 @@ If `xcode-select` points at Command Line Tools and XCTest is unavailable, run Sw
 ```bash
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar analyze --help
+env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar benchmark --help
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar purge --help
 ```
 
@@ -102,8 +108,10 @@ For visual validation, `--export-model-inputs <folder>` switches `analyze` into 
 
 Cache cleanup is scoped to files owned by the derivative cache manifest or matching aisidecar's deterministic derivative names, so unrelated files in a misconfigured cache directory are not intentionally removed.
 
+## Current Benchmark Behavior
+
+`aisidecar benchmark` runs the Phase 1 Milestone 9a benchmark matrix. It builds `.build/release/aisidecar` by default, invokes `analyze` for each selected spec, aggregates sidecar/model-run timings, verifies no `.xmp` files were created, and writes JSON plus Markdown result documents under `benchmarks/milestone9a-YYYY-MM-DD-HHMMSS/` or the requested `--output-dir`. Use repeated `--spec` flags for focused runs, and `--self-test` for the offline aggregation check. The legacy `benchmarks/run-milestone9a.swift` script remains as a wrapper around this command.
+
 ## Next Steps
 
-The next planned implementation unit is Phase 1 Milestone 9 benchmarking and calibration.
-
-Milestone 9 should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.
+The next planned work is completing Phase 1 Milestone 9 calibration and quality review, then starting Phase 2 XMP writeback. Milestone 9 follow-up should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.

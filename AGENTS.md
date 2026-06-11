@@ -2,7 +2,7 @@
 
 ## Project Context
 
-CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state is Phase 1 Milestone 8: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, sidecar naming, output tree mirroring, raw JSON sidecar writes, JSONL progress logs, batch summaries, interruption handling, model input profiles, whole-image rendering, full-resolution render retention, derivative cache with configurable lifecycle and `aisidecar purge`, subject isolation with the two-resolution Apple Vision/Core Image chain, diagnostic model-input export, Ollama vision model runtime client, v1.3 prompts and response schemas with conditional `species` candidates for biological target genres, schema-constrained model response repair, full analyze pipeline model execution, `model_runs` sidecar records with optional response-attempt provenance, configurable `stage_concurrency`, schema-evolution sidecar document rewrite support, golden sidecar fixtures, no-XMP Phase 1 guards, and offline tests including synthetic malformed-response fixtures.
+CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state includes Phase 1 Milestones 0-8 plus the Milestone 9a benchmark harness: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, sidecar naming, output tree mirroring, raw JSON sidecar writes, JSONL progress logs, batch summaries, interruption handling, model input profiles, whole-image rendering, full-resolution render retention, derivative cache with configurable lifecycle and `aisidecar purge`, subject isolation with the two-resolution Apple Vision/Core Image chain, diagnostic model-input export, Ollama vision model runtime client, v1.3 prompts and response schemas with conditional `species` candidates for biological target genres, schema-constrained model response repair, full analyze pipeline model execution, `model_runs` sidecar records with optional response-attempt provenance, configurable `stage_concurrency`, schema-evolution sidecar document rewrite support, golden sidecar fixtures, no-XMP Phase 1 guards, `aisidecar benchmark`, and offline tests including synthetic malformed-response fixtures.
 
 Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files. XMP writeback begins in Phase 2.
 
@@ -18,6 +18,7 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 
 - `Package.swift` defines `AISidecarCore`, `AISidecarCLI`, and `AISidecarCoreTests`.
 - `Sources/AISidecarCore/Configuration` owns config defaults and precedence.
+- `Sources/AISidecarCore/Benchmarking` owns the Phase 1 Milestone 9a benchmark harness, result documents, aggregation, and self-test.
 - `Sources/AISidecarCore/Errors` owns the frozen Phase 1 error code set.
 - `Sources/AISidecarCore/FileScanning` owns scanner/source image records.
 - `Sources/AISidecarCore/Identity` owns source content identity hashing.
@@ -27,15 +28,17 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 - `Sources/AISidecarCore/Sidecars` owns raw `.ai.json` sidecar naming, schema records, schema-evolution document rewrites, and atomic writes.
 - `Sources/AISidecarCore/Reporting` owns text/JSON logging, JSONL progress logs, and batch summaries.
 - `Sources/AISidecarCore/Pipeline` owns the full analyze pipeline, the earlier analyze shell pipeline test seam, the diagnostic model-input export pipeline, and interruption handling.
-- `Sources/AISidecarCLI` owns `aisidecar analyze`, `aisidecar purge`, and shared analyze options.
+- `Sources/AISidecarCLI` owns `aisidecar analyze`, `aisidecar benchmark`, `aisidecar purge`, and shared analyze options.
 - `Tests/AISidecarCoreTests` contains offline XCTest coverage, synthetic model-response fixtures, and normalized golden sidecar fixtures.
 
 ## Commands
 
 - Build and test: `swift test`.
-- CLI help checks: `swift run aisidecar analyze --help` and `swift run aisidecar purge --help`.
+- CLI help checks: `swift run aisidecar analyze --help`, `swift run aisidecar benchmark --help`, and `swift run aisidecar purge --help`.
 - Manual full analyze smoke check: `swift run aisidecar analyze <image-or-folder> --mode both --output-dir <tmp-output>`.
 - Manual diagnostic export check: `swift run aisidecar analyze <image-or-folder> --mode both --export-model-inputs <tmp-output>`.
+- Benchmark self-test: `swift run aisidecar benchmark --self-test`.
+- Small offline benchmark smoke check: `swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --output-dir <tmp-output>`.
 - If XCTest is missing because `xcode-select` points at Command Line Tools, run the same commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 
 ## Documentation Index
@@ -51,7 +54,7 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 ## Implementation Guidance
 
 - Implement one milestone at a time unless the user explicitly expands scope.
-- The next planned unit is Phase 1 Milestone 9 benchmarking and calibration.
+- The next planned unit is completing Phase 1 Milestone 9 calibration and quality review, then Phase 2/XMP work.
 - Do not jump ahead to XMP writing while implementing Phase 1 work.
 - Keep `--export-model-inputs` as a diagnostic pre-model path: it must not write raw `.ai.json` sidecars, progress logs, batch summaries, XMP, or model output.
 - Keep config precedence as CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default. `aisidecar purge` resolves only derivative-cache settings and must not depend on model/runtime config validity.

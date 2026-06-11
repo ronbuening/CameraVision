@@ -4,7 +4,7 @@ Version: 0.9
 Date: 2026-06-11
 Supersedes: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8
 Implements: Phase 1 Requirements v0.3 (`01-cli-raw-json-sidecar-requirements.md`)
-Binary: `aisidecar` (subcommands: `analyze`, `purge`)
+Binary: `aisidecar` (subcommands: `analyze`, `benchmark`, `purge`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15, Swift 6 strict concurrency
 Default model: `gemma4:26b-a4b-it-qat` (installed locally; verified at startup per FR1-030b)
@@ -14,18 +14,22 @@ Traceability in this plan points at the v0.3 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-8 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command. The `AISidecarCore/ModelRuntime` layer contains the Ollama client, mock and recorded-fixture runners, response parsing, schema-constrained response repair, v1.3 prompt registry, and v1.3 response schemas with conditional `species` candidates for biological target genres. The `AISidecarCore/Sidecars` layer now includes a schema-evolution document wrapper for preserving additive 1.x unknown fields on rewrite. The analyze pipeline does not write XMP.
+Phase 1 Milestones 0-8 and the Milestone 9a benchmark harness are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command. The Milestone 9a benchmark harness is available through `aisidecar benchmark`, with the legacy script retained as a compatibility wrapper. The `AISidecarCore/ModelRuntime` layer contains the Ollama client, mock and recorded-fixture runners, response parsing, schema-constrained response repair, v1.3 prompt registry, and v1.3 response schemas with conditional `species` candidates for biological target genres. The `AISidecarCore/Sidecars` layer now includes a schema-evolution document wrapper for preserving additive 1.x unknown fields on rewrite. The analyze pipeline does not write XMP.
 
 Latest verification for this baseline:
 
 ```text
-swift test                                      133 tests, 1 skipped, 0 failures
+swift test                                      139 tests, 1 skipped, 0 failures
 swift run aisidecar analyze --help             passed
+swift run aisidecar benchmark --help           passed
+swift run aisidecar benchmark --self-test      passed
+swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --output-dir /private/tmp
+                                                passed, 0 XMP files
 swift run aisidecar purge --help               passed
 swift run aisidecar --help                     passed
 ```
 
-The next implementation unit is Milestone 9 benchmarking and calibration.
+The next implementation unit is completing Milestone 9 calibration and quality review.
 
 ## 1. Implementation Position
 
@@ -34,7 +38,7 @@ The program is a Swift Package Manager project. The decisive reason is unchanged
 Two structural decisions, now mandated by the requirements rather than merely recommended:
 
 1. **Core library from the first commit** (PW-002). Every capability lives in `AISidecarCore`; the executable is argument handling and nothing else. Phase 4's shared-engine requirement is satisfied by construction because the engine never exists in any other shape.
-2. **One binary, subcommands per phase** (PW-001). Phase 1 ships `aisidecar analyze` and the derivative-cache maintenance command `aisidecar purge`; Phase 2 adds `write-xmp`; Phase 3 adds `normalize` and `apply-session`. Analyze shared flags are defined once (PW-004/005) in `SharedOptions`.
+2. **One binary, subcommands per phase** (PW-001). Phase 1 ships `aisidecar analyze`, the Milestone 9 benchmark command `aisidecar benchmark`, and the derivative-cache maintenance command `aisidecar purge`; Phase 2 adds `write-xmp`; Phase 3 adds `normalize` and `apply-session`. Analyze shared flags are defined once (PW-004/005) in `SharedOptions`.
 
 The model runtime stays behind the `VisionModelRunner` protocol (FR1-031), with mock and recorded-fixture runners implemented in the same milestone as the live runner so nothing downstream is ever blocked on, or untested without, a live Ollama instance.
 
@@ -93,6 +97,8 @@ CameraVision/
   Package.swift
   Sources/
     AISidecarCore/
+      Benchmarking/
+        Milestone9BenchmarkRunner.swift // Milestone 9a matrix, aggregation, self-test
       Configuration/
         AppConfig.swift                 // PW-006/007 resolution + validation
         ConfigurationResolver.swift
@@ -147,6 +153,8 @@ CameraVision/
       AISidecarCommand.swift
       SharedOptions.swift               // PW-004 glossary, composed by all subcommands
       AnalyzeCommand.swift
+      BenchmarkCommand.swift
+      PurgeCommand.swift
   Tests/
     AISidecarCoreTests/                 // suite in Section 12
 ```
@@ -453,10 +461,12 @@ Benchmark axes:
 Outputs:
 
 ```text
-benchmarks/
-  benchmark-results-YYYY-MM-DD.md
-  benchmark-results-YYYY-MM-DD.json
+benchmarks/milestone9a-YYYY-MM-DD-HHMMSS/
+  benchmark-results-YYYY-MM-DD-HHMMSS.md
+  benchmark-results-YYYY-MM-DD-HHMMSS.json
 ```
+
+Milestone 9a is run through `aisidecar benchmark`, which builds `.build/release/aisidecar` by default, invokes `analyze` for each selected spec, aggregates sidecar/model-run timings, verifies no `.xmp` files were produced, and removes scratch inputs and per-spec derivative caches after metrics are collected. The legacy `benchmarks/run-milestone9a.swift` script delegates to the command for compatibility.
 
 Calibration updates the default `ModelInputProfile`, the default `keep_alive`, and the default stage concurrency in the shipped configuration.
 

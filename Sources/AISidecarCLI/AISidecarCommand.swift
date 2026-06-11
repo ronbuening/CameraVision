@@ -10,6 +10,7 @@ struct AISidecarCommand: AsyncParsableCommand {
         version: "0.0.0",
         subcommands: [
             AnalyzeCommand.self,
+            BenchmarkCommand.self,
             PurgeCommand.self
         ]
     )
