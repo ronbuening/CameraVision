@@ -38,7 +38,7 @@ Phase 2 shall reuse the following Phase 1 modules from `AISidecarCore` without r
 - model input profiles;
 - the Ollama model adapter with mock and recorded-fixture runners;
 - `--mode whole|subject|both` analysis;
-- the raw JSON sidecar schema with banded candidates;
+- the raw JSON sidecar schema with banded candidates and conditional `species` observations;
 - provenance handling;
 - JSONL progress logging, batch summaries, and error taxonomy.
 
@@ -144,7 +144,7 @@ FR2-012 - The program shall not write Adobe Camera Raw, Lightroom develop, or Ca
 
 ## 7. Candidate Extraction Requirements
 
-FR2-013 - The program shall extract candidate keywords from the Phase 1 model JSON using the Phase 1 response schema (FR1-044/045), respecting the schema-evolution rule (PW-012).
+FR2-013 - The program shall extract candidate keywords from the Phase 1 model JSON using the Phase 1 response schema (FR1-044/045), including conditional `species` candidates when present, and respecting the schema-evolution rule (PW-012).
 
 FR2-014 - If both whole-image and subject-isolated runs exist, their contributions shall remain distinct in the intermediate extraction record.
 

@@ -1,15 +1,23 @@
 # Phase 1 Requirements - CLI Raw JSON Sidecar Generator
 
-Version: 0.2
-Date: 2026-06-10
-Supersedes: 0.1
+Version: 0.3
+Date: 2026-06-11
+Supersedes: 0.2
 Binary: `aisidecar` (subcommand: `analyze`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15
 Default vision model: `gemma4:26b-a4b-it-qat` (verified against the local Ollama install at startup)
 Primary output artifact: raw AI JSON sidecar file, not XMP
 
-## 0. Changes from v0.1
+## 0. Changes from v0.2
+
+This revision updates the active model response contract without changing the raw sidecar document schema:
+
+1. The whole-image and subject-isolated response schemas add a conditional top-level `species` array for `wildlife`, `bird_photography`, and `plant_botanical` genres (FR1-045).
+2. The active prompt and response-schema resources move to v1.3.0 so model-run provenance distinguishes pre-species and post-species outputs (FR1-046).
+3. The local response-schema validator owns the small additional JSON Schema subset needed to enforce this contract offline: `allOf`, `if`, `then`, `else`, `not`, and `contains`.
+
+## 0.1 Changes from v0.1
 
 This revision integrates the findings of the 2026-06-10 requirements review. The substantive changes are:
 
@@ -345,7 +353,7 @@ FR1-042 - The sidecar shall include enough derivative provenance to reproduce wh
 
 FR1-043 - The sidecar shall not include derivative image data. It shall include derivative hashes and cache paths.
 
-FR1-044 - Model response candidates shall be objects, not bare strings. Every candidate shall carry an ordinal confidence band and, for subject candidates and proposed keywords, a short evidence string:
+FR1-044 - Model response candidates shall be objects, not bare strings. Every candidate shall carry an ordinal confidence band and, for subject candidates, species/taxonomy candidates, and proposed keywords, a short evidence string:
 
 ```json
 { "term": "string", "confidence": "high | medium | low", "evidence": "string" }
@@ -358,6 +366,8 @@ FR1-045 - Two response schemas shall exist. The whole-image schema:
 ```json
 {
   "summary": "string",
+  "genre_or_photography_type": [ { "term": "...", "confidence": "...", "evidence": "..." } ],
+  "species": [ { "term": "...", "confidence": "...", "evidence": "..." } ],
   "main_subjects": [ { "term": "...", "confidence": "...", "evidence": "..." } ],
   "secondary_subjects": [ { "term": "...", "confidence": "...", "evidence": "..." } ],
   "scene_context": [ { "term": "...", "confidence": "..." } ],
@@ -368,7 +378,9 @@ FR1-045 - Two response schemas shall exist. The whole-image schema:
 }
 ```
 
-The subject-isolated schema is identical except that `scene_context` and `habitat_or_setting` are absent (FR1-036). Phase 1 model JSON shall not include `visible_text`; text extraction is deferred to a dedicated OCR-capable path in a later phase. Both schemas shall be fully specified JSON Schema documents — item types, required fields, bounded array and string lengths — because the schema is the literal `format` payload sent to the runtime: an API contract, not documentation.
+The `species` field shall be required when any `genre_or_photography_type` item has term `wildlife`, `bird_photography`, or `plant_botanical`, and shall be forbidden for all other genre combinations. `species` shall use the same candidate-with-evidence object shape as subject candidates. It shall prefer species-level common names when visible evidence supports them, but broader taxonomy terms are allowed when narrower identification is uncertain. Target-genre responses with no defensible taxonomy candidate shall return `"species": []`.
+
+The subject-isolated schema is identical except that `scene_context` and `habitat_or_setting` are absent (FR1-036); its `species` candidates shall be based only on visible subject traits, not removed background context. Phase 1 model JSON shall not include `visible_text`; text extraction is deferred to a dedicated OCR-capable path in a later phase. Both schemas shall be fully specified JSON Schema documents — item types, required fields, bounded array and string lengths, and the conditional `species` rule — because the schema is the literal `format` payload sent to the runtime: an API contract, not documentation.
 
 FR1-046 - Prompts shall be versioned resources carrying a semantic version and a SHA-256 of their text; both shall be recorded per run, making "same prompt version" verifiable rather than asserted.
 
@@ -433,7 +445,7 @@ AC1-011 - Killing a batch mid-run leaves no partial sidecar; re-running with `--
 
 AC1-012 - All derivatives are orientation-correct and sRGB-tagged.
 
-AC1-013 - Parsed candidates carry confidence bands; the subject-isolated response contains no habitat or scene fields.
+AC1-013 - Parsed candidates carry confidence bands; biological target genres conditionally carry `species`; the subject-isolated response contains no habitat or scene fields.
 
 AC1-014 - An unresolvable model tag fails fast at startup with the installed-tag list; sidecars record the model digest and runtime version.
 

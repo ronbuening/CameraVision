@@ -89,13 +89,13 @@ final class GoldenSidecarTests: XCTestCase {
                     role: .wholeImage,
                     derivative: whole,
                     context: context,
-                    fixtureName: "whole_image_valid_v1_2"
+                    fixtureName: "whole_image_valid_v1_3"
                 ),
                 try modelRun(
                     role: .subjectIsolated,
                     derivative: subject,
                     context: context,
-                    fixtureName: "subject_isolated_valid_v1_2"
+                    fixtureName: "subject_isolated_valid_v1_3"
                 )
             ]
         )

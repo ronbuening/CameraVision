@@ -12,9 +12,9 @@ public enum PromptRegistry {
     private static func resourceName(for role: ModelInputRole) -> String {
         switch role {
         case .wholeImage:
-            return "whole_image_v1.2.0"
+            return "whole_image_v1.3.0"
         case .subjectIsolated:
-            return "subject_isolated_v1.2.0"
+            return "subject_isolated_v1.3.0"
         }
     }
 

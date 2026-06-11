@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:aisidecar:response:whole-image:1.3.0",
+  "title": "AISidecar Whole Image Model Response 1.3.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "genre_or_photography_type",
+    "main_subjects",
+    "secondary_subjects",
+    "scene_context",
+    "habitat_or_setting",
+    "behavior_or_action",
+    "proposed_keywords",
+    "uncertainty_notes"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "genre_or_photography_type"
+        ],
+        "properties": {
+          "genre_or_photography_type": {
+            "contains": {
+              "type": "object",
+              "required": [
+                "term"
+              ],
+              "properties": {
+                "term": {
+                  "enum": [
+                    "wildlife",
+                    "bird_photography",
+                    "plant_botanical"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "species"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "species"
+          ]
+        }
+      }
+    }
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 280,
+      "description": "One concise sentence describing the whole image."
+    },
+    "genre_or_photography_type": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "description": "Ordered from primary to secondary photographic genre/type.",
+      "items": {
+        "$ref": "#/$defs/genre_candidate"
+      }
+    },
+    "species": {
+      "type": "array",
+      "maxItems": 6,
+      "description": "Biological/taxonomy candidates for wildlife, bird_photography, or plant_botanical genres only. Prefer species-level names when visibly supported; broader taxa are allowed when narrower identification is uncertain.",
+      "items": {
+        "$ref": "#/$defs/candidate_with_evidence"
+      }
+    },
+    "main_subjects": {
+      "type": "array",
+      "maxItems": 6,
+      "description": "Primary visible subjects in the full frame.",
+      "items": {
+        "$ref": "#/$defs/candidate_with_evidence"
+      }
+    },
+    "secondary_subjects": {
+      "type": "array",
+      "maxItems": 10,
+      "description": "Secondary visible subjects or objects.",
+      "items": {
+        "$ref": "#/$defs/candidate_with_evidence"
+      }
+    },
+    "scene_context": {
+      "type": "array",
+      "maxItems": 8,
+      "description": "Whole-frame context such as street scene, portrait setup, performance, or outdoor wildlife scene.",
+      "items": {
+        "$ref": "#/$defs/candidate_without_evidence"
+      }
+    },
+    "habitat_or_setting": {
+      "type": "array",
+      "maxItems": 8,
+      "description": "Visible habitat, setting, or environment. Do not infer geographic location.",
+      "items": {
+        "$ref": "#/$defs/candidate_without_evidence"
+      }
+    },
+    "behavior_or_action": {
+      "type": "array",
+      "maxItems": 8,
+      "description": "Visible behavior, pose, action, or activity.",
+      "items": {
+        "$ref": "#/$defs/candidate_without_evidence"
+      }
+    },
+    "proposed_keywords": {
+      "type": "array",
+      "maxItems": 30,
+      "description": "Metadata-oriented terms for later normalization. Exclude exact duplicate species/taxonomy terms, camera/lens/software terms, and file-processing terms.",
+      "items": {
+        "$ref": "#/$defs/candidate_with_evidence"
+      }
+    },
+    "uncertainty_notes": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 600,
+      "description": "Brief notes about uncertainty, partial visibility, or ambiguous identification."
+    }
+  },
+  "$defs": {
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "description": "Ordinal confidence band. Numeric confidence is intentionally not used."
+    },
+    "genre_term": {
+      "type": "string",
+      "enum": [
+        "architecture",
+        "landscape",
+        "seascape",
+        "cityscape",
+        "portrait_people",
+        "group_portrait",
+        "candid_people",
+        "street_documentary",
+        "wildlife",
+        "bird_photography",
+        "plant_botanical",
+        "macro_closeup",
+        "abstract",
+        "still_life",
+        "product",
+        "food",
+        "sports_action",
+        "event",
+        "travel",
+        "night",
+        "astrophotography",
+        "aerial",
+        "underwater",
+        "interior",
+        "fine_art_conceptual"
+      ],
+      "description": "Controlled vocabulary for photographic genre or photography type."
+    },
+    "term": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[^\\r\\n\\t]+$"
+    },
+    "evidence": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 220,
+      "pattern": "^[^\\r\\n\\t]+$",
+      "description": "Short visible-evidence phrase, not a reasoning trace."
+    },
+    "candidate_with_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "term",
+        "confidence",
+        "evidence"
+      ],
+      "properties": {
+        "term": {
+          "$ref": "#/$defs/term"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    },
+    "candidate_without_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "term",
+        "confidence"
+      ],
+      "properties": {
+        "term": {
+          "$ref": "#/$defs/term"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        }
+      }
+    },
+    "genre_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "term",
+        "confidence",
+        "evidence"
+      ],
+      "properties": {
+        "term": {
+          "$ref": "#/$defs/genre_term"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    }
+  }
+}

@@ -8,8 +8,8 @@ final class PromptSchemaTests: XCTestCase {
         let whole = try PromptRegistry.prompt(for: .wholeImage)
         let subject = try PromptRegistry.prompt(for: .subjectIsolated)
 
-        XCTAssertEqual(whole.version, "aisidecar.prompt.whole_image/1.2.0")
-        XCTAssertEqual(subject.version, "aisidecar.prompt.subject_isolated/1.2.0")
+        XCTAssertEqual(whole.version, "aisidecar.prompt.whole_image/1.3.0")
+        XCTAssertEqual(subject.version, "aisidecar.prompt.subject_isolated/1.3.0")
         XCTAssertTrue(whole.text.hasPrefix("PROMPT_VERSION: \(whole.version)\n"))
         XCTAssertTrue(subject.text.hasPrefix("PROMPT_VERSION: \(subject.version)\n"))
         XCTAssertTrue(whole.text.hasSuffix("\n"))
@@ -24,13 +24,15 @@ final class PromptSchemaTests: XCTestCase {
         let whole = try ResponseSchemas.schema(for: .wholeImage)
         let subject = try ResponseSchemas.schema(for: .subjectIsolated)
 
-        XCTAssertEqual(whole.version, "urn:aisidecar:response:whole-image:1.2.0")
-        XCTAssertEqual(subject.version, "urn:aisidecar:response:subject-isolated:1.2.0")
+        XCTAssertEqual(whole.version, "urn:aisidecar:response:whole-image:1.3.0")
+        XCTAssertEqual(subject.version, "urn:aisidecar:response:subject-isolated:1.3.0")
         let wholeProperties = try XCTUnwrap(whole.schema.objectValue?["properties"]?.objectValue)
+        XCTAssertNotNil(wholeProperties["species"])
         XCTAssertNotNil(wholeProperties["scene_context"])
         XCTAssertNotNil(wholeProperties["habitat_or_setting"])
         XCTAssertNil(wholeProperties["visible_text"])
         let subjectProperties = try XCTUnwrap(subject.schema.objectValue?["properties"]?.objectValue)
+        XCTAssertNotNil(subjectProperties["species"])
         XCTAssertNil(subjectProperties["scene_context"])
         XCTAssertNil(subjectProperties["habitat_or_setting"])
         XCTAssertNil(subjectProperties["visible_text"])
@@ -60,6 +62,81 @@ final class PromptSchemaTests: XCTestCase {
         var subjectResponse = try XCTUnwrap(subjectIsolatedFixture().objectValue)
         subjectResponse["visible_text"] = .array([])
         assertInvalid(.object(subjectResponse), against: try ResponseSchemas.schema(for: .subjectIsolated))
+    }
+
+    func testTargetGenreRequiresSpeciesButAllowsEmptySpecies() throws {
+        let wholeSchema = try ResponseSchemas.schema(for: .wholeImage)
+
+        assertInvalid(wholeImageMutating { response in
+            response.removeValue(forKey: "species")
+        }, against: wholeSchema)
+
+        try JSONSchemaValidator.validate(wholeImageMutating { response in
+            response["species"] = .array([])
+        }, against: wholeSchema)
+    }
+
+    func testSecondaryTargetGenreAlsoRequiresSpecies() throws {
+        let schema = try ResponseSchemas.schema(for: .wholeImage)
+
+        try JSONSchemaValidator.validate(wholeImageMutating { response in
+            response["genre_or_photography_type"] = .array([
+                genreCandidate("landscape"),
+                genreCandidate("wildlife")
+            ])
+            response["species"] = .array([
+                candidateWithEvidence("heron", evidence: "long-legged bird visible in scene")
+            ])
+        }, against: schema)
+
+        assertInvalid(wholeImageMutating { response in
+            response["genre_or_photography_type"] = .array([
+                genreCandidate("landscape"),
+                genreCandidate("wildlife")
+            ])
+            response.removeValue(forKey: "species")
+        }, against: schema)
+    }
+
+    func testNonTargetGenresRejectSpeciesEvenWhenEmpty() throws {
+        let schema = try ResponseSchemas.schema(for: .wholeImage)
+
+        try JSONSchemaValidator.validate(wholeImageMutating { response in
+            response["genre_or_photography_type"] = .array([genreCandidate("landscape")])
+            response.removeValue(forKey: "species")
+        }, against: schema)
+
+        assertInvalid(wholeImageMutating { response in
+            response["genre_or_photography_type"] = .array([genreCandidate("landscape")])
+            response["species"] = .array([])
+        }, against: schema)
+    }
+
+    func testSpeciesUsesCandidateWithEvidenceShape() throws {
+        let schema = try ResponseSchemas.schema(for: .wholeImage)
+
+        assertInvalid(wholeImageMutating { response in
+            response["species"] = .array([.string("great blue heron")])
+        }, against: schema)
+
+        assertInvalid(wholeImageMutating { response in
+            response["species"] = .array([
+                .object([
+                    "term": .string("great blue heron"),
+                    "confidence": .string("certain"),
+                    "evidence": .string("large gray-blue wading bird")
+                ])
+            ])
+        }, against: schema)
+
+        assertInvalid(wholeImageMutating { response in
+            response["species"] = .array([
+                .object([
+                    "term": .string("great blue heron"),
+                    "confidence": .string("high")
+                ])
+            ])
+        }, against: schema)
     }
 
     func testInvalidResponsesFailSchemaValidation() throws {
@@ -136,6 +213,9 @@ final class PromptSchemaTests: XCTestCase {
         .object([
             "summary": .string("A great blue heron stands in shallow wetland water."),
             "genre_or_photography_type": .array([genreCandidate("bird_photography")]),
+            "species": .array([
+                candidateWithEvidence("great blue heron", evidence: "large gray-blue wading bird")
+            ]),
             "main_subjects": .array([
                 candidateWithEvidence("great blue heron", evidence: "large gray-blue wading bird")
             ]),
@@ -156,6 +236,9 @@ final class PromptSchemaTests: XCTestCase {
         .object([
             "summary": .string("An isolated heron shows long legs, a pointed bill, and gray-blue plumage."),
             "genre_or_photography_type": .array([genreCandidate("bird_photography")]),
+            "species": .array([
+                candidateWithEvidence("heron", evidence: "long pointed bill and wading-bird shape")
+            ]),
             "main_subjects": .array([
                 candidateWithEvidence("heron", evidence: "long pointed bill and wading-bird shape")
             ]),

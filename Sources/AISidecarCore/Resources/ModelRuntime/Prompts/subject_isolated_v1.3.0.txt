@@ -1,0 +1,105 @@
+PROMPT_VERSION: aisidecar.prompt.subject_isolated/1.3.0
+
+Return exactly one JSON object matching the supplied JSON Schema.
+
+Do not wrap the response in Markdown.
+Do not include code fences.
+Do not include comments.
+Do not add fields not present in the schema.
+Use empty arrays when nothing is visible for an array field, except genre_or_photography_type, which must contain at least one best-fit entry.
+For species, follow the SPECIES FIELD RULES below.
+Use an empty string for uncertainty_notes when there is no useful uncertainty note.
+
+Use only visible image evidence.
+Do not infer facts from what is merely likely.
+Prefer a broader correct term over a narrower guess.
+Do not use numeric confidence. Use only: high, medium, low.
+
+Confidence bands:
+- high: directly visible and unlikely to be wrong.
+- medium: plausible from visible evidence, but not fully certain.
+- low: weak visual support; include only when still useful for review.
+
+Evidence strings must be short visual explanations, not reasoning traces.
+Good evidence: "yellow bill and white body", "curved metal handle", "fine hairs on stem".
+Bad evidence: "common in Florida", "likely because of the background", "probably photographed in a garden".
+
+Do not propose camera, lens, editing, software, file-format, color-profile, image-quality, OCR, or text-transcription keywords.
+Use concise English terms suitable for later metadata normalization.
+
+Analyze the isolated subject crop.
+
+The background has been removed, replaced, cropped away, or composited onto a neutral matte.
+Do not infer habitat, location, weather, season, time of day, event, travel context, street context, or scene context.
+Do not mention the matte background as a real object, surface, environment, or setting.
+Do not describe missing background context.
+The response must not contain scene_context or habitat_or_setting fields.
+
+Focus on visible subject traits: morphology, shape, structure, color pattern, field marks, pose, behavior visible in the subject, object type, species/object candidates, object parts, and likely genre or photography type.
+
+Determine the likely genre or photography type of the isolated subject image.
+Use 1 to 4 items in genre_or_photography_type, ordered from most likely to less likely.
+
+Choose only from this allowed vocabulary:
+architecture, landscape, seascape, cityscape, portrait_people, group_portrait, candid_people, street_documentary, wildlife, bird_photography, plant_botanical, macro_closeup, abstract, still_life, product, food, sports_action, event, travel, night, astrophotography, aerial, underwater, interior, fine_art_conceptual.
+
+Be conservative when assigning genres that depend on missing background context.
+Use only visible subject evidence for the genre entry evidence string.
+If no strong genre is clear, include the best broad match with low confidence.
+Do not use habitat, location, scene, or removed-background assumptions as evidence.
+
+SPECIES FIELD RULES
+
+Include species only when any genre_or_photography_type item has term wildlife, bird_photography, or plant_botanical.
+When any of those genre terms is present, species is required by the schema; use species: [] if no defensible biological or taxonomy candidate is visible.
+When none of those genre terms is present, omit species entirely.
+Use species for biological or taxonomy identity candidates visible in the isolated subject.
+Prefer the narrowest visually supported term, using species-level common names when visible evidence supports them.
+Broader taxa are allowed when narrower identification is uncertain, such as heron, egret, hawk, oak, or wildflower.
+Do not infer species or taxa from habitat, geography, season, commonness, range, likelihood, or removed background.
+Do not duplicate exact species or taxonomy terms in proposed_keywords; use proposed_keywords for related traits, body parts, behavior, genre, and visual attributes.
+Use uncertainty_notes for weak or competing species/taxonomy identifications.
+
+SUBJECT-ISOLATED FIELD GUIDANCE
+
+summary:
+- One concise sentence about the isolated subject.
+- Do not mention removed background, matte, crop process, or missing scene unless it affects uncertainty.
+
+main_subjects:
+- List the dominant isolated subject or subjects.
+- Use specific terms when visible evidence supports them.
+- Use broader accurate terms when important identifying traits are missing.
+- For people, describe visible person/persons without identity claims.
+- For wildlife, use visible field marks only; do not use habitat.
+
+species:
+- Include only under the SPECIES FIELD RULES.
+- List biological/taxonomy candidates supported by visible subject traits.
+- Use broader accurate taxonomy terms when species-level field marks are not clear.
+
+secondary_subjects:
+- List meaningful visible secondary subjects or subject parts.
+- Subject parts may be useful when they support identification, such as wing, bill, flower petals, leaf, label, handle, wheel, or architectural detail.
+- Exclude artifacts from the mask edge unless they affect uncertainty.
+
+behavior_or_action:
+- List visible pose, behavior, motion, gesture, or object state supported by the isolated subject alone.
+- Do not infer behavior from missing surroundings.
+
+proposed_keywords:
+- Provide concise metadata-oriented terms based only on the isolated subject.
+- Include subject terms, visible traits, body parts, object parts, color patterns, behavior, and genre terms.
+- Do not include exact species/taxonomy terms already present in species.
+- Do not include habitat, setting, location, weather, event, travel, street, or background terms unless directly visible on the subject itself.
+- Do not include camera/lens/software/file-processing terms.
+- Do not include private identity, sensitive attribute, OCR, text transcription, or location guesses.
+
+uncertainty_notes:
+- Use this for partial subject visibility, crop truncation, mask-edge ambiguity, occlusion, weak species/object identity, or competing identifications.
+- If the crop contains only part of the subject, say so.
+- If mask edge, matte edge, or crop edge makes a trait uncertain, say so.
+- Keep it brief.
+- Use an empty string if there is nothing useful to note.
+
+Return only the JSON object.

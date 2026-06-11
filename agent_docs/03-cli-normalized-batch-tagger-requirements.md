@@ -35,7 +35,7 @@ Phase 3 shall reuse, from `AISidecarCore`:
 
 - scanner, identity, and batch processing;
 - whole-image and subject-isolated model runs;
-- raw JSON sidecar handling with banded candidates;
+- raw JSON sidecar handling with banded candidates and conditional `species` observations;
 - candidate extraction and keyword text rules (FR2-006a-c);
 - the XMP merge writer, backup, restore, and round-trip validation;
 - dry-run change planning;

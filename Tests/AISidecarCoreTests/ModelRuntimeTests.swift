@@ -130,7 +130,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertNil(record.error)
         XCTAssertEqual(record.rawResponseText, rawResponse)
         XCTAssertEqual(record.inputDerivativeSHA256, "image-sha")
-        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.2.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.3.0")
         let requests = await transport.capturedRequests()
         let request = try XCTUnwrap(requests.first)
         XCTAssertEqual(request.method, "POST")
@@ -354,7 +354,7 @@ final class ModelRuntimeTests: XCTestCase {
 
         XCTAssertTrue(record.jsonValid)
         XCTAssertNil(record.error)
-        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.2.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.3.0")
         let attempts = try XCTUnwrap(record.responseAttempts)
         XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
         XCTAssertEqual(attempts.first?.rawResponseText, malformed)
@@ -561,6 +561,13 @@ final class ModelRuntimeTests: XCTestCase {
               "term": "bird_photography",
               "confidence": "high",
               "evidence": "large wading bird dominates frame"
+            }
+          ],
+          "species": [
+            {
+              "term": "great blue heron",
+              "confidence": "medium",
+              "evidence": "large gray-blue wading bird"
             }
           ],
           "main_subjects": [

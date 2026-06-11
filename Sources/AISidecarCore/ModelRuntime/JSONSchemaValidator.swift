@@ -18,8 +18,9 @@ public struct JSONSchemaValidationError: Error, Sendable, Equatable, LocalizedEr
 /// Minimal JSON Schema validator for the response-schema subset Phase 1 sends to Ollama.
 ///
 /// This intentionally validates only the keywords the project owns in
-/// FR1-045. A narrow validator keeps tests offline and avoids importing a
-/// general-purpose schema engine for a model-output contract we control.
+/// FR1-045 plus the conditional species contract. A narrow validator keeps
+/// tests offline and avoids importing a general-purpose schema engine for a
+/// model-output contract we control.
 public enum JSONSchemaValidator {
     /// Validate a JSON value against a schema document.
     public static func validate(_ value: JSONValue, against document: JSONSchemaDocument) throws {
@@ -41,6 +42,7 @@ public enum JSONSchemaValidator {
             return
         }
 
+        try validateApplicators(value, schemaObject: schemaObject, rootSchema: rootSchema, path: path)
         try validateType(value, schemaObject: schemaObject, path: path)
         try validateEnum(value, schemaObject: schemaObject, path: path)
 
@@ -53,6 +55,37 @@ public enum JSONSchemaValidator {
             try validateString(string, schemaObject: schemaObject, path: path)
         case .number, .bool, .null:
             break
+        }
+    }
+
+    private static func validateApplicators(
+        _ value: JSONValue,
+        schemaObject: [String: JSONValue],
+        rootSchema: JSONValue,
+        path: String
+    ) throws {
+        if let allOfValue = schemaObject["allOf"] {
+            guard let allOf = allOfValue.arrayValue else {
+                throw JSONSchemaValidationError(path: path, message: "`allOf` must be an array.")
+            }
+            for subschema in allOf {
+                try validate(value, schema: subschema, rootSchema: rootSchema, path: path)
+            }
+        }
+
+        if let notSchema = schemaObject["not"],
+           try schemaMatches(value, schema: notSchema, rootSchema: rootSchema, path: path) {
+            throw JSONSchemaValidationError(path: path, message: "Value must not match forbidden schema.")
+        }
+
+        if let ifSchema = schemaObject["if"] {
+            if try schemaMatches(value, schema: ifSchema, rootSchema: rootSchema, path: path) {
+                if let thenSchema = schemaObject["then"] {
+                    try validate(value, schema: thenSchema, rootSchema: rootSchema, path: path)
+                }
+            } else if let elseSchema = schemaObject["else"] {
+                try validate(value, schema: elseSchema, rootSchema: rootSchema, path: path)
+            }
         }
     }
 
@@ -150,6 +183,18 @@ public enum JSONSchemaValidator {
         if let maxItems = integerValue(schemaObject["maxItems"]), array.count > maxItems {
             throw JSONSchemaValidationError(path: path, message: "Expected at most \(maxItems) items.")
         }
+        if let contains = schemaObject["contains"] {
+            var containsMatch = false
+            for (index, item) in array.enumerated() {
+                if try schemaMatches(item, schema: contains, rootSchema: rootSchema, path: "\(path)[\(index)]") {
+                    containsMatch = true
+                    break
+                }
+            }
+            guard containsMatch else {
+                throw JSONSchemaValidationError(path: path, message: "Expected at least one item matching contains schema.")
+            }
+        }
         if let items = schemaObject["items"] {
             for (index, item) in array.enumerated() {
                 try validate(item, schema: items, rootSchema: rootSchema, path: "\(path)[\(index)]")
@@ -192,6 +237,20 @@ public enum JSONSchemaValidator {
             current = next
         }
         return current
+    }
+
+    private static func schemaMatches(
+        _ value: JSONValue,
+        schema: JSONValue,
+        rootSchema: JSONValue,
+        path: String
+    ) throws -> Bool {
+        do {
+            try validate(value, schema: schema, rootSchema: rootSchema, path: path)
+            return true
+        } catch is JSONSchemaValidationError {
+            return false
+        }
     }
 
     private static func matches(_ value: JSONValue, type: String) -> Bool {

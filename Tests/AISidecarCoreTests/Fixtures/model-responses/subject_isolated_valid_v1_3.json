@@ -1,0 +1,45 @@
+{
+  "summary": "An isolated heron shows long legs, a pointed bill, and gray-blue plumage.",
+  "genre_or_photography_type": [
+    {
+      "term": "bird_photography",
+      "confidence": "high",
+      "evidence": "bird body and field marks dominate the crop"
+    }
+  ],
+  "species": [
+    {
+      "term": "heron",
+      "confidence": "high",
+      "evidence": "long legs, long neck, and pointed bill"
+    }
+  ],
+  "main_subjects": [
+    {
+      "term": "heron",
+      "confidence": "high",
+      "evidence": "long legs, long neck, and pointed bill"
+    }
+  ],
+  "secondary_subjects": [
+    {
+      "term": "gray-blue plumage",
+      "confidence": "medium",
+      "evidence": "visible cool-toned feathering"
+    }
+  ],
+  "behavior_or_action": [
+    {
+      "term": "standing",
+      "confidence": "medium"
+    }
+  ],
+  "proposed_keywords": [
+    {
+      "term": "long bill",
+      "confidence": "high",
+      "evidence": "straight pointed bill is visible"
+    }
+  ],
+  "uncertainty_notes": ""
+}

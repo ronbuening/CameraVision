@@ -1,0 +1,106 @@
+PROMPT_VERSION: aisidecar.prompt.whole_image/1.3.0
+
+Return exactly one JSON object matching the supplied JSON Schema.
+
+Do not wrap the response in Markdown.
+Do not include code fences.
+Do not include comments.
+Do not add fields not present in the schema.
+Use empty arrays when nothing is visible for an array field, except genre_or_photography_type, which must contain at least one best-fit entry.
+For species, follow the SPECIES FIELD RULES below.
+Use an empty string for uncertainty_notes when there is no useful uncertainty note.
+
+Use only visible image evidence.
+Do not infer facts from what is merely likely.
+Prefer a broader correct term over a narrower guess.
+Do not use numeric confidence. Use only: high, medium, low.
+
+Confidence bands:
+- high: directly visible and unlikely to be wrong.
+- medium: plausible from visible evidence, but not fully certain.
+- low: weak visual support; include only when still useful for review.
+
+Evidence strings must be short visual explanations, not reasoning traces.
+Good evidence: "yellow bill and white body", "long legs in shallow water".
+Bad evidence: "common in Florida", "probably because of the habitat".
+
+Do not propose camera, lens, editing, software, file-format, color-profile, image-quality, OCR, or text-transcription keywords.
+Use concise English terms suitable for later metadata normalization.
+
+Analyze the complete photograph.
+
+Emphasize the full frame: main subjects, secondary subjects, genre or photography type, scene context, habitat or setting, behavior or action, composition cues, lighting cues, and useful descriptive keywords.
+
+Determine the likely genre or photography type of the image.
+Use 1 to 4 items in genre_or_photography_type, ordered from most likely to less likely.
+
+Choose only from this allowed vocabulary:
+architecture, landscape, seascape, cityscape, portrait_people, group_portrait, candid_people, street_documentary, wildlife, bird_photography, plant_botanical, macro_closeup, abstract, still_life, product, food, sports_action, event, travel, night, astrophotography, aerial, underwater, interior, fine_art_conceptual.
+
+Do not confuse subject matter with genre:
+- a flower can be the subject while macro_closeup or plant_botanical is the genre
+- a building can be the subject while architecture is the genre
+- a person can be the subject while portrait_people, group_portrait, candid_people, or street_documentary is the genre
+- a bird can be the subject while bird_photography is the genre
+- a texture, reflection, or color field may support abstract even when object identification is weak
+
+SPECIES FIELD RULES
+
+Include species only when any genre_or_photography_type item has term wildlife, bird_photography, or plant_botanical.
+When any of those genre terms is present, species is required by the schema; use species: [] if no defensible biological or taxonomy candidate is visible.
+When none of those genre terms is present, omit species entirely.
+Use species for biological or taxonomy identity candidates.
+Prefer the narrowest visually supported term, using species-level common names when visible evidence supports them.
+Broader taxa are allowed when narrower identification is uncertain, such as heron, egret, hawk, oak, or wildflower.
+Do not infer species or taxa from habitat, geography, season, commonness, range, or likelihood.
+Do not duplicate exact species or taxonomy terms in proposed_keywords; use proposed_keywords for related traits, behavior, setting, genre, and visual attributes.
+Use uncertainty_notes for weak or competing species/taxonomy identifications.
+
+WHOLE-IMAGE FIELD GUIDANCE
+
+summary:
+- One concise sentence about the full image.
+- Include the main subject and the most important context.
+- Do not mention uncertainty unless uncertainty is central.
+
+main_subjects:
+- List the dominant visible subjects.
+- Use specific terms when supported, broader terms when uncertain.
+- For wildlife, prefer broader accurate terms over weak species guesses.
+- For people, describe visible person/persons without identity claims.
+
+species:
+- Include only under the SPECIES FIELD RULES.
+- List biological/taxonomy candidates supported by visible evidence.
+- Use broader accurate taxonomy terms when species-level field marks are not clear.
+
+secondary_subjects:
+- List meaningful visible secondary subjects, objects, animals, plants, structures, or scene elements.
+- Exclude trivial background clutter unless useful for metadata.
+
+scene_context:
+- Describe the whole-frame situation: outdoor wildlife scene, studio portrait setup, street scene, interior scene, sporting event, product-style image, performance, or similar.
+- Use only visible evidence.
+
+habitat_or_setting:
+- Describe visible environment or setting: wetland, beach, forest, garden, urban street, indoor room, studio, open water, sky, field, desert, snow, etc.
+- Do not infer geographic location, season, or climate unless visible evidence directly supports it.
+
+behavior_or_action:
+- List visible behavior, pose, motion, interaction, or activity.
+- Use plain visible terms such as flying, perched, walking, smiling, jumping, eating, swimming, standing, arranged, displayed, or resting.
+
+proposed_keywords:
+- Provide concise metadata-oriented terms that could be useful later for XMP keyword normalization.
+- Include subject terms, visible traits, behavior, setting, genre terms, and important visual attributes.
+- Do not include duplicate terms already stated in exactly the same way unless the schema requires them.
+- Do not include exact species/taxonomy terms already present in species.
+- Do not include camera/lens/software/file-processing terms.
+- Do not include private identity, sensitive attribute, OCR, text transcription, or location guesses.
+
+uncertainty_notes:
+- Use this for uncertainty, partial occlusion, ambiguous species/object identity, or competing interpretations.
+- Keep it brief.
+- Use an empty string if there is nothing useful to note.
+
+Return only the JSON object.

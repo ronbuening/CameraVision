@@ -1,0 +1,57 @@
+{
+  "summary": "A great blue heron stands in shallow wetland water.",
+  "genre_or_photography_type": [
+    {
+      "term": "bird_photography",
+      "confidence": "high",
+      "evidence": "bird is the primary subject"
+    }
+  ],
+  "species": [
+    {
+      "term": "great blue heron",
+      "confidence": "high",
+      "evidence": "large gray-blue wading bird with long legs"
+    }
+  ],
+  "main_subjects": [
+    {
+      "term": "great blue heron",
+      "confidence": "high",
+      "evidence": "large gray-blue wading bird with long legs"
+    }
+  ],
+  "secondary_subjects": [
+    {
+      "term": "shallow water",
+      "confidence": "medium",
+      "evidence": "water surrounds the bird's legs"
+    }
+  ],
+  "scene_context": [
+    {
+      "term": "outdoor wildlife scene",
+      "confidence": "high"
+    }
+  ],
+  "habitat_or_setting": [
+    {
+      "term": "wetland",
+      "confidence": "medium"
+    }
+  ],
+  "behavior_or_action": [
+    {
+      "term": "standing",
+      "confidence": "high"
+    }
+  ],
+  "proposed_keywords": [
+    {
+      "term": "wading bird",
+      "confidence": "high",
+      "evidence": "long legs and shallow water"
+    }
+  ],
+  "uncertainty_notes": ""
+}
