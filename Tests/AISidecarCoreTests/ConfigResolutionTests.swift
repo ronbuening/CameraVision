@@ -10,6 +10,8 @@ final class ConfigResolutionTests: XCTestCase {
 
         XCTAssertEqual(resolved, .builtInDefaults)
         XCTAssertEqual(resolved.sourceIdentityPolicy, .sha256)
+        XCTAssertFalse(resolved.clearDerivativeCacheOnStart)
+        XCTAssertFalse(resolved.clearDerivativeCacheAfterSuccess)
     }
 
     func testConfigFileOverridesDefaults() throws {
@@ -30,6 +32,8 @@ final class ConfigResolutionTests: XCTestCase {
               "source_identity_policy": "fast",
               "derivative_cache_dir": "/tmp/aisidecar-cache",
               "derivative_cache_size_bytes": 1048576,
+              "clear_derivative_cache_on_start": true,
+              "clear_derivative_cache_after_success": true,
               "subject_crop_margin_fraction": 0.12,
               "subject_merge_dominance_threshold": 0.75,
               "stage_concurrency": 3
@@ -56,6 +60,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.sourceIdentityPolicy, .fast)
         XCTAssertEqual(resolved.derivativeCacheDir, "/tmp/aisidecar-cache")
         XCTAssertEqual(resolved.derivativeCacheSizeBytes, 1_048_576)
+        XCTAssertTrue(resolved.clearDerivativeCacheOnStart)
+        XCTAssertTrue(resolved.clearDerivativeCacheAfterSuccess)
         XCTAssertEqual(resolved.subjectCropMarginFraction, 0.12)
         XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.75)
         XCTAssertEqual(resolved.stageConcurrency, 3)
@@ -83,6 +89,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_SOURCE_IDENTITY_POLICY": "sha256",
                 "AISIDECAR_DERIVATIVE_CACHE_DIR": "/tmp/env-cache",
                 "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152",
+                "AISIDECAR_CLEAR_DERIVATIVE_CACHE_ON_START": "yes",
+                "AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS": "1",
                 "AISIDECAR_SUBJECT_CROP_MARGIN_FRACTION": "0.15",
                 "AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD": "0.65",
                 "AISIDECAR_STAGE_CONCURRENCY": "5"
@@ -97,6 +105,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.sourceIdentityPolicy, .sha256)
         XCTAssertEqual(resolved.derivativeCacheDir, "/tmp/env-cache")
         XCTAssertEqual(resolved.derivativeCacheSizeBytes, 2_097_152)
+        XCTAssertTrue(resolved.clearDerivativeCacheOnStart)
+        XCTAssertTrue(resolved.clearDerivativeCacheAfterSuccess)
         XCTAssertEqual(resolved.subjectCropMarginFraction, 0.15)
         XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.65)
         XCTAssertEqual(resolved.stageConcurrency, 5)
@@ -105,6 +115,8 @@ final class ConfigResolutionTests: XCTestCase {
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
         let config = AppConfig(
             sourceIdentityPolicy: .fast,
+            clearDerivativeCacheOnStart: true,
+            clearDerivativeCacheAfterSuccess: true,
             subjectCropMarginFraction: 0.12,
             subjectMergeDominanceThreshold: 0.75,
             stageConcurrency: 3
@@ -114,6 +126,8 @@ final class ConfigResolutionTests: XCTestCase {
 
         XCTAssertEqual(object["source_identity_policy"] as? String, "fast")
         XCTAssertNil(object["sourceIdentityPolicy"])
+        XCTAssertEqual(object["clear_derivative_cache_on_start"] as? Bool, true)
+        XCTAssertEqual(object["clear_derivative_cache_after_success"] as? Bool, true)
         XCTAssertEqual(object["subject_crop_margin_fraction"] as? Double, 0.12)
         XCTAssertEqual(object["subject_merge_dominance_threshold"] as? Double, 0.75)
         XCTAssertEqual(object["stage_concurrency"] as? Int, 3)
@@ -127,6 +141,8 @@ final class ConfigResolutionTests: XCTestCase {
                 model: "cli:model",
                 modelEndpoint: "http://localhost:9999",
                 logFormat: .json,
+                clearDerivativeCacheOnStart: true,
+                clearDerivativeCacheAfterSuccess: true,
                 stageConcurrency: 7
             ),
             environment: [
@@ -135,6 +151,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_MODEL": "env:model",
                 "AISIDECAR_MODEL_ENDPOINT": "http://localhost:1111",
                 "AISIDECAR_LOG_FORMAT": "text",
+                "AISIDECAR_CLEAR_DERIVATIVE_CACHE_ON_START": "false",
+                "AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS": "false",
                 "AISIDECAR_STAGE_CONCURRENCY": "5"
             ],
             defaultConfigPath: missingConfigPath()
@@ -145,6 +163,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.model, "cli:model")
         XCTAssertEqual(resolved.modelEndpoint.absoluteString, "http://localhost:9999")
         XCTAssertEqual(resolved.logFormat, .json)
+        XCTAssertTrue(resolved.clearDerivativeCacheOnStart)
+        XCTAssertTrue(resolved.clearDerivativeCacheAfterSuccess)
         XCTAssertEqual(resolved.stageConcurrency, 7)
     }
 
@@ -159,6 +179,47 @@ final class ConfigResolutionTests: XCTestCase {
         )
 
         XCTAssertEqual(resolved.mode, .subject)
+    }
+
+    func testDerivativeCacheResolutionUsesCachePrecedenceOnly() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "model_endpoint": "not-a-url",
+              "profile": "unknown-profile",
+              "derivative_cache_dir": "/tmp/file-cache",
+              "derivative_cache_size_bytes": 1048576
+            }
+            """
+        )
+
+        let resolved = try ConfigurationResolver.resolveDerivativeCache(
+            cli: DerivativeCacheConfigurationOverrides(
+                derivativeCacheDir: "/tmp/cli-cache",
+                derivativeCacheSizeBytes: 3_145_728
+            ),
+            environment: [
+                "AISIDECAR_DERIVATIVE_CACHE_DIR": "/tmp/env-cache",
+                "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152"
+            ],
+            defaultConfigPath: configPath
+        )
+
+        XCTAssertEqual(resolved.derivativeCacheDir, "/tmp/cli-cache")
+        XCTAssertEqual(resolved.derivativeCacheSizeBytes, 3_145_728)
+    }
+
+    func testDerivativeCacheResolutionHonorsExplicitConfigPath() throws {
+        let defaultPath = try writeConfig(#"{ "derivative_cache_dir": "/tmp/default-cache" }"#)
+        let alternatePath = try writeConfig(#"{ "derivative_cache_dir": "/tmp/alternate-cache" }"#)
+
+        let resolved = try ConfigurationResolver.resolveDerivativeCache(
+            cli: DerivativeCacheConfigurationOverrides(configPath: alternatePath),
+            environment: [:],
+            defaultConfigPath: defaultPath
+        )
+
+        XCTAssertEqual(resolved.derivativeCacheDir, "/tmp/alternate-cache")
     }
 
     private func missingConfigPath() -> String {

@@ -1,10 +1,10 @@
 # Implementation Plan - Phase 1 CLI Raw JSON Sidecar Generator
 
-Version: 0.7
+Version: 0.8
 Date: 2026-06-11
-Supersedes: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6
+Supersedes: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7
 Implements: Phase 1 Requirements v0.2 (`01-cli-raw-json-sidecar-requirements.md`)
-Binary: `aisidecar` (subcommand: `analyze`)
+Binary: `aisidecar` (subcommands: `analyze`, `purge`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15, Swift 6 strict concurrency
 Default model: `gemma4:26b-a4b-it-qat` (installed locally; verified at startup per FR1-030b)
@@ -14,13 +14,15 @@ Traceability in this plan points at the v0.2 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-7 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The `AISidecarCore/ModelRuntime` layer contains the Ollama client, mock and recorded-fixture runners, response parsing, v1.1 prompt registry, and v1.1 response schemas. The analyze pipeline does not write XMP.
+Phase 1 Milestones 0-7 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command. The `AISidecarCore/ModelRuntime` layer contains the Ollama client, mock and recorded-fixture runners, response parsing, v1.1 prompt registry, and v1.1 response schemas. The analyze pipeline does not write XMP.
 
 Latest verification for this baseline:
 
 ```text
-swift test                                      106 tests, 1 skipped, 0 failures
+swift test                                      113 tests, 1 skipped, 0 failures
 swift run aisidecar analyze --help             passed
+swift run aisidecar purge --help               passed
+swift run aisidecar --help                     passed
 ```
 
 The next implementation unit is Milestone 8: Tests and Fixtures.
@@ -32,7 +34,7 @@ The program is a Swift Package Manager project. The decisive reason is unchanged
 Two structural decisions, now mandated by the requirements rather than merely recommended:
 
 1. **Core library from the first commit** (PW-002). Every capability lives in `AISidecarCore`; the executable is argument handling and nothing else. Phase 4's shared-engine requirement is satisfied by construction because the engine never exists in any other shape.
-2. **One binary, subcommands per phase** (PW-001). Phase 1 ships `aisidecar analyze`; Phase 2 adds `write-xmp`; Phase 3 adds `normalize` and `apply-session`. Shared flags are defined once (PW-004/005) in a `SharedOptions` type that every subcommand composes.
+2. **One binary, subcommands per phase** (PW-001). Phase 1 ships `aisidecar analyze` and the derivative-cache maintenance command `aisidecar purge`; Phase 2 adds `write-xmp`; Phase 3 adds `normalize` and `apply-session`. Analyze shared flags are defined once (PW-004/005) in `SharedOptions`.
 
 The model runtime stays behind the `VisionModelRunner` protocol (FR1-031), with mock and recorded-fixture runners implemented in the same milestone as the live runner so nothing downstream is ever blocked on, or untested without, a live Ollama instance.
 
@@ -163,13 +165,13 @@ Fixtures/
 Tasks:
 
 1. Create the Swift package: `AISidecarCore` library, `aisidecar` executable, test target; macOS 15 platform; Swift 6 strict concurrency.
-2. Implement ArgumentParser subcommand wiring with `SharedOptions` carrying the PW-004 glossary (`--mode`, `--existing`, `--recursive`, `--output-dir`, `--model`, `--model-endpoint`, `--profile`, `--config`, `--log-level`, `--log-format`, `--dry-run`, `--debug-derivatives`).
+2. Implement ArgumentParser subcommand wiring with `SharedOptions` carrying the PW-004 glossary (`--mode`, `--existing`, `--recursive`, `--output-dir`, `--model`, `--model-endpoint`, `--profile`, `--config`, `--log-level`, `--log-format`, `--dry-run`, `--debug-derivatives`, and the opt-in derivative cache clear flags).
 3. Implement the error taxonomy (PW-009/010) as a Swift error type with stable string codes and `stage`/`recoverable` metadata.
 4. Implement `Logger` with `text` and `json` output formats; JSON log records share field names with the progress log so the Phase 4 GUI consumes both with one decoder.
 5. Implement configuration resolution (PW-006/007) with validation failing as `E_CONFIG_INVALID`; `ResolvedRunConfiguration` snapshots the outcome for provenance (PW-008).
 6. CI-runnable `swift test` with zero network dependencies — a property maintained through every later milestone, enforced by the mock/fixture runners.
 
-Exit criteria: `aisidecar analyze --help` prints valid usage; config precedence and error-code serialization have passing unit tests.
+Exit criteria: `aisidecar analyze --help` and `aisidecar purge --help` print valid usage; config precedence and error-code serialization have passing unit tests.
 
 ## 5. Milestone 1 - Scanner and Source Identity (Implemented)
 
@@ -226,7 +228,7 @@ Tasks:
    - sRGB conversion with embedded profile, target space a profile field with sRGB the only shipped default (FR1-016b).
 2. `ImageRenderer` producing, per source: the **full-resolution render** retained in cache (FR1-017a) and the model-profile whole-image derivative downsized from it (FR1-013/014). `CIRAWFilter` for RAW; Image I/O elsewhere (FR1-016).
 3. Derivative provenance: recipe version, format, dimensions, color space, orientation, SHA-256 (FR1-017).
-4. `DerivativeCache` (FR1-018a): keys `<source-sha256>-<recipe-version>-<role>.<ext>`; configurable cap, default 20 GiB, LRU eviction; eviction of full-resolution renders is always safe because they are regenerable from source plus recipe. `--debug-derivatives` copies beside the source (FR1-018).
+4. `DerivativeCache` (FR1-018a): keys `<source-sha256>-<recipe-version>-<role>.<ext>`; configurable cap, default 20 GiB, LRU eviction, explicit purge; eviction of full-resolution renders is always safe because they are regenerable from source plus recipe. `--debug-derivatives` copies beside the source (FR1-018).
 
 Default model input profile (calibrated in Milestone 9):
 
@@ -252,8 +254,10 @@ Implemented notes:
 
 1. The sidecar now records the resolved `model_input_profile` object and derivative provenance for `full_resolution` and `whole_image` roles.
 2. The derivative cache defaults to `~/Library/Caches/aisidecar/derivatives`, supports `derivative_cache_dir` and `derivative_cache_size_bytes` config/env overrides, and uses a manifest-backed LRU policy.
-3. Offline tests cover generated JPEG/PNG/TIFF rendering, all 8 EXIF orientation values, sRGB/profile checks, cache reuse, cache corruption misses, LRU eviction, debug derivative copies, render failure sidecars, and existing-skip render avoidance.
-4. RAW/NEF verification remains a manual smoke check unless legally shareable RAW fixtures are added.
+3. `clear_derivative_cache_on_start` and `clear_derivative_cache_after_success` are resolved through JSON config, `AISIDECAR_*` environment variables, and matching CLI flags; post-success clearing runs only when the invocation has no failed records and is not interrupted.
+4. `aisidecar purge` resolves only derivative-cache settings, honors `--config`, `--cache-dir`, `AISIDECAR_CONFIG`, and `AISIDECAR_DERIVATIVE_CACHE_DIR`, and does not validate model runtime settings.
+5. Offline tests cover generated JPEG/PNG/TIFF rendering, all 8 EXIF orientation values, sRGB/profile checks, cache reuse, cache corruption misses, LRU eviction, debug derivative copies, explicit purge/clear, render failure sidecars, and existing-skip render avoidance.
+6. RAW/NEF verification remains a manual smoke check unless legally shareable RAW fixtures are added.
 
 ## 8. Milestone 4 - Subject Isolation (Two-Resolution Chain, Implemented)
 
@@ -298,7 +302,7 @@ Implemented notes:
 4. A timestamped `model-input-export-<ISO-8601-timestamp>.json` manifest records schema version `ai-sidecar-model-input-export/1.0`, run inputs, resolved profile, per-source export status, output provenance, subject-isolation records, structured errors, and summary counts.
 5. `--existing overwrite` replaces export files atomically, `skip` leaves existing export files untouched and records `skipped_existing`, and `fail` records `E_SIDECAR_EXISTS` before rendering affected sources.
 6. No XMP, raw JSON sidecars, progress logs, batch summaries, or model runs are written by export mode.
-7. Offline tests cover single-file export, recursive tree mirroring, subject-only export, no-foreground subject and both-mode behavior, existing policies, and incompatible flag rejection.
+7. Offline tests cover single-file export, recursive tree mirroring, subject-only export, no-foreground subject and both-mode behavior, existing policies, incompatible flag rejection, and post-success cache clearing that leaves exported files intact.
 
 ## 9. Milestone 5 - Ollama Vision Model Client (Implemented)
 
@@ -386,7 +390,7 @@ Implemented notes:
 2. `stage_concurrency` is resolved through JSON config and `AISIDECAR_STAGE_CONCURRENCY`, recorded in sidecar provenance, and defaults to physical performance cores with an active-processor fallback.
 3. Render/isolation preparation uses a bounded task group; model calls are serialized and role-ordered as `whole_image`, then `subject_isolated`.
 4. Model prepare failures fail fast before progress logs, summaries, sidecars, or derivative cache writes for pending model work.
-5. Offline `AnalyzePipelineTests` cover model-run sidecars, both-mode two-run output, model failure recording, prepare fail-fast behavior, existing-skip resume, and single-flight model execution.
+5. Offline `AnalyzePipelineTests` cover model-run sidecars, both-mode two-run output, model failure recording, prepare fail-fast behavior, existing-skip resume, cache clear-on-start and clear-after-success behavior, and single-flight model execution.
 
 ## 12. Milestone 8 - Tests and Fixtures
 
@@ -419,9 +423,10 @@ GoldenSidecarTests        full pipeline against RecordedFixtureRunner produces
                           byte-stable sidecars (timing fields normalized)
 ProgressLogTests          append-only integrity; summary derivation;
                           interruption leaves no partial sidecar
-ConfigResolutionTests     flag > env > file > default precedence; E_CONFIG_INVALID
+ConfigResolutionTests     flag > env > file > default precedence; cache-only
+                          maintenance resolution; E_CONFIG_INVALID
 DerivativeCacheTests      content-addressed reuse, LRU eviction at cap,
-                          debug-derivative copy semantics
+                          debug-derivative copy semantics, purge/clear scoping
 ImageRendererTests        generated JPEG/PNG/TIFF rendering, orientation
                           provenance, cache reuse, decode failure errors
 ```
@@ -462,7 +467,7 @@ Risk: Apple foreground masks fail on distant or low-contrast wildlife subjects.
 Mitigation: per-image structured failure, whole-image mode unaffected; failure rate measured by subject class in Milestone 9 so the limitation is quantified, not anecdotal.
 
 Risk: full-resolution renders inflate the cache (45 MP RAW intermediates).
-Mitigation: 20 GiB LRU cap; full-resolution renders are regenerable from source plus recipe, so eviction is always safe.
+Mitigation: 20 GiB LRU cap; full-resolution renders are regenerable from source plus recipe, so eviction, opt-in run-boundary clearing, and explicit purge are safe.
 
 Risk: structured-output or thinking-mode behavior shifts across Ollama or model updates.
 Mitigation: runtime version and digest in provenance; recorded-fixture tests catch response-shape drift on upgrade before it reaches real batches.
@@ -482,7 +487,7 @@ Phase 1 implementation is done when:
 
 1. `aisidecar analyze` accepts a file or folder with `--recursive` and `--mode whole|subject|both`, defaulting to `both`.
 2. All functionality lives in `AISidecarCore`; the executable contains no logic beyond argument handling (PW-002).
-3. Whole-image derivatives are orientation-correct, sRGB-tagged, profile-conforming, and cached content-addressably with LRU eviction.
+3. Whole-image derivatives are orientation-correct, sRGB-tagged, profile-conforming, and cached content-addressably with LRU eviction plus explicit purge.
 4. Subject-isolated derivatives are produced via the two-resolution chain where Vision finds a foreground, with instance count, selection, and merge decisions recorded.
 5. The configured model tag is verified at startup; calls use `/api/chat` with base64 images and the `format` schema; thinking is disabled and recorded; seed, digest, and runtime version are in provenance; the model stays resident via `keep_alive`.
 6. One `.ai.json` sidecar per source image, mirrored correctly under `--output-dir`, written atomically, with per-candidate confidence bands and evidence in parsed output and raw text always preserved.

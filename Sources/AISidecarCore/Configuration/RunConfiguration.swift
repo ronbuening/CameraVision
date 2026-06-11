@@ -62,6 +62,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var sourceIdentityPolicy: SourceIdentityPolicy?
     public var derivativeCacheDir: String?
     public var derivativeCacheSizeBytes: Int64?
+    public var clearDerivativeCacheOnStart: Bool?
+    public var clearDerivativeCacheAfterSuccess: Bool?
     public var subjectCropMarginFraction: Double?
     public var subjectMergeDominanceThreshold: Double?
     /// Optional override for the bounded render/isolation stage only.
@@ -83,6 +85,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         sourceIdentityPolicy: SourceIdentityPolicy? = nil,
         derivativeCacheDir: String? = nil,
         derivativeCacheSizeBytes: Int64? = nil,
+        clearDerivativeCacheOnStart: Bool? = nil,
+        clearDerivativeCacheAfterSuccess: Bool? = nil,
         subjectCropMarginFraction: Double? = nil,
         subjectMergeDominanceThreshold: Double? = nil,
         stageConcurrency: Int? = nil
@@ -102,9 +106,42 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.sourceIdentityPolicy = sourceIdentityPolicy
         self.derivativeCacheDir = derivativeCacheDir
         self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
+        self.clearDerivativeCacheOnStart = clearDerivativeCacheOnStart
+        self.clearDerivativeCacheAfterSuccess = clearDerivativeCacheAfterSuccess
         self.subjectCropMarginFraction = subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
         self.stageConcurrency = stageConcurrency
+    }
+}
+
+/// Cache-specific values supplied before precedence is resolved.
+public struct DerivativeCacheConfigurationOverrides: Sendable, Equatable {
+    public var configPath: String?
+    public var derivativeCacheDir: String?
+    public var derivativeCacheSizeBytes: Int64?
+
+    public init(
+        configPath: String? = nil,
+        derivativeCacheDir: String? = nil,
+        derivativeCacheSizeBytes: Int64? = nil
+    ) {
+        self.configPath = configPath
+        self.derivativeCacheDir = derivativeCacheDir
+        self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
+    }
+}
+
+/// Resolved derivative cache settings for maintenance commands.
+public struct ResolvedDerivativeCacheConfiguration: Sendable, Equatable {
+    public var derivativeCacheDir: String
+    public var derivativeCacheSizeBytes: Int64
+
+    public init(
+        derivativeCacheDir: String = DerivativeCache.defaultDirectoryPath(),
+        derivativeCacheSizeBytes: Int64 = DerivativeCache.defaultSizeCapBytes
+    ) {
+        self.derivativeCacheDir = derivativeCacheDir
+        self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
     }
 }
 
@@ -127,6 +164,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var sourceIdentityPolicy: SourceIdentityPolicy
     public var derivativeCacheDir: String
     public var derivativeCacheSizeBytes: Int64
+    public var clearDerivativeCacheOnStart: Bool
+    public var clearDerivativeCacheAfterSuccess: Bool
     public var subjectCropMarginFraction: Double
     public var subjectMergeDominanceThreshold: Double
     /// Bounded render/isolation workers; the model stage still has one request in flight.
@@ -147,6 +186,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case sourceIdentityPolicy = "source_identity_policy"
         case derivativeCacheDir = "derivative_cache_dir"
         case derivativeCacheSizeBytes = "derivative_cache_size_bytes"
+        case clearDerivativeCacheOnStart = "clear_derivative_cache_on_start"
+        case clearDerivativeCacheAfterSuccess = "clear_derivative_cache_after_success"
         case subjectCropMarginFraction = "subject_crop_margin_fraction"
         case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
         case stageConcurrency = "stage_concurrency"
@@ -167,6 +208,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         sourceIdentityPolicy: SourceIdentityPolicy,
         derivativeCacheDir: String = DerivativeCache.defaultDirectoryPath(),
         derivativeCacheSizeBytes: Int64 = DerivativeCache.defaultSizeCapBytes,
+        clearDerivativeCacheOnStart: Bool = false,
+        clearDerivativeCacheAfterSuccess: Bool = false,
         subjectCropMarginFraction: Double = 0.08,
         subjectMergeDominanceThreshold: Double = 0.8,
         stageConcurrency: Int = Self.defaultStageConcurrency()
@@ -185,6 +228,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.sourceIdentityPolicy = sourceIdentityPolicy
         self.derivativeCacheDir = derivativeCacheDir
         self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
+        self.clearDerivativeCacheOnStart = clearDerivativeCacheOnStart
+        self.clearDerivativeCacheAfterSuccess = clearDerivativeCacheAfterSuccess
         self.subjectCropMarginFraction = subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
         self.stageConcurrency = stageConcurrency
@@ -219,6 +264,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         sourceIdentityPolicy: .sha256,
         derivativeCacheDir: DerivativeCache.defaultDirectoryPath(),
         derivativeCacheSizeBytes: DerivativeCache.defaultSizeCapBytes,
+        clearDerivativeCacheOnStart: false,
+        clearDerivativeCacheAfterSuccess: false,
         subjectCropMarginFraction: 0.08,
         subjectMergeDominanceThreshold: 0.8,
         stageConcurrency: ResolvedRunConfiguration.defaultStageConcurrency()

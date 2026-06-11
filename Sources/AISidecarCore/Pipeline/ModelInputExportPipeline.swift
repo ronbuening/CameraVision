@@ -308,6 +308,9 @@ public struct ModelInputExportPipeline {
             fileManager: fileManager,
             now: now
         )
+        if configuration.clearDerivativeCacheOnStart {
+            try cache.clear()
+        }
         let renderer = ImageRenderer(cache: cache)
         let subjectIsolationService = SubjectIsolationService(cache: cache, maskProvider: maskProvider)
         let scanResult = try scanner.scan(
@@ -396,6 +399,11 @@ public struct ModelInputExportPipeline {
         )
         let manifestPath = "\(exportDirectory)/model-input-export-\(timestampString(for: startedAt)).json"
         try writeManifest(manifest, to: manifestPath)
+
+        if configuration.clearDerivativeCacheAfterSuccess,
+           completedSuccessfully(records: records, interrupted: interrupted) {
+            try cache.clear()
+        }
 
         return ModelInputExportResult(
             scanResult: scanResult,
@@ -678,6 +686,10 @@ public struct ModelInputExportPipeline {
 
     private func durationMs(from start: Date, to end: Date) -> Int {
         max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
+    }
+
+    private func completedSuccessfully(records: [ModelInputExportRecord], interrupted: Bool) -> Bool {
+        !interrupted && records.allSatisfy { $0.status == .exported || $0.status == .skippedExisting }
     }
 }
 

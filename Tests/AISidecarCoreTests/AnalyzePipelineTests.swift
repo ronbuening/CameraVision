@@ -197,6 +197,97 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("cache").path))
     }
 
+    func testClearDerivativeCacheOnStartRemovesStaleArtifactsBeforeSkipRun() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeFile("AlreadyDone.JPG", data: Data("not an image".utf8), in: root)
+        let sidecar = output.appendingPathComponent("AlreadyDone.JPG.ai.json")
+        let cacheDir = output.appendingPathComponent("cache")
+        let staleArtifact = cacheDir.appendingPathComponent("\(String(repeating: "a", count: 64))-recipe-v1-whole_image.jpg")
+        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        try Data("stale".utf8).write(to: staleArtifact)
+        try Data("{}".utf8).write(to: sidecar)
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                existing: .skip,
+                mode: .whole,
+                cacheDir: cacheDir.path,
+                clearDerivativeCacheOnStart: true
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.skippedExisting])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staleArtifact.path))
+    }
+
+    func testClearDerivativeCacheAfterSuccessfulRunRemovesGeneratedArtifacts() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("A.JPG", in: root)
+        let cacheDir = output.appendingPathComponent("cache")
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: cacheDir.path,
+                clearDerivativeCacheAfterSuccess: true
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.appendingPathComponent("A.JPG.ai.json").path))
+        XCTAssertEqual(try cacheContents(at: cacheDir), [])
+    }
+
+    func testClearDerivativeCacheAfterSuccessDoesNotRunForFailedAnalysis() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("BrokenModel.JPG", in: root)
+        let cacheDir = output.appendingPathComponent("cache")
+        let modelError = SidecarError(
+            code: .modelInvalidJSON,
+            stage: .model,
+            message: "fixture invalid JSON",
+            recoverable: true
+        )
+
+        let result = try await pipeline(
+            runner: RecordingVisionModelRunner(failures: [RoleFailure(role: .wholeImage, error: modelError)])
+        ).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: cacheDir.path,
+                clearDerivativeCacheAfterSuccess: true
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.failed])
+        XCTAssertFalse(try cacheContents(at: cacheDir).isEmpty)
+    }
+
     private func pipeline(
         maskProvider: (any ForegroundMaskProvider)? = nil,
         runner: RecordingVisionModelRunner
@@ -215,7 +306,9 @@ final class AnalyzePipelineTests: XCTestCase {
         existing: ExistingPolicy = .overwrite,
         mode: AnalysisMode,
         cacheDir: String,
-        stageConcurrency: Int = 2
+        stageConcurrency: Int = 2,
+        clearDerivativeCacheOnStart: Bool = false,
+        clearDerivativeCacheAfterSuccess: Bool = false
     ) -> ResolvedRunConfiguration {
         ResolvedRunConfiguration(
             mode: mode,
@@ -232,6 +325,8 @@ final class AnalyzePipelineTests: XCTestCase {
             sourceIdentityPolicy: .sha256,
             derivativeCacheDir: cacheDir,
             derivativeCacheSizeBytes: 20 * 1024 * 1024,
+            clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
+            clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess,
             stageConcurrency: stageConcurrency
         )
     }
@@ -250,6 +345,13 @@ final class AnalyzePipelineTests: XCTestCase {
         )
         try data.write(to: file)
         return file
+    }
+
+    private func cacheContents(at directory: URL) throws -> [String] {
+        guard FileManager.default.fileExists(atPath: directory.path) else {
+            return []
+        }
+        return try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
     }
 
     private func fixedDateProvider(_ date: Date) -> @Sendable () -> Date {

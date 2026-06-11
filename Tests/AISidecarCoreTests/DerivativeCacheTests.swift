@@ -70,6 +70,28 @@ final class DerivativeCacheTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: newRecord.cachePath))
     }
 
+    func testClearRemovesCacheOwnedArtifactsOnly() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let cache = DerivativeCache(directoryPath: root.path, sizeCapBytes: 1_024)
+        let source = makeSource(identity: SourceIdentity(policy: .sha256, sha256: String(repeating: "e", count: 64)))
+        let record = try store(Data("cached".utf8), in: cache, source: source)
+        let manifest = root.appendingPathComponent("derivative-cache-index.json")
+        let orphan = root.appendingPathComponent("\(String(repeating: "f", count: 64))-recipe-v1-subject_isolated.jpg")
+        let unrelated = root.appendingPathComponent("notes.txt")
+        try Data("orphan".utf8).write(to: orphan)
+        try Data("keep".utf8).write(to: unrelated)
+
+        let result = try cache.clear()
+
+        XCTAssertEqual(result.directoryPath, root.path)
+        XCTAssertEqual(result.removedFileCount, 3)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: record.cachePath))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: manifest.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unrelated.path))
+    }
+
     func testDebugCopyUsesSourceSidecarDerivativeNaming() throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }

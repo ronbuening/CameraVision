@@ -52,6 +52,9 @@ PW-004 - The following flags shall have identical names, types, and semantics in
 --log-format <text|json>             Default: text. JSON logs are stable for machine consumption.
 --dry-run                            Report intended actions without writing outputs.
 --debug-derivatives                  Copy derivatives beside the source for inspection.
+--clear-derivative-cache-on-start    Clear derivative cache artifacts before an analyze invocation uses them.
+--clear-derivative-cache-after-success
+                                      Clear derivative cache artifacts after a successful analyze invocation.
 ```
 
 PW-005 - Enum-valued flags shall be used instead of families of mutually exclusive boolean flags. The v0.1 triplets (`--whole-only/--subject-only/--both`, `--skip-existing/--overwrite/--fail-existing`) are replaced by `--mode` and `--existing` and shall not reappear in later phases.
@@ -217,7 +220,9 @@ FR1-017a - The renderer shall produce and retain (in cache) a full-resolution re
 
 FR1-018 - Temporary derivatives shall be stored in an application cache by default and shall not be written beside the source image unless `--debug-derivatives` is enabled, in which case they are copied (not moved) beside the source.
 
-FR1-018a - The derivative cache shall use content-addressed keys (`<source-sha256>-<recipe-version>-<role>.<ext>`), enabling reuse across re-runs with unchanged recipes; shall enforce a configurable size cap with LRU eviction (default 20 GiB); and shall be clearable via a maintenance command in a later phase.
+FR1-018a - The derivative cache shall use content-addressed keys (`<source-sha256>-<recipe-version>-<role>.<ext>`), enabling reuse across re-runs with unchanged recipes; shall enforce a configurable size cap with LRU eviction (default 20 GiB); and shall be clearable via an explicit maintenance command.
+
+FR1-018b - Analyze shall retain derivative cache artifacts by default. It shall support opt-in clearing before the run uses the cache and after a fully successful run through JSON config, `AISIDECAR_*` environment overrides, and matching CLI flags. A run with failed per-file records or interruption shall not perform the post-success clear.
 
 ## 8. Subject Isolation Requirements
 
@@ -372,6 +377,7 @@ Required command shape:
 
 ```bash
 aisidecar analyze <file-or-folder> [--mode both]
+aisidecar purge [--cache-dir <path>] [--config <path>]
 ```
 
 Accepted flags: the project-wide glossary (PW-004) plus:
@@ -379,6 +385,14 @@ Accepted flags: the project-wide glossary (PW-004) plus:
 ```text
 --dry-scan        Print the scan result (with identities and relative paths) and exit.
 ```
+
+Purge-specific flags:
+
+```text
+--cache-dir <path>    Override the resolved derivative cache directory for this purge.
+```
+
+`aisidecar purge` removes derivative cache artifacts from the resolved cache directory and does not contact Ollama or validate analyze-only model settings. It also accepts the project-wide `--config` flag.
 
 Recommended examples:
 
@@ -388,6 +402,8 @@ aisidecar analyze /Photos/Birds/_DSC1234.NEF --mode both
 aisidecar analyze /Photos/Birds --recursive --mode whole --output-dir ./ai-json
 
 aisidecar analyze /Photos/Birds --recursive --mode subject --existing skip
+
+aisidecar purge
 ```
 
 ## 12. Acceptance Criteria

@@ -39,6 +39,52 @@ public enum ConfigurationResolver {
         return try builder.resolved()
     }
 
+    /// Resolve only derivative cache settings for maintenance commands.
+    ///
+    /// This intentionally avoids validating model/runtime fields so `aisidecar purge`
+    /// remains usable even when an analyze-specific config value is temporarily bad.
+    public static func resolveDerivativeCache(
+        cli: DerivativeCacheConfigurationOverrides = DerivativeCacheConfigurationOverrides(),
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaultConfigPath: String? = nil,
+        fileManager: FileManager = .default
+    ) throws -> ResolvedDerivativeCacheConfiguration {
+        let selectedConfigPath = cli.configPath
+            ?? environment["AISIDECAR_CONFIG"]
+            ?? defaultConfigPath
+            ?? Self.defaultConfigPath(environment: environment)
+        let explicitConfigPath = cli.configPath != nil || environment["AISIDECAR_CONFIG"] != nil
+
+        let fileConfig = try loadConfig(
+            path: selectedConfigPath,
+            explicit: explicitConfigPath,
+            fileManager: fileManager
+        )
+        let envCacheSize = try int64Value(
+            from: environment["AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES"],
+            key: "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES"
+        )
+
+        var derivativeCacheDir = DerivativeCache.defaultDirectoryPath(environment: environment)
+        var derivativeCacheSizeBytes = DerivativeCache.defaultSizeCapBytes
+
+        if let value = fileConfig.derivativeCacheDir { derivativeCacheDir = value }
+        if let value = fileConfig.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
+        if let value = environment["AISIDECAR_DERIVATIVE_CACHE_DIR"] { derivativeCacheDir = value }
+        if let value = envCacheSize { derivativeCacheSizeBytes = value }
+        if let value = cli.derivativeCacheDir { derivativeCacheDir = value }
+        if let value = cli.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
+
+        guard derivativeCacheSizeBytes > 0 else {
+            throw SidecarError.configInvalid("derivative_cache_size_bytes must be greater than zero")
+        }
+
+        return ResolvedDerivativeCacheConfiguration(
+            derivativeCacheDir: derivativeCacheDir,
+            derivativeCacheSizeBytes: derivativeCacheSizeBytes
+        )
+    }
+
     private static func loadConfig(
         path: String,
         explicit: Bool,
@@ -95,6 +141,14 @@ public enum ConfigurationResolver {
             derivativeCacheSizeBytes: try int64Value(
                 from: environment["AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES"],
                 key: "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES"
+            ),
+            clearDerivativeCacheOnStart: try boolValue(
+                from: environment["AISIDECAR_CLEAR_DERIVATIVE_CACHE_ON_START"],
+                key: "AISIDECAR_CLEAR_DERIVATIVE_CACHE_ON_START"
+            ),
+            clearDerivativeCacheAfterSuccess: try boolValue(
+                from: environment["AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS"],
+                key: "AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS"
             ),
             subjectCropMarginFraction: try doubleValue(
                 from: environment["AISIDECAR_SUBJECT_CROP_MARGIN_FRACTION"],
@@ -185,6 +239,8 @@ private struct ConfigurationBuilder {
     private var sourceIdentityPolicy: SourceIdentityPolicy
     private var derivativeCacheDir: String
     private var derivativeCacheSizeBytes: Int64
+    private var clearDerivativeCacheOnStart: Bool
+    private var clearDerivativeCacheAfterSuccess: Bool
     private var subjectCropMarginFraction: Double
     private var subjectMergeDominanceThreshold: Double
     private var stageConcurrency: Int
@@ -204,6 +260,8 @@ private struct ConfigurationBuilder {
         self.sourceIdentityPolicy = defaults.sourceIdentityPolicy
         self.derivativeCacheDir = defaults.derivativeCacheDir
         self.derivativeCacheSizeBytes = defaults.derivativeCacheSizeBytes
+        self.clearDerivativeCacheOnStart = defaults.clearDerivativeCacheOnStart
+        self.clearDerivativeCacheAfterSuccess = defaults.clearDerivativeCacheAfterSuccess
         self.subjectCropMarginFraction = defaults.subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = defaults.subjectMergeDominanceThreshold
         self.stageConcurrency = defaults.stageConcurrency
@@ -224,6 +282,8 @@ private struct ConfigurationBuilder {
         if let value = config.sourceIdentityPolicy { sourceIdentityPolicy = value }
         if let value = config.derivativeCacheDir { derivativeCacheDir = value }
         if let value = config.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
+        if let value = config.clearDerivativeCacheOnStart { clearDerivativeCacheOnStart = value }
+        if let value = config.clearDerivativeCacheAfterSuccess { clearDerivativeCacheAfterSuccess = value }
         if let value = config.subjectCropMarginFraction { subjectCropMarginFraction = value }
         if let value = config.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
         if let value = config.stageConcurrency { stageConcurrency = value }
@@ -244,6 +304,8 @@ private struct ConfigurationBuilder {
         if let value = overrides.sourceIdentityPolicy { sourceIdentityPolicy = value }
         if let value = overrides.derivativeCacheDir { derivativeCacheDir = value }
         if let value = overrides.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
+        if let value = overrides.clearDerivativeCacheOnStart { clearDerivativeCacheOnStart = value }
+        if let value = overrides.clearDerivativeCacheAfterSuccess { clearDerivativeCacheAfterSuccess = value }
         if let value = overrides.subjectCropMarginFraction { subjectCropMarginFraction = value }
         if let value = overrides.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
         if let value = overrides.stageConcurrency { stageConcurrency = value }
@@ -289,6 +351,8 @@ private struct ConfigurationBuilder {
             sourceIdentityPolicy: sourceIdentityPolicy,
             derivativeCacheDir: derivativeCacheDir,
             derivativeCacheSizeBytes: derivativeCacheSizeBytes,
+            clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
+            clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess,
             subjectCropMarginFraction: subjectCropMarginFraction,
             subjectMergeDominanceThreshold: subjectMergeDominanceThreshold,
             stageConcurrency: stageConcurrency
@@ -315,6 +379,8 @@ private extension RunConfigurationOverrides {
             sourceIdentityPolicy: sourceIdentityPolicy,
             derivativeCacheDir: derivativeCacheDir,
             derivativeCacheSizeBytes: derivativeCacheSizeBytes,
+            clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
+            clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess,
             subjectCropMarginFraction: subjectCropMarginFraction,
             subjectMergeDominanceThreshold: subjectMergeDominanceThreshold,
             stageConcurrency: stageConcurrency

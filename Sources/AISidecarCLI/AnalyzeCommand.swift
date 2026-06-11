@@ -25,6 +25,13 @@ struct AnalyzeCommand: AsyncParsableCommand {
         let resolved = try ConfigurationResolver.resolve(cli: shared.overrides)
 
         if dryScan {
+            let cache = DerivativeCache(
+                directoryPath: resolved.derivativeCacheDir,
+                sizeCapBytes: resolved.derivativeCacheSizeBytes
+            )
+            if resolved.clearDerivativeCacheOnStart {
+                try cache.clear()
+            }
             // `--dry-scan` exits after discovery; pipeline-level `--dry-run`
             // still plans sidecars without rendering or writing artifacts.
             let scanner = ImageScanner()
@@ -39,6 +46,9 @@ struct AnalyzeCommand: AsyncParsableCommand {
             let data = try encoder.encode(result)
             FileHandle.standardOutput.write(data)
             FileHandle.standardOutput.write(Data("\n".utf8))
+            if resolved.clearDerivativeCacheAfterSuccess {
+                try cache.clear()
+            }
             return
         }
 

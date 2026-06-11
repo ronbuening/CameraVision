@@ -62,6 +62,12 @@ struct SharedOptions: ParsableArguments {
     @Flag(help: "Copy derivatives beside the source for inspection.")
     var debugDerivatives = false
 
+    @Flag(help: "Clear the derivative cache before this analyze invocation uses it.")
+    var clearDerivativeCacheOnStart = false
+
+    @Flag(help: "Clear the derivative cache after a successful analyze invocation.")
+    var clearDerivativeCacheAfterSuccess = false
+
     var overrides: RunConfigurationOverrides {
         RunConfigurationOverrides(
             mode: mode,
@@ -75,7 +81,9 @@ struct SharedOptions: ParsableArguments {
             logLevel: logLevel,
             logFormat: logFormat,
             dryRun: dryRun ? true : nil,
-            debugDerivatives: debugDerivatives ? true : nil
+            debugDerivatives: debugDerivatives ? true : nil,
+            clearDerivativeCacheOnStart: clearDerivativeCacheOnStart ? true : nil,
+            clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess ? true : nil
         )
     }
 }

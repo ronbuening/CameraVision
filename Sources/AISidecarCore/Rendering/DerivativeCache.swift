@@ -1,6 +1,17 @@
 import CryptoKit
 import Foundation
 
+/// Summary of derivative cache artifacts removed by a clear or purge operation.
+public struct DerivativeCachePurgeResult: Sendable, Equatable {
+    public var directoryPath: String
+    public var removedFileCount: Int
+
+    public init(directoryPath: String, removedFileCount: Int) {
+        self.directoryPath = directoryPath
+        self.removedFileCount = removedFileCount
+    }
+}
+
 /// Content-addressed derivative cache with manifest-backed LRU eviction.
 public struct DerivativeCache {
     public var directoryPath: String
@@ -162,6 +173,57 @@ public struct DerivativeCache {
         }
     }
 
+    /// Remove all derivative artifacts owned by this cache.
+    ///
+    /// Clearing is intentionally scoped to manifest-tracked entries and files that
+    /// match aisidecar's deterministic derivative names, so a misconfigured cache
+    /// directory is less likely to lose unrelated user files.
+    @discardableResult
+    public func clear() throws -> DerivativeCachePurgeResult {
+        Self.manifestLock.lock()
+        defer { Self.manifestLock.unlock() }
+
+        let directory = URL(fileURLWithPath: directoryPath).standardizedFileURL
+        guard fileManager.fileExists(atPath: directory.path) else {
+            return DerivativeCachePurgeResult(directoryPath: directory.path, removedFileCount: 0)
+        }
+
+        do {
+            var cacheOwnedNames = Set<String>()
+            if let manifest = try? loadManifest() {
+                cacheOwnedNames.formUnion(manifest.entries.keys)
+            }
+            cacheOwnedNames.insert(manifestURL.lastPathComponent)
+
+            let contents = try fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsSubdirectoryDescendants]
+            )
+            var removedFileCount = 0
+            for url in contents where shouldClear(url: url, cacheOwnedNames: cacheOwnedNames) {
+                try fileManager.removeItem(at: url)
+                removedFileCount += 1
+            }
+            return DerivativeCachePurgeResult(directoryPath: directory.path, removedFileCount: removedFileCount)
+        } catch let error as SidecarError {
+            throw error
+        } catch {
+            throw SidecarError(
+                code: .renderFailed,
+                stage: .render,
+                message: "Unable to clear derivative cache \(directory.path): \(error.localizedDescription)",
+                recoverable: true
+            )
+        }
+    }
+
+    /// Purge derivative cache artifacts for explicit maintenance commands.
+    @discardableResult
+    public func purge() throws -> DerivativeCachePurgeResult {
+        try clear()
+    }
+
     /// Compute the SHA-256 digest of artifact bytes for derivative provenance.
     public static func sha256(of url: URL) throws -> String {
         let data = try Data(contentsOf: url)
@@ -210,6 +272,30 @@ public struct DerivativeCache {
             totalBytes -= entry.byteCount
         }
         try saveManifest(manifest)
+    }
+
+    private func shouldClear(url: URL, cacheOwnedNames: Set<String>) -> Bool {
+        guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
+            return false
+        }
+        let fileName = url.lastPathComponent
+        return cacheOwnedNames.contains(fileName) || Self.looksLikeDerivativeArtifact(fileName)
+    }
+
+    private static func looksLikeDerivativeArtifact(_ fileName: String) -> Bool {
+        let supportedExtension = fileName.hasSuffix(".jpg") || fileName.hasSuffix(".tiff")
+        guard supportedExtension, fileName.count > 65 else {
+            return false
+        }
+
+        let prefix = fileName.prefix(64)
+        guard prefix.allSatisfy(\.isHexDigit), fileName.dropFirst(64).first == "-" else {
+            return false
+        }
+
+        return DerivativeRole.allCases.contains { role in
+            fileName.contains("-\(role.rawValue).")
+        }
     }
 }
 

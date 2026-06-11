@@ -78,6 +78,9 @@ public struct AnalyzeShellPipeline {
             fileManager: fileManager,
             now: now
         )
+        if configuration.clearDerivativeCacheOnStart {
+            try cache.clear()
+        }
         let renderer = ImageRenderer(cache: cache)
         let subjectIsolationService = SubjectIsolationService(cache: cache, maskProvider: maskProvider)
         let scanResult = try scanner.scan(
@@ -194,6 +197,11 @@ public struct AnalyzeShellPipeline {
             summary = nil
         }
 
+        if configuration.clearDerivativeCacheAfterSuccess,
+           completedSuccessfully(records: records, interrupted: interrupted) {
+            try cache.clear()
+        }
+
         return AnalyzeShellResult(
             scanResult: scanResult,
             records: records,
@@ -217,6 +225,10 @@ public struct AnalyzeShellPipeline {
 
     private func durationMs(from start: Date, to end: Date) -> Int {
         max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
+    }
+
+    private func completedSuccessfully(records: [ProgressRecord], interrupted: Bool) -> Bool {
+        !interrupted && records.allSatisfy { $0.status != .failed }
     }
 
     private func logRecord(for record: ProgressRecord) -> LogRecord {

@@ -9,7 +9,8 @@ struct AISidecarCommand: AsyncParsableCommand {
         abstract: "Generate and process AI sidecar metadata.",
         version: "0.0.0",
         subcommands: [
-            AnalyzeCommand.self
+            AnalyzeCommand.self,
+            PurgeCommand.self
         ]
     )
 }

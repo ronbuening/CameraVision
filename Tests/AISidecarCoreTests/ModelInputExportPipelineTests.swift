@@ -237,6 +237,33 @@ final class ModelInputExportPipelineTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: cache.path))
     }
 
+    func testClearDerivativeCacheAfterSuccessfulExportKeepsExportedFiles() async throws {
+        let root = try temporaryDirectory()
+        let export = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: export)
+        }
+        let image = try writeTestImage("A.JPG", in: root)
+        let cache = root.appendingPathComponent("cache")
+
+        let result = try await pipeline().run(
+            inputPath: image.path,
+            exportDirectoryPath: export.path,
+            configuration: config(
+                recursive: false,
+                mode: .whole,
+                cacheDir: cache.path,
+                clearDerivativeCacheAfterSuccess: true
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.exported])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: export.appendingPathComponent("A.JPG.aisidecar.whole_image.jpg").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.manifestPath))
+        XCTAssertEqual(try cacheContents(at: cache), [])
+    }
+
     func testExportModeRejectsDryRunAndDebugDerivatives() async throws {
         let root = try temporaryDirectory()
         let export = try temporaryDirectory()
@@ -287,7 +314,9 @@ final class ModelInputExportPipelineTests: XCTestCase {
         mode: AnalysisMode,
         dryRun: Bool = false,
         debugDerivatives: Bool = false,
-        cacheDir: String
+        cacheDir: String,
+        clearDerivativeCacheOnStart: Bool = false,
+        clearDerivativeCacheAfterSuccess: Bool = false
     ) -> ResolvedRunConfiguration {
         ResolvedRunConfiguration(
             mode: mode,
@@ -303,7 +332,9 @@ final class ModelInputExportPipelineTests: XCTestCase {
             debugDerivatives: debugDerivatives,
             sourceIdentityPolicy: .sha256,
             derivativeCacheDir: cacheDir,
-            derivativeCacheSizeBytes: 20 * 1024 * 1024
+            derivativeCacheSizeBytes: 20 * 1024 * 1024,
+            clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
+            clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess
         )
     }
 
@@ -322,6 +353,13 @@ final class ModelInputExportPipelineTests: XCTestCase {
             withIntermediateDirectories: true
         )
         try data.write(to: url)
+    }
+
+    private func cacheContents(at directory: URL) throws -> [String] {
+        guard FileManager.default.fileExists(atPath: directory.path) else {
+            return []
+        }
+        return try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
     }
 
     private func fixedDateProvider(_ date: Date) -> @Sendable () -> Date {

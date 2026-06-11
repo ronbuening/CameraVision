@@ -72,6 +72,10 @@ public struct AnalyzePipeline {
     ) async throws -> AnalyzeResult {
         let runStartedAt = now()
         let profile = try ModelInputProfileRegistry.resolve(name: configuration.profile)
+        let lifecycleCache = cache(for: configuration)
+        if configuration.clearDerivativeCacheOnStart {
+            try lifecycleCache.clear()
+        }
         let scanResult = try scanner.scan(
             inputPath: inputPath,
             recursive: configuration.recursive,
@@ -190,6 +194,11 @@ public struct AnalyzePipeline {
             summary = nil
         }
 
+        if configuration.clearDerivativeCacheAfterSuccess,
+           completedSuccessfully(records: records, interrupted: interrupted) {
+            try lifecycleCache.clear()
+        }
+
         return AnalyzeResult(
             scanResult: scanResult,
             records: records,
@@ -198,6 +207,19 @@ public struct AnalyzePipeline {
             summary: summary,
             interrupted: interrupted
         )
+    }
+
+    private func cache(for configuration: ResolvedRunConfiguration) -> DerivativeCache {
+        DerivativeCache(
+            directoryPath: configuration.derivativeCacheDir,
+            sizeCapBytes: configuration.derivativeCacheSizeBytes,
+            fileManager: fileManager,
+            now: now
+        )
+    }
+
+    private func completedSuccessfully(records: [ProgressRecord], interrupted: Bool) -> Bool {
+        !interrupted && records.allSatisfy { $0.status != .failed }
     }
 
     private func processPendingWork(

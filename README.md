@@ -11,7 +11,7 @@ The repository currently contains:
 - A Swift Package Manager project targeting macOS 15 and Swift 6.
 - `AISidecarCore`, the shared library where reusable project logic lives.
 - `aisidecar`, the command-line executable.
-- `aisidecar analyze` command wiring with the Phase 1 shared flag surface.
+- `aisidecar analyze` command wiring with the Phase 1 shared flag surface, plus `aisidecar purge` for derivative cache maintenance.
 - Configuration resolution with precedence: CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default.
 - The frozen Phase 1 structured error taxonomy.
 - Text and JSON log rendering.
@@ -20,7 +20,7 @@ The repository currently contains:
 - Raw `.ai.json` sidecar writing with extension-preserving names and mirrored output trees.
 - Model input profile resolution for the built-in `gemma4-26b-default` profile.
 - Whole-image rendering with EXIF orientation baking, sRGB output, full-resolution render retention, and profile-conforming JPEG derivatives.
-- Content-addressed derivative caching with manifest-backed LRU eviction and configurable cache directory/size.
+- Content-addressed derivative caching with manifest-backed LRU eviction, configurable cache directory/size, opt-in start/success cache clearing, and explicit purge command.
 - Subject isolation with Apple Vision foreground masks, deterministic instance selection/merge policy, full-resolution crop/matte compositing, and `subject_isolated` derivative provenance.
 - Diagnostic model-input export via `--export-model-inputs` for reviewing the exact images that model calls receive.
 - Versioned whole-image and subject-isolated prompts plus bundled v1.1 response schemas.
@@ -28,13 +28,13 @@ The repository currently contains:
 - Full `aisidecar analyze` model execution with populated `model_runs` records, prompt/schema provenance, model digest/runtime provenance, raw response preservation, and parsed JSON when valid.
 - Bounded render/isolation preparation through `stage_concurrency`, feeding a serialized single-flight model stage.
 - JSON/env configuration for subject crop margin and merge dominance threshold.
-- JSON/env configuration for `stage_concurrency`.
+- JSON/env configuration for `stage_concurrency` and derivative cache clearing.
 - Atomic writes for sidecars and batch summaries.
 - `--existing skip|overwrite|fail` handling.
 - Optional `--debug-derivatives` copies beside source images.
 - Folder-run JSONL progress logs and derived batch summaries.
 - SIGINT/SIGTERM-aware interruption handling for the full analyze pipeline.
-- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, source identity, sidecar naming/writing, rendering, derivative cache behavior, subject-isolation geometry/pipeline behavior, model-runtime behavior, progress logs, summaries, diagnostic export, the shell pipeline, and the full analyze pipeline.
+- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, source identity, sidecar naming/writing, rendering, derivative cache behavior and purge resolution, subject-isolation geometry/pipeline behavior, model-runtime behavior, progress logs, summaries, diagnostic export, the shell pipeline, and the full analyze pipeline.
 
 Not implemented yet:
 
@@ -78,6 +78,7 @@ The project uses SwiftPM and depends on Swift ArgumentParser.
 ```bash
 swift test
 swift run aisidecar analyze --help
+swift run aisidecar purge --help
 swift run aisidecar analyze <folder> --recursive --output-dir <tmp-output>
 swift run aisidecar analyze <image-or-folder> --mode subject --debug-derivatives --output-dir <tmp-output>
 swift run aisidecar analyze <image-or-folder> --mode both --export-model-inputs <tmp-output>
@@ -88,13 +89,18 @@ If `xcode-select` points at Command Line Tools and XCTest is unavailable, run Sw
 ```bash
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar analyze --help
+env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar purge --help
 ```
 
 ## Current Analyze Behavior
 
-`aisidecar analyze` currently performs the Milestone 7 full pipeline. It scans inputs, computes source identities, verifies the configured Ollama model tag at startup, renders full-resolution and whole-image derivatives, optionally isolates foreground subjects for `--mode subject|both`, runs the model with versioned prompts and response schemas, and writes schema-versioned `.ai.json` sidecars with model input profile, derivative provenance, subject-isolation provenance, and populated `model_runs`. Folder runs write JSONL progress and batch summary artifacts. The render/isolation stage is bounded by `stage_concurrency`, while model requests are serialized with one in-flight request.
+`aisidecar analyze` currently performs the Milestone 7 full pipeline. It scans inputs, computes source identities, verifies the configured Ollama model tag at startup, renders full-resolution and whole-image derivatives, optionally isolates foreground subjects for `--mode subject|both`, runs the model with versioned prompts and response schemas, and writes schema-versioned `.ai.json` sidecars with model input profile, derivative provenance, subject-isolation provenance, and populated `model_runs`. Folder runs write JSONL progress and batch summary artifacts. The render/isolation stage is bounded by `stage_concurrency`, while model requests are serialized with one in-flight request. The derivative cache is retained by default; set `clear_derivative_cache_on_start` or `clear_derivative_cache_after_success` in config, or use the matching CLI flags, to clear cache artifacts at those run boundaries.
 
 For visual validation, `--export-model-inputs <folder>` switches `analyze` into the diagnostic export path. It renders through the same cache and subject-isolation pipeline, mirrors source relative paths under the export folder, writes only `whole_image` and/or `subject_isolated` model-input files, and writes a timestamped `model-input-export-*.json` manifest. It does not write `.ai.json` sidecars, progress logs, batch summaries, XMP, or model output. `--dry-run` and `--debug-derivatives` are rejected in this mode because export mode writes only to the requested export folder.
+
+`aisidecar purge` removes derivative cache artifacts from the resolved cache directory. It honors `--config`, `--cache-dir`, `AISIDECAR_CONFIG`, and `AISIDECAR_DERIVATIVE_CACHE_DIR`; it does not contact Ollama or validate analyze-only model settings.
+
+Cache cleanup is scoped to files owned by the derivative cache manifest or matching aisidecar's deterministic derivative names, so unrelated files in a misconfigured cache directory are not intentionally removed.
 
 ## Next Steps
 

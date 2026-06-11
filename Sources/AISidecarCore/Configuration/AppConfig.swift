@@ -16,6 +16,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var sourceIdentityPolicy: SourceIdentityPolicy?
     public var derivativeCacheDir: String?
     public var derivativeCacheSizeBytes: Int64?
+    public var clearDerivativeCacheOnStart: Bool?
+    public var clearDerivativeCacheAfterSuccess: Bool?
     public var subjectCropMarginFraction: Double?
     public var subjectMergeDominanceThreshold: Double?
     /// Bounded render/isolation worker count; model calls remain serialized.
@@ -36,6 +38,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case sourceIdentityPolicy = "source_identity_policy"
         case derivativeCacheDir = "derivative_cache_dir"
         case derivativeCacheSizeBytes = "derivative_cache_size_bytes"
+        case clearDerivativeCacheOnStart = "clear_derivative_cache_on_start"
+        case clearDerivativeCacheAfterSuccess = "clear_derivative_cache_after_success"
         case subjectCropMarginFraction = "subject_crop_margin_fraction"
         case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
         case stageConcurrency = "stage_concurrency"
@@ -56,6 +60,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         sourceIdentityPolicy: SourceIdentityPolicy? = nil,
         derivativeCacheDir: String? = nil,
         derivativeCacheSizeBytes: Int64? = nil,
+        clearDerivativeCacheOnStart: Bool? = nil,
+        clearDerivativeCacheAfterSuccess: Bool? = nil,
         subjectCropMarginFraction: Double? = nil,
         subjectMergeDominanceThreshold: Double? = nil,
         stageConcurrency: Int? = nil
@@ -74,6 +80,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.sourceIdentityPolicy = sourceIdentityPolicy
         self.derivativeCacheDir = derivativeCacheDir
         self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
+        self.clearDerivativeCacheOnStart = clearDerivativeCacheOnStart
+        self.clearDerivativeCacheAfterSuccess = clearDerivativeCacheAfterSuccess
         self.subjectCropMarginFraction = subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
         self.stageConcurrency = stageConcurrency
@@ -115,6 +123,11 @@ public struct AppConfig: Codable, Sendable, Equatable {
         )
         self.derivativeCacheDir = try container.decodeIfPresent(String.self, forKey: .derivativeCacheDir)
         self.derivativeCacheSizeBytes = try container.decodeIfPresent(Int64.self, forKey: .derivativeCacheSizeBytes)
+        self.clearDerivativeCacheOnStart = try container.decodeIfPresent(Bool.self, forKey: .clearDerivativeCacheOnStart)
+        self.clearDerivativeCacheAfterSuccess = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .clearDerivativeCacheAfterSuccess
+        )
         self.subjectCropMarginFraction = try container.decodeIfPresent(
             Double.self,
             forKey: .subjectCropMarginFraction
@@ -142,6 +155,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(sourceIdentityPolicy, forKey: .sourceIdentityPolicy)
         try container.encodeIfPresent(derivativeCacheDir, forKey: .derivativeCacheDir)
         try container.encodeIfPresent(derivativeCacheSizeBytes, forKey: .derivativeCacheSizeBytes)
+        try container.encodeIfPresent(clearDerivativeCacheOnStart, forKey: .clearDerivativeCacheOnStart)
+        try container.encodeIfPresent(clearDerivativeCacheAfterSuccess, forKey: .clearDerivativeCacheAfterSuccess)
         try container.encodeIfPresent(subjectCropMarginFraction, forKey: .subjectCropMarginFraction)
         try container.encodeIfPresent(subjectMergeDominanceThreshold, forKey: .subjectMergeDominanceThreshold)
         try container.encodeIfPresent(stageConcurrency, forKey: .stageConcurrency)
