@@ -104,16 +104,17 @@ final class ModelRuntimeTests: XCTestCase {
         let inputData = Data("image-bytes".utf8)
         let imageURL = root.appendingPathComponent("whole.jpg")
         try inputData.write(to: imageURL)
+        let rawResponse = wholeImageModelResponseJSON()
         let transport = RecordingOllamaTransport([
-            .success(chatResponse(content: #"{"summary":"A heron"}"#))
+            .success(chatResponse(content: rawResponse))
         ])
         let runner = OllamaVisionRunner(
             transport: transport,
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_900_000_000))
         )
         let options = ModelRunOptions(temperature: 0, seed: 42, keepAlive: "30m", timeoutSeconds: 12, contextWindow: 4096)
-        let prompt = VersionedPrompt(version: "prompt/1.0", text: "Describe this image.")
-        let schema = try summarySchema()
+        let prompt = try PromptRegistry.prompt(for: .wholeImage)
+        let schema = try ResponseSchemas.schema(for: .wholeImage)
         let image = derivative(cachePath: imageURL.path, sha256: "image-sha")
 
         let record = await runner.analyze(
@@ -127,8 +128,9 @@ final class ModelRuntimeTests: XCTestCase {
 
         XCTAssertTrue(record.jsonValid)
         XCTAssertNil(record.error)
-        XCTAssertEqual(record.rawResponseText, #"{"summary":"A heron"}"#)
+        XCTAssertEqual(record.rawResponseText, rawResponse)
         XCTAssertEqual(record.inputDerivativeSHA256, "image-sha")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.1.0")
         let requests = await transport.capturedRequests()
         let request = try XCTUnwrap(requests.first)
         XCTAssertEqual(request.method, "POST")
@@ -420,6 +422,62 @@ final class ModelRuntimeTests: XCTestCase {
         let imageURL = root.appendingPathComponent("whole.jpg")
         try Data("image-bytes".utf8).write(to: imageURL)
         return imageURL
+    }
+
+    private func wholeImageModelResponseJSON() -> String {
+        """
+        {
+          "summary": "A great blue heron stands in shallow wetland water.",
+          "genre_or_photography_type": [
+            {
+              "term": "bird_photography",
+              "confidence": "high",
+              "evidence": "large wading bird dominates frame"
+            }
+          ],
+          "main_subjects": [
+            {
+              "term": "great blue heron",
+              "confidence": "medium",
+              "evidence": "large gray-blue wading bird"
+            }
+          ],
+          "secondary_subjects": [
+            {
+              "term": "shallow water",
+              "confidence": "high",
+              "evidence": "ripples around the bird's legs"
+            }
+          ],
+          "scene_context": [
+            {
+              "term": "outdoor wildlife scene",
+              "confidence": "high"
+            }
+          ],
+          "habitat_or_setting": [
+            {
+              "term": "wetland",
+              "confidence": "medium"
+            }
+          ],
+          "behavior_or_action": [
+            {
+              "term": "standing",
+              "confidence": "high"
+            }
+          ],
+          "visible_text": [],
+          "proposed_keywords": [
+            {
+              "term": "wading bird",
+              "confidence": "high",
+              "evidence": "long legs in shallow water"
+            }
+          ],
+          "uncertainty_notes": ""
+        }
+        """
     }
 
     private func fixedDateProvider(_ date: Date) -> @Sendable () -> Date {

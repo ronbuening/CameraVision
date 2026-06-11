@@ -1,8 +1,8 @@
 # Implementation Plan - Phase 1 CLI Raw JSON Sidecar Generator
 
-Version: 0.6
-Date: 2026-06-10
-Supersedes: 0.1, 0.2, 0.3, 0.4, 0.5
+Version: 0.7
+Date: 2026-06-11
+Supersedes: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6
 Implements: Phase 1 Requirements v0.2 (`01-cli-raw-json-sidecar-requirements.md`)
 Binary: `aisidecar` (subcommand: `analyze`)
 Core library: `AISidecarCore`
@@ -14,16 +14,16 @@ Traceability in this plan points at the v0.2 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-4.5 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, writes folder-run JSONL progress logs and batch summaries, and handles interruption through the analyze shell pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before model integration. It does not yet call Ollama or write XMP.
+Phase 1 Milestones 0-6 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, writes folder-run JSONL progress logs and batch summaries, and handles interruption through the analyze shell pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The `AISidecarCore/ModelRuntime` layer now contains the Ollama client, mock and recorded-fixture runners, response parsing, v1.1 prompt registry, and v1.1 response schemas. The analyze pipeline does not yet call Ollama or write XMP.
 
 Latest verification for this baseline:
 
 ```text
-swift test                                      83 tests, 0 failures
+swift test                                      100 tests, 1 skipped, 0 failures
 swift run aisidecar analyze --help             passed
 ```
 
-The next implementation unit is Milestone 5: Ollama Vision Model Client.
+The next implementation unit is Milestone 7: Full Analyze Command and Pipeline.
 
 ## 1. Implementation Position
 
@@ -82,8 +82,9 @@ Testing:
 
 ## 3. Repository Layout
 
-This section separates the current Milestone 4 layout from planned Phase 1
-additions so file names remain accurate while the later milestones stay visible.
+This section separates the current implemented layout from remaining planned
+Phase 1 additions so file names remain accurate while the later milestones stay
+visible.
 
 ```text
 CameraVision/
@@ -124,7 +125,21 @@ CameraVision/
         Logger.swift                    // text + json formats
       Pipeline/
         AnalyzeShellPipeline.swift      // scanner -> renderer -> isolation -> sidecar path
+        ModelInputExportPipeline.swift  // diagnostic pre-model export path
         InterruptionMonitor.swift       // SIGINT/SIGTERM interruption state
+      ModelRuntime/
+        VisionModelRunner.swift         // protocol, mock runner, recorded-fixture runner
+        OllamaVisionRunner.swift        // FR1-030a-f live Ollama runner
+        OllamaHTTPTransport.swift       // injectable HTTP transport
+        ModelRuntimeTypes.swift         // prompt/schema/options/model-run records
+        JSONSchemaValidator.swift       // owned response-schema subset validator
+        JSONValue.swift                 // Codable arbitrary JSON representation
+        PromptRegistry.swift            // FR1-046 versioned + hashed prompts
+        ResponseSchemas.swift           // FR1-045 schemas as format payloads
+      Resources/
+        ModelRuntime/
+          Prompts/                      // whole-image and subject-isolated v1.1 prompts
+          Schemas/                      // whole-image and subject-isolated v1.1 schemas
     AISidecarCLI/
       AISidecarCommand.swift
       SharedOptions.swift               // PW-004 glossary, composed by all subcommands
@@ -133,18 +148,10 @@ CameraVision/
     AISidecarCoreTests/                 // suite in Section 12
 ```
 
-Planned Phase 1 additions:
+Remaining planned Phase 1 additions:
 
 ```text
 Sources/AISidecarCore/
-  ModelRuntime/
-    VisionModelRunner.swift             // protocol, FR1-031
-    OllamaVisionRunner.swift            // FR1-030a-f
-    MockVisionModelRunner.swift
-    RecordedFixtureRunner.swift
-    ModelRunOptions.swift               // temp, seed, thinking, keep_alive, timeout
-    PromptRegistry.swift                // FR1-046 versioned + hashed prompts
-    ResponseSchemas.swift               // FR1-045 two schemas as format payloads
   Pipeline/
     AnalyzePipeline.swift               // PW-015 staged concurrency
 Fixtures/
@@ -295,7 +302,7 @@ Implemented notes:
 6. No XMP, raw JSON sidecars, progress logs, batch summaries, or model runs are written by export mode.
 7. Offline tests cover single-file export, recursive tree mirroring, subject-only export, no-foreground subject and both-mode behavior, existing policies, and incompatible flag rejection.
 
-## 9. Milestone 5 - Ollama Vision Model Client
+## 9. Milestone 5 - Ollama Vision Model Client (Implemented)
 
 Tasks:
 
@@ -321,7 +328,16 @@ protocol VisionModelRunner: Sendable {
 
 Exit criteria: a derivative round-trips through the live local runner and through the recorded-fixture runner producing identical sidecar `model_runs` entries modulo timing; a deliberately wrong tag fails fast with the installed-tag list (AC1-014).
 
-## 10. Milestone 6 - Prompts and Response Schemas
+Implemented notes:
+
+1. `VisionModelRunner` now exposes `prepare(configuration:)` and `analyze(image:inputRole:prompt:schema:options:runtime:)`; mock and recorded-fixture runners are implemented in `VisionModelRunner.swift`.
+2. `OllamaVisionRunner` verifies configured tags through `/api/tags` and `/api/show`, filters installed vision-capable tags for `E_MODEL_TAG_NOT_FOUND` messages, records model digest and `/api/version`, and maps endpoint failures to structured model errors.
+3. `/api/chat` requests carry one image as base64 in the user message, the prompt text as content, the selected schema as `format`, `stream: false`, explicit `think`, `keep_alive`, temperature, seed, and optional `num_ctx`.
+4. Timeout and transport failures retry according to `ModelRunOptions`; invalid JSON and schema violations do not retry and preserve raw response text.
+5. Response parsing strips Markdown fences before JSON decoding, preserves raw text, records parsed JSON when available, and classifies `E_MODEL_INVALID_JSON` versus `E_MODEL_SCHEMA_VIOLATION`.
+6. Offline tests cover startup verification, request shape, retry classification, fenced JSON, invalid JSON, schema violations, sidecar serialization, mock and fixture replay, and an opt-in live Ollama prepare smoke test.
+
+## 10. Milestone 6 - Prompts and Response Schemas (Implemented)
 
 Tasks:
 
@@ -332,6 +348,17 @@ Tasks:
 5. Schema validation tests including fixtures violating each constraint, and the band vocabulary (`high|medium|low`) enforced by enum in the schema.
 
 Exit criteria: both prompts produce schema-valid JSON on representative fixtures via the live runner; the subject-isolated schema structurally rejects habitat fields (AC1-013); prompt hashes appear in sidecars.
+
+Implemented notes:
+
+1. SwiftPM bundles prompt and response-schema resources under `Sources/AISidecarCore/Resources/ModelRuntime`.
+2. `PromptRegistry` returns `VersionedPrompt` values for `whole_image` and `subject_isolated`, parsing `PROMPT_VERSION` from the submitted text and hashing the exact LF-normalized text with one trailing newline.
+3. `ResponseSchemas` returns `JSONSchemaDocument` values for each role and records the schema `$id` as `response_schema_version`.
+4. The bundled v1.1 schemas match the supplied whole-image and subject-isolated JSON Schema artifacts. The subject schema omits `scene_context` and `habitat_or_setting`.
+5. `JSONSchemaValidator` now supports the owned FR1-045 schema subset used by v1.1, including local `$ref`, enum, object required fields, `additionalProperties: false`, array item limits, string length limits, and string `pattern`.
+6. `PromptSchemaTests` cover prompt version/hash behavior, whole-versus-subject field shape, valid fixture responses, subject habitat/scene rejection, confidence-band enforcement, bare-string candidate rejection, missing required fields, extra fields, invalid genre terms, max-item and max-length failures, and newline/tab pattern failures.
+7. `ModelRuntimeTests` now asserts that an Ollama chat request can carry the complete v1.1 whole-image schema as the `format` payload.
+8. Live prompt-quality checks remain opt-in; default `swift test` remains deterministic and offline.
 
 ## 11. Milestone 7 - Full Analyze Command and Pipeline
 

@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:aisidecar:response:subject-isolated:1.1.0",
+  "title": "AISidecar Subject-Isolated Model Response 1.1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "genre_or_photography_type",
+    "main_subjects",
+    "secondary_subjects",
+    "behavior_or_action",
+    "visible_text",
+    "proposed_keywords",
+    "uncertainty_notes"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 280,
+      "description": "One concise sentence describing the isolated subject crop."
+    },
+    "genre_or_photography_type": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "description": "Ordered from primary to secondary photographic genre/type, using only visible subject evidence.",
+      "items": {
+        "$ref": "#/$defs/genre_candidate"
+      }
+    },
+    "main_subjects": {
+      "type": "array",
+      "maxItems": 6,
+      "description": "Primary visible subjects in the isolated crop.",
+      "items": {
+        "$ref": "#/$defs/candidate_with_evidence"
+      }
+    },
+    "secondary_subjects": {
+      "type": "array",
+      "maxItems": 8,
+      "description": "Secondary visible subjects or subject parts in the isolated crop.",
+      "items": {
+        "$ref": "#/$defs/candidate_with_evidence"
+      }
+    },
+    "behavior_or_action": {
+      "type": "array",
+      "maxItems": 8,
+      "description": "Visible pose, behavior, or action supported by the isolated subject alone.",
+      "items": {
+        "$ref": "#/$defs/candidate_without_evidence"
+      }
+    },
+    "visible_text": {
+      "type": "array",
+      "maxItems": 6,
+      "description": "Readable text visible on or within the isolated subject crop.",
+      "items": {
+        "$ref": "#/$defs/visible_text_candidate"
+      }
+    },
+    "proposed_keywords": {
+      "type": "array",
+      "maxItems": 24,
+      "description": "Metadata-oriented terms based only on the isolated subject. Exclude habitat, setting, camera, lens, and software terms.",
+      "items": {
+        "$ref": "#/$defs/candidate_with_evidence"
+      }
+    },
+    "uncertainty_notes": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 600,
+      "description": "Brief notes about uncertainty, partial visibility, mask/crop issues, or ambiguous identification."
+    }
+  },
+  "$defs": {
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "description": "Ordinal confidence band. Numeric confidence is intentionally not used."
+    },
+    "genre_term": {
+      "type": "string",
+      "enum": [
+        "architecture",
+        "landscape",
+        "seascape",
+        "cityscape",
+        "portrait_people",
+        "group_portrait",
+        "candid_people",
+        "street_documentary",
+        "wildlife",
+        "bird_photography",
+        "plant_botanical",
+        "macro_closeup",
+        "abstract",
+        "still_life",
+        "product",
+        "food",
+        "sports_action",
+        "event",
+        "travel",
+        "night",
+        "astrophotography",
+        "aerial",
+        "underwater",
+        "interior",
+        "fine_art_conceptual"
+      ],
+      "description": "Controlled vocabulary for photographic genre or photography type."
+    },
+    "term": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[^\\r\\n\\t]+$"
+    },
+    "evidence": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 220,
+      "pattern": "^[^\\r\\n\\t]+$",
+      "description": "Short visible-evidence phrase, not a reasoning trace."
+    },
+    "candidate_with_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "term",
+        "confidence",
+        "evidence"
+      ],
+      "properties": {
+        "term": {
+          "$ref": "#/$defs/term"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    },
+    "candidate_without_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "term",
+        "confidence"
+      ],
+      "properties": {
+        "term": {
+          "$ref": "#/$defs/term"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        }
+      }
+    },
+    "genre_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "term",
+        "confidence",
+        "evidence"
+      ],
+      "properties": {
+        "term": {
+          "$ref": "#/$defs/genre_term"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    },
+    "visible_text_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "confidence"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^[^\\r\\n\\t]+$"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        }
+      }
+    }
+  }
+}

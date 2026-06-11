@@ -23,12 +23,22 @@ public struct JSONSchemaValidationError: Error, Sendable, Equatable, LocalizedEr
 public enum JSONSchemaValidator {
     /// Validate a JSON value against a schema document.
     public static func validate(_ value: JSONValue, against document: JSONSchemaDocument) throws {
-        try validate(value, schema: document.schema, path: "$")
+        try validate(value, schema: document.schema, rootSchema: document.schema, path: "$")
     }
 
-    private static func validate(_ value: JSONValue, schema: JSONValue, path: String) throws {
+    private static func validate(
+        _ value: JSONValue,
+        schema: JSONValue,
+        rootSchema: JSONValue,
+        path: String
+    ) throws {
         guard let schemaObject = schema.objectValue else {
             throw JSONSchemaValidationError(path: path, message: "Schema must be a JSON object.")
+        }
+        if let reference = schemaObject["$ref"]?.stringValue {
+            let resolved = try resolve(reference, in: rootSchema, path: path)
+            try validate(value, schema: resolved, rootSchema: rootSchema, path: path)
+            return
         }
 
         try validateType(value, schemaObject: schemaObject, path: path)
@@ -36,9 +46,9 @@ public enum JSONSchemaValidator {
 
         switch value {
         case .object(let object):
-            try validateObject(object, schemaObject: schemaObject, path: path)
+            try validateObject(object, schemaObject: schemaObject, rootSchema: rootSchema, path: path)
         case .array(let array):
-            try validateArray(array, schemaObject: schemaObject, path: path)
+            try validateArray(array, schemaObject: schemaObject, rootSchema: rootSchema, path: path)
         case .string(let string):
             try validateString(string, schemaObject: schemaObject, path: path)
         case .number, .bool, .null:
@@ -87,6 +97,7 @@ public enum JSONSchemaValidator {
     private static func validateObject(
         _ object: [String: JSONValue],
         schemaObject: [String: JSONValue],
+        rootSchema: JSONValue,
         path: String
     ) throws {
         if let required = schemaObject["required"]?.arrayValue?.compactMap(\.stringValue) {
@@ -98,7 +109,7 @@ public enum JSONSchemaValidator {
         let properties = schemaObject["properties"]?.objectValue ?? [:]
         for (key, propertySchema) in properties {
             if let propertyValue = object[key] {
-                try validate(propertyValue, schema: propertySchema, path: "\(path).\(key)")
+                try validate(propertyValue, schema: propertySchema, rootSchema: rootSchema, path: "\(path).\(key)")
             }
         }
 
@@ -115,7 +126,12 @@ public enum JSONSchemaValidator {
         case .some(.object(_)):
             let additionalSchema = try unwrap(schemaObject["additionalProperties"], path: path)
             for key in unknownKeys {
-                try validate(try unwrap(object[key], path: "\(path).\(key)"), schema: additionalSchema, path: "\(path).\(key)")
+                try validate(
+                    try unwrap(object[key], path: "\(path).\(key)"),
+                    schema: additionalSchema,
+                    rootSchema: rootSchema,
+                    path: "\(path).\(key)"
+                )
             }
         default:
             break
@@ -125,6 +141,7 @@ public enum JSONSchemaValidator {
     private static func validateArray(
         _ array: [JSONValue],
         schemaObject: [String: JSONValue],
+        rootSchema: JSONValue,
         path: String
     ) throws {
         if let minItems = integerValue(schemaObject["minItems"]), array.count < minItems {
@@ -135,7 +152,7 @@ public enum JSONSchemaValidator {
         }
         if let items = schemaObject["items"] {
             for (index, item) in array.enumerated() {
-                try validate(item, schema: items, path: "\(path)[\(index)]")
+                try validate(item, schema: items, rootSchema: rootSchema, path: "\(path)[\(index)]")
             }
         }
     }
@@ -151,6 +168,30 @@ public enum JSONSchemaValidator {
         if let maxLength = integerValue(schemaObject["maxLength"]), string.count > maxLength {
             throw JSONSchemaValidationError(path: path, message: "Expected at most \(maxLength) characters.")
         }
+        if let pattern = schemaObject["pattern"]?.stringValue {
+            let range = NSRange(string.startIndex..<string.endIndex, in: string)
+            let regex = try NSRegularExpression(pattern: pattern)
+            guard regex.firstMatch(in: string, range: range) != nil else {
+                throw JSONSchemaValidationError(path: path, message: "String does not match required pattern.")
+            }
+        }
+    }
+
+    private static func resolve(_ reference: String, in rootSchema: JSONValue, path: String) throws -> JSONValue {
+        guard reference.hasPrefix("#/") else {
+            throw JSONSchemaValidationError(path: path, message: "Only local JSON Schema references are supported.")
+        }
+        var current = rootSchema
+        for rawComponent in reference.dropFirst(2).split(separator: "/", omittingEmptySubsequences: false) {
+            let component = String(rawComponent)
+                .replacingOccurrences(of: "~1", with: "/")
+                .replacingOccurrences(of: "~0", with: "~")
+            guard let next = current.objectValue?[component] else {
+                throw JSONSchemaValidationError(path: path, message: "Unresolved schema reference: \(reference).")
+            }
+            current = next
+        }
+        return current
     }
 
     private static func matches(_ value: JSONValue, type: String) -> Bool {

@@ -1,0 +1,180 @@
+PROMPT_VERSION: aisidecar.prompt.whole_image/1.1.0
+
+Return exactly one JSON object matching the supplied JSON Schema.
+
+Do not wrap the response in Markdown.
+Do not include code fences.
+Do not include comments.
+Do not add fields not present in the schema.
+Use empty arrays when nothing is visible for an array field, except genre_or_photography_type, which must contain at least one best-fit entry.
+Use an empty string for uncertainty_notes when there is no useful uncertainty note.
+
+Use only visible image evidence.
+Do not infer facts from what is merely likely.
+Prefer a broader correct term over a narrower guess.
+Do not use numeric confidence. Use only: high, medium, low.
+
+Confidence bands:
+- high: directly visible and unlikely to be wrong.
+- medium: plausible from visible evidence, but not fully certain.
+- low: weak visual support; include only when still useful for review.
+
+Evidence strings must be short visual explanations, not reasoning traces.
+Good evidence: "yellow bill and white body", "long legs in shallow water".
+Bad evidence: "common in Florida", "probably because of the habitat".
+
+Do not propose camera, lens, editing, software, file-format, color-profile, or image-quality keywords.
+Use concise English terms suitable for later metadata normalization.
+
+Analyze the complete photograph.
+
+Emphasize the full frame: main subjects, secondary subjects, genre or photography type, scene context, habitat or setting, behavior or action, visible text, composition cues, lighting cues, and useful descriptive keywords.
+
+Determine the likely genre or photography type of the image.
+Use 1 to 4 items in genre_or_photography_type, ordered from most likely to less likely.
+
+Choose only from this allowed vocabulary:
+architecture, landscape, seascape, cityscape, portrait_people, group_portrait, candid_people, street_documentary, wildlife, bird_photography, plant_botanical, macro_closeup, abstract, still_life, product, food, sports_action, event, travel, night, astrophotography, aerial, underwater, interior, fine_art_conceptual.
+
+Do not confuse subject matter with genre:
+- a flower can be the subject while macro_closeup or plant_botanical is the genre
+- a building can be the subject while architecture is the genre
+- a person can be the subject while portrait_people, group_portrait, candid_people, or street_documentary is the genre
+- a bird can be the subject while bird_photography is the genre
+- a texture, reflection, or color field may support abstract even when object identification is weak
+
+Use only visible evidence for the genre entry evidence string.
+If two genres are both plausible, include both with appropriate confidence.
+If no strong genre is clear, include the best broad match with low confidence.
+
+GENRE-SPECIFIC GUIDANCE
+
+Architecture:
+- Look for buildings, interiors, structural elements, facades, columns, arches, windows, stairs, bridges, monuments, or designed built environments.
+- Describe visible building type or function when obvious, such as church, office tower, house, museum, warehouse, bridge, or interior room.
+- Useful keywords include visible architectural features, materials, symmetry, repetition, facade, arch, column, stairway, window, doorway, roofline, and structural detail.
+- Do not infer named architectural style periods unless clearly supported by visible features.
+
+Landscape:
+- Use when broad natural scenery is the main subject.
+- Look for landforms, sky, weather, water, vegetation, horizon, and scale.
+- Useful descriptors include mountain, forest, desert, meadow, river, lake, cliff, marsh, wetland, dunes, open plain, and valley.
+- If the sea, surf, shore, or coastal water dominates, seascape may be more appropriate than landscape.
+
+Seascape:
+- Use when ocean, sea, surf, coastline, beach, waves, boats on open water, or coastal atmosphere dominates the frame.
+- Do not use seascape merely because a small amount of water is visible.
+
+Cityscape:
+- Use when the broader urban environment is a major subject, especially skylines, streetscapes, dense buildings, bridges, traffic, or night city views.
+- Distinguish from architecture: architecture emphasizes one building or designed structure; cityscape emphasizes the urban scene as a whole.
+
+Portrait / People:
+- Use portrait_people when one person is the intentional visual focus.
+- Use group_portrait when two or more people appear posed or presented as a group.
+- Use candid_people when people are central but the image appears unposed or observed.
+- Use street_documentary when people are part of an observational public-life scene.
+- Describe visible pose, expression, clothing, role, gesture, and activity when useful.
+- Do not infer identity, occupation, relationship, age, nationality, religion, or social role unless visible evidence clearly supports it.
+
+Macro / Close-up:
+- Use macro_closeup when the image strongly emphasizes small-scale detail, magnified appearance, or tight framing.
+- Common subjects include insects, flowers, fungi, small objects, droplets, textures, mechanical details, jewelry, and surface patterns.
+- Focus on texture, fine structure, color pattern, surface detail, and visible field marks.
+- The subject may also belong to another genre such as wildlife, bird_photography, plant_botanical, product, food, or abstract.
+
+Plant / Botanical:
+- Use plant_botanical when plants, flowers, leaves, fungi, seeds, or botanical structures are the primary visual subject.
+- If the image is an extreme close-up, include macro_closeup as an additional genre when supported.
+- Do not infer exact species unless visible features support it.
+
+Abstract:
+- Use abstract when form, color, shape, line, repetition, reflection, blur, texture, or ambiguity dominates over literal subject identification.
+- Do not force a literal subject if the image is primarily non-representational or visually ambiguous.
+- Proposed keywords should favor visual qualities over weak object guesses.
+
+Wildlife / Bird Photography:
+- Use wildlife when a non-domesticated animal is central.
+- Use bird_photography when birds are the clear focus.
+- Identify animals only as specifically as visible evidence supports.
+- Include visible behavior such as perched, flying, feeding, preening, swimming, running, resting, or interacting.
+- Do not rely on habitat or expected range for species identification.
+
+Still Life / Product / Food:
+- Use still_life for arranged inanimate subjects.
+- Use product for an object presented as the central subject, especially clean, isolated, catalog-like, or commercial-style presentation.
+- Use food when prepared food, ingredients, drinks, table settings, or culinary presentation are the visual focus.
+- Note arrangement, styling, containment, surface, label text, and presentation when visible.
+
+Sports / Action:
+- Use sports_action when athletic motion, competition, exercise, or sporting equipment is central.
+- Note visible action such as running, jumping, tackling, swinging, throwing, racing, skating, or riding.
+- Do not infer the exact sport if the visible evidence is weak.
+
+Event / Travel / Documentary:
+- Use event when a gathering, ceremony, performance, fair, contest, parade, or occasion is central.
+- Use travel when depiction of a place, landmark, destination, or journey-oriented scene is central.
+- Use street_documentary for observed public-life scenes, especially streets, sidewalks, transit, markets, crowds, or everyday urban activity.
+- These may overlap; choose based on what the frame most strongly emphasizes.
+
+Night / Astrophotography:
+- Use night when nighttime or low-light presentation is central.
+- Use astrophotography when stars, the Milky Way, constellations, moon, eclipse, aurora, meteor, or astronomical subject matter is central.
+- Do not infer astrophotography from a dark sky alone when no celestial detail is visible.
+
+Aerial / Underwater / Interior:
+- Use aerial only when the viewpoint is clearly elevated overhead, drone-like, aircraft-like, or otherwise airborne.
+- Use underwater only when the scene is visibly underwater.
+- Use interior when an indoor built space is a major subject.
+
+Fine Art / Conceptual:
+- Use fine_art_conceptual when staged symbolism, conceptual construction, surreal arrangement, or art-object presentation dominates.
+- Do not use it merely because the image is aesthetically composed.
+
+WHOLE-IMAGE FIELD GUIDANCE
+
+summary:
+- One concise sentence about the full image.
+- Include the main subject and the most important context.
+- Do not mention uncertainty unless uncertainty is central.
+
+main_subjects:
+- List the dominant visible subjects.
+- Use specific terms when supported, broader terms when uncertain.
+- For wildlife, prefer broader accurate terms over weak species guesses.
+- For people, describe visible person/persons without identity claims.
+
+secondary_subjects:
+- List meaningful visible secondary subjects, objects, animals, plants, structures, or scene elements.
+- Exclude trivial background clutter unless useful for metadata.
+
+scene_context:
+- Describe the whole-frame situation: outdoor wildlife scene, studio portrait setup, street scene, interior scene, sporting event, product-style image, performance, or similar.
+- Use only visible evidence.
+
+habitat_or_setting:
+- Describe visible environment or setting: wetland, beach, forest, garden, urban street, indoor room, studio, open water, sky, field, desert, snow, etc.
+- Do not infer geographic location, season, or climate unless visible evidence directly supports it.
+
+behavior_or_action:
+- List visible behavior, pose, motion, interaction, or activity.
+- Use plain visible terms such as flying, perched, walking, smiling, jumping, eating, swimming, standing, arranged, displayed, or resting.
+
+visible_text:
+- Include only readable or nearly readable text.
+- Do not invent unreadable text.
+- Use low confidence for partially readable text.
+
+proposed_keywords:
+- Provide concise metadata-oriented terms that could be useful later for XMP keyword normalization.
+- Include subject terms, visible traits, behavior, setting, genre terms, and important visual attributes.
+- Do not include duplicate terms already stated in exactly the same way unless the schema requires them.
+- Do not include camera/lens/software/file-processing terms.
+- Do not include private identity, sensitive attribute, or location guesses.
+
+uncertainty_notes:
+- Use this for uncertainty, partial occlusion, ambiguous species/object identity, weak text, or competing interpretations.
+- Keep it brief.
+- Use an empty string if there is nothing useful to note.
+
+Return only the JSON object.

@@ -1,0 +1,155 @@
+PROMPT_VERSION: aisidecar.prompt.subject_isolated/1.1.0
+
+Return exactly one JSON object matching the supplied JSON Schema.
+
+Do not wrap the response in Markdown.
+Do not include code fences.
+Do not include comments.
+Do not add fields not present in the schema.
+Use empty arrays when nothing is visible for an array field, except genre_or_photography_type, which must contain at least one best-fit entry.
+Use an empty string for uncertainty_notes when there is no useful uncertainty note.
+
+Use only visible image evidence.
+Do not infer facts from what is merely likely.
+Prefer a broader correct term over a narrower guess.
+Do not use numeric confidence. Use only: high, medium, low.
+
+Confidence bands:
+- high: directly visible and unlikely to be wrong.
+- medium: plausible from visible evidence, but not fully certain.
+- low: weak visual support; include only when still useful for review.
+
+Evidence strings must be short visual explanations, not reasoning traces.
+Good evidence: "yellow bill and white body", "curved metal handle", "fine hairs on stem".
+Bad evidence: "common in Florida", "likely because of the background", "probably photographed in a garden".
+
+Do not propose camera, lens, editing, software, file-format, color-profile, or image-quality keywords.
+Use concise English terms suitable for later metadata normalization.
+
+Analyze the isolated subject crop.
+
+The background has been removed, replaced, cropped away, or composited onto a neutral matte.
+Do not infer habitat, location, weather, season, time of day, event, travel context, street context, or scene context.
+Do not mention the matte background as a real object, surface, environment, or setting.
+Do not describe missing background context.
+The response must not contain scene_context or habitat_or_setting fields.
+
+Focus on visible subject traits: morphology, shape, structure, color pattern, field marks, pose, behavior visible in the subject, object type, species/object candidates, readable text on the subject, and likely genre or photography type.
+
+Determine the likely genre or photography type of the isolated subject image.
+Use 1 to 4 items in genre_or_photography_type, ordered from most likely to less likely.
+
+Choose only from this allowed vocabulary:
+architecture, landscape, seascape, cityscape, portrait_people, group_portrait, candid_people, street_documentary, wildlife, bird_photography, plant_botanical, macro_closeup, abstract, still_life, product, food, sports_action, event, travel, night, astrophotography, aerial, underwater, interior, fine_art_conceptual.
+
+Be conservative when assigning genres that depend on missing background context.
+Use only visible subject evidence for the genre entry evidence string.
+If no strong genre is clear, include the best broad match with low confidence.
+Do not use habitat, location, scene, or removed-background assumptions as evidence.
+
+GENRE-SPECIFIC GUIDANCE FOR ISOLATED SUBJECTS
+
+Architecture:
+- Use only if the isolated subject is clearly a building, architectural fragment, bridge, monument, interior structural element, window, arch, column, door, stairway, facade detail, or other built-environment subject.
+- Do not infer cityscape from an isolated architectural fragment.
+- Do not infer the building's use unless visible form or text supports it.
+
+Landscape / Seascape / Cityscape:
+- Use only when the isolated crop still contains a scene-like subject with strong environmental content.
+- Most tight isolated crops should not use these genres because their context has been removed.
+- Do not infer landscape, seascape, or cityscape from a subject that merely could have come from such a scene.
+
+Portrait / People:
+- Use portrait_people, group_portrait, or candid_people when the isolated subject is clearly a person or people.
+- Focus on visible pose, expression, clothing, gesture, and interaction.
+- Do not infer social context, event type, relationship, identity, occupation, religion, nationality, or age unless directly visible.
+- Do not use street_documentary unless the isolated crop itself still preserves enough public-life context, which will usually be rare.
+
+Macro / Close-up:
+- Use macro_closeup when the crop emphasizes small-scale detail, magnified appearance, tight framing, or fine surface detail.
+- This is often inferable from isolated subjects such as insects, flowers, tiny objects, textures, droplets, or detailed object fragments.
+- Do not use macro_closeup merely because the subject is cropped; there must be a visible close-up or fine-detail emphasis.
+
+Plant / Botanical:
+- Use plant_botanical when the isolated subject is clearly a flower, leaf, seed, fruit on plant, fungus, stem, botanical structure, or plant detail.
+- If species is uncertain, use broader terms such as flower, leaf, plant, fungus, or botanical detail.
+- Do not infer garden, wildflower, habitat, or location.
+
+Abstract:
+- Use abstract when the isolated subject is dominated by shape, texture, pattern, blur, reflection, color, line, or ambiguity rather than clear literal depiction.
+- Do not force object identification when the crop is visually ambiguous.
+- Proposed keywords should favor visible visual qualities.
+
+Wildlife / Bird Photography:
+- Use wildlife when the isolated subject is clearly a non-domesticated animal.
+- Use bird_photography when the isolated subject is clearly a bird.
+- Focus on anatomy, plumage, markings, posture, bill shape, wing shape, tail shape, fur, scales, shell, or visible behavior.
+- Do not use habitat, location, or expected range as evidence.
+- If the crop shows only part of the animal, identify only as specifically as the visible parts support.
+
+Still Life / Product / Food:
+- Use still_life when the isolated subject is an arranged inanimate object or group of objects.
+- Use product when the object is presented as a central item, especially with label, packaging, clean outline, commercial-style presentation, or isolated-object appearance.
+- Use food when the subject is prepared food, ingredients, drink, dish, fruit, or culinary item.
+- Do not infer brand unless readable text or visible logo clearly supports it.
+
+Sports / Action / Event / Travel / Street Documentary:
+- Be conservative. These often depend on scene context that may no longer be visible.
+- Use sports_action only if the subject itself shows athletic action, sporting clothing, sporting equipment, or a clear sports pose.
+- Use event only if the crop preserves clear event evidence such as costume, performance object, ceremonial object, stage element, or readable event text.
+- Use travel or street_documentary only if the isolated crop itself preserves enough context, which will usually be rare.
+
+Night / Astrophotography / Aerial / Underwater / Interior:
+- Usually weak in isolated-subject mode unless directly visible in the subject itself.
+- Use night only if the subject itself visibly contains low-light presentation, illumination, or nighttime cues.
+- Use astrophotography only if astronomical subject matter remains visible.
+- Use aerial only if the crop preserves an overhead or airborne perspective.
+- Use underwater only if the subject itself shows underwater evidence.
+- Use interior only if the isolated subject is itself an indoor structural or room element.
+
+Fine Art / Conceptual:
+- Use fine_art_conceptual only when the isolated subject visibly presents staged symbolism, conceptual construction, surreal arrangement, or art-object presentation.
+- Do not use it merely because the subject is aesthetically isolated.
+
+SUBJECT-ISOLATED FIELD GUIDANCE
+
+summary:
+- One concise sentence about the isolated subject.
+- Do not mention removed background, matte, crop process, or missing scene unless it affects uncertainty.
+
+main_subjects:
+- List the dominant isolated subject or subjects.
+- Use specific terms when visible evidence supports them.
+- Use broader accurate terms when important identifying traits are missing.
+- For people, describe visible person/persons without identity claims.
+- For wildlife, use visible field marks only; do not use habitat.
+
+secondary_subjects:
+- List meaningful visible secondary subjects or subject parts.
+- Subject parts may be useful when they support identification, such as wing, bill, flower petals, leaf, label, handle, wheel, or architectural detail.
+- Exclude artifacts from the mask edge unless they affect uncertainty.
+
+behavior_or_action:
+- List visible pose, behavior, motion, gesture, or object state supported by the isolated subject alone.
+- Do not infer behavior from missing surroundings.
+
+visible_text:
+- Include readable text visible on the subject, label, clothing, sign fragment, packaging, or object surface.
+- Do not invent unreadable text.
+- Use low confidence for partially readable text.
+
+proposed_keywords:
+- Provide concise metadata-oriented terms based only on the isolated subject.
+- Include subject terms, visible traits, body parts, object parts, color patterns, behavior, and genre terms.
+- Do not include habitat, setting, location, weather, event, travel, street, or background terms unless directly visible on the subject itself.
+- Do not include camera/lens/software/file-processing terms.
+- Do not include private identity, sensitive attribute, or location guesses.
+
+uncertainty_notes:
+- Use this for partial subject visibility, crop truncation, mask-edge ambiguity, occlusion, weak species/object identity, weak text, or competing identifications.
+- If the crop contains only part of the subject, say so.
+- If mask edge, matte edge, or crop edge makes a trait uncertain, say so.
+- Keep it brief.
+- Use an empty string if there is nothing useful to note.
+
+Return only the JSON object.
