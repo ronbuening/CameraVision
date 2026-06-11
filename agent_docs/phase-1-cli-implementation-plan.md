@@ -14,18 +14,18 @@ Traceability in this plan points at the v0.2 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-7 are implemented, with targeted Milestone 8 JSON-repair fixture coverage added. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command. The `AISidecarCore/ModelRuntime` layer contains the Ollama client, mock and recorded-fixture runners, response parsing, schema-constrained response repair, v1.2 prompt registry, and v1.2 response schemas. The analyze pipeline does not write XMP.
+Phase 1 Milestones 0-8 are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders full-resolution and whole-image derivatives, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command. The `AISidecarCore/ModelRuntime` layer contains the Ollama client, mock and recorded-fixture runners, response parsing, schema-constrained response repair, v1.2 prompt registry, and v1.2 response schemas. The `AISidecarCore/Sidecars` layer now includes a schema-evolution document wrapper for preserving additive 1.x unknown fields on rewrite. The analyze pipeline does not write XMP.
 
 Latest verification for this baseline:
 
 ```text
-swift test                                      121 tests, 1 skipped, 0 failures
+swift test                                      128 tests, 1 skipped, 0 failures
 swift run aisidecar analyze --help             passed
 swift run aisidecar purge --help               passed
 swift run aisidecar --help                     passed
 ```
 
-The next implementation unit is to complete the remaining Milestone 8 tests and fixtures.
+The next implementation unit is Milestone 9 benchmarking and calibration.
 
 ## 1. Implementation Position
 
@@ -151,10 +151,10 @@ CameraVision/
     AISidecarCoreTests/                 // suite in Section 12
 ```
 
-Remaining planned Phase 1 additions:
+Committed Milestone 8 test fixtures:
 
 ```text
-Fixtures/
+Tests/AISidecarCoreTests/Fixtures/
   model-responses/                      // recorded real responses incl. malformed
   golden-sidecars/
   README.md

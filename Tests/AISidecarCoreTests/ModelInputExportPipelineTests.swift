@@ -151,6 +151,32 @@ final class ModelInputExportPipelineTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("NoForeground.JPG.aisidecar.subject_isolated.jpg").path))
     }
 
+    func testExportModeDoesNotCreateXMPFiles() async throws {
+        let root = try temporaryDirectory()
+        let export = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: export)
+        }
+        let image = try writeTestImage("NoXMP.JPG", width: 120, height: 80, in: root)
+        let cache = root.appendingPathComponent("cache")
+
+        let result = try await pipeline(maskProvider: StaticForegroundMaskProvider([
+            StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
+        ])).run(
+            inputPath: image.path,
+            exportDirectoryPath: export.path,
+            configuration: config(
+                recursive: false,
+                mode: .both,
+                cacheDir: cache.path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.exported])
+        try assertNoXMPFiles(in: [root, export, cache])
+    }
+
     func testExistingPolicyOverwriteReplacesOutput() async throws {
         let root = try temporaryDirectory()
         let export = try temporaryDirectory()

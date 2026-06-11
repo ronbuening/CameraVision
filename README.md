@@ -4,7 +4,7 @@ CameraVision is a local macOS utility for generating AI-assisted image metadata 
 
 ## Current State
 
-The Phase 1 Milestone 7 analyze pipeline is implemented, with targeted JSON-capture reliability updates.
+The Phase 1 Milestone 8 test and fixture completion pass is implemented on top of the full Milestone 7 analyze pipeline.
 
 The repository currently contains:
 
@@ -34,7 +34,7 @@ The repository currently contains:
 - Optional `--debug-derivatives` copies beside source images.
 - Folder-run JSONL progress logs and derived batch summaries.
 - SIGINT/SIGTERM-aware interruption handling for the full analyze pipeline.
-- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, source identity, sidecar naming/writing, rendering, derivative cache behavior and purge resolution, subject-isolation geometry/pipeline behavior, model-runtime behavior including repair success/failure, progress logs, summaries, diagnostic export, the shell pipeline, and the full analyze pipeline.
+- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, source identity, sidecar naming/writing, schema-evolution sidecar rewrites, rendering, derivative cache behavior and purge resolution, subject-isolation geometry/pipeline behavior, model-runtime behavior including repair success/failure, progress logs, summaries, diagnostic export, golden sidecars, no-XMP Phase 1 guards, the shell pipeline, and the full analyze pipeline.
 
 Not implemented yet:
 
@@ -104,6 +104,6 @@ Cache cleanup is scoped to files owned by the derivative cache manifest or match
 
 ## Next Steps
 
-The next planned implementation unit is to complete the remaining Phase 1 Milestone 8 tests and fixtures.
+The next planned implementation unit is Phase 1 Milestone 9 benchmarking and calibration.
 
-Milestone 8 should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.
+Milestone 9 should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.
