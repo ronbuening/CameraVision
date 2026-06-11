@@ -68,6 +68,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var subjectMergeDominanceThreshold: Double?
     /// Optional override for the bounded render/isolation stage only.
     public var stageConcurrency: Int?
+    /// Bounded model-output repair attempts after invalid JSON or schema failure.
+    public var modelResponseRepairAttempts: Int?
 
     public init(
         mode: AnalysisMode? = nil,
@@ -89,7 +91,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         clearDerivativeCacheAfterSuccess: Bool? = nil,
         subjectCropMarginFraction: Double? = nil,
         subjectMergeDominanceThreshold: Double? = nil,
-        stageConcurrency: Int? = nil
+        stageConcurrency: Int? = nil,
+        modelResponseRepairAttempts: Int? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -111,6 +114,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.subjectCropMarginFraction = subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
         self.stageConcurrency = stageConcurrency
+        self.modelResponseRepairAttempts = modelResponseRepairAttempts
     }
 }
 
@@ -170,6 +174,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var subjectMergeDominanceThreshold: Double
     /// Bounded render/isolation workers; the model stage still has one request in flight.
     public var stageConcurrency: Int
+    /// Number of schema-constrained model-output repair attempts before recording failure.
+    public var modelResponseRepairAttempts: Int
 
     enum CodingKeys: String, CodingKey {
         case mode
@@ -191,6 +197,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case subjectCropMarginFraction = "subject_crop_margin_fraction"
         case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
         case stageConcurrency = "stage_concurrency"
+        case modelResponseRepairAttempts = "model_response_repair_attempts"
     }
 
     public init(
@@ -212,7 +219,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         clearDerivativeCacheAfterSuccess: Bool = false,
         subjectCropMarginFraction: Double = 0.08,
         subjectMergeDominanceThreshold: Double = 0.8,
-        stageConcurrency: Int = Self.defaultStageConcurrency()
+        stageConcurrency: Int = Self.defaultStageConcurrency(),
+        modelResponseRepairAttempts: Int = 1
     ) {
         self.mode = mode
         self.existing = existing
@@ -233,6 +241,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.subjectCropMarginFraction = subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
         self.stageConcurrency = stageConcurrency
+        self.modelResponseRepairAttempts = modelResponseRepairAttempts
     }
 
     /// Default bounded render/isolation worker count for PW-015.
@@ -268,6 +277,34 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         clearDerivativeCacheAfterSuccess: false,
         subjectCropMarginFraction: 0.08,
         subjectMergeDominanceThreshold: 0.8,
-        stageConcurrency: ResolvedRunConfiguration.defaultStageConcurrency()
+        stageConcurrency: ResolvedRunConfiguration.defaultStageConcurrency(),
+        modelResponseRepairAttempts: 1
     )
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.mode = try container.decode(AnalysisMode.self, forKey: .mode)
+        self.existing = try container.decode(ExistingPolicy.self, forKey: .existing)
+        self.recursive = try container.decode(Bool.self, forKey: .recursive)
+        self.outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
+        self.model = try container.decode(String.self, forKey: .model)
+        self.modelEndpoint = try container.decode(URL.self, forKey: .modelEndpoint)
+        self.profile = try container.decode(String.self, forKey: .profile)
+        self.logLevel = try container.decode(LogLevel.self, forKey: .logLevel)
+        self.logFormat = try container.decode(LogFormat.self, forKey: .logFormat)
+        self.dryRun = try container.decode(Bool.self, forKey: .dryRun)
+        self.debugDerivatives = try container.decode(Bool.self, forKey: .debugDerivatives)
+        self.sourceIdentityPolicy = try container.decode(SourceIdentityPolicy.self, forKey: .sourceIdentityPolicy)
+        self.derivativeCacheDir = try container.decode(String.self, forKey: .derivativeCacheDir)
+        self.derivativeCacheSizeBytes = try container.decode(Int64.self, forKey: .derivativeCacheSizeBytes)
+        self.clearDerivativeCacheOnStart = try container.decode(Bool.self, forKey: .clearDerivativeCacheOnStart)
+        self.clearDerivativeCacheAfterSuccess = try container.decode(Bool.self, forKey: .clearDerivativeCacheAfterSuccess)
+        self.subjectCropMarginFraction = try container.decode(Double.self, forKey: .subjectCropMarginFraction)
+        self.subjectMergeDominanceThreshold = try container.decode(Double.self, forKey: .subjectMergeDominanceThreshold)
+        self.stageConcurrency = try container.decode(Int.self, forKey: .stageConcurrency)
+        self.modelResponseRepairAttempts = try container.decodeIfPresent(
+            Int.self,
+            forKey: .modelResponseRepairAttempts
+        ) ?? Self.builtInDefaults.modelResponseRepairAttempts
+    }
 }

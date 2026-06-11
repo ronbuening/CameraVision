@@ -145,6 +145,22 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testInvalidModelResponseRepairAttemptsFailsAsConfigInvalid() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "model_response_repair_attempts": -1 }"#)
+            )
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "many"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     private func assertConfigInvalid(_ operation: () throws -> Void) throws {
         do {
             try operation()

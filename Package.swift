@@ -43,6 +43,9 @@ let package = Package(
         .testTarget(
             name: "AISidecarCoreTests",
             dependencies: ["AISidecarCore"],
+            resources: [
+                .process("Fixtures")
+            ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")
             ]

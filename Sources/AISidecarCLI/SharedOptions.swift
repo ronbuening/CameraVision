@@ -68,6 +68,9 @@ struct SharedOptions: ParsableArguments {
     @Flag(help: "Clear the derivative cache after a successful analyze invocation.")
     var clearDerivativeCacheAfterSuccess = false
 
+    @Option(help: "Schema-constrained repair attempts after invalid model JSON or schema failure.")
+    var modelResponseRepairAttempts: Int?
+
     var overrides: RunConfigurationOverrides {
         RunConfigurationOverrides(
             mode: mode,
@@ -83,7 +86,8 @@ struct SharedOptions: ParsableArguments {
             dryRun: dryRun ? true : nil,
             debugDerivatives: debugDerivatives ? true : nil,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart ? true : nil,
-            clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess ? true : nil
+            clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess ? true : nil,
+            modelResponseRepairAttempts: modelResponseRepairAttempts
         )
     }
 }

@@ -12,6 +12,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.sourceIdentityPolicy, .sha256)
         XCTAssertFalse(resolved.clearDerivativeCacheOnStart)
         XCTAssertFalse(resolved.clearDerivativeCacheAfterSuccess)
+        XCTAssertEqual(resolved.modelResponseRepairAttempts, 1)
     }
 
     func testConfigFileOverridesDefaults() throws {
@@ -36,7 +37,8 @@ final class ConfigResolutionTests: XCTestCase {
               "clear_derivative_cache_after_success": true,
               "subject_crop_margin_fraction": 0.12,
               "subject_merge_dominance_threshold": 0.75,
-              "stage_concurrency": 3
+              "stage_concurrency": 3,
+              "model_response_repair_attempts": 0
             }
             """
         )
@@ -65,6 +67,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.subjectCropMarginFraction, 0.12)
         XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.75)
         XCTAssertEqual(resolved.stageConcurrency, 3)
+        XCTAssertEqual(resolved.modelResponseRepairAttempts, 0)
     }
 
     func testEnvironmentOverridesConfigFile() throws {
@@ -93,7 +96,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS": "1",
                 "AISIDECAR_SUBJECT_CROP_MARGIN_FRACTION": "0.15",
                 "AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD": "0.65",
-                "AISIDECAR_STAGE_CONCURRENCY": "5"
+                "AISIDECAR_STAGE_CONCURRENCY": "5",
+                "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2"
             ],
             defaultConfigPath: configPath
         )
@@ -110,6 +114,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.subjectCropMarginFraction, 0.15)
         XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.65)
         XCTAssertEqual(resolved.stageConcurrency, 5)
+        XCTAssertEqual(resolved.modelResponseRepairAttempts, 2)
     }
 
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
@@ -119,7 +124,8 @@ final class ConfigResolutionTests: XCTestCase {
             clearDerivativeCacheAfterSuccess: true,
             subjectCropMarginFraction: 0.12,
             subjectMergeDominanceThreshold: 0.75,
-            stageConcurrency: 3
+            stageConcurrency: 3,
+            modelResponseRepairAttempts: 0
         )
         let data = try JSONEncoder().encode(config)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -131,6 +137,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(object["subject_crop_margin_fraction"] as? Double, 0.12)
         XCTAssertEqual(object["subject_merge_dominance_threshold"] as? Double, 0.75)
         XCTAssertEqual(object["stage_concurrency"] as? Int, 3)
+        XCTAssertEqual(object["model_response_repair_attempts"] as? Int, 0)
     }
 
     func testCLIOverridesEnvironment() throws {
@@ -143,7 +150,8 @@ final class ConfigResolutionTests: XCTestCase {
                 logFormat: .json,
                 clearDerivativeCacheOnStart: true,
                 clearDerivativeCacheAfterSuccess: true,
-                stageConcurrency: 7
+                stageConcurrency: 7,
+                modelResponseRepairAttempts: 3
             ),
             environment: [
                 "AISIDECAR_MODE": "subject",
@@ -153,7 +161,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_LOG_FORMAT": "text",
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_ON_START": "false",
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS": "false",
-                "AISIDECAR_STAGE_CONCURRENCY": "5"
+                "AISIDECAR_STAGE_CONCURRENCY": "5",
+                "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2"
             ],
             defaultConfigPath: missingConfigPath()
         )
@@ -166,6 +175,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertTrue(resolved.clearDerivativeCacheOnStart)
         XCTAssertTrue(resolved.clearDerivativeCacheAfterSuccess)
         XCTAssertEqual(resolved.stageConcurrency, 7)
+        XCTAssertEqual(resolved.modelResponseRepairAttempts, 3)
     }
 
     func testCLIConfigPathChoosesAlternateJSON() throws {

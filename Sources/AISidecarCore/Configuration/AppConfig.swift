@@ -22,6 +22,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var subjectMergeDominanceThreshold: Double?
     /// Bounded render/isolation worker count; model calls remain serialized.
     public var stageConcurrency: Int?
+    /// Bounded model-output repair attempts after invalid JSON or schema failure.
+    public var modelResponseRepairAttempts: Int?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case mode
@@ -43,6 +45,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case subjectCropMarginFraction = "subject_crop_margin_fraction"
         case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
         case stageConcurrency = "stage_concurrency"
+        case modelResponseRepairAttempts = "model_response_repair_attempts"
     }
 
     public init(
@@ -64,7 +67,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         clearDerivativeCacheAfterSuccess: Bool? = nil,
         subjectCropMarginFraction: Double? = nil,
         subjectMergeDominanceThreshold: Double? = nil,
-        stageConcurrency: Int? = nil
+        stageConcurrency: Int? = nil,
+        modelResponseRepairAttempts: Int? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -85,6 +89,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.subjectCropMarginFraction = subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
         self.stageConcurrency = stageConcurrency
+        self.modelResponseRepairAttempts = modelResponseRepairAttempts
     }
 
     public init(from decoder: Decoder) throws {
@@ -137,6 +142,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
             forKey: .subjectMergeDominanceThreshold
         )
         self.stageConcurrency = try container.decodeIfPresent(Int.self, forKey: .stageConcurrency)
+        self.modelResponseRepairAttempts = try container.decodeIfPresent(Int.self, forKey: .modelResponseRepairAttempts)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -160,6 +166,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(subjectCropMarginFraction, forKey: .subjectCropMarginFraction)
         try container.encodeIfPresent(subjectMergeDominanceThreshold, forKey: .subjectMergeDominanceThreshold)
         try container.encodeIfPresent(stageConcurrency, forKey: .stageConcurrency)
+        try container.encodeIfPresent(modelResponseRepairAttempts, forKey: .modelResponseRepairAttempts)
     }
 }
 

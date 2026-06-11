@@ -52,6 +52,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
         let startedAt = now()
         do {
             let imageData = try Data(contentsOf: URL(fileURLWithPath: image.cachePath))
+            let primaryStartedAt = now()
             let request = try chatRequest(
                 imageData: imageData,
                 prompt: prompt,
@@ -59,25 +60,114 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 options: options,
                 runtime: runtime
             )
-            let response = try await sendChatWithRetries(request, endpoint: runtime.endpoint, options: options)
-            let chat = try decodeChatResponse(response)
-            let rawText = chat.message.content
-            let strippedText = Self.strippingMarkdownFence(from: rawText)
-            let parsed = try parseModelJSON(strippedText, rawResponseText: rawText)
-            do {
-                try JSONSchemaValidator.validate(parsed, against: schema)
-            } catch {
-                throw ModelResponseError(
+            let rawText = try await chatResponseText(request, endpoint: runtime.endpoint, options: options)
+            let evaluation = evaluateModelResponse(rawText, schema: schema)
+            let primaryAttempt = responseAttempt(
+                kind: .primary,
+                prompt: prompt,
+                schema: schema,
+                options: options,
+                rawResponseText: rawText,
+                evaluation: evaluation,
+                startedAt: primaryStartedAt
+            )
+            if evaluation.jsonValid {
+                return record(
+                    image: image,
+                    inputRole: inputRole,
+                    prompt: prompt,
+                    schema: schema,
+                    options: options,
+                    runtime: runtime,
                     rawResponseText: rawText,
-                    parsedResponseJSON: parsed,
-                    sidecarError: SidecarError(
-                        code: .modelSchemaViolation,
-                        stage: .model,
-                        message: "Model response violated schema \(schema.version): \(error.localizedDescription)",
-                        recoverable: true
-                    )
+                    parsedResponseJSON: evaluation.parsedResponseJSON,
+                    jsonValid: true,
+                    startedAt: startedAt,
+                    error: nil
                 )
             }
+
+            var attempts = [primaryAttempt]
+            var latestRawText = rawText
+            var latestError = evaluation.error
+            var finalAttempt = primaryAttempt
+            let repairAttemptLimit = max(0, options.responseRepairAttempts)
+
+            for _ in 0..<repairAttemptLimit {
+                guard let repairSourceError = latestError else {
+                    break
+                }
+                let repairOptions = Self.repairOptions(from: options)
+                let repairPrompt = try repairPrompt(
+                    rawResponseText: latestRawText,
+                    error: repairSourceError,
+                    schema: schema
+                )
+                let repairStartedAt = now()
+                let repairRequest = try chatRequest(
+                    imageData: nil,
+                    prompt: repairPrompt,
+                    schema: schema,
+                    options: repairOptions,
+                    runtime: runtime
+                )
+
+                do {
+                    let repairRawText = try await chatResponseText(
+                        repairRequest,
+                        endpoint: runtime.endpoint,
+                        options: repairOptions
+                    )
+                    let repairEvaluation = evaluateModelResponse(repairRawText, schema: schema)
+                    let repairAttempt = responseAttempt(
+                        kind: .repair,
+                        prompt: repairPrompt,
+                        schema: schema,
+                        options: repairOptions,
+                        rawResponseText: repairRawText,
+                        evaluation: repairEvaluation,
+                        startedAt: repairStartedAt
+                    )
+                    attempts.append(repairAttempt)
+                    finalAttempt = repairAttempt
+
+                    if repairEvaluation.jsonValid {
+                        return record(
+                            image: image,
+                            inputRole: inputRole,
+                            prompt: prompt,
+                            schema: schema,
+                            options: options,
+                            runtime: runtime,
+                            rawResponseText: repairRawText,
+                            parsedResponseJSON: repairEvaluation.parsedResponseJSON,
+                            jsonValid: true,
+                            startedAt: startedAt,
+                            error: nil,
+                            responseAttempts: attempts
+                        )
+                    }
+
+                    latestRawText = repairRawText
+                    latestError = repairEvaluation.error
+                } catch let error as SidecarError {
+                    return record(
+                        image: image,
+                        inputRole: inputRole,
+                        prompt: prompt,
+                        schema: schema,
+                        options: options,
+                        runtime: runtime,
+                        rawResponseText: latestRawText,
+                        parsedResponseJSON: finalAttempt.parsedResponseJSON,
+                        jsonValid: false,
+                        startedAt: startedAt,
+                        error: error,
+                        responseAttempts: attempts
+                    )
+                }
+            }
+
             return record(
                 image: image,
                 inputRole: inputRole,
@@ -85,25 +175,12 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 schema: schema,
                 options: options,
                 runtime: runtime,
-                rawResponseText: rawText,
-                parsedResponseJSON: parsed,
-                jsonValid: true,
-                startedAt: startedAt,
-                error: nil
-            )
-        } catch let error as ModelResponseError {
-            return record(
-                image: image,
-                inputRole: inputRole,
-                prompt: prompt,
-                schema: schema,
-                options: options,
-                runtime: runtime,
-                rawResponseText: error.rawResponseText,
-                parsedResponseJSON: error.parsedResponseJSON,
+                rawResponseText: finalAttempt.rawResponseText,
+                parsedResponseJSON: finalAttempt.parsedResponseJSON,
                 jsonValid: false,
                 startedAt: startedAt,
-                error: error.sidecarError
+                error: finalAttempt.error,
+                responseAttempts: attempts.count > 1 ? attempts : nil
             )
         } catch let error as SidecarError {
             return record(
@@ -196,7 +273,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
     }
 
     private func chatRequest(
-        imageData: Data,
+        imageData: Data?,
         prompt: VersionedPrompt,
         schema: JSONSchemaDocument,
         options: ModelRunOptions,
@@ -208,7 +285,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 OllamaChatMessage(
                     role: "user",
                     content: prompt.text,
-                    images: [imageData.base64EncodedString()]
+                    images: imageData.map { [$0.base64EncodedString()] }
                 )
             ],
             format: schema.schema,
@@ -227,6 +304,16 @@ public struct OllamaVisionRunner: VisionModelRunner {
             body: try Self.encoder().encode(requestBody),
             timeoutSeconds: options.timeoutSeconds
         )
+    }
+
+    private func chatResponseText(
+        _ request: OllamaHTTPRequest,
+        endpoint: URL,
+        options: ModelRunOptions
+    ) async throws -> String {
+        let response = try await sendChatWithRetries(request, endpoint: endpoint, options: options)
+        let chat = try decodeChatResponse(response)
+        return chat.message.content
     }
 
     private func sendChatWithRetries(
@@ -276,14 +363,30 @@ public struct OllamaVisionRunner: VisionModelRunner {
         }
     }
 
-    private func parseModelJSON(_ text: String, rawResponseText: String) throws -> JSONValue {
+    private func evaluateModelResponse(_ rawResponseText: String, schema: JSONSchemaDocument) -> ModelResponseEvaluation {
+        let strippedText = Self.strippingMarkdownFence(from: rawResponseText)
         do {
-            return try Self.decoder().decode(JSONValue.self, from: Data(text.utf8))
+            let parsed = try Self.decoder().decode(JSONValue.self, from: Data(strippedText.utf8))
+            do {
+                try JSONSchemaValidator.validate(parsed, against: schema)
+                return ModelResponseEvaluation(parsedResponseJSON: parsed, jsonValid: true, error: nil)
+            } catch {
+                return ModelResponseEvaluation(
+                    parsedResponseJSON: parsed,
+                    jsonValid: false,
+                    error: SidecarError(
+                        code: .modelSchemaViolation,
+                        stage: .model,
+                        message: "Model response violated schema \(schema.version): \(error.localizedDescription)",
+                        recoverable: true
+                    )
+                )
+            }
         } catch {
-            throw ModelResponseError(
-                rawResponseText: rawResponseText,
+            return ModelResponseEvaluation(
                 parsedResponseJSON: nil,
-                sidecarError: SidecarError(
+                jsonValid: false,
+                error: SidecarError(
                     code: .modelInvalidJSON,
                     stage: .model,
                     message: "Model response was not valid JSON: \(error.localizedDescription)",
@@ -291,6 +394,64 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 )
             )
         }
+    }
+
+    private func responseAttempt(
+        kind: ModelResponseAttemptKind,
+        prompt: VersionedPrompt,
+        schema: JSONSchemaDocument,
+        options: ModelRunOptions,
+        rawResponseText: String,
+        evaluation: ModelResponseEvaluation,
+        startedAt: Date
+    ) -> ModelResponseAttemptRecord {
+        ModelResponseAttemptRecord(
+            kind: kind,
+            promptVersion: prompt.version,
+            promptSHA256: prompt.sha256,
+            responseSchemaVersion: schema.version,
+            requestOptions: options,
+            rawResponseText: rawResponseText,
+            parsedResponseJSON: evaluation.parsedResponseJSON,
+            jsonValid: evaluation.jsonValid,
+            durationMs: durationMs(from: startedAt, to: now()),
+            error: evaluation.error
+        )
+    }
+
+    private func repairPrompt(
+        rawResponseText: String,
+        error: SidecarError,
+        schema: JSONSchemaDocument
+    ) throws -> VersionedPrompt {
+        let schemaData = try Self.encoder().encode(schema.schema)
+        let schemaText = String(decoding: schemaData, as: UTF8.self)
+        let text = """
+        PROMPT_VERSION: aisidecar.prompt.model_response_repair/1.0.0
+
+        Return exactly one JSON object matching the JSON Schema below.
+        Do not analyze an image; no image is attached.
+        Repair only the provided model output.
+        Do not add facts that are not already present in the provided model output.
+        If a field cannot be recovered from the provided output, use the schema-compliant empty value.
+        Do not wrap the response in Markdown.
+        Do not include code fences.
+        Do not include comments.
+
+        JSON Schema:
+        \(schemaText)
+
+        Validation error:
+        \(error.code.rawValue): \(error.message)
+
+        Model output to repair:
+        ```text
+        \(rawResponseText)
+        ```
+
+        Return only the repaired JSON object.
+        """
+        return VersionedPrompt(version: "aisidecar.prompt.model_response_repair/1.0.0", text: text)
     }
 
     private func record(
@@ -304,7 +465,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
         parsedResponseJSON: JSONValue?,
         jsonValid: Bool,
         startedAt: Date,
-        error: SidecarError?
+        error: SidecarError?,
+        responseAttempts: [ModelResponseAttemptRecord]? = nil
     ) -> ModelRunRecord {
         ModelRunRecord(
             inputRole: inputRole,
@@ -321,7 +483,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
             parsedResponseJSON: parsedResponseJSON,
             jsonValid: jsonValid,
             durationMs: durationMs(from: startedAt, to: now()),
-            error: error
+            error: error,
+            responseAttempts: responseAttempts
         )
     }
 
@@ -352,6 +515,13 @@ public struct OllamaVisionRunner: VisionModelRunner {
         digest.hasPrefix("sha256:") ? digest : "sha256:\(digest)"
     }
 
+    private static func repairOptions(from options: ModelRunOptions) -> ModelRunOptions {
+        var repairOptions = options
+        repairOptions.temperature = 0
+        repairOptions.thinkingEnabled = false
+        return repairOptions
+    }
+
     static func strippingMarkdownFence(from rawText: String) -> String {
         let trimmed = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("```"), let newline = trimmed.firstIndex(of: "\n") else {
@@ -376,10 +546,10 @@ public struct OllamaVisionRunner: VisionModelRunner {
     }
 }
 
-private struct ModelResponseError: Error {
-    var rawResponseText: String
+private struct ModelResponseEvaluation {
     var parsedResponseJSON: JSONValue?
-    var sidecarError: SidecarError
+    var jsonValid: Bool
+    var error: SidecarError?
 }
 
 private struct OllamaTagsResponse: Decodable {
@@ -427,7 +597,7 @@ private struct OllamaChatRequest: Encodable {
 private struct OllamaChatMessage: Encodable {
     var role: String
     var content: String
-    var images: [String]
+    var images: [String]?
 }
 
 private struct OllamaChatOptions: Encodable {

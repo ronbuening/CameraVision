@@ -161,6 +161,10 @@ public enum ConfigurationResolver {
             stageConcurrency: try intValue(
                 from: environment["AISIDECAR_STAGE_CONCURRENCY"],
                 key: "AISIDECAR_STAGE_CONCURRENCY"
+            ),
+            modelResponseRepairAttempts: try nonNegativeIntValue(
+                from: environment["AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS"],
+                key: "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS"
             )
         )
     }
@@ -213,6 +217,16 @@ public enum ConfigurationResolver {
         return value
     }
 
+    private static func nonNegativeIntValue(from rawValue: String?, key: String) throws -> Int? {
+        guard let rawValue else {
+            return nil
+        }
+        guard let value = Int(rawValue), value >= 0 else {
+            throw SidecarError.configInvalid("Invalid non-negative integer value for \(key): \(rawValue)")
+        }
+        return value
+    }
+
     private static func doubleValue(from rawValue: String?, key: String) throws -> Double? {
         guard let rawValue else {
             return nil
@@ -244,6 +258,7 @@ private struct ConfigurationBuilder {
     private var subjectCropMarginFraction: Double
     private var subjectMergeDominanceThreshold: Double
     private var stageConcurrency: Int
+    private var modelResponseRepairAttempts: Int
 
     init(defaults: ResolvedRunConfiguration) {
         self.mode = defaults.mode
@@ -265,6 +280,7 @@ private struct ConfigurationBuilder {
         self.subjectCropMarginFraction = defaults.subjectCropMarginFraction
         self.subjectMergeDominanceThreshold = defaults.subjectMergeDominanceThreshold
         self.stageConcurrency = defaults.stageConcurrency
+        self.modelResponseRepairAttempts = defaults.modelResponseRepairAttempts
     }
 
     mutating func apply(config: AppConfig) {
@@ -287,6 +303,7 @@ private struct ConfigurationBuilder {
         if let value = config.subjectCropMarginFraction { subjectCropMarginFraction = value }
         if let value = config.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
         if let value = config.stageConcurrency { stageConcurrency = value }
+        if let value = config.modelResponseRepairAttempts { modelResponseRepairAttempts = value }
     }
 
     mutating func apply(overrides: RunConfigurationOverrides) {
@@ -309,6 +326,7 @@ private struct ConfigurationBuilder {
         if let value = overrides.subjectCropMarginFraction { subjectCropMarginFraction = value }
         if let value = overrides.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
         if let value = overrides.stageConcurrency { stageConcurrency = value }
+        if let value = overrides.modelResponseRepairAttempts { modelResponseRepairAttempts = value }
     }
 
     func resolved() throws -> ResolvedRunConfiguration {
@@ -335,6 +353,9 @@ private struct ConfigurationBuilder {
         guard stageConcurrency > 0 else {
             throw SidecarError.configInvalid("stage_concurrency must be greater than zero")
         }
+        guard modelResponseRepairAttempts >= 0 else {
+            throw SidecarError.configInvalid("model_response_repair_attempts must be zero or greater")
+        }
 
         return ResolvedRunConfiguration(
             mode: mode,
@@ -355,7 +376,8 @@ private struct ConfigurationBuilder {
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess,
             subjectCropMarginFraction: subjectCropMarginFraction,
             subjectMergeDominanceThreshold: subjectMergeDominanceThreshold,
-            stageConcurrency: stageConcurrency
+            stageConcurrency: stageConcurrency,
+            modelResponseRepairAttempts: modelResponseRepairAttempts
         )
     }
 }
@@ -383,7 +405,8 @@ private extension RunConfigurationOverrides {
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess,
             subjectCropMarginFraction: subjectCropMarginFraction,
             subjectMergeDominanceThreshold: subjectMergeDominanceThreshold,
-            stageConcurrency: stageConcurrency
+            stageConcurrency: stageConcurrency,
+            modelResponseRepairAttempts: modelResponseRepairAttempts
         )
     }
 }

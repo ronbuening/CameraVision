@@ -119,6 +119,71 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(sidecar.errors.map(\.code), [.modelInvalidJSON])
     }
 
+    func testSuccessfulModelRepairWritesValidRunWithoutTopLevelError() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("RepairedModel.JPG", in: root)
+        let runner = RecordingVisionModelRunner(repairs: [RoleRepair(role: .wholeImage, outcome: .success)])
+
+        let result = try await pipeline(runner: runner).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        XCTAssertTrue(result.records.first?.errors.isEmpty == true)
+        let sidecar = try decodeSidecar(output.appendingPathComponent("RepairedModel.JPG.ai.json"))
+        let run = try XCTUnwrap(sidecar.modelRuns.first)
+        XCTAssertTrue(run.jsonValid)
+        XCTAssertNil(run.error)
+        XCTAssertTrue(sidecar.errors.isEmpty)
+        XCTAssertEqual(run.responseAttempts?.map(\.kind), [.primary, .repair])
+        XCTAssertEqual(run.responseAttempts?.map(\.jsonValid), [false, true])
+    }
+
+    func testFailedModelRepairRecordsFinalErrorAndAttempts() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("RepairFailed.JPG", in: root)
+        let runner = RecordingVisionModelRunner(repairs: [RoleRepair(role: .wholeImage, outcome: .failure)])
+
+        let result = try await pipeline(runner: runner).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.failed])
+        XCTAssertEqual(result.records.first?.errors.map(\.code), [.modelSchemaViolation])
+        let sidecar = try decodeSidecar(output.appendingPathComponent("RepairFailed.JPG.ai.json"))
+        let run = try XCTUnwrap(sidecar.modelRuns.first)
+        XCTAssertFalse(run.jsonValid)
+        XCTAssertEqual(run.error?.code, .modelSchemaViolation)
+        XCTAssertEqual(sidecar.errors.map(\.code), [.modelSchemaViolation])
+        XCTAssertEqual(run.responseAttempts?.map(\.kind), [.primary, .repair])
+        XCTAssertEqual(run.responseAttempts?.map { $0.error?.code }, [
+            SidecarErrorCode.modelInvalidJSON,
+            SidecarErrorCode.modelSchemaViolation
+        ])
+    }
+
     func testPrepareFailureFailsBeforeProgressSidecarsSummaryOrCache() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -371,10 +436,21 @@ private struct RoleFailure: Sendable {
     var error: SidecarError
 }
 
+private enum RepairOutcome: Sendable, Equatable {
+    case success
+    case failure
+}
+
+private struct RoleRepair: Sendable {
+    var role: ModelInputRole
+    var outcome: RepairOutcome
+}
+
 private actor RecordingVisionModelRunner: VisionModelRunner {
     private let context: ModelRuntimeContext
     private let prepareError: SidecarError?
     private let failures: [RoleFailure]
+    private let repairs: [RoleRepair]
     private let delayNanoseconds: UInt64
     private var prepareCalls = 0
     private var calls: [CapturedModelCall] = []
@@ -384,6 +460,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
     init(
         prepareError: SidecarError? = nil,
         failures: [RoleFailure] = [],
+        repairs: [RoleRepair] = [],
         delayNanoseconds: UInt64 = 0
     ) {
         self.context = ModelRuntimeContext(
@@ -396,6 +473,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
         )
         self.prepareError = prepareError
         self.failures = failures
+        self.repairs = repairs
         self.delayNanoseconds = delayNanoseconds
     }
 
@@ -444,6 +522,18 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
             )
         }
 
+        if let repair = repairs.first(where: { $0.role == inputRole }) {
+            return repairedRecord(
+                image: image,
+                inputRole: inputRole,
+                prompt: prompt,
+                schema: schema,
+                options: options,
+                runtime: runtime,
+                outcome: repair.outcome
+            )
+        }
+
         return record(
             image: image,
             inputRole: inputRole,
@@ -478,7 +568,8 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
         runtime: ModelRuntimeContext,
         parsed: JSONValue?,
         jsonValid: Bool,
-        error: SidecarError?
+        error: SidecarError?,
+        responseAttempts: [ModelResponseAttemptRecord]? = nil
     ) -> ModelRunRecord {
         ModelRunRecord(
             inputRole: inputRole,
@@ -495,7 +586,73 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
             parsedResponseJSON: parsed,
             jsonValid: jsonValid,
             durationMs: 1,
-            error: error
+            error: error,
+            responseAttempts: responseAttempts
+        )
+    }
+
+    private func repairedRecord(
+        image: DerivativeRecord,
+        inputRole: ModelInputRole,
+        prompt: VersionedPrompt,
+        schema: JSONSchemaDocument,
+        options: ModelRunOptions,
+        runtime: ModelRuntimeContext,
+        outcome: RepairOutcome
+    ) -> ModelRunRecord {
+        let primaryError = SidecarError(
+            code: .modelInvalidJSON,
+            stage: .model,
+            message: "fixture primary invalid JSON",
+            recoverable: true
+        )
+        let finalError = SidecarError(
+            code: .modelSchemaViolation,
+            stage: .model,
+            message: "fixture repair schema violation",
+            recoverable: true
+        )
+        let repairIsValid = outcome == .success
+        let repairParsed: JSONValue = repairIsValid
+            ? .object(["summary": .string("repaired")])
+            : .object(["summary": .number(5)])
+        let attempts = [
+            ModelResponseAttemptRecord(
+                kind: .primary,
+                promptVersion: prompt.version,
+                promptSHA256: prompt.sha256,
+                responseSchemaVersion: schema.version,
+                requestOptions: options,
+                rawResponseText: "not json",
+                parsedResponseJSON: nil,
+                jsonValid: false,
+                durationMs: 1,
+                error: primaryError
+            ),
+            ModelResponseAttemptRecord(
+                kind: .repair,
+                promptVersion: "aisidecar.prompt.model_response_repair/1.0.0",
+                promptSHA256: String(repeating: "b", count: 64),
+                responseSchemaVersion: schema.version,
+                requestOptions: options,
+                rawResponseText: repairIsValid ? #"{"summary":"repaired"}"# : #"{"summary":5}"#,
+                parsedResponseJSON: repairParsed,
+                jsonValid: repairIsValid,
+                durationMs: 1,
+                error: repairIsValid ? nil : finalError
+            )
+        ]
+        return record(
+            image: image,
+            inputRole: inputRole,
+            prompt: prompt,
+            schema: schema,
+            options: options,
+            runtime: runtime,
+            parsed: repairParsed,
+            jsonValid: repairIsValid,
+            error: repairIsValid ? nil : finalError,
+            responseAttempts: attempts
         )
     }
 }

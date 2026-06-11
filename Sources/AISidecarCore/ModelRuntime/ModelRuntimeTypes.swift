@@ -104,6 +104,7 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
     public var timeoutSeconds: Double
     public var retryLimit: Int
     public var contextWindow: Int?
+    public var responseRepairAttempts: Int
 
     enum CodingKeys: String, CodingKey {
         case temperature
@@ -113,6 +114,7 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
         case timeoutSeconds = "timeout_seconds"
         case retryLimit = "retry_limit"
         case contextWindow = "context_window"
+        case responseRepairAttempts = "response_repair_attempts"
     }
 
     public init(
@@ -122,7 +124,8 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
         keepAlive: String = "30m",
         timeoutSeconds: Double = 180,
         retryLimit: Int = 2,
-        contextWindow: Int? = nil
+        contextWindow: Int? = nil,
+        responseRepairAttempts: Int = 1
     ) {
         self.temperature = temperature
         self.seed = seed
@@ -131,9 +134,82 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
         self.timeoutSeconds = timeoutSeconds
         self.retryLimit = retryLimit
         self.contextWindow = contextWindow
+        self.responseRepairAttempts = responseRepairAttempts
     }
 
     public static let `default` = ModelRunOptions()
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.temperature = try container.decode(Double.self, forKey: .temperature)
+        self.seed = try container.decode(Int.self, forKey: .seed)
+        self.thinkingEnabled = try container.decode(Bool.self, forKey: .thinkingEnabled)
+        self.keepAlive = try container.decode(String.self, forKey: .keepAlive)
+        self.timeoutSeconds = try container.decode(Double.self, forKey: .timeoutSeconds)
+        self.retryLimit = try container.decode(Int.self, forKey: .retryLimit)
+        self.contextWindow = try container.decodeIfPresent(Int.self, forKey: .contextWindow)
+        self.responseRepairAttempts = try container.decodeIfPresent(
+            Int.self,
+            forKey: .responseRepairAttempts
+        ) ?? Self.default.responseRepairAttempts
+    }
+}
+
+/// Classifies one model response captured during primary analysis or repair.
+public enum ModelResponseAttemptKind: String, Codable, Sendable, Equatable {
+    case primary
+    case repair
+}
+
+/// Auditable record for one raw model response before final model-run selection.
+public struct ModelResponseAttemptRecord: Codable, Sendable, Equatable {
+    public var kind: ModelResponseAttemptKind
+    public var promptVersion: String
+    public var promptSHA256: String
+    public var responseSchemaVersion: String
+    public var requestOptions: ModelRunOptions
+    public var rawResponseText: String
+    public var parsedResponseJSON: JSONValue?
+    public var jsonValid: Bool
+    public var durationMs: Int
+    public var error: SidecarError?
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case promptVersion = "prompt_version"
+        case promptSHA256 = "prompt_sha256"
+        case responseSchemaVersion = "response_schema_version"
+        case requestOptions = "request_options"
+        case rawResponseText = "raw_response_text"
+        case parsedResponseJSON = "parsed_response_json"
+        case jsonValid = "json_valid"
+        case durationMs = "duration_ms"
+        case error
+    }
+
+    public init(
+        kind: ModelResponseAttemptKind,
+        promptVersion: String,
+        promptSHA256: String,
+        responseSchemaVersion: String,
+        requestOptions: ModelRunOptions,
+        rawResponseText: String,
+        parsedResponseJSON: JSONValue?,
+        jsonValid: Bool,
+        durationMs: Int,
+        error: SidecarError?
+    ) {
+        self.kind = kind
+        self.promptVersion = promptVersion
+        self.promptSHA256 = promptSHA256
+        self.responseSchemaVersion = responseSchemaVersion
+        self.requestOptions = requestOptions
+        self.rawResponseText = rawResponseText
+        self.parsedResponseJSON = parsedResponseJSON
+        self.jsonValid = jsonValid
+        self.durationMs = durationMs
+        self.error = error
+    }
 }
 
 /// Raw and parsed output plus provenance for one model call.
@@ -153,6 +229,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
     public var jsonValid: Bool
     public var durationMs: Int
     public var error: SidecarError?
+    public var responseAttempts: [ModelResponseAttemptRecord]?
 
     enum CodingKeys: String, CodingKey {
         case inputRole = "input_role"
@@ -170,6 +247,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         case jsonValid = "json_valid"
         case durationMs = "duration_ms"
         case error
+        case responseAttempts = "response_attempts"
     }
 
     public init(
@@ -187,7 +265,8 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         parsedResponseJSON: JSONValue?,
         jsonValid: Bool,
         durationMs: Int,
-        error: SidecarError?
+        error: SidecarError?,
+        responseAttempts: [ModelResponseAttemptRecord]? = nil
     ) {
         self.inputRole = inputRole
         self.model = model
@@ -204,6 +283,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         self.jsonValid = jsonValid
         self.durationMs = durationMs
         self.error = error
+        self.responseAttempts = responseAttempts
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -227,5 +307,6 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         try container.encode(jsonValid, forKey: .jsonValid)
         try container.encode(durationMs, forKey: .durationMs)
         try container.encode(error, forKey: .error)
+        try container.encodeIfPresent(responseAttempts, forKey: .responseAttempts)
     }
 }

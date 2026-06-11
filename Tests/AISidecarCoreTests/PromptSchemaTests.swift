@@ -8,8 +8,8 @@ final class PromptSchemaTests: XCTestCase {
         let whole = try PromptRegistry.prompt(for: .wholeImage)
         let subject = try PromptRegistry.prompt(for: .subjectIsolated)
 
-        XCTAssertEqual(whole.version, "aisidecar.prompt.whole_image/1.1.0")
-        XCTAssertEqual(subject.version, "aisidecar.prompt.subject_isolated/1.1.0")
+        XCTAssertEqual(whole.version, "aisidecar.prompt.whole_image/1.2.0")
+        XCTAssertEqual(subject.version, "aisidecar.prompt.subject_isolated/1.2.0")
         XCTAssertTrue(whole.text.hasPrefix("PROMPT_VERSION: \(whole.version)\n"))
         XCTAssertTrue(subject.text.hasPrefix("PROMPT_VERSION: \(subject.version)\n"))
         XCTAssertTrue(whole.text.hasSuffix("\n"))
@@ -24,14 +24,16 @@ final class PromptSchemaTests: XCTestCase {
         let whole = try ResponseSchemas.schema(for: .wholeImage)
         let subject = try ResponseSchemas.schema(for: .subjectIsolated)
 
-        XCTAssertEqual(whole.version, "urn:aisidecar:response:whole-image:1.1.0")
-        XCTAssertEqual(subject.version, "urn:aisidecar:response:subject-isolated:1.1.0")
+        XCTAssertEqual(whole.version, "urn:aisidecar:response:whole-image:1.2.0")
+        XCTAssertEqual(subject.version, "urn:aisidecar:response:subject-isolated:1.2.0")
         let wholeProperties = try XCTUnwrap(whole.schema.objectValue?["properties"]?.objectValue)
         XCTAssertNotNil(wholeProperties["scene_context"])
         XCTAssertNotNil(wholeProperties["habitat_or_setting"])
+        XCTAssertNil(wholeProperties["visible_text"])
         let subjectProperties = try XCTUnwrap(subject.schema.objectValue?["properties"]?.objectValue)
         XCTAssertNil(subjectProperties["scene_context"])
         XCTAssertNil(subjectProperties["habitat_or_setting"])
+        XCTAssertNil(subjectProperties["visible_text"])
     }
 
     func testValidFixtureResponsesPassValidation() throws {
@@ -48,6 +50,16 @@ final class PromptSchemaTests: XCTestCase {
         XCTAssertThrowsError(try JSONSchemaValidator.validate(.object(response), against: schema)) { error in
             XCTAssertTrue(error.localizedDescription.contains("Additional property"))
         }
+    }
+
+    func testSchemasRejectVisibleTextField() throws {
+        var wholeResponse = try XCTUnwrap(wholeImageFixture().objectValue)
+        wholeResponse["visible_text"] = .array([])
+        assertInvalid(.object(wholeResponse), against: try ResponseSchemas.schema(for: .wholeImage))
+
+        var subjectResponse = try XCTUnwrap(subjectIsolatedFixture().objectValue)
+        subjectResponse["visible_text"] = .array([])
+        assertInvalid(.object(subjectResponse), against: try ResponseSchemas.schema(for: .subjectIsolated))
     }
 
     func testInvalidResponsesFailSchemaValidation() throws {
@@ -133,7 +145,6 @@ final class PromptSchemaTests: XCTestCase {
             "scene_context": .array([candidateWithoutEvidence("outdoor wildlife scene")]),
             "habitat_or_setting": .array([candidateWithoutEvidence("wetland")]),
             "behavior_or_action": .array([candidateWithoutEvidence("standing")]),
-            "visible_text": .array([]),
             "proposed_keywords": .array([
                 candidateWithEvidence("wading bird", evidence: "long legs in shallow water")
             ]),
@@ -152,7 +163,6 @@ final class PromptSchemaTests: XCTestCase {
                 candidateWithEvidence("plumage", evidence: "gray-blue feathers")
             ]),
             "behavior_or_action": .array([candidateWithoutEvidence("standing")]),
-            "visible_text": .array([]),
             "proposed_keywords": .array([
                 candidateWithEvidence("long bill", evidence: "straight pointed bill")
             ]),

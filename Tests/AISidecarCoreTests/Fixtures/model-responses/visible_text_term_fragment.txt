@@ -1,0 +1,39 @@
+{
+  "summary": "A synthetic interior scene with readable text-like detail.",
+  "genre_or_photography_type": [
+    {
+      "term": "architecture",
+      "confidence": "high",
+      "evidence": "columns and arches are visible"
+    }
+  ],
+  "main_subjects": [
+    {
+      "term": "interior",
+      "confidence": "high",
+      "evidence": "room-like structure fills the frame"
+    }
+  ],
+  "secondary_subjects": [],
+  "scene_context": [
+    {
+      "term": "interior scene",
+      "confidence": "high"
+    }
+  ],
+  "habitat_or_setting": [
+    {
+      "term": "indoor room",
+      "confidence": "high"
+    }
+  ],
+  "behavior_or_action": [],
+  "proposed_keywords": [],
+  "uncertainty_notes": "",
+  "visible_text": [
+    {
+      "confidence": "low",
+      "text": "SYNTHETIC INSCRIPTION",- term: "synthetic text label"
+    }
+  ]
+}

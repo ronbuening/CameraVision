@@ -208,7 +208,7 @@ The GUI phase should leave room for:
 
 - visual embedding search (which then unlocks a "visually similar" scope for FR4-019);
 - stronger species-specific assist models;
-- OCR-specific passes (potentially cross-checking the model's `visible_text` against Apple Vision text recognition);
+- OCR-specific passes using Apple Vision text recognition or a dedicated text model path;
 - map/GPS filtering without AI-inferred GPS writes;
 - Photo Mechanic or DAM profile exports;
 - model comparison runs over the recorded provenance;

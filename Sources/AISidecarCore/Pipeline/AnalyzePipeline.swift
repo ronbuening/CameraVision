@@ -562,7 +562,7 @@ public struct AnalyzePipeline {
         // PW-015 requires exactly one model request in flight; keep this loop
         // sequential even when render/isolation preparation has worked ahead.
         for (role, derivative) in modelInputs(derivatives: derivatives, mode: configuration.mode) {
-            runs.append(await runModel(role: role, derivative: derivative, runtime: runtime))
+            runs.append(await runModel(role: role, derivative: derivative, configuration: configuration, runtime: runtime))
         }
         return runs
     }
@@ -570,9 +570,11 @@ public struct AnalyzePipeline {
     private func runModel(
         role: ModelInputRole,
         derivative: DerivativeRecord,
+        configuration: ResolvedRunConfiguration,
         runtime: ModelRuntimeContext
     ) async -> ModelRunRecord {
-        let options = ModelRunOptions.default
+        var options = ModelRunOptions.default
+        options.responseRepairAttempts = configuration.modelResponseRepairAttempts
         do {
             let prompt = try PromptRegistry.prompt(for: role)
             let schema = try ResponseSchemas.schema(for: role)

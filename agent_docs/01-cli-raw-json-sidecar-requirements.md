@@ -55,6 +55,7 @@ PW-004 - The following flags shall have identical names, types, and semantics in
 --clear-derivative-cache-on-start    Clear derivative cache artifacts before an analyze invocation uses them.
 --clear-derivative-cache-after-success
                                       Clear derivative cache artifacts after a successful analyze invocation.
+--model-response-repair-attempts <n> Schema-constrained repair attempts after invalid model JSON or schema failure. Default: 1.
 ```
 
 PW-005 - Enum-valued flags shall be used instead of families of mutually exclusive boolean flags. The v0.1 triplets (`--whole-only/--subject-only/--both`, `--skip-existing/--overwrite/--fail-existing`) are replaced by `--mode` and `--existing` and shall not reappear in later phases.
@@ -97,7 +98,7 @@ E_SESSION_STALE                 E_CONFIG_INVALID
 E_EXIFTOOL_MISSING              E_INTERRUPTED
 ```
 
-`E_MODEL_INVALID_JSON` means the response was not parseable JSON. `E_MODEL_SCHEMA_VIOLATION` means it parsed but failed the response schema. Both preserve raw response text.
+`E_MODEL_INVALID_JSON` means the final response was not parseable JSON. `E_MODEL_SCHEMA_VIOLATION` means it parsed but failed the response schema. Both preserve raw response text, including attempted repair responses when repair is enabled.
 
 ### 1.5 Schema Evolution
 
@@ -276,7 +277,7 @@ FR1-030c - Thinking mode shall be explicitly disabled for tagging runs and the s
 
 FR1-030d - `keep_alive` shall default to a duration that keeps the model resident for the whole batch (initial default: `30m`, refreshed per request), avoiding a per-image reload tax.
 
-FR1-030e - Requests shall have a timeout (default 180 s) and bounded retries (default 2), retrying only on timeout and transport errors — never on `E_MODEL_INVALID_JSON` or `E_MODEL_SCHEMA_VIOLATION`, which are recorded and the batch advanced.
+FR1-030e - Requests shall have a timeout (default 180 s) and bounded transport retries (default 2), retrying only on timeout and transport errors. `E_MODEL_INVALID_JSON` and `E_MODEL_SCHEMA_VIOLATION` shall not be silently accepted; by default the runtime performs one no-image, schema-constrained repair call using the original raw output and validation error, then records the final failure if repair still does not produce schema-valid JSON. `model_response_repair_attempts = 0` preserves the strict one-shot behavior.
 
 FR1-030f - Request options shall record temperature, seed, thinking setting, `keep_alive`, and any context override, per PW-013.
 
@@ -333,11 +334,12 @@ FR1-040 - Each `model_runs` entry shall include:
   "parsed_response_json": {},
   "json_valid": true,
   "duration_ms": 0,
-  "error": null
+  "error": null,
+  "response_attempts": []
 }
 ```
 
-FR1-041 - Invalid model JSON shall be preserved as raw text and marked `json_valid = false` with the appropriate error code (`E_MODEL_INVALID_JSON` or `E_MODEL_SCHEMA_VIOLATION`). The parser shall strip Markdown code fences before parsing, since fenced-but-valid JSON is a common local-model failure mode; fence-stripped valid JSON is not an error.
+FR1-041 - Invalid primary model JSON shall be preserved as raw text. When repair is attempted, `response_attempts` shall preserve the primary response, repair response, per-attempt prompt hash, request options, parsed JSON when available, and per-attempt error. The top-level `model_runs` fields represent the final accepted response or final failure. The parser shall strip Markdown code fences before parsing, since fenced-but-valid JSON is a common local-model failure mode; fence-stripped valid JSON is not an error.
 
 FR1-042 - The sidecar shall include enough derivative provenance to reproduce which input image the model saw: derivative hash, dimensions, color space, recipe version, and the source identity (FR1-006a).
 
@@ -361,13 +363,12 @@ FR1-045 - Two response schemas shall exist. The whole-image schema:
   "scene_context": [ { "term": "...", "confidence": "..." } ],
   "habitat_or_setting": [ { "term": "...", "confidence": "..." } ],
   "behavior_or_action": [ { "term": "...", "confidence": "..." } ],
-  "visible_text": [ { "text": "...", "confidence": "..." } ],
   "proposed_keywords": [ { "term": "...", "confidence": "...", "evidence": "..." } ],
   "uncertainty_notes": "string"
 }
 ```
 
-The subject-isolated schema is identical except that `scene_context` and `habitat_or_setting` are absent (FR1-036). Both schemas shall be fully specified JSON Schema documents — item types, required fields, bounded array and string lengths — because the schema is the literal `format` payload sent to the runtime: an API contract, not documentation.
+The subject-isolated schema is identical except that `scene_context` and `habitat_or_setting` are absent (FR1-036). Phase 1 model JSON shall not include `visible_text`; text extraction is deferred to a dedicated OCR-capable path in a later phase. Both schemas shall be fully specified JSON Schema documents — item types, required fields, bounded array and string lengths — because the schema is the literal `format` payload sent to the runtime: an API contract, not documentation.
 
 FR1-046 - Prompts shall be versioned resources carrying a semantic version and a SHA-256 of their text; both shall be recorded per run, making "same prompt version" verifiable rather than asserted.
 

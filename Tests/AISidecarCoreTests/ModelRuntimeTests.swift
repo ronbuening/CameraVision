@@ -130,7 +130,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertNil(record.error)
         XCTAssertEqual(record.rawResponseText, rawResponse)
         XCTAssertEqual(record.inputDerivativeSHA256, "image-sha")
-        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.1.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.2.0")
         let requests = await transport.capturedRequests()
         let request = try XCTUnwrap(requests.first)
         XCTAssertEqual(request.method, "POST")
@@ -244,7 +244,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(record.parsedResponseJSON?.objectValue?["summary"]?.stringValue, "Fenced response")
     }
 
-    func testAnalyzeInvalidJSONAndSchemaViolationDoNotRetry() async throws {
+    func testAnalyzeInvalidJSONAndSchemaViolationDoNotRepairWhenDisabled() async throws {
         let imageURL = try writeModelInput()
         let invalidTransport = RecordingOllamaTransport([
             .success(chatResponse(content: "not json"))
@@ -256,7 +256,7 @@ final class ModelRuntimeTests: XCTestCase {
             inputRole: .wholeImage,
             prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
             schema: try summarySchema(),
-            options: ModelRunOptions(retryLimit: 2),
+            options: ModelRunOptions(retryLimit: 2, responseRepairAttempts: 0),
             runtime: runtimeContext()
         )
 
@@ -264,6 +264,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(invalidRecord.error?.code, .modelInvalidJSON)
         XCTAssertEqual(invalidRecord.rawResponseText, "not json")
         XCTAssertNil(invalidRecord.parsedResponseJSON)
+        XCTAssertNil(invalidRecord.responseAttempts)
         let invalidRequests = await invalidTransport.capturedRequests()
         XCTAssertEqual(invalidRequests.count, 1)
 
@@ -277,15 +278,142 @@ final class ModelRuntimeTests: XCTestCase {
             inputRole: .wholeImage,
             prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
             schema: try summarySchema(),
-            options: ModelRunOptions(retryLimit: 2),
+            options: ModelRunOptions(retryLimit: 2, responseRepairAttempts: 0),
             runtime: runtimeContext()
         )
 
         XCTAssertFalse(violationRecord.jsonValid)
         XCTAssertEqual(violationRecord.error?.code, .modelSchemaViolation)
         XCTAssertEqual(violationRecord.parsedResponseJSON?.objectValue?["summary"]?.numberValue, 5)
+        XCTAssertNil(violationRecord.responseAttempts)
         let violationRequests = await violationTransport.capturedRequests()
         XCTAssertEqual(violationRequests.count, 1)
+    }
+
+    func testAnalyzeRepairsInvalidJSONWithSchemaConstrainedNoImageRequest() async throws {
+        let imageURL = try writeModelInput()
+        let repairedJSON = #"{"summary":"Recovered JSON"}"#
+        let transport = RecordingOllamaTransport([
+            .success(chatResponse(content: "not json")),
+            .success(chatResponse(content: repairedJSON))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(responseRepairAttempts: 1),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertTrue(record.jsonValid)
+        XCTAssertNil(record.error)
+        XCTAssertEqual(record.rawResponseText, repairedJSON)
+        XCTAssertEqual(record.parsedResponseJSON?.objectValue?["summary"]?.stringValue, "Recovered JSON")
+        let attempts = try XCTUnwrap(record.responseAttempts)
+        XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
+        XCTAssertEqual(attempts.map(\.jsonValid), [false, true])
+        XCTAssertEqual(attempts.first?.error?.code, .modelInvalidJSON)
+        XCTAssertEqual(attempts.last?.requestOptions.temperature, 0)
+        XCTAssertEqual(attempts.last?.requestOptions.thinkingEnabled, false)
+
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 2)
+        let primaryBody = try decodeJSONObject(from: try XCTUnwrap(requests.first?.body))
+        let primaryMessage = try XCTUnwrap(primaryBody["messages"]?.arrayValue?.first?.objectValue)
+        XCTAssertNotNil(primaryMessage["images"]?.arrayValue)
+        let repairBody = try decodeJSONObject(from: try XCTUnwrap(requests.last?.body))
+        let repairMessage = try XCTUnwrap(repairBody["messages"]?.arrayValue?.first?.objectValue)
+        XCTAssertNil(repairMessage["images"])
+        XCTAssertTrue(repairMessage["content"]?.stringValue?.contains("not json") == true)
+        XCTAssertEqual(repairBody["format"], try summarySchema().schema)
+    }
+
+    func testAnalyzeRepairsSyntheticVisibleTextTermFragmentFixture() async throws {
+        let imageURL = try writeModelInput()
+        let malformed = try malformedVisibleTextTermFragmentFixture()
+        let repairedJSON = wholeImageModelResponseJSON()
+        let transport = RecordingOllamaTransport([
+            .success(chatResponse(content: malformed)),
+            .success(chatResponse(content: repairedJSON))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+        let prompt = try PromptRegistry.prompt(for: .wholeImage)
+        let schema = try ResponseSchemas.schema(for: .wholeImage)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: prompt,
+            schema: schema,
+            options: ModelRunOptions(responseRepairAttempts: 1),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertTrue(record.jsonValid)
+        XCTAssertNil(record.error)
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.2.0")
+        let attempts = try XCTUnwrap(record.responseAttempts)
+        XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
+        XCTAssertEqual(attempts.first?.rawResponseText, malformed)
+        XCTAssertEqual(attempts.first?.error?.code, .modelInvalidJSON)
+        XCTAssertEqual(attempts.last?.jsonValid, true)
+    }
+
+    func testAnalyzeRepairsSchemaViolation() async throws {
+        let imageURL = try writeModelInput()
+        let repairedJSON = #"{"summary":"Recovered schema"}"#
+        let transport = RecordingOllamaTransport([
+            .success(chatResponse(content: #"{"summary":5}"#)),
+            .success(chatResponse(content: repairedJSON))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(responseRepairAttempts: 1),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertTrue(record.jsonValid)
+        XCTAssertNil(record.error)
+        XCTAssertEqual(record.parsedResponseJSON?.objectValue?["summary"]?.stringValue, "Recovered schema")
+        let attempts = try XCTUnwrap(record.responseAttempts)
+        XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
+        XCTAssertEqual(attempts.first?.error?.code, .modelSchemaViolation)
+        XCTAssertEqual(attempts.first?.parsedResponseJSON?.objectValue?["summary"]?.numberValue, 5)
+    }
+
+    func testAnalyzeRecordsRepairFailureAsFinalModelError() async throws {
+        let imageURL = try writeModelInput()
+        let repairRaw = #"{"summary":5}"#
+        let transport = RecordingOllamaTransport([
+            .success(chatResponse(content: "not json")),
+            .success(chatResponse(content: repairRaw))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(responseRepairAttempts: 1),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertFalse(record.jsonValid)
+        XCTAssertEqual(record.error?.code, .modelSchemaViolation)
+        XCTAssertEqual(record.rawResponseText, repairRaw)
+        XCTAssertEqual(record.parsedResponseJSON?.objectValue?["summary"]?.numberValue, 5)
+        let attempts = try XCTUnwrap(record.responseAttempts)
+        XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
+        XCTAssertEqual(attempts.map { $0.error?.code }, [.modelInvalidJSON, .modelSchemaViolation])
     }
 
     func testSidecarSerializesConcreteModelRunRecords() throws {
@@ -467,7 +595,6 @@ final class ModelRuntimeTests: XCTestCase {
               "confidence": "high"
             }
           ],
-          "visible_text": [],
           "proposed_keywords": [
             {
               "term": "wading bird",
@@ -478,6 +605,16 @@ final class ModelRuntimeTests: XCTestCase {
           "uncertainty_notes": ""
         }
         """
+    }
+
+    private func malformedVisibleTextTermFragmentFixture() throws -> String {
+        let url = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: "visible_text_term_fragment",
+                withExtension: "txt"
+            )
+        )
+        return try String(contentsOf: url, encoding: .utf8)
     }
 
     private func fixedDateProvider(_ date: Date) -> @Sendable () -> Date {
