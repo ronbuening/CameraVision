@@ -52,16 +52,19 @@ Phase 2 implementation shall not reopen Phase 1 rendering, isolation, prompting,
 
 ## 0.2 Current Implementation Status
 
-Phase 2 Milestone 0 is implemented as a scaffold only. The repository now has:
+Phase 2 Milestones 0-2 are implemented as a non-writing preflight. The repository now has:
 
 - `aisidecar write-xmp --help` and command-shape validation;
 - Phase 2 export configuration defaults with `CLI > AISIDECAR_* > JSON config > built-in default` precedence;
 - Phase 2 policy enums for source verification, XMP conflict policy, minimum confidence, and pair scope;
 - placeholder schema identifiers `ai-sidecar-xmp-export/1.0` and `ai-sidecar-xmp-change-plan/1.0`;
 - additive source-verification error codes `E_SOURCE_MISSING` and `E_SOURCE_IDENTITY_MISMATCH`;
-- no-XMP regression coverage for `analyze`, `benchmark`, `purge`, and `analyze --export-model-inputs`.
+- no-XMP regression coverage for `analyze`, `benchmark`, `purge`, and `analyze --export-model-inputs`;
+- `RawJSONSidecarReader` plus `write-xmp --from-json` sidecar scanning and source resolution;
+- source identity verification policies for `fail`, `warn`, and `skip`;
+- `CandidateExtractor`, keyword text normalization, confidence-band filtering, de-duplication, skipped-candidate diagnostics, and conservative specific-tag filtering.
 
-Milestone 0 intentionally does not read raw sidecars, extract candidates, parse or write XMP, create reports, or execute change plans. The remaining Phase 2 error codes, `E_XMP_PARSE_FAILED` and `E_XMP_UNSUPPORTED_RDF`, are introduced with the owned XMP engine milestone where they are first used.
+Milestones 0-2 intentionally do not parse or write XMP, create reports, or execute change plans. The `write-xmp --from-json` path resolves and extracts raw sidecar candidates, then stops before export execution. The remaining Phase 2 error codes, `E_XMP_PARSE_FAILED` and `E_XMP_UNSUPPORTED_RDF`, are introduced with the owned XMP engine milestone where they are first used.
 
 ## 1. Purpose
 

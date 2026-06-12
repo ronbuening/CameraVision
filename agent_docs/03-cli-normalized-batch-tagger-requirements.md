@@ -3,7 +3,7 @@
 Version: 0.3
 Date: 2026-06-12
 Supersedes: 0.2
-Builds on: Phase 1 Requirements v0.4 (`01-cli-raw-json-sidecar-requirements.md`) and Phase 2 Requirements v0.4 (`02-cli-xmp-sidecar-requirements-owned-xmp.md`)
+Builds on: Phase 1 Requirements v0.4 (`01-cli-raw-json-sidecar-requirements.md`) and Phase 2 Requirements v0.4 (`02-cli-xmp-sidecar-requirements-updated.md`)
 Binary: `aisidecar` (subcommands: `normalize`, `apply-session`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15

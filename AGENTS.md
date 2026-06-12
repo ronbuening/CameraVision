@@ -2,9 +2,9 @@
 
 ## Project Context
 
-CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state includes Phase 1 Milestones 0-8 plus the Milestone 9a benchmark harness and Phase 2 Milestone 0 scaffold: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, sidecar naming, output tree mirroring, raw JSON sidecar writes, JSONL progress logs, batch summaries, interruption handling, model input profiles, whole-image rendering, full-resolution render retention, derivative cache with configurable lifecycle and `aisidecar purge`, subject isolation with the two-resolution Apple Vision/Core Image chain, diagnostic model-input export, Ollama vision model runtime client, v1.3 prompts and response schemas with conditional `species` candidates for biological target genres, schema-constrained model response repair, full analyze pipeline model execution, `model_runs` sidecar records with optional response-attempt provenance, configurable `stage_concurrency`, schema-evolution sidecar document rewrite support, golden sidecar fixtures, no-XMP Phase 1/Phase 2 regression guards, `aisidecar benchmark`, `aisidecar write-xmp` validation-only scaffold, Phase 2 export configuration defaults, and offline tests including synthetic malformed-response fixtures.
+CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state includes Phase 1 Milestones 0-8 plus the Milestone 9a benchmark harness and Phase 2 Milestones 0-2: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, sidecar naming, output tree mirroring, raw JSON sidecar writes, JSONL progress logs, batch summaries, interruption handling, model input profiles, whole-image rendering, full-resolution render retention, derivative cache with configurable lifecycle and `aisidecar purge`, subject isolation with the two-resolution Apple Vision/Core Image chain, diagnostic model-input export, Ollama vision model runtime client, v1.3 prompts and response schemas with conditional `species` candidates for biological target genres, schema-constrained model response repair, full analyze pipeline model execution, `model_runs` sidecar records with optional response-attempt provenance, configurable `stage_concurrency`, schema-evolution sidecar document rewrite support, golden sidecar fixtures, no-XMP Phase 1/Phase 2 regression guards, `aisidecar benchmark`, `aisidecar write-xmp` non-writing preflight, Phase 2 export configuration defaults, raw sidecar reader/source resolution, candidate extraction and keyword policy, and offline tests including synthetic malformed-response fixtures.
 
-Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files. Phase 2 Milestone 0 does not write XMP yet; actual XMP writeback begins when the later Phase 2 export engine milestones are implemented.
+Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files. Phase 2 Milestones 0-2 do not write XMP yet; actual XMP writeback begins when the later Phase 2 export engine milestones are implemented.
 
 ## Architecture Rules
 
@@ -23,6 +23,7 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 - `Sources/AISidecarCore/FileScanning` owns scanner/source image records.
 - `Sources/AISidecarCore/Identity` owns source content identity hashing.
 - `Sources/AISidecarCore/ModelRuntime` owns Ollama runtime preparation, model-run records, request/response handling, JSON schema validation, schema-constrained response repair, mock runners, and recorded-fixture replay.
+- `Sources/AISidecarCore/Metadata` owns Phase 2 candidate extraction, keyword text normalization, and specific-tag policy.
 - `Sources/AISidecarCore/Rendering` owns model input profiles, render recipes, whole-image rendering, and the derivative cache.
 - `Sources/AISidecarCore/SubjectIsolation` owns foreground mask generation, instance selection/merge policy, two-resolution subject crops, and subject-isolation provenance.
 - `Sources/AISidecarCore/Sidecars` owns raw `.ai.json` sidecar naming, schema records, schema-evolution document rewrites, and atomic writes.
@@ -55,9 +56,9 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 ## Implementation Guidance
 
 - Implement one milestone at a time unless the user explicitly expands scope.
-- The next planned implementation unit is Phase 2 Milestone 1: raw sidecar reader, `.ai.json` scan, and source resolution. Phase 1 Milestone 9 calibration and quality review remain required before release signoff.
+- The next planned implementation unit is Phase 2 Milestone 3: XMP naming, same-base-name group resolution, and dry-run change planning. Phase 1 Milestone 9 calibration and quality review remain required before release signoff.
 - Do not jump ahead to XMP writing while implementing Phase 1 work.
-- Do not add XMP writing outside `aisidecar write-xmp`; until the Phase 2 writer milestones land, the `write-xmp` command must remain validation-only after config resolution.
+- Do not add XMP writing outside `aisidecar write-xmp`; until the Phase 2 writer milestones land, the `write-xmp` command must remain a non-writing preflight.
 - Keep the project macOS-only. Do not add cross-platform availability annotations or platform documentation unless a future requirement explicitly broadens the supported platforms.
 - Keep `--export-model-inputs` as a diagnostic pre-model path: it must not write raw `.ai.json` sidecars, progress logs, batch summaries, XMP, or model output.
 - Keep config precedence as CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default. `aisidecar purge` resolves only derivative-cache settings and must not depend on model/runtime config validity.
