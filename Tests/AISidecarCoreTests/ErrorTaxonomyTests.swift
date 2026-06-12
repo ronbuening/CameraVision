@@ -24,7 +24,9 @@ final class ErrorTaxonomyTests: XCTestCase {
             "E_SESSION_STALE",
             "E_CONFIG_INVALID",
             "E_EXIFTOOL_MISSING",
-            "E_INTERRUPTED"
+            "E_INTERRUPTED",
+            "E_SOURCE_MISSING",
+            "E_SOURCE_IDENTITY_MISMATCH"
         ]
 
         XCTAssertEqual(SidecarErrorCode.allCases.map(\.rawValue), expectedRawValues)

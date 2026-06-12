@@ -25,6 +25,30 @@ extension LogFormat: ExpressibleByArgument {
     }
 }
 
+extension XMPSourceVerificationPolicy: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension XMPConflictPolicy: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension XMPMinimumConfidence: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension XMPPairScope: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
 struct SharedOptions: ParsableArguments {
     @Option(help: "Analysis mode: whole, subject, or both.")
     var mode: AnalysisMode?

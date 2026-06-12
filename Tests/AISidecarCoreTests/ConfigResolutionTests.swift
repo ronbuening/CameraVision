@@ -16,6 +16,30 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 1)
     }
 
+    func testXMPExportDefaultsLoadWhenDefaultConfigIsMissing() throws {
+        let resolved = try ConfigurationResolver.resolveXMPExport(
+            environment: [:],
+            defaultConfigPath: missingConfigPath()
+        )
+
+        XCTAssertEqual(resolved, .builtInDefaults)
+        XCTAssertFalse(resolved.recursive)
+        XCTAssertNil(resolved.outputDir)
+        XCTAssertEqual(resolved.logLevel, .info)
+        XCTAssertEqual(resolved.logFormat, .text)
+        XCTAssertFalse(resolved.dryRun)
+        XCTAssertNil(resolved.sourceRoot)
+        XCTAssertEqual(resolved.sourceVerification, .fail)
+        XCTAssertTrue(resolved.writeFlatKeywords)
+        XCTAssertTrue(resolved.writeHierarchicalKeywords)
+        XCTAssertTrue(resolved.backupSidecars)
+        XCTAssertEqual(resolved.xmpConflictPolicy, .backupAndMerge)
+        XCTAssertEqual(resolved.minConfidence, .medium)
+        XCTAssertFalse(resolved.allowSpecificTags)
+        XCTAssertEqual(resolved.pairScope, .union)
+        XCTAssertTrue(resolved.writeAIJSON)
+    }
+
     func testConfigFileOverridesDefaults() throws {
         let configPath = try writeConfig(
             """
@@ -73,6 +97,51 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 0)
     }
 
+    func testXMPExportConfigFileOverridesDefaults() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "recursive": true,
+              "output_dir": "/tmp/xmp-sidecars",
+              "log_level": "debug",
+              "log_format": "json",
+              "dry_run": true,
+              "source_root": "/tmp/source-images",
+              "source_verification": "warn",
+              "write_flat_keywords": false,
+              "write_hierarchical_keywords": false,
+              "backup_sidecars": false,
+              "xmp_conflict_policy": "merge",
+              "min_confidence": "high",
+              "allow_specific_tags": true,
+              "pair_scope": "raw-only",
+              "write_ai_json": false
+            }
+            """
+        )
+
+        let resolved = try ConfigurationResolver.resolveXMPExport(
+            environment: [:],
+            defaultConfigPath: configPath
+        )
+
+        XCTAssertTrue(resolved.recursive)
+        XCTAssertEqual(resolved.outputDir, "/tmp/xmp-sidecars")
+        XCTAssertEqual(resolved.logLevel, .debug)
+        XCTAssertEqual(resolved.logFormat, .json)
+        XCTAssertTrue(resolved.dryRun)
+        XCTAssertEqual(resolved.sourceRoot, "/tmp/source-images")
+        XCTAssertEqual(resolved.sourceVerification, .warn)
+        XCTAssertFalse(resolved.writeFlatKeywords)
+        XCTAssertFalse(resolved.writeHierarchicalKeywords)
+        XCTAssertFalse(resolved.backupSidecars)
+        XCTAssertEqual(resolved.xmpConflictPolicy, .merge)
+        XCTAssertEqual(resolved.minConfidence, .high)
+        XCTAssertTrue(resolved.allowSpecificTags)
+        XCTAssertEqual(resolved.pairScope, .rawOnly)
+        XCTAssertFalse(resolved.writeAIJSON)
+    }
+
     func testEnvironmentOverridesConfigFile() throws {
         let configPath = try writeConfig(
             """
@@ -122,6 +191,63 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 2)
     }
 
+    func testXMPExportEnvironmentOverridesConfigFile() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "recursive": false,
+              "output_dir": "/tmp/file-xmp",
+              "log_level": "error",
+              "source_verification": "fail",
+              "write_flat_keywords": true,
+              "backup_sidecars": true,
+              "xmp_conflict_policy": "backup-and-merge",
+              "min_confidence": "medium",
+              "allow_specific_tags": false,
+              "pair_scope": "union",
+              "write_ai_json": true
+            }
+            """
+        )
+
+        let resolved = try ConfigurationResolver.resolveXMPExport(
+            environment: [
+                "AISIDECAR_RECURSIVE": "1",
+                "AISIDECAR_OUTPUT_DIR": "/tmp/env-xmp",
+                "AISIDECAR_LOG_LEVEL": "debug",
+                "AISIDECAR_LOG_FORMAT": "json",
+                "AISIDECAR_DRY_RUN": "yes",
+                "AISIDECAR_SOURCE_ROOT": "/tmp/env-source",
+                "AISIDECAR_SOURCE_VERIFICATION": "skip",
+                "AISIDECAR_WRITE_FLAT_KEYWORDS": "false",
+                "AISIDECAR_WRITE_HIERARCHICAL_KEYWORDS": "false",
+                "AISIDECAR_BACKUP_SIDECARS": "false",
+                "AISIDECAR_XMP_CONFLICT_POLICY": "merge",
+                "AISIDECAR_MIN_CONFIDENCE": "low",
+                "AISIDECAR_ALLOW_SPECIFIC_TAGS": "true",
+                "AISIDECAR_PAIR_SCOPE": "jpeg-only",
+                "AISIDECAR_WRITE_AI_JSON": "false"
+            ],
+            defaultConfigPath: configPath
+        )
+
+        XCTAssertTrue(resolved.recursive)
+        XCTAssertEqual(resolved.outputDir, "/tmp/env-xmp")
+        XCTAssertEqual(resolved.logLevel, .debug)
+        XCTAssertEqual(resolved.logFormat, .json)
+        XCTAssertTrue(resolved.dryRun)
+        XCTAssertEqual(resolved.sourceRoot, "/tmp/env-source")
+        XCTAssertEqual(resolved.sourceVerification, .skip)
+        XCTAssertFalse(resolved.writeFlatKeywords)
+        XCTAssertFalse(resolved.writeHierarchicalKeywords)
+        XCTAssertFalse(resolved.backupSidecars)
+        XCTAssertEqual(resolved.xmpConflictPolicy, .merge)
+        XCTAssertEqual(resolved.minConfidence, .low)
+        XCTAssertTrue(resolved.allowSpecificTags)
+        XCTAssertEqual(resolved.pairScope, .jpegOnly)
+        XCTAssertFalse(resolved.writeAIJSON)
+    }
+
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
         let config = AppConfig(
             modelKeepAlive: "5m",
@@ -131,7 +257,17 @@ final class ConfigResolutionTests: XCTestCase {
             subjectCropMarginFraction: 0.12,
             subjectMergeDominanceThreshold: 0.75,
             stageConcurrency: 3,
-            modelResponseRepairAttempts: 0
+            modelResponseRepairAttempts: 0,
+            sourceRoot: "/tmp/source-root",
+            sourceVerification: .warn,
+            writeFlatKeywords: false,
+            writeHierarchicalKeywords: true,
+            backupSidecars: false,
+            xmpConflictPolicy: .merge,
+            minConfidence: .high,
+            allowSpecificTags: true,
+            pairScope: .rawOnly,
+            writeAIJSON: false
         )
         let data = try JSONEncoder().encode(config)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -145,6 +281,16 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(object["subject_merge_dominance_threshold"] as? Double, 0.75)
         XCTAssertEqual(object["stage_concurrency"] as? Int, 3)
         XCTAssertEqual(object["model_response_repair_attempts"] as? Int, 0)
+        XCTAssertEqual(object["source_root"] as? String, "/tmp/source-root")
+        XCTAssertEqual(object["source_verification"] as? String, "warn")
+        XCTAssertEqual(object["write_flat_keywords"] as? Bool, false)
+        XCTAssertEqual(object["write_hierarchical_keywords"] as? Bool, true)
+        XCTAssertEqual(object["backup_sidecars"] as? Bool, false)
+        XCTAssertEqual(object["xmp_conflict_policy"] as? String, "merge")
+        XCTAssertEqual(object["min_confidence"] as? String, "high")
+        XCTAssertEqual(object["allow_specific_tags"] as? Bool, true)
+        XCTAssertEqual(object["pair_scope"] as? String, "raw-only")
+        XCTAssertEqual(object["write_ai_json"] as? Bool, false)
     }
 
     func testCLIOverridesEnvironment() throws {
@@ -186,6 +332,59 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertTrue(resolved.clearDerivativeCacheAfterSuccess)
         XCTAssertEqual(resolved.stageConcurrency, 7)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 3)
+    }
+
+    func testXMPExportCLIOverridesEnvironment() throws {
+        let resolved = try ConfigurationResolver.resolveXMPExport(
+            cli: XMPExportConfigurationOverrides(
+                recursive: false,
+                outputDir: "/tmp/cli-xmp",
+                logFormat: .text,
+                dryRun: false,
+                sourceRoot: "/tmp/cli-source",
+                sourceVerification: .warn,
+                writeFlatKeywords: true,
+                writeHierarchicalKeywords: true,
+                backupSidecars: true,
+                xmpConflictPolicy: .backupAndMerge,
+                minConfidence: .high,
+                allowSpecificTags: false,
+                pairScope: .rawOnly,
+                writeAIJSON: true
+            ),
+            environment: [
+                "AISIDECAR_RECURSIVE": "1",
+                "AISIDECAR_OUTPUT_DIR": "/tmp/env-xmp",
+                "AISIDECAR_LOG_FORMAT": "json",
+                "AISIDECAR_DRY_RUN": "yes",
+                "AISIDECAR_SOURCE_ROOT": "/tmp/env-source",
+                "AISIDECAR_SOURCE_VERIFICATION": "skip",
+                "AISIDECAR_WRITE_FLAT_KEYWORDS": "false",
+                "AISIDECAR_WRITE_HIERARCHICAL_KEYWORDS": "false",
+                "AISIDECAR_BACKUP_SIDECARS": "false",
+                "AISIDECAR_XMP_CONFLICT_POLICY": "merge",
+                "AISIDECAR_MIN_CONFIDENCE": "low",
+                "AISIDECAR_ALLOW_SPECIFIC_TAGS": "true",
+                "AISIDECAR_PAIR_SCOPE": "jpeg-only",
+                "AISIDECAR_WRITE_AI_JSON": "false"
+            ],
+            defaultConfigPath: missingConfigPath()
+        )
+
+        XCTAssertFalse(resolved.recursive)
+        XCTAssertEqual(resolved.outputDir, "/tmp/cli-xmp")
+        XCTAssertEqual(resolved.logFormat, .text)
+        XCTAssertFalse(resolved.dryRun)
+        XCTAssertEqual(resolved.sourceRoot, "/tmp/cli-source")
+        XCTAssertEqual(resolved.sourceVerification, .warn)
+        XCTAssertTrue(resolved.writeFlatKeywords)
+        XCTAssertTrue(resolved.writeHierarchicalKeywords)
+        XCTAssertTrue(resolved.backupSidecars)
+        XCTAssertEqual(resolved.xmpConflictPolicy, .backupAndMerge)
+        XCTAssertEqual(resolved.minConfidence, .high)
+        XCTAssertFalse(resolved.allowSpecificTags)
+        XCTAssertEqual(resolved.pairScope, .rawOnly)
+        XCTAssertTrue(resolved.writeAIJSON)
     }
 
     func testCLIConfigPathChoosesAlternateJSON() throws {

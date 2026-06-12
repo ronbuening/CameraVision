@@ -25,6 +25,16 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var stageConcurrency: Int?
     /// Bounded model-output repair attempts after invalid JSON or schema failure.
     public var modelResponseRepairAttempts: Int?
+    public var sourceRoot: String?
+    public var sourceVerification: XMPSourceVerificationPolicy?
+    public var writeFlatKeywords: Bool?
+    public var writeHierarchicalKeywords: Bool?
+    public var backupSidecars: Bool?
+    public var xmpConflictPolicy: XMPConflictPolicy?
+    public var minConfidence: XMPMinimumConfidence?
+    public var allowSpecificTags: Bool?
+    public var pairScope: XMPPairScope?
+    public var writeAIJSON: Bool?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case mode
@@ -48,6 +58,16 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
         case stageConcurrency = "stage_concurrency"
         case modelResponseRepairAttempts = "model_response_repair_attempts"
+        case sourceRoot = "source_root"
+        case sourceVerification = "source_verification"
+        case writeFlatKeywords = "write_flat_keywords"
+        case writeHierarchicalKeywords = "write_hierarchical_keywords"
+        case backupSidecars = "backup_sidecars"
+        case xmpConflictPolicy = "xmp_conflict_policy"
+        case minConfidence = "min_confidence"
+        case allowSpecificTags = "allow_specific_tags"
+        case pairScope = "pair_scope"
+        case writeAIJSON = "write_ai_json"
     }
 
     public init(
@@ -71,7 +91,17 @@ public struct AppConfig: Codable, Sendable, Equatable {
         subjectCropMarginFraction: Double? = nil,
         subjectMergeDominanceThreshold: Double? = nil,
         stageConcurrency: Int? = nil,
-        modelResponseRepairAttempts: Int? = nil
+        modelResponseRepairAttempts: Int? = nil,
+        sourceRoot: String? = nil,
+        sourceVerification: XMPSourceVerificationPolicy? = nil,
+        writeFlatKeywords: Bool? = nil,
+        writeHierarchicalKeywords: Bool? = nil,
+        backupSidecars: Bool? = nil,
+        xmpConflictPolicy: XMPConflictPolicy? = nil,
+        minConfidence: XMPMinimumConfidence? = nil,
+        allowSpecificTags: Bool? = nil,
+        pairScope: XMPPairScope? = nil,
+        writeAIJSON: Bool? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -94,6 +124,16 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
         self.stageConcurrency = stageConcurrency
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
+        self.sourceRoot = sourceRoot
+        self.sourceVerification = sourceVerification
+        self.writeFlatKeywords = writeFlatKeywords
+        self.writeHierarchicalKeywords = writeHierarchicalKeywords
+        self.backupSidecars = backupSidecars
+        self.xmpConflictPolicy = xmpConflictPolicy
+        self.minConfidence = minConfidence
+        self.allowSpecificTags = allowSpecificTags
+        self.pairScope = pairScope
+        self.writeAIJSON = writeAIJSON
     }
 
     public init(from decoder: Decoder) throws {
@@ -148,6 +188,19 @@ public struct AppConfig: Codable, Sendable, Equatable {
         )
         self.stageConcurrency = try container.decodeIfPresent(Int.self, forKey: .stageConcurrency)
         self.modelResponseRepairAttempts = try container.decodeIfPresent(Int.self, forKey: .modelResponseRepairAttempts)
+        self.sourceRoot = try container.decodeIfPresent(String.self, forKey: .sourceRoot)
+        self.sourceVerification = try container.decodeIfPresent(
+            XMPSourceVerificationPolicy.self,
+            forKey: .sourceVerification
+        )
+        self.writeFlatKeywords = try container.decodeIfPresent(Bool.self, forKey: .writeFlatKeywords)
+        self.writeHierarchicalKeywords = try container.decodeIfPresent(Bool.self, forKey: .writeHierarchicalKeywords)
+        self.backupSidecars = try container.decodeIfPresent(Bool.self, forKey: .backupSidecars)
+        self.xmpConflictPolicy = try container.decodeIfPresent(XMPConflictPolicy.self, forKey: .xmpConflictPolicy)
+        self.minConfidence = try container.decodeIfPresent(XMPMinimumConfidence.self, forKey: .minConfidence)
+        self.allowSpecificTags = try container.decodeIfPresent(Bool.self, forKey: .allowSpecificTags)
+        self.pairScope = try container.decodeIfPresent(XMPPairScope.self, forKey: .pairScope)
+        self.writeAIJSON = try container.decodeIfPresent(Bool.self, forKey: .writeAIJSON)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -173,6 +226,16 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(subjectMergeDominanceThreshold, forKey: .subjectMergeDominanceThreshold)
         try container.encodeIfPresent(stageConcurrency, forKey: .stageConcurrency)
         try container.encodeIfPresent(modelResponseRepairAttempts, forKey: .modelResponseRepairAttempts)
+        try container.encodeIfPresent(sourceRoot, forKey: .sourceRoot)
+        try container.encodeIfPresent(sourceVerification, forKey: .sourceVerification)
+        try container.encodeIfPresent(writeFlatKeywords, forKey: .writeFlatKeywords)
+        try container.encodeIfPresent(writeHierarchicalKeywords, forKey: .writeHierarchicalKeywords)
+        try container.encodeIfPresent(backupSidecars, forKey: .backupSidecars)
+        try container.encodeIfPresent(xmpConflictPolicy, forKey: .xmpConflictPolicy)
+        try container.encodeIfPresent(minConfidence, forKey: .minConfidence)
+        try container.encodeIfPresent(allowSpecificTags, forKey: .allowSpecificTags)
+        try container.encodeIfPresent(pairScope, forKey: .pairScope)
+        try container.encodeIfPresent(writeAIJSON, forKey: .writeAIJSON)
     }
 }
 

@@ -161,6 +161,75 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testInvalidXMPExportEnumFailsAsConfigInvalid() throws {
+        for json in [
+            #"{ "source_verification": "maybe" }"#,
+            #"{ "xmp_conflict_policy": "replace" }"#,
+            #"{ "min_confidence": "certain" }"#,
+            #"{ "pair_scope": "tiff-only" }"#
+        ] {
+            try assertConfigInvalid {
+                _ = try ConfigurationResolver.resolveXMPExport(
+                    environment: [:],
+                    defaultConfigPath: writeConfig(json)
+                )
+            }
+        }
+
+        for environment in [
+            ["AISIDECAR_SOURCE_VERIFICATION": "maybe"],
+            ["AISIDECAR_XMP_CONFLICT_POLICY": "replace"],
+            ["AISIDECAR_MIN_CONFIDENCE": "certain"],
+            ["AISIDECAR_PAIR_SCOPE": "tiff-only"]
+        ] {
+            try assertConfigInvalid {
+                _ = try ConfigurationResolver.resolveXMPExport(
+                    environment: environment,
+                    defaultConfigPath: missingConfigPath()
+                )
+            }
+        }
+    }
+
+    func testInvalidXMPExportBooleanFailsAsConfigInvalid() throws {
+        for environment in [
+            ["AISIDECAR_WRITE_FLAT_KEYWORDS": "maybe"],
+            ["AISIDECAR_WRITE_HIERARCHICAL_KEYWORDS": "maybe"],
+            ["AISIDECAR_BACKUP_SIDECARS": "maybe"],
+            ["AISIDECAR_ALLOW_SPECIFIC_TAGS": "maybe"],
+            ["AISIDECAR_WRITE_AI_JSON": "maybe"]
+        ] {
+            try assertConfigInvalid {
+                _ = try ConfigurationResolver.resolveXMPExport(
+                    environment: environment,
+                    defaultConfigPath: missingConfigPath()
+                )
+            }
+        }
+    }
+
+    func testXMPBackupAndMergeRequiresBackups() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolveXMPExport(
+                environment: [:],
+                defaultConfigPath: writeConfig(
+                    #"{ "xmp_conflict_policy": "backup-and-merge", "backup_sidecars": false }"#
+                )
+            )
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolveXMPExport(
+                cli: XMPExportConfigurationOverrides(
+                    backupSidecars: false,
+                    xmpConflictPolicy: .backupAndMerge
+                ),
+                environment: [:],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     func testInvalidModelKeepAliveFailsAsConfigInvalid() throws {
         try assertConfigInvalid {
             _ = try ConfigurationResolver.resolve(

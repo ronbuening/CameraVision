@@ -15,26 +15,28 @@ Traceability in this plan points at Phase 2 v0.4 requirement IDs (`FR2-xxx`, `AC
 
 ## 0. Current Implementation Status
 
-Phase 2 itself is not implemented yet. The useful baseline is Phase 1: Milestones 0-8 and the Milestone 9a benchmark harness are implemented. The repository has the reusable scanner, source identity, raw sidecar naming/writing, atomic file writer, progress log, batch summary, derivative renderer/cache, subject-isolation service, `VisionModelRunner` protocol, Ollama runner, mock and recorded-fixture runners, v1.3 prompt/schema resources, response parser/repair path, raw sidecar schema-evolution wrapper, diagnostic model-input export, no-XMP guards, and `aisidecar benchmark` / `aisidecar purge` commands.
+Phase 2 Milestone 0 is implemented. The repository now includes the `aisidecar write-xmp` validation-only scaffold, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, placeholder export report/change-plan schema identifiers, additive source-verification error codes, and no-XMP regression coverage around existing Phase 1 commands.
+
+No Phase 2 XMP writing code exists yet. The `write-xmp` command intentionally resolves configuration and then fails with a not-implemented error until the later export pipeline and owned XMP engine milestones land.
+
+The useful baseline remains Phase 1: Milestones 0-8 and the Milestone 9a benchmark harness are implemented. The repository has the reusable scanner, source identity, raw sidecar naming/writing, atomic file writer, progress log, batch summary, derivative renderer/cache, subject-isolation service, `VisionModelRunner` protocol, Ollama runner, mock and recorded-fixture runners, v1.3 prompt/schema resources, response parser/repair path, raw sidecar schema-evolution wrapper, diagnostic model-input export, no-XMP guards, and `aisidecar benchmark` / `aisidecar purge` commands.
 
 The Phase 1 release signoff is not complete. The remaining evidence is Milestone 9 calibration and manual quality review: full benchmark matrix, final profile/`keep_alive`/`stage_concurrency` defaults, foreground-mask failure classification, tag-quality review, multi-subject instance-selection spot checks, rights-cleared format coverage or documented deferral, and final AC1-001 through AC1-015 acceptance evidence.
 
 That state is good enough for Phase 2 implementation. It is not good enough for Phase 2 release without either archived Phase 1 signoff evidence or an explicit release note listing any deferred Phase 1 evidence.
 
-Latest Phase 1 verification recorded in the attached plan:
+Latest verification recorded after Phase 2 Milestone 0:
 
 ```text
-swift test                                      139 tests, 1 skipped, 0 failures
+swift test                                      156 tests, 1 skipped, 0 failures
+swift run aisidecar write-xmp --help           passed
+swift run aisidecar --help                     passed
 swift run aisidecar analyze --help             passed
 swift run aisidecar benchmark --help           passed
-swift run aisidecar benchmark --self-test      passed
-swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --output-dir /private/tmp
-                                                passed, 0 XMP files
 swift run aisidecar purge --help               passed
-swift run aisidecar --help                     passed
 ```
 
-The next implementation unit is the metadata export layer. This revision replaces the earlier ExifTool runtime plan with a narrow owned XMP sidecar engine. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
+The next implementation unit is Milestone 1: raw sidecar reader, `.ai.json` scanning, and source resolution. This revision replaces the earlier ExifTool runtime plan with a narrow owned XMP sidecar engine. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
 
 ## 1. Implementation Position
 
@@ -102,6 +104,8 @@ Planned additions are shown only where Phase 2 creates or changes files.
 CameraVision/
   Sources/
     AISidecarCore/
+      Configuration/
+        XMPExportConfiguration.swift           // implemented M0 config, enums, invocation validation
       Metadata/
         MetadataWriteEngine.swift              // protocol and common result types
         OwnedXMPSidecarEngine.swift            // FR2-029 live owned engine
@@ -127,6 +131,7 @@ CameraVision/
         XMPExportPipeline.swift            // from-json/change-plan/write/report path
         AnalyzeAndXMPPipeline.swift        // thin adapter over AnalyzePipeline + export path
       Reporting/
+        XMPExportSchemaIdentifiers.swift       // implemented M0 schema constants
         XMPExportProgressLog.swift         // one record per XMP target
         XMPExportReport.swift              // ai-sidecar-xmp-export/1.0
         XMPExportSummary.swift             // Markdown human summary
@@ -135,6 +140,8 @@ CameraVision/
       AISidecarCommand.swift               // registers write-xmp subcommand
   Tests/
     AISidecarCoreTests/
+      XMPExportInvocationTests.swift       // implemented M0 CLI-shape validation seam
+      NoXMPRegressionTests.swift           // implemented M0 AC2-018 guard
       Fixtures/
         ai-json/
         xmp/
@@ -147,19 +154,22 @@ Do not put XML/RDF implementation details into candidate extraction, grouping, o
 
 ## 4. Milestone 0 - Phase 2 Scaffold and Regression Guard
 
-Tasks:
+Status: implemented.
+
+Implemented:
 
 1. Add `write-xmp` to `AISidecarCommand` and create `WriteXMPCommand` with help text and option validation.
 2. Add Phase 2 config fields with the existing precedence rule: CLI flag > `AISIDECAR_*` environment variable > JSON config > built-in default (PW-007).
 3. Add Phase 2 error codes to the additive taxonomy: `E_SOURCE_MISSING` and `E_SOURCE_IDENTITY_MISMATCH`.
 4. Add no-XMP regression tests around existing Phase 1 commands after the new XMP modules are linked: `analyze`, `benchmark`, `purge`, and `analyze --export-model-inputs` must remain XMP-silent (AC2-018).
 5. Add placeholder export report/change-plan schema constants: `ai-sidecar-xmp-export/1.0` and `ai-sidecar-xmp-change-plan/1.0`.
+6. Keep non-help `write-xmp` execution validation-only: it resolves configuration, then fails with a not-implemented `E_CONFIG_INVALID` until later milestones add export execution.
 
-Exit criteria:
+Exit criteria, latest result:
 
 ```text
 swift run aisidecar write-xmp --help     passed
-swift test                               existing Phase 1 tests still pass
+swift test                               156 tests, 1 skipped, 0 failures
 ```
 
 No XMP-writing code exists yet at this milestone.
