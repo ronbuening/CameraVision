@@ -1,17 +1,17 @@
 # CameraVision
 
-CameraVision is a local macOS utility for generating AI-assisted image metadata for photo workflows. The long-term goal is to support Lightroom and Capture One sidecar workflows, but the current implementation is in Phase 1: generating auditable raw AI JSON sidecars before any XMP writeback exists.
+CameraVision is a local macOS utility for generating AI-assisted image metadata for photo workflows. The long-term goal is to support Lightroom and Capture One sidecar workflows. The current implementation generates auditable raw AI JSON sidecars and includes early Phase 2 `write-xmp --from-json` dry-run planning, but it does not write XMP sidecars yet.
 
 ## Current State
 
-Phase 1 Milestones 0-8 and the Milestone 9a benchmark harness are implemented. Phase 1 still produces only auditable raw AI JSON sidecars; XMP writeback starts in Phase 2.
+Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, and Phase 2 Milestones 0-3 are implemented. Phase 1 still produces only auditable raw AI JSON sidecars. Phase 2 can resolve raw sidecars, extract candidate keywords, plan XMP targets, group same-base-name sources, and emit dry-run change-plan JSON; actual XMP writeback starts with the later owned-engine and writer milestones.
 
 The repository currently contains:
 
 - A Swift Package Manager project targeting macOS 15 and Swift 6.
 - `AISidecarCore`, the shared library where reusable project logic lives.
 - `aisidecar`, the command-line executable.
-- `aisidecar analyze` command wiring with the Phase 1 shared flag surface, `aisidecar benchmark` for Milestone 9a timing/validity runs, and `aisidecar purge` for derivative cache maintenance.
+- `aisidecar analyze` command wiring with the Phase 1 shared flag surface, `aisidecar write-xmp` non-writing Phase 2 planning, `aisidecar benchmark` for Milestone 9a timing/validity runs, and `aisidecar purge` for derivative cache maintenance.
 - A reusable `AISidecarCore/Benchmarking` harness for benchmark specs, result documents, sidecar metric aggregation, no-XMP checks, scratch cleanup, and offline self-test.
 - Configuration resolution with precedence: CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default.
 - The frozen Phase 1 structured error taxonomy.
@@ -27,6 +27,7 @@ The repository currently contains:
 - Versioned whole-image and subject-isolated prompts plus bundled v1.3 response schemas.
 - A reusable Ollama vision model runtime layer with tag/digest verification, runtime provenance, `/api/chat` request encoding, response parsing, schema validation, schema-constrained response repair, retry/error classification, and mock/recorded-fixture runners.
 - Full `aisidecar analyze` model execution with populated `model_runs` records, prompt/schema provenance, model digest/runtime provenance, raw response preservation, parsed JSON when valid, and optional per-attempt response provenance when repair is used.
+- `aisidecar write-xmp --from-json` raw sidecar scanning, source resolution, source verification policy, candidate extraction, `<base>.xmp` naming, same-base-name RAW/JPEG group planning, `--pair-scope`, and `--dry-run` change-plan JSON.
 - Bounded render/isolation preparation through `stage_concurrency`, feeding a serialized single-flight model stage.
 - JSON/env configuration for subject crop margin and merge dominance threshold.
 - JSON/env/CLI configuration for `stage_concurrency`, model response repair attempts, and derivative cache clearing.
@@ -35,11 +36,12 @@ The repository currently contains:
 - Optional `--debug-derivatives` copies beside source images.
 - Folder-run JSONL progress logs and derived batch summaries.
 - SIGINT/SIGTERM-aware interruption handling for the full analyze pipeline.
-- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, source identity, sidecar naming/writing, schema-evolution sidecar rewrites, rendering, derivative cache behavior and purge resolution, subject-isolation geometry/pipeline behavior, model-runtime behavior including repair success/failure, progress logs, summaries, diagnostic export, golden sidecars, no-XMP Phase 1 guards, the shell pipeline, and the full analyze pipeline.
+- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, source identity, sidecar naming/writing, schema-evolution sidecar rewrites, rendering, derivative cache behavior and purge resolution, subject-isolation geometry/pipeline behavior, model-runtime behavior including repair success/failure, progress logs, summaries, diagnostic export, golden sidecars, no-XMP guards, the shell pipeline, the full analyze pipeline, and Phase 2 `write-xmp` planning.
 
 Not implemented yet:
 
-- XMP output of any kind.
+- XMP sidecar creation or modification.
+- Owned XMP parsing, merging, backup/restore, validation, export reports, and analyze-and-write XMP integration.
 
 ## Repository Layout
 
@@ -51,6 +53,7 @@ Sources/
     Errors/            Frozen Phase 1 structured error taxonomy.
     FileScanning/      Input discovery and source image records.
     Identity/          Source content identity hashing.
+    Metadata/          Phase 2 candidate extraction, keyword policy, XMP naming, grouping, and planning.
     ModelRuntime/      Ollama runner, model-run records, JSON schema validation, and test runners.
     Rendering/         Model input profiles, render recipes, renderer, and derivative cache.
     Pipeline/          Full analyze pipeline, analyze shell pipeline, and diagnostic model-input export.
@@ -67,7 +70,8 @@ agent_docs/           Requirements, implementation plans, and agent guidance.
 
 - `agent_docs/01-cli-raw-json-sidecar-requirements.md` - Phase 1 requirements.
 - `agent_docs/phase-1-cli-implementation-plan.md` - Phase 1 milestone plan.
-- `agent_docs/02-cli-xmp-sidecar-requirements.md` - Phase 2 requirements.
+- `agent_docs/02-cli-xmp-sidecar-requirements-updated.md` - Phase 2 requirements.
+- `agent_docs/phase-2-cli-implementation-plan(1).md` - Phase 2 milestone plan.
 - `agent_docs/03-cli-normalized-batch-tagger-requirements.md` - Phase 3 requirements.
 - `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` - Phase 4 requirements.
 - `agent_docs/commenting_guide.md` - Commenting rules for Swift source and tests.
@@ -80,6 +84,7 @@ The project uses SwiftPM and depends on Swift ArgumentParser.
 ```bash
 swift test
 swift run aisidecar analyze --help
+swift run aisidecar write-xmp --help
 swift run aisidecar benchmark --help
 swift run aisidecar purge --help
 swift run aisidecar benchmark --self-test
@@ -87,6 +92,7 @@ swift run aisidecar analyze <folder> --recursive --output-dir <tmp-output>
 swift run aisidecar analyze <image-or-folder> --mode subject --debug-derivatives --output-dir <tmp-output>
 swift run aisidecar analyze <image-or-folder> --mode both --export-model-inputs <tmp-output>
 swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --output-dir <tmp-output>
+swift run aisidecar write-xmp --from-json <json-file-or-folder> --recursive --source-root <image-root> --dry-run
 ```
 
 If `xcode-select` points at Command Line Tools and XCTest is unavailable, run SwiftPM through the installed Xcode developer directory:
@@ -94,6 +100,7 @@ If `xcode-select` points at Command Line Tools and XCTest is unavailable, run Sw
 ```bash
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar analyze --help
+env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar write-xmp --help
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar benchmark --help
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar purge --help
 ```
@@ -108,10 +115,14 @@ For visual validation, `--export-model-inputs <folder>` switches `analyze` into 
 
 Cache cleanup is scoped to files owned by the derivative cache manifest or matching aisidecar's deterministic derivative names, so unrelated files in a misconfigured cache directory are not intentionally removed.
 
+## Current Write-XMP Behavior
+
+`aisidecar write-xmp --from-json` currently implements the Phase 2 planning path. It reads one `.ai.json` sidecar or scans a folder, resolves the recorded source image, applies source-verification policy, extracts accepted keyword candidates, derives `<base>.xmp` target paths, groups same-base-name sources into one target plan, applies `--pair-scope union|raw-only|jpeg-only`, and emits `ai-sidecar-xmp-change-plan/1.0` JSON when `--dry-run` is supplied. Non-dry-run export still stops before execution because owned XMP parsing, merging, backup/restore, validation, reports, and actual writes are later Phase 2 milestones.
+
 ## Current Benchmark Behavior
 
 `aisidecar benchmark` runs the Phase 1 Milestone 9a benchmark matrix. It builds `.build/release/aisidecar` by default, invokes `analyze` for each selected spec, aggregates sidecar/model-run timings, verifies no `.xmp` files were created, and writes JSON plus Markdown result documents under `benchmarks/milestone9a-YYYY-MM-DD-HHMMSS/` or the requested `--output-dir`. Use repeated `--spec` flags for focused runs, and `--self-test` for the offline aggregation check. The legacy `benchmarks/run-milestone9a.swift` script remains as a wrapper around this command.
 
 ## Next Steps
 
-The next planned work is completing Phase 1 Milestone 9 calibration and quality review, then starting Phase 2 XMP writeback. Milestone 9 follow-up should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.
+The next planned work is Phase 2 Milestone 4, the owned XMP sidecar engine parser/writer seam, while Phase 1 Milestone 9 calibration and quality review remain required before release signoff. Follow-up work should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.

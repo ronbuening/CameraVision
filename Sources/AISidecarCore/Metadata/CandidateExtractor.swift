@@ -23,6 +23,14 @@ public struct CandidateProvenance: Codable, Sendable, Equatable {
     public var sourceImage: String
     public var modelRunIndex: Int
 
+    enum CodingKeys: String, CodingKey {
+        case sourceField = "source_field"
+        case inputRole = "input_role"
+        case sourceSidecar = "source_sidecar"
+        case sourceImage = "source_image"
+        case modelRunIndex = "model_run_index"
+    }
+
     public init(
         sourceField: CandidateSourceField,
         inputRole: ModelInputRole,
@@ -45,6 +53,14 @@ public struct ExtractedCandidate: Codable, Sendable, Equatable {
     public var confidence: XMPMinimumConfidence
     public var evidence: String?
     public var provenance: CandidateProvenance
+
+    enum CodingKeys: String, CodingKey {
+        case term
+        case normalizedTerm = "normalized_term"
+        case confidence
+        case evidence
+        case provenance
+    }
 
     public init(
         term: String,
@@ -71,6 +87,12 @@ public struct ExportableKeyword: Codable, Sendable, Equatable {
     public var normalizedKey: String
     public var candidates: [ExtractedCandidate]
 
+    enum CodingKeys: String, CodingKey {
+        case term
+        case normalizedKey = "normalized_key"
+        case candidates
+    }
+
     public init(term: String, normalizedKey: String, candidates: [ExtractedCandidate]) {
         self.term = term
         self.normalizedKey = normalizedKey
@@ -96,6 +118,13 @@ public struct SkippedCandidate: Codable, Sendable, Equatable {
     public var term: String?
     public var normalizedTerm: String?
 
+    enum CodingKeys: String, CodingKey {
+        case reason
+        case candidate
+        case term
+        case normalizedTerm = "normalized_term"
+    }
+
     public init(
         reason: SkippedCandidateReason,
         candidate: ExtractedCandidate?,
@@ -118,6 +147,16 @@ public struct CandidateExtractionIssue: Codable, Sendable, Equatable {
     public var sourceField: CandidateSourceField?
     public var candidateIndex: Int?
     public var message: String
+
+    enum CodingKeys: String, CodingKey {
+        case reason
+        case sourceSidecar = "source_sidecar"
+        case sourceImage = "source_image"
+        case modelRunIndex = "model_run_index"
+        case sourceField = "source_field"
+        case candidateIndex = "candidate_index"
+        case message
+    }
 
     public init(
         reason: CandidateExtractionIssueReason,
@@ -156,6 +195,16 @@ public struct CandidateExtractionResult: Codable, Sendable, Equatable {
     public var hierarchicalKeywords: [ExportableKeyword]
     public var skippedCandidates: [SkippedCandidate]
     public var issues: [CandidateExtractionIssue]
+
+    enum CodingKeys: String, CodingKey {
+        case sourceSidecar = "source_sidecar"
+        case sourceImage = "source_image"
+        case extractedCandidates = "extracted_candidates"
+        case flatKeywords = "flat_keywords"
+        case hierarchicalKeywords = "hierarchical_keywords"
+        case skippedCandidates = "skipped_candidates"
+        case issues
+    }
 
     public init(
         sourceSidecar: String,

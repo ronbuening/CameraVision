@@ -118,13 +118,24 @@ struct WriteXMPCommand: AsyncParsableCommand {
                 fromJSONPath: path,
                 configuration: exportConfiguration
             )
-            _ = CandidateExtractor().extract(from: batch.inputs, configuration: exportConfiguration)
+            let extractionResults = CandidateExtractor().extract(from: batch.inputs, configuration: exportConfiguration)
+            let changePlan = XMPChangePlanner().plan(
+                inputBatch: batch,
+                extractionResults: extractionResults,
+                configuration: exportConfiguration
+            )
+            if exportConfiguration.dryRun {
+                // Milestone 3 exposes the future writer input as stdout JSON;
+                // the non-dry-run path remains blocked until the XMP engine lands.
+                try writeChangePlan(changePlan)
+                return
+            }
         case .analyzeAndWrite:
             _ = try ConfigurationResolver.resolve(cli: runOverrides)
         }
 
         throw SidecarError.configInvalid(
-            "aisidecar write-xmp preflight is implemented through Phase 2 Milestone 2; export execution is not implemented until a later milestone."
+            "aisidecar write-xmp planning is implemented through Phase 2 Milestone 3; XMP export execution is not implemented until a later milestone."
         )
     }
 
@@ -206,5 +217,13 @@ struct WriteXMPCommand: AsyncParsableCommand {
             return false
         }
         return nil
+    }
+
+    private func writeChangePlan(_ changePlan: XMPChangePlanDocument) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(changePlan)
+        FileHandle.standardOutput.write(data)
+        FileHandle.standardOutput.write(Data("\n".utf8))
     }
 }

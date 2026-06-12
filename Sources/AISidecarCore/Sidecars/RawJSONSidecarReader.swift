@@ -1,6 +1,6 @@
 import Foundation
 
-/// Reads Phase 1 raw JSON sidecars for Phase 2 export preflight.
+/// Reads Phase 1 raw JSON sidecars for Phase 2 export planning.
 ///
 /// The reader accepts additive `ai-sidecar-json/1.x` documents, rejects higher
 /// major versions, and returns the schema-evolution wrapper so later milestones

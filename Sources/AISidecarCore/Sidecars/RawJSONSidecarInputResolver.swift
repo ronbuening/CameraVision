@@ -46,7 +46,7 @@ public struct RawJSONSidecarInputFailure: Sendable, Equatable {
     }
 }
 
-/// Batch result for Phase 2 raw sidecar input preflight.
+/// Batch result for Phase 2 raw sidecar input planning.
 public struct RawJSONSidecarInputBatch: Sendable, Equatable {
     public var inputs: [ResolvedRawSidecarInput]
     public var failures: [RawJSONSidecarInputFailure]
@@ -57,7 +57,7 @@ public struct RawJSONSidecarInputBatch: Sendable, Equatable {
     }
 }
 
-/// Scans and resolves `write-xmp --from-json` inputs before candidate extraction.
+/// Scans and resolves `write-xmp --from-json` inputs before candidate extraction and XMP planning.
 ///
 /// Folder scans keep bad sidecars as per-file failures so later export reporting
 /// can continue the batch. Direct file input throws immediately because there is

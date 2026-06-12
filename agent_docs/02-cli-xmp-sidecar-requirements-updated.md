@@ -52,7 +52,7 @@ Phase 2 implementation shall not reopen Phase 1 rendering, isolation, prompting,
 
 ## 0.2 Current Implementation Status
 
-Phase 2 Milestones 0-2 are implemented as a non-writing preflight. The repository now has:
+Phase 2 Milestones 0-3 are implemented as a non-writing preflight and dry-run planner. The repository now has:
 
 - `aisidecar write-xmp --help` and command-shape validation;
 - Phase 2 export configuration defaults with `CLI > AISIDECAR_* > JSON config > built-in default` precedence;
@@ -62,9 +62,12 @@ Phase 2 Milestones 0-2 are implemented as a non-writing preflight. The repositor
 - no-XMP regression coverage for `analyze`, `benchmark`, `purge`, and `analyze --export-model-inputs`;
 - `RawJSONSidecarReader` plus `write-xmp --from-json` sidecar scanning and source resolution;
 - source identity verification policies for `fail`, `warn`, and `skip`;
-- `CandidateExtractor`, keyword text normalization, confidence-band filtering, de-duplication, skipped-candidate diagnostics, and conservative specific-tag filtering.
+- `CandidateExtractor`, keyword text normalization, confidence-band filtering, de-duplication, skipped-candidate diagnostics, and conservative specific-tag filtering;
+- `XMPNaming` for `<base>.xmp` target paths and mirrored `--output-dir` staging paths;
+- `SameBaseNameGroupResolver` for same-base-name source groups, RAW/JPEG pair scope selection, contribution accounting, and case-insensitive target collision detection;
+- `XMPChangePlanner` plus `ai-sidecar-xmp-change-plan/1.0` dry-run JSON output from `write-xmp --from-json --dry-run`.
 
-Milestones 0-2 intentionally do not parse or write XMP, create reports, or execute change plans. The `write-xmp --from-json` path resolves and extracts raw sidecar candidates, then stops before export execution. The remaining Phase 2 error codes, `E_XMP_PARSE_FAILED` and `E_XMP_UNSUPPORTED_RDF`, are introduced with the owned XMP engine milestone where they are first used.
+Milestones 0-3 intentionally do not parse or write XMP, create reports, or execute write plans. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidates, groups sources, and emits the intended change plan to stdout. The non-dry-run path builds the same plan, then stops before export execution. The remaining Phase 2 error codes, `E_XMP_PARSE_FAILED` and `E_XMP_UNSUPPORTED_RDF`, are introduced with the owned XMP engine milestone where they are first used.
 
 ## 1. Purpose
 

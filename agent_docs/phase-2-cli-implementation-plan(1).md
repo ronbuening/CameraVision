@@ -15,9 +15,9 @@ Traceability in this plan points at Phase 2 v0.4 requirement IDs (`FR2-xxx`, `AC
 
 ## 0. Current Implementation Status
 
-Phase 2 Milestones 0-2 are implemented. The repository now includes the `aisidecar write-xmp` non-writing preflight scaffold, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, placeholder export report/change-plan schema identifiers, additive source-verification error codes, no-XMP regression coverage around existing Phase 1 commands, raw sidecar reader/source resolution, and candidate extraction with keyword policy.
+Phase 2 Milestones 0-3 are implemented. The repository now includes the `aisidecar write-xmp` non-writing preflight scaffold, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, placeholder export report/change-plan schema identifiers, additive source-verification error codes, no-XMP regression coverage around existing Phase 1 commands, raw sidecar reader/source resolution, candidate extraction with keyword policy, XMP target naming, same-base-name group resolution, pair-scope selection, and dry-run change-plan JSON output.
 
-No Phase 2 XMP writing code exists yet. The `write-xmp --from-json` path intentionally resolves raw sidecars and extracts candidate keyword records, then fails with a not-implemented error until the later export planner, export pipeline, and owned XMP engine milestones land.
+No Phase 2 XMP writing code exists yet. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidate keyword records, groups sources, plans one target per XMP sidecar, and prints `ai-sidecar-xmp-change-plan/1.0` JSON to stdout. The non-dry-run path builds the same plan, then fails with a not-implemented error until the owned XMP engine, backup/validation, and export pipeline milestones land.
 
 The useful baseline remains Phase 1: Milestones 0-8 and the Milestone 9a benchmark harness are implemented. The repository has the reusable scanner, source identity, raw sidecar naming/writing, atomic file writer, progress log, batch summary, derivative renderer/cache, subject-isolation service, `VisionModelRunner` protocol, Ollama runner, mock and recorded-fixture runners, v1.3 prompt/schema resources, response parser/repair path, raw sidecar schema-evolution wrapper, diagnostic model-input export, no-XMP guards, and `aisidecar benchmark` / `aisidecar purge` commands.
 
@@ -25,14 +25,18 @@ The Phase 1 release signoff is not complete. The remaining evidence is Milestone
 
 That state is good enough for Phase 2 implementation. It is not good enough for Phase 2 release without either archived Phase 1 signoff evidence or an explicit release note listing any deferred Phase 1 evidence.
 
-Latest verification recorded after Phase 2 Milestone 2:
+Latest verification recorded after Phase 2 Milestone 3:
 
 ```text
-swift test                                      178 tests, 1 skipped, 0 failures
-swift run aisidecar write-xmp --help           passed
+swift test --filter XMPNamingTests             4 tests, 0 failures
+swift test --filter SameBaseNameGroupTests     5 tests, 0 failures
+swift test --filter XMPChangePlanTests         1 test, 0 failures
+swift test                                      188 tests, 1 skipped, 0 failures
+swift run aisidecar write-xmp --from-json <tmp-json-folder> --recursive --source-verification skip --output-dir <tmp-out> --dry-run
+                                                passed, emitted ai-sidecar-xmp-change-plan/1.0 JSON
 ```
 
-The next implementation unit is Milestone 3: XMP naming, same-base-name group resolution, and dry-run change planning. This revision replaces the earlier ExifTool runtime plan with a narrow owned XMP sidecar engine. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
+The next implementation unit is Milestone 4: the owned XMP sidecar engine. This revision replaces the earlier ExifTool runtime plan with a narrow owned XMP sidecar engine. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
 
 ## 1. Implementation Position
 
@@ -111,15 +115,14 @@ CameraVision/
         XMPKeywordMerger.swift                 // normalized bag merge and de-duplication
         XMPMetadataSnapshot.swift              // pre/post field snapshots for validation
         XMPUnmanagedContentFingerprint.swift   // semantic preservation fingerprint
-        XMPChangePlan.swift                    // ai-sidecar-xmp-change-plan/1.0
+        XMPChangePlan.swift                    // implemented M3 ai-sidecar-xmp-change-plan/1.0 and planner
         XMPMergeValidator.swift                // FR2-028 snapshot/fingerprint validation
         XMPBackupManager.swift                 // deterministic backup/restore
-        XMPNaming.swift                        // <base>.xmp and --output-dir mirroring
-        SameBaseNameGroupResolver.swift        // RAW+JPEG/shared-sidecar planning
+        XMPNaming.swift                        // implemented M3 <base>.xmp and --output-dir mirroring
+        SameBaseNameGroupResolver.swift        // implemented M3 RAW+JPEG/shared-sidecar planning
         CandidateExtractor.swift               // implemented M2 candidate extraction and policy records
         KeywordTextNormalizer.swift            // implemented M2 NFC, trim, whitespace collapse, pipe rejection
         SpecificTagPolicy.swift                // implemented M2 conservative specific-tag heuristic
-        ExportPlanner.swift                    // extraction/grouping -> XMPChangePlan
       Sidecars/
         RawJSONSidecarReader.swift         // implemented M1 ai-sidecar-json/1.x read path
         RawJSONSidecarDocument.swift       // implemented schema-evolution wrapper
@@ -141,6 +144,9 @@ CameraVision/
       NoXMPRegressionTests.swift           // implemented M0 AC2-018 guard
       RawJSONSidecarInputResolverTests.swift // implemented M1 sidecar scan/source resolution coverage
       CandidateExtractorTests.swift        // implemented M2 extraction and keyword policy coverage
+      XMPNamingTests.swift                 // implemented M3 XMP target naming coverage
+      SameBaseNameGroupTests.swift         // implemented M3 grouping, scope, collision coverage
+      XMPChangePlanTests.swift             // implemented M3 dry-run plan coverage
       Fixtures/
         ai-json/
         xmp/
@@ -224,34 +230,60 @@ Implemented notes:
 
 ## 7. Milestone 3 - XMP Naming, Group Resolution, and Change Planning
 
-Tasks:
+Status: implemented.
 
-1. Implement `XMPNaming`: every source image maps to `<base>.xmp`; no embedded writing (FR2-001/001a).
-2. Implement default beside-source output and `--output-dir` mirrored staging output (FR2-001b/c).
-3. Implement target collision detection, including case-insensitive filesystem collisions (FR2-001d).
-4. Implement `SameBaseNameGroupResolver`: group by relative directory plus basename, not by raw `.ai.json` filename (FR2-002).
-5. Implement `--pair-scope union|raw-only|jpeg-only` (FR2-002a/b).
-6. Produce one `XMPChangePlan` per XMP target, not per source member (FR2-002c).
-7. Implement dry-run output using the same change plan that write mode will execute (FR2-033).
+Implemented:
 
-Core model:
+1. Added `XMPNaming`: every source image maps to `<base>.xmp`; no embedded write path exists (FR2-001/001a).
+2. Added default beside-source target planning and `--output-dir` mirrored staging output, including the `source-verification skip + outputDir + source.relativePath` staging exception (FR2-000d/001b/001c).
+3. Added case-insensitive target collision detection before any writer can execute a plan (FR2-001d).
+4. Added `SameBaseNameGroupResolver`: groups by source-relative directory plus exact basename, not by raw `.ai.json` filename (FR2-002).
+5. Added `--pair-scope union|raw-only|jpeg-only` selection over RAW-like (`nef`, `nrw`, `cr3`, `cr2`, `arw`, `raf`, `orf`, `rw2`, `dng`) and JPEG (`jpg`, `jpeg`) member classes (FR2-002a/b).
+6. Added `XMPChangePlanner`, producing one `XMPChangePlan` per target XMP sidecar and unioning planned flat/hierarchical keywords case-insensitively while retaining all candidate provenance (FR2-002c/006d).
+7. Updated `write-xmp --from-json --dry-run` to emit deterministic pretty JSON using the same change-plan document that later write mode will consume (FR2-033).
+8. Kept non-dry-run `write-xmp` non-writing: it builds the plan, then fails with a not-implemented error until the owned XMP engine and export pipeline milestones land.
+
+Implemented core model:
 
 ```swift
+struct XMPChangePlanDocument: Codable, Sendable {
+    let schemaVersion: String          // ai-sidecar-xmp-change-plan/1.0
+    let dryRun: Bool
+    let targetPlans: [XMPChangePlan]
+    let inputFailures: [XMPChangePlanInputFailure]
+}
+
 struct XMPChangePlan: Codable, Sendable {
-    let schemaVersion: String              // ai-sidecar-xmp-change-plan/1.0
+    let status: XMPTargetPlanStatus
     let targetXMPPath: String
+    let targetRelativePath: String
+    let pairScope: XMPPairScope
     let sourceMembers: [SourceMemberPlan]
     let flatKeywordsToAdd: [PlannedKeyword]
     let hierarchicalKeywordsToAdd: [PlannedKeyword]
     let skippedCandidates: [SkippedCandidate]
+    let candidateExtractionIssues: [CandidateExtractionIssue]
+    let sourceVerificationWarnings: [SidecarError]
+    let groupWarnings: [SidecarError]
     let existingPolicy: XMPConflictPolicy
     let backupPlan: BackupPlan
     let validationPlan: ValidationPlan
-    let warnings: [SidecarError]
+    let failures: [SidecarError]
 }
 ```
 
-Exit criteria: dry-run over a RAW+JPEG fixture group produces exactly one target plan with unioned, de-duplicated terms and source provenance; restrictive pair scopes select only the intended member; `--output-dir` mirrors the tree and collision cases fail before write.
+Exit criteria, recorded at Milestone 3:
+
+```text
+swift test --filter XMPNamingTests             passed
+swift test --filter SameBaseNameGroupTests     passed
+swift test --filter XMPChangePlanTests         passed
+swift test                                      188 tests, 1 skipped, 0 failures
+swift run aisidecar write-xmp --from-json <tmp-json-folder> --recursive --source-verification skip --output-dir <tmp-out> --dry-run
+                                                passed, emitted ai-sidecar-xmp-change-plan/1.0 JSON
+```
+
+No XMP parser, writer, backup, report, progress log, summary, or sidecar write exists yet at this milestone.
 
 ## 8. Milestone 4 - Owned XMP Sidecar Engine
 
