@@ -1,15 +1,55 @@
 # Phase 1 Requirements - CLI Raw JSON Sidecar Generator
 
-Version: 0.3
-Date: 2026-06-11
-Supersedes: 0.2
-Binary: `aisidecar` (subcommand: `analyze`)
+Version: 0.4
+Date: 2026-06-12
+Supersedes: 0.3
+Binary: `aisidecar` (subcommands: `analyze`, `benchmark`, `purge`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15
 Default vision model: `gemma4:26b-a4b-it-qat` (verified against the local Ollama install at startup)
 Primary output artifact: raw AI JSON sidecar file, not XMP
 
-## 0. Changes from v0.2
+## 0. Changes from v0.3
+
+This revision records implementation status. It does not broaden Phase 1 scope or start Phase 2/XMP work.
+
+1. Phase 1 Milestones 0-8 are implemented, including the full `aisidecar analyze` pipeline, diagnostic model-input export, derivative-cache lifecycle controls, `aisidecar purge`, v1.3 prompt/schema resources, schema-constrained model-response repair, schema-evolution sidecar rewrites, no-XMP guards, and offline tests.
+2. The Milestone 9a benchmark harness is implemented as `aisidecar benchmark`, with the legacy `benchmarks/run-milestone9a.swift` wrapper retained for compatibility.
+3. Final Phase 1 signoff is still pending Milestone 9 calibration and quality review: a full benchmark run, conservative default selection for model input profile / `keep_alive` / `stage_concurrency`, foreground-mask failure classification, tag-quality review, and manual instance-selection spot checks.
+4. XMP writeback, tag normalization, review workflows, OCR/text extraction, alternate runtime support beyond the adapter seam, and GUI behavior remain later-phase work.
+
+## 0.1 Current Implementation Status
+
+Implemented in the current repository:
+
+- One SwiftPM package with `AISidecarCore`, `AISidecarCLI`, Swift 6 strict concurrency, and macOS 15 deployment.
+- `aisidecar analyze` with shared Phase 1 flags, config precedence, structured errors, text/JSON logging, `--dry-scan`, `--existing`, folder recursion, relative-path recording, source identity hashing, output-tree mirroring, atomic raw `.ai.json` writes, JSONL progress logs, batch summaries, and interruption/resume behavior.
+- Whole-image rendering with EXIF orientation baking, sRGB output, model input profiles, derivative provenance, content-addressed derivative cache, LRU eviction, opt-in cache clearing, debug derivative copies, and explicit `aisidecar purge`.
+- Subject isolation through the two-resolution Apple Vision/Core Image chain, including deterministic instance selection, merge policy, native-resolution crop/matte compositing, failure recording, and sidecar provenance.
+- Diagnostic `--export-model-inputs` mode that writes model-input images and a manifest without writing sidecars, model output, progress logs, batch summaries, or XMP.
+- Ollama runtime preparation and model execution through `VisionModelRunner`: tag/digest/runtime verification, `/api/chat` with base64 images and `format` schemas, request options, retries/timeouts, raw response preservation, parsed JSON, per-attempt repair provenance, mock runners, and recorded-fixture replay.
+- Versioned v1.3 prompts and response schemas with conditional `species` candidates for biological target genres and no Phase 1 `visible_text`.
+- Offline XCTest coverage for configuration, validation, logging, scanning, identity, sidecar naming/writing, schema-evolution rewrites, rendering, derivative cache behavior, purge resolution, subject isolation, model runtime behavior, response repair, progress logs, summaries, diagnostic export, golden sidecars, no-XMP guards, and full analyze pipeline seams.
+- `aisidecar benchmark` for Milestone 9a timing/schema-validity/default-calibration runs, result documents, aggregation self-test, scratch cleanup, and no-XMP verification.
+
+Not complete for final Phase 1 signoff:
+
+- Run and archive the full Milestone 9 benchmark matrix on the target machine, not only partial focused runs.
+- Decide whether to keep or update the shipped defaults for `ModelInputProfile`, `model_keep_alive`, and `stage_concurrency` from benchmark evidence.
+- Complete quality review beyond timing/schema-validity: tag-quality review, foreground-mask failure classification by subject class, and manual multi-subject instance-selection spot checks.
+- Add rights-cleared HEIC, TIFF, NEF, and RAF benchmark coverage, or document those timing checks as manual/deferred until usable samples are available.
+- Perform the final acceptance pass for AC1-001 through AC1-015, including live local-model smoke checks where the criteria depend on Ollama, Apple Vision, or real RAW decoder behavior.
+
+Explicitly not Phase 1:
+
+- Creating, modifying, or round-tripping XMP sidecars.
+- Canonical tag normalization and batch consensus decisions.
+- Human review workflows or GUI state management.
+- OCR/text extraction and `visible_text` model output.
+- RAW+JPEG pair merging.
+- Multi-subject output beyond recording instance provenance for later schema-compatible expansion.
+
+## 0.2 Changes from v0.2
 
 This revision updates the active model response contract without changing the raw sidecar document schema:
 
@@ -17,7 +57,7 @@ This revision updates the active model response contract without changing the ra
 2. The active prompt and response-schema resources move to v1.3.0 so model-run provenance distinguishes pre-species and post-species outputs (FR1-046).
 3. The local response-schema validator owns the small additional JSON Schema subset needed to enforce this contract offline: `allOf`, `if`, `then`, `else`, `not`, and `contains`.
 
-## 0.1 Changes from v0.1
+## 0.3 Changes from v0.1
 
 This revision integrates the findings of the 2026-06-10 requirements review. The substantive changes are:
 
@@ -390,14 +430,34 @@ Required command shape:
 
 ```bash
 aisidecar analyze <file-or-folder> [--mode both]
+aisidecar benchmark [--samples <manifest>] [--output-dir <path>]
 aisidecar purge [--cache-dir <path>] [--config <path>]
 ```
 
 Accepted flags: the project-wide glossary (PW-004) plus:
 
 ```text
---dry-scan        Print the scan result (with identities and relative paths) and exit.
+--dry-scan                       Print the scan result (with identities and relative paths) and exit.
+--export-model-inputs <folder>   Export rendered model-input images and a manifest, then exit before model execution.
 ```
+
+`--export-model-inputs` is a diagnostic pre-model path. It shall not write raw `.ai.json` sidecars, model output, progress logs, batch summaries, or XMP. It shall reject `--dry-run` and `--debug-derivatives` because export mode writes only to the requested export folder.
+
+Benchmark-specific flags:
+
+```text
+--samples <path>        Sample manifest path. Default: benchmarks/samples/manifest.json.
+--output-dir <path>     Directory where benchmark result folders are written. Default: benchmarks.
+--model <tag>           Ollama model tag to benchmark.
+--iterations <n>        Number of matrix repetitions. Default: 1.
+--max-hash-copies <n>   Scratch copies for source-identity specs. Default: 2000.
+--spec <name>           Run one named spec; repeat for multiple specs.
+--binary <path>         Executable to benchmark. Defaults to .build/release/aisidecar after build.
+--skip-build            Use the existing benchmark binary without running swift build -c release first.
+--self-test             Run the offline aggregation self-test without Ollama or images.
+```
+
+`aisidecar benchmark` is the Phase 1 Milestone 9a harness. It builds or uses a release `aisidecar`, invokes `analyze` for benchmark specs, aggregates timing/schema-validity metrics from sidecars and logs, verifies that no `.xmp` files were created, writes JSON and Markdown reports, and removes scratch inputs and per-spec derivative caches after metrics are collected.
 
 Purge-specific flags:
 
@@ -450,6 +510,32 @@ AC1-013 - Parsed candidates carry confidence bands; biological target genres con
 AC1-014 - An unresolvable model tag fails fast at startup with the installed-tag list; sidecars record the model digest and runtime version.
 
 AC1-015 - No XMP sidecar is created in Phase 1.
+
+### 12.1 Current Acceptance Status
+
+Status terms:
+
+- `Implemented` means the repository contains the feature and focused offline coverage or benchmark harness support.
+- `Signoff pending` means implementation exists, but the final Milestone 9 run or manual/live acceptance evidence still needs to be archived.
+- `Out of scope` means the behavior intentionally belongs to a later phase.
+
+| Criterion | Current status | Notes |
+| --- | --- | --- |
+| AC1-001 | Implemented; signoff pending | RAW rendering uses the macOS/Core Image path. Final live RAW + local-model smoke evidence remains part of the Milestone 9 acceptance pass. |
+| AC1-002 | Implemented; signoff pending | JPEG analysis is implemented and exercised by tests/benchmark samples. Include a live default-model JPEG smoke check in final signoff. |
+| AC1-003 | Implemented; signoff pending | Apple Vision subject isolation is implemented. Final review should include real-photo mask-quality classification. |
+| AC1-004 | Implemented | `both` mode produces separate `whole_image` and `subject_isolated` model-run records where subject isolation succeeds. |
+| AC1-005 | Implemented; signoff pending | The two-resolution chain and small-subject behavior are covered offline. Final quality review should include representative real small-subject images. |
+| AC1-006 | Implemented; signoff pending | Instance count, selected indices, merge state, and boxes are recorded. Manual multi-subject spot checks remain Milestone 9 quality work. |
+| AC1-007 | Implemented | Subject-isolation failures are structured and non-fatal where whole-image analysis can continue. |
+| AC1-008 | Implemented | Mirrored output trees, progress logs, summaries, and collision handling are covered by offline tests. |
+| AC1-009 | Implemented | `skip`, `overwrite`, and `fail` behavior is implemented for existing sidecars. |
+| AC1-010 | Implemented | Enumerated scan/render/isolate/model/write/config errors and response-repair failure paths are covered offline. |
+| AC1-011 | Implemented; signoff pending | Atomic writes and interruption/resume behavior are implemented; final acceptance should include or reference an interruption smoke check. |
+| AC1-012 | Implemented; signoff pending | Orientation and sRGB behavior are implemented and tested. Final RAW/HEIC/TIFF format smoke coverage depends on available samples. |
+| AC1-013 | Implemented | v1.3 response schemas enforce confidence bands, conditional biological `species`, and the subject-isolated field exclusions. |
+| AC1-014 | Implemented; signoff pending | Runtime/model verification and provenance are implemented. Final live signoff should record default-model digest/runtime behavior. |
+| AC1-015 | Implemented | Tests and benchmark harness checks guard that Phase 1 creates no `.xmp` files. |
 
 ## 13. Future Groundwork
 
