@@ -110,14 +110,20 @@ struct WriteXMPCommand: AsyncParsableCommand {
 
     mutating func run() async throws {
         let mode = try XMPExportInvocationValidator.validate(invocationRequest)
-        _ = try ConfigurationResolver.resolveXMPExport(cli: xmpOverrides)
+        let exportConfiguration = try ConfigurationResolver.resolveXMPExport(cli: xmpOverrides)
 
-        if case .analyzeAndWrite = mode {
+        switch mode {
+        case .fromJSON(let path):
+            _ = try RawJSONSidecarInputResolver().resolve(
+                fromJSONPath: path,
+                configuration: exportConfiguration
+            )
+        case .analyzeAndWrite:
             _ = try ConfigurationResolver.resolve(cli: runOverrides)
         }
 
         throw SidecarError.configInvalid(
-            "aisidecar write-xmp is scaffolded for Phase 2 Milestone 0; export execution is not implemented until a later milestone."
+            "aisidecar write-xmp preflight is implemented through Phase 2 Milestone 1; export execution is not implemented until a later milestone."
         )
     }
 
