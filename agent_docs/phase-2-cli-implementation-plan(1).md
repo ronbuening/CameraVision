@@ -15,9 +15,9 @@ Traceability in this plan points at Phase 2 v0.4 requirement IDs (`FR2-xxx`, `AC
 
 ## 0. Current Implementation Status
 
-Phase 2 Milestones 0-3 are implemented. The repository now includes the `aisidecar write-xmp` non-writing preflight scaffold, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, placeholder export report/change-plan schema identifiers, additive source-verification error codes, no-XMP regression coverage around existing Phase 1 commands, raw sidecar reader/source resolution, candidate extraction with keyword policy, XMP target naming, same-base-name group resolution, pair-scope selection, and dry-run change-plan JSON output.
+Phase 2 Milestones 0-4 are implemented. The repository now includes the `aisidecar write-xmp` non-writing preflight scaffold, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, placeholder export report/change-plan schema identifiers, additive source-verification and owned-XMP error codes, no-XMP regression coverage around existing Phase 1 commands, raw sidecar reader/source resolution, candidate extraction with keyword policy, XMP target naming, same-base-name group resolution, pair-scope selection, dry-run change-plan JSON output, and the owned XMP sidecar engine parser/writer seam.
 
-No Phase 2 XMP writing code exists yet. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidate keyword records, groups sources, plans one target per XMP sidecar, and prints `ai-sidecar-xmp-change-plan/1.0` JSON to stdout. The non-dry-run path builds the same plan, then fails with a not-implemented error until the owned XMP engine, backup/validation, and export pipeline milestones land.
+The owned engine can parse existing XMP, generate canonical new sidecars, merge the Phase 2 managed keyword bags, compute `XMPMetadataSnapshot` and `XMPUnmanagedContentFingerprint` records, and fail closed for malformed XML or unsupported RDF shapes. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidate keyword records, groups sources, plans one target per XMP sidecar, and prints `ai-sidecar-xmp-change-plan/1.0` JSON to stdout. The non-dry-run CLI path still builds the same plan, then fails with a not-implemented error until the backup/validation and export pipeline milestones land.
 
 The useful baseline remains Phase 1: Milestones 0-8 and the Milestone 9a benchmark harness are implemented. The repository has the reusable scanner, source identity, raw sidecar naming/writing, atomic file writer, progress log, batch summary, derivative renderer/cache, subject-isolation service, `VisionModelRunner` protocol, Ollama runner, mock and recorded-fixture runners, v1.3 prompt/schema resources, response parser/repair path, raw sidecar schema-evolution wrapper, diagnostic model-input export, no-XMP guards, and `aisidecar benchmark` / `aisidecar purge` commands.
 
@@ -25,18 +25,16 @@ The Phase 1 release signoff is not complete. The remaining evidence is Milestone
 
 That state is good enough for Phase 2 implementation. It is not good enough for Phase 2 release without either archived Phase 1 signoff evidence or an explicit release note listing any deferred Phase 1 evidence.
 
-Latest verification recorded after Phase 2 Milestone 3:
+Latest verification recorded after Phase 2 Milestone 4:
 
 ```text
-swift test --filter XMPNamingTests             4 tests, 0 failures
-swift test --filter SameBaseNameGroupTests     5 tests, 0 failures
-swift test --filter XMPChangePlanTests         1 test, 0 failures
-swift test                                      188 tests, 1 skipped, 0 failures
+swift test --filter XMPOwnedEngineTests        11 tests, 0 failures
+swift test                                      199 tests, 1 skipped, 0 failures
 swift run aisidecar write-xmp --from-json <tmp-json-folder> --recursive --source-verification skip --output-dir <tmp-out> --dry-run
                                                 passed, emitted ai-sidecar-xmp-change-plan/1.0 JSON
 ```
 
-The next implementation unit is Milestone 4: the owned XMP sidecar engine. This revision replaces the earlier ExifTool runtime plan with a narrow owned XMP sidecar engine. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
+The next implementation unit is Milestone 5: merge conflict policy, backups, restore, and validation around the owned XMP sidecar engine. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
 
 ## 1. Implementation Position
 
@@ -107,14 +105,14 @@ CameraVision/
       Configuration/
         XMPExportConfiguration.swift           // implemented M0 config, enums, invocation validation
       Metadata/
-        MetadataWriteEngine.swift              // protocol and common result types
-        OwnedXMPSidecarEngine.swift            // FR2-029 live owned engine
-        XMPDocumentParser.swift                // XML/RDF parse, unsupported-shape detection
-        XMPDocumentWriter.swift                // canonical new-sidecar serialization and existing-document serialization
-        XMPKeywordReader.swift                 // dc:subject and lr:hierarchicalSubject reads
-        XMPKeywordMerger.swift                 // normalized bag merge and de-duplication
-        XMPMetadataSnapshot.swift              // pre/post field snapshots for validation
-        XMPUnmanagedContentFingerprint.swift   // semantic preservation fingerprint
+        MetadataWriteEngine.swift              // implemented M4 protocol, mock, and common result types
+        OwnedXMPSidecarEngine.swift            // implemented M4 FR2-029 live owned engine
+        XMPDocumentParser.swift                // implemented M4 XML/RDF parse, unsupported-shape detection
+        XMPDocumentWriter.swift                // implemented M4 canonical new-sidecar and existing-document serialization
+        XMPKeywordReader.swift                 // implemented M4 dc:subject and lr:hierarchicalSubject reads
+        XMPKeywordMerger.swift                 // implemented M4 normalized bag merge and de-duplication
+        XMPMetadataSnapshot.swift              // implemented M4 pre/post field snapshots for validation
+        XMPUnmanagedContentFingerprint.swift   // implemented M4 semantic preservation fingerprint
         XMPChangePlan.swift                    // implemented M3 ai-sidecar-xmp-change-plan/1.0 and planner
         XMPMergeValidator.swift                // FR2-028 snapshot/fingerprint validation
         XMPBackupManager.swift                 // deterministic backup/restore
@@ -147,6 +145,7 @@ CameraVision/
       XMPNamingTests.swift                 // implemented M3 XMP target naming coverage
       SameBaseNameGroupTests.swift         // implemented M3 grouping, scope, collision coverage
       XMPChangePlanTests.swift             // implemented M3 dry-run plan coverage
+      XMPOwnedEngineTests.swift            // implemented M4 parser, writer, merger, and engine coverage
       Fixtures/
         ai-json/
         xmp/
@@ -287,21 +286,30 @@ No XMP parser, writer, backup, report, progress log, summary, or sidecar write e
 
 ## 8. Milestone 4 - Owned XMP Sidecar Engine
 
-Tasks:
+Status: implemented.
 
-1. Define `MetadataWriteEngine` with methods for `prepare`, `readSnapshot`, `apply`, `validateReadable`, and `shutdown`. `shutdown` may be a no-op for the owned engine but remains part of the protocol seam.
-2. Implement `MockMetadataWriteEngine` first so the export pipeline can be tested without XML fixture complexity.
-3. Implement `XMPDocumentParser` using Foundation XML document/tree APIs. It shall parse XMP packets, locate `x:xmpmeta`, `rdf:RDF`, and suitable `rdf:Description` nodes, and classify malformed XML as `E_XMP_PARSE_FAILED`.
-4. Implement unsupported-RDF detection. If the parser encounters a well-formed sidecar shape that cannot be safely merged without risking data loss, fail closed as `E_XMP_UNSUPPORTED_RDF`.
-5. Implement `XMPKeywordReader` for `dc:subject/rdf:Bag/rdf:li` and `lr:hierarchicalSubject/rdf:Bag/rdf:li`.
-6. Implement `XMPKeywordMerger` to merge normalized planned keywords into those bags while preserving existing values and de-duplicating case-insensitively.
-7. Implement `XMPDocumentWriter` for new sidecars. New files use a canonical XMP packet with `rdf:RDF`, `rdf:Description rdf:about=""`, and only the needed namespaces and keyword bags.
-8. Implement existing-sidecar serialization. Semantic preservation is required; byte-for-byte XML preservation is not.
-9. Implement `XMPMetadataSnapshot` and `XMPUnmanagedContentFingerprint` for pre/post validation.
-10. Implement write application to a temporary sidecar file, not directly to the final target (FR2-026).
-11. Map parse, unsupported-RDF, merge, write, and validation failures to structured errors with bounded diagnostic excerpts (FR2-029f/h).
+Implemented:
 
-Exit criteria: a new XMP sidecar can be generated and read back by the owned parser; a fixture XMP file can be copied to a temp path, updated with flat and one-level hierarchical keywords, re-read by the owned parser, and validated for semantic preservation. Tests prove malformed XML and unsupported RDF shapes fail without replacing the original file.
+1. Added `MetadataWriteEngine` with `prepare`, `readSnapshot`, `preview`, `apply`, `validateReadable`, and `shutdown`.
+2. Added `MockMetadataWriteEngine` for deterministic pipeline and policy tests without XML I/O.
+3. Added `OwnedXMPSidecarEngine` with engine identity `owned-xmp-sidecar` version `1.0` and writer recipe `owned-xmp-sidecar-writer/1.0`.
+4. Added `XMPDocumentParser` using Foundation XML document/tree APIs. It parses XMP packets with either an `x:xmpmeta` wrapper or direct `rdf:RDF` root, locates a writable `rdf:Description`, and classifies malformed XML as `E_XMP_PARSE_FAILED`.
+5. Added unsupported-RDF detection for managed keyword attributes, duplicate managed properties, managed fields in multiple descriptions, and non-`rdf:Bag` managed keyword content, all failing closed as `E_XMP_UNSUPPORTED_RDF`.
+6. Added `XMPKeywordReader` for `dc:subject/rdf:Bag/rdf:li` and `lr:hierarchicalSubject/rdf:Bag/rdf:li`.
+7. Added `XMPKeywordMerger` to preserve existing keyword spelling/order, append planned terms in plan order, and de-duplicate case-insensitively after Phase 2 keyword normalization.
+8. Added `XMPDocumentWriter` for canonical new sidecars and existing-sidecar serialization. Semantic preservation is required; byte-for-byte XML preservation is not.
+9. Added `XMPMetadataSnapshot` and `XMPUnmanagedContentFingerprint` for validation and later report records.
+10. Added owned-engine write application through `AtomicFileWriter.writeFile`, so a temporary sidecar is validated as readable before atomic replacement.
+11. Mapped parse and unsupported-RDF failures to structured errors with bounded diagnostic excerpts (FR2-029f/h).
+
+Exit criteria, recorded at Milestone 4:
+
+```text
+swift test --filter XMPOwnedEngineTests        11 tests, 0 failures
+swift test                                      199 tests, 1 skipped, 0 failures
+```
+
+The non-dry-run `write-xmp` CLI path still stops after planning. Backup/restore, post-write validation policy, export reports, progress logs, summaries, and command-level write execution remain later milestones.
 
 ## 9. Milestone 5 - Merge, Backup, Restore, and Validation
 

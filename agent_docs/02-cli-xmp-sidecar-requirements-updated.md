@@ -52,22 +52,26 @@ Phase 2 implementation shall not reopen Phase 1 rendering, isolation, prompting,
 
 ## 0.2 Current Implementation Status
 
-Phase 2 Milestones 0-3 are implemented as a non-writing preflight and dry-run planner. The repository now has:
+Phase 2 Milestones 0-4 are implemented. The repository now has:
 
 - `aisidecar write-xmp --help` and command-shape validation;
 - Phase 2 export configuration defaults with `CLI > AISIDECAR_* > JSON config > built-in default` precedence;
 - Phase 2 policy enums for source verification, XMP conflict policy, minimum confidence, and pair scope;
 - placeholder schema identifiers `ai-sidecar-xmp-export/1.0` and `ai-sidecar-xmp-change-plan/1.0`;
-- additive source-verification error codes `E_SOURCE_MISSING` and `E_SOURCE_IDENTITY_MISMATCH`;
+- additive source-verification and XMP-engine error codes: `E_SOURCE_MISSING`, `E_SOURCE_IDENTITY_MISMATCH`, `E_XMP_PARSE_FAILED`, and `E_XMP_UNSUPPORTED_RDF`;
 - no-XMP regression coverage for `analyze`, `benchmark`, `purge`, and `analyze --export-model-inputs`;
 - `RawJSONSidecarReader` plus `write-xmp --from-json` sidecar scanning and source resolution;
 - source identity verification policies for `fail`, `warn`, and `skip`;
 - `CandidateExtractor`, keyword text normalization, confidence-band filtering, de-duplication, skipped-candidate diagnostics, and conservative specific-tag filtering;
 - `XMPNaming` for `<base>.xmp` target paths and mirrored `--output-dir` staging paths;
 - `SameBaseNameGroupResolver` for same-base-name source groups, RAW/JPEG pair scope selection, contribution accounting, and case-insensitive target collision detection;
-- `XMPChangePlanner` plus `ai-sidecar-xmp-change-plan/1.0` dry-run JSON output from `write-xmp --from-json --dry-run`.
+- `XMPChangePlanner` plus `ai-sidecar-xmp-change-plan/1.0` dry-run JSON output from `write-xmp --from-json --dry-run`;
+- `MetadataWriteEngine` plus deterministic `MockMetadataWriteEngine`;
+- `OwnedXMPSidecarEngine` with engine identity `owned-xmp-sidecar` version `1.0` and writer recipe `owned-xmp-sidecar-writer/1.0`;
+- `XMPDocumentParser`, `XMPDocumentWriter`, `XMPKeywordReader`, `XMPKeywordMerger`, `XMPMetadataSnapshot`, and `XMPUnmanagedContentFingerprint`;
+- owned-engine tests for canonical sidecar generation, alternate namespace prefixes, missing managed bags, existing keyword merge, unmanaged semantic preservation, malformed XML, unsupported RDF, and failed-write non-replacement.
 
-Milestones 0-3 intentionally do not parse or write XMP, create reports, or execute write plans. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidates, groups sources, and emits the intended change plan to stdout. The non-dry-run path builds the same plan, then stops before export execution. The remaining Phase 2 error codes, `E_XMP_PARSE_FAILED` and `E_XMP_UNSUPPORTED_RDF`, are introduced with the owned XMP engine milestone where they are first used.
+Milestones 0-4 intentionally do not wire the owned engine into `aisidecar write-xmp` non-dry-run execution, create reports, or execute batch export plans. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidates, groups sources, and emits the intended change plan to stdout. The non-dry-run path builds the same plan, then stops before export execution. Backup policy execution, restore-on-validation-failure, progress logs, export reports, summaries, and command-level XMP writeback remain later Phase 2 milestones.
 
 ## 1. Purpose
 

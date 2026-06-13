@@ -28,6 +28,8 @@ public enum SidecarErrorCode: String, Codable, CaseIterable, Sendable {
     case interrupted = "E_INTERRUPTED"
     case sourceMissing = "E_SOURCE_MISSING"
     case sourceIdentityMismatch = "E_SOURCE_IDENTITY_MISMATCH"
+    case xmpParseFailed = "E_XMP_PARSE_FAILED"
+    case xmpUnsupportedRDF = "E_XMP_UNSUPPORTED_RDF"
 }
 
 /// Pipeline stage where a structured error occurred.

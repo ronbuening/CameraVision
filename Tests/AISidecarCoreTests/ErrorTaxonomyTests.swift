@@ -26,7 +26,9 @@ final class ErrorTaxonomyTests: XCTestCase {
             "E_EXIFTOOL_MISSING",
             "E_INTERRUPTED",
             "E_SOURCE_MISSING",
-            "E_SOURCE_IDENTITY_MISMATCH"
+            "E_SOURCE_IDENTITY_MISMATCH",
+            "E_XMP_PARSE_FAILED",
+            "E_XMP_UNSUPPORTED_RDF"
         ]
 
         XCTAssertEqual(SidecarErrorCode.allCases.map(\.rawValue), expectedRawValues)
