@@ -33,6 +33,13 @@ final class CandidateExtractorTests: XCTestCase {
 
         let birdPhotography = try XCTUnwrap(result.flatKeywords.first { $0.term == "bird_photography" })
         XCTAssertEqual(birdPhotography.candidates.map(\.provenance.inputRole), [.wholeImage, .subjectIsolated])
+        XCTAssertEqual(birdPhotography.candidates.first?.provenance.model, "gemma4:26b-a4b-it-qat")
+        XCTAssertEqual(birdPhotography.candidates.first?.provenance.runtime, "ollama")
+        XCTAssertEqual(birdPhotography.candidates.first?.provenance.promptVersion, "aisidecar.prompt.whole_image/1.3.0")
+        XCTAssertEqual(
+            birdPhotography.candidates.first?.provenance.responseSchemaVersion,
+            "urn:aisidecar:response:whole-image:1.3.0"
+        )
         XCTAssertEqual(
             result.skippedCandidates
                 .filter { $0.reason == .duplicate }

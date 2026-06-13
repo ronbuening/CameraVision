@@ -16,12 +16,23 @@ public enum CandidateSourceField: String, Codable, CaseIterable, Hashable, Senda
 }
 
 /// Origin information for one candidate term inside a Phase 1 raw sidecar.
+///
+/// Model, prompt, schema, and runtime fields are copied from the source
+/// `ModelRunRecord` so XMP export reports remain auditable even when
+/// analyze-and-write removes transient `.ai.json` files under `--no-write-ai-json`.
 public struct CandidateProvenance: Codable, Sendable, Equatable {
     public var sourceField: CandidateSourceField
     public var inputRole: ModelInputRole
     public var sourceSidecar: String
     public var sourceImage: String
     public var modelRunIndex: Int
+    public var model: String?
+    public var modelDigest: String?
+    public var runtime: String?
+    public var runtimeVersion: String?
+    public var promptVersion: String?
+    public var promptSHA256: String?
+    public var responseSchemaVersion: String?
 
     enum CodingKeys: String, CodingKey {
         case sourceField = "source_field"
@@ -29,6 +40,13 @@ public struct CandidateProvenance: Codable, Sendable, Equatable {
         case sourceSidecar = "source_sidecar"
         case sourceImage = "source_image"
         case modelRunIndex = "model_run_index"
+        case model
+        case modelDigest = "model_digest"
+        case runtime
+        case runtimeVersion = "runtime_version"
+        case promptVersion = "prompt_version"
+        case promptSHA256 = "prompt_sha256"
+        case responseSchemaVersion = "response_schema_version"
     }
 
     public init(
@@ -36,13 +54,27 @@ public struct CandidateProvenance: Codable, Sendable, Equatable {
         inputRole: ModelInputRole,
         sourceSidecar: String,
         sourceImage: String,
-        modelRunIndex: Int
+        modelRunIndex: Int,
+        model: String? = nil,
+        modelDigest: String? = nil,
+        runtime: String? = nil,
+        runtimeVersion: String? = nil,
+        promptVersion: String? = nil,
+        promptSHA256: String? = nil,
+        responseSchemaVersion: String? = nil
     ) {
         self.sourceField = sourceField
         self.inputRole = inputRole
         self.sourceSidecar = sourceSidecar
         self.sourceImage = sourceImage
         self.modelRunIndex = modelRunIndex
+        self.model = model
+        self.modelDigest = modelDigest
+        self.runtime = runtime
+        self.runtimeVersion = runtimeVersion
+        self.promptVersion = promptVersion
+        self.promptSHA256 = promptSHA256
+        self.responseSchemaVersion = responseSchemaVersion
     }
 }
 
@@ -494,7 +526,14 @@ public struct CandidateExtractor {
                             inputRole: modelRun.inputRole,
                             sourceSidecar: sourceSidecar,
                             sourceImage: sourceImage,
-                            modelRunIndex: modelRunIndex
+                            modelRunIndex: modelRunIndex,
+                            model: modelRun.model,
+                            modelDigest: modelRun.modelDigest,
+                            runtime: modelRun.runtime,
+                            runtimeVersion: modelRun.runtimeVersion,
+                            promptVersion: modelRun.promptVersion,
+                            promptSHA256: modelRun.promptSHA256,
+                            responseSchemaVersion: modelRun.responseSchemaVersion
                         )
                     )
                     extractedCandidates.append(candidate)

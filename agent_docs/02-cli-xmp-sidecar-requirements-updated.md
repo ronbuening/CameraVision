@@ -52,7 +52,7 @@ Phase 2 implementation shall not reopen Phase 1 rendering, isolation, prompting,
 
 ## 0.2 Current Implementation Status
 
-Phase 2 Milestones 0-4 are implemented. The repository now has:
+Phase 2 Milestones 0-9 are implemented. The repository now has:
 
 - `aisidecar write-xmp --help` and command-shape validation;
 - Phase 2 export configuration defaults with `CLI > AISIDECAR_* > JSON config > built-in default` precedence;
@@ -69,9 +69,14 @@ Phase 2 Milestones 0-4 are implemented. The repository now has:
 - `MetadataWriteEngine` plus deterministic `MockMetadataWriteEngine`;
 - `OwnedXMPSidecarEngine` with engine identity `owned-xmp-sidecar` version `1.0` and writer recipe `owned-xmp-sidecar-writer/1.0`;
 - `XMPDocumentParser`, `XMPDocumentWriter`, `XMPKeywordReader`, `XMPKeywordMerger`, `XMPMetadataSnapshot`, and `XMPUnmanagedContentFingerprint`;
-- owned-engine tests for canonical sidecar generation, alternate namespace prefixes, missing managed bags, existing keyword merge, unmanaged semantic preservation, malformed XML, unsupported RDF, and failed-write non-replacement.
+- `XMPBackupManager` for deterministic `.xmp.bak-<ISO-8601-timestamp>` backups and atomic restore;
+- `XMPMergeValidator` for expected keyword presence, existing keyword preservation, and unmanaged-content fingerprint checks;
+- `XMPExportPipeline` for from-json dry-run/write execution, conflict-policy enforcement, backup/restore, source hash rechecks, per-target progress records, JSON reports, and Markdown summaries;
+- `AnalyzeAndXMPPipeline` for analyze-and-write integration through the same export planner, with `.ai.json` preservation by default and report-ready model/prompt/schema/runtime provenance under `--no-write-ai-json`;
+- SIGINT/SIGTERM-aware `write-xmp` command wiring that lets in-flight target writes finish, restore, or remain unchanged;
+- offline tests for canonical sidecar generation, alternate namespace prefixes, missing managed bags, existing keyword merge, unmanaged semantic preservation, malformed XML, unsupported RDF, backup/restore, validation failure restore, progress/report/summary artifacts, interruption behavior, and analyze-and-write.
 
-Milestones 0-4 intentionally do not wire the owned engine into `aisidecar write-xmp` non-dry-run execution, create reports, or execute batch export plans. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidates, groups sources, and emits the intended change plan to stdout. The non-dry-run path builds the same plan, then stops before export execution. Backup policy execution, restore-on-validation-failure, progress logs, export reports, summaries, and command-level XMP writeback remain later Phase 2 milestones.
+Phase 2 implementation is now complete through Milestone 9. The remaining Phase 2 release work is Milestone 10 compatibility smoke evidence: Lightroom Classic/Capture One import checks, representative RAW/JPEG samples, and final Phase 1 Milestone 9 release-evidence linkage or documented deferral.
 
 ## 1. Purpose
 

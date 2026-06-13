@@ -111,32 +111,39 @@ struct WriteXMPCommand: AsyncParsableCommand {
     mutating func run() async throws {
         let mode = try XMPExportInvocationValidator.validate(invocationRequest)
         let exportConfiguration = try ConfigurationResolver.resolveXMPExport(cli: xmpOverrides)
+        let logger = Logger(minimumLevel: exportConfiguration.logLevel, format: exportConfiguration.logFormat)
+        let interruptionMonitor = InterruptionMonitor()
+        interruptionMonitor.installSignalHandlers()
 
         switch mode {
         case .fromJSON(let path):
-            let batch = try RawJSONSidecarInputResolver().resolve(
+            let result = try XMPExportPipeline(
+                engine: OwnedXMPSidecarEngine(),
+                logger: logger
+            ).runFromJSON(
                 fromJSONPath: path,
-                configuration: exportConfiguration
-            )
-            let extractionResults = CandidateExtractor().extract(from: batch.inputs, configuration: exportConfiguration)
-            let changePlan = XMPChangePlanner().plan(
-                inputBatch: batch,
-                extractionResults: extractionResults,
-                configuration: exportConfiguration
+                configuration: exportConfiguration,
+                interruptionMonitor: interruptionMonitor
             )
             if exportConfiguration.dryRun {
-                // Milestone 3 exposes the future writer input as stdout JSON;
-                // the non-dry-run path remains blocked until the XMP engine lands.
-                try writeChangePlan(changePlan)
+                try writeChangePlan(result.changePlan)
                 return
             }
-        case .analyzeAndWrite:
-            _ = try ConfigurationResolver.resolve(cli: runOverrides)
+            writeEssentialSummary(result.report)
+        case .analyzeAndWrite(let inputPath):
+            let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
+            let result = try await AnalyzeAndXMPPipeline(logger: logger).run(
+                inputPath: inputPath,
+                runConfiguration: runConfiguration,
+                exportConfiguration: exportConfiguration,
+                interruptionMonitor: interruptionMonitor
+            )
+            if exportConfiguration.dryRun {
+                try writeChangePlan(result.exportResult.changePlan)
+                return
+            }
+            writeEssentialSummary(result.exportResult.report)
         }
-
-        throw SidecarError.configInvalid(
-            "aisidecar write-xmp planning is implemented through Phase 2 Milestone 3; XMP export execution is not implemented until a later milestone."
-        )
     }
 
     private var invocationRequest: XMPExportInvocationRequest {
@@ -225,5 +232,13 @@ struct WriteXMPCommand: AsyncParsableCommand {
         let data = try encoder.encode(changePlan)
         FileHandle.standardOutput.write(data)
         FileHandle.standardOutput.write(Data("\n".utf8))
+    }
+
+    private func writeEssentialSummary(_ report: XMPExportReport?) {
+        guard let report else {
+            return
+        }
+        let line = "XMP export complete: \(report.writtenCount) written, \(report.failedCount) failed."
+        FileHandle.standardOutput.write(Data((line + "\n").utf8))
     }
 }

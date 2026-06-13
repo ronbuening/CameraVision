@@ -222,7 +222,10 @@ public struct MockMetadataWriteEngine: MetadataWriteEngine {
     }
 
     public func validateReadable(at targetXMPPath: String) throws -> XMPMetadataSnapshot {
-        try readSnapshot(at: targetXMPPath)
+        if let applyResult, applyResult.targetXMPPath == targetXMPPath {
+            return applyResult.postWriteSnapshot
+        }
+        return try readSnapshot(at: targetXMPPath)
     }
 
     public func shutdown() throws {}

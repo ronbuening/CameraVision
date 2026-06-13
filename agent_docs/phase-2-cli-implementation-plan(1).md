@@ -15,9 +15,9 @@ Traceability in this plan points at Phase 2 v0.4 requirement IDs (`FR2-xxx`, `AC
 
 ## 0. Current Implementation Status
 
-Phase 2 Milestones 0-4 are implemented. The repository now includes the `aisidecar write-xmp` non-writing preflight scaffold, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, placeholder export report/change-plan schema identifiers, additive source-verification and owned-XMP error codes, no-XMP regression coverage around existing Phase 1 commands, raw sidecar reader/source resolution, candidate extraction with keyword policy, XMP target naming, same-base-name group resolution, pair-scope selection, dry-run change-plan JSON output, and the owned XMP sidecar engine parser/writer seam.
+Phase 2 Milestones 0-9 are implemented. The repository now includes the `aisidecar write-xmp` CLI surface, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, export report/change-plan schema identifiers, additive source-verification and owned-XMP error codes, no-XMP regression coverage around existing Phase 1 commands, raw sidecar reader/source resolution, candidate extraction with keyword policy and model/prompt/schema/runtime provenance, XMP target naming, same-base-name group resolution, pair-scope selection, dry-run change-plan JSON output, the owned XMP sidecar engine parser/writer seam, merge conflict policy, deterministic backups, restore-on-validation-failure, post-write validation, source hash rechecks, export progress/report/summary artifacts, interruption handling, and analyze-and-write integration.
 
-The owned engine can parse existing XMP, generate canonical new sidecars, merge the Phase 2 managed keyword bags, compute `XMPMetadataSnapshot` and `XMPUnmanagedContentFingerprint` records, and fail closed for malformed XML or unsupported RDF shapes. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidate keyword records, groups sources, plans one target per XMP sidecar, and prints `ai-sidecar-xmp-change-plan/1.0` JSON to stdout. The non-dry-run CLI path still builds the same plan, then fails with a not-implemented error until the backup/validation and export pipeline milestones land.
+The owned engine can parse existing XMP, generate canonical new sidecars, merge the Phase 2 managed keyword bags, compute `XMPMetadataSnapshot` and `XMPUnmanagedContentFingerprint` records, and fail closed for malformed XML or unsupported RDF shapes. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidate keyword records, groups sources, plans one target per XMP sidecar, previews owned-engine merge effects, and prints `ai-sidecar-xmp-change-plan/1.0` JSON to stdout. The non-dry-run path executes the same plan through `XMPExportPipeline`, writes one target per XMP sidecar, records per-target progress, writes batch reports/summaries for folder runs, validates readback and source hashes, and restores backups when validation fails.
 
 The useful baseline remains Phase 1: Milestones 0-8 and the Milestone 9a benchmark harness are implemented. The repository has the reusable scanner, source identity, raw sidecar naming/writing, atomic file writer, progress log, batch summary, derivative renderer/cache, subject-isolation service, `VisionModelRunner` protocol, Ollama runner, mock and recorded-fixture runners, v1.3 prompt/schema resources, response parser/repair path, raw sidecar schema-evolution wrapper, diagnostic model-input export, no-XMP guards, and `aisidecar benchmark` / `aisidecar purge` commands.
 
@@ -25,22 +25,25 @@ The Phase 1 release signoff is not complete. The remaining evidence is Milestone
 
 That state is good enough for Phase 2 implementation. It is not good enough for Phase 2 release without either archived Phase 1 signoff evidence or an explicit release note listing any deferred Phase 1 evidence.
 
-Latest verification recorded after Phase 2 Milestone 4:
+Latest verification recorded after Milestones 5-9 review:
 
 ```text
-swift test --filter XMPOwnedEngineTests        11 tests, 0 failures
-swift test                                      199 tests, 1 skipped, 0 failures
-swift run aisidecar write-xmp --from-json <tmp-json-folder> --recursive --source-verification skip --output-dir <tmp-out> --dry-run
-                                                passed, emitted ai-sidecar-xmp-change-plan/1.0 JSON
+swift test --filter CandidateExtractorTests       8 tests, 0 failures
+swift test --filter XMPBackupManagerTests         2 tests, 0 failures
+swift test --filter XMPMergeValidatorTests        2 tests, 0 failures
+swift test --filter XMPExportPipelineTests        6 tests, 0 failures
+swift test --filter AnalyzeAndXMPPipelineTests    4 tests, 0 failures
+swift test                                      214 tests, 1 skipped, 0 failures
+swift run aisidecar write-xmp --help            passed
 ```
 
-The next implementation unit is Milestone 5: merge conflict policy, backups, restore, and validation around the owned XMP sidecar engine. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
+The next implementation unit is Milestone 10: compatibility smoke and release evidence. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
 
 ## 1. Implementation Position
 
 Phase 2 is a metadata-write phase, not a second analysis phase. The safest path is to implement `write-from-json` first, using recorded Phase 1 sidecars and synthetic fixtures. That exercises candidate extraction, source verification, XMP naming, same-base-name grouping, change planning, merge, backup, restore, validation, dry-run, and reporting without invoking Ollama, Apple Vision, RAW decoding, or derivative rendering.
 
-Analyze-and-write mode comes after the XMP layer is stable. It should call the existing `AnalyzePipeline` and then pass the resulting raw sidecar or in-memory equivalent to the same export planner used by `--from-json`. There must not be two extraction or write paths.
+Analyze-and-write mode calls the existing `AnalyzePipeline` and then passes successful raw sidecars to the same export planner used by `--from-json`. There must not be two extraction or write paths.
 
 All new logic lives in `AISidecarCore`; `AISidecarCLI/WriteXMPCommand.swift` is argument handling and validation only (PW-002). XMP manipulation goes through `MetadataWriteEngine`. The required Phase 2 engine is `OwnedXMPSidecarEngine`, a project-owned sidecar reader/writer limited to `.xmp` files and the managed keyword fields. The engine protocol remains mandatory so Phase 4 or future packaging can swap implementations without touching policy code.
 
@@ -114,8 +117,8 @@ CameraVision/
         XMPMetadataSnapshot.swift              // implemented M4 pre/post field snapshots for validation
         XMPUnmanagedContentFingerprint.swift   // implemented M4 semantic preservation fingerprint
         XMPChangePlan.swift                    // implemented M3 ai-sidecar-xmp-change-plan/1.0 and planner
-        XMPMergeValidator.swift                // FR2-028 snapshot/fingerprint validation
-        XMPBackupManager.swift                 // deterministic backup/restore
+        XMPMergeValidator.swift                // implemented M5 FR2-028 snapshot/fingerprint validation
+        XMPBackupManager.swift                 // implemented M5 deterministic backup/restore
         XMPNaming.swift                        // implemented M3 <base>.xmp and --output-dir mirroring
         SameBaseNameGroupResolver.swift        // implemented M3 RAW+JPEG/shared-sidecar planning
         CandidateExtractor.swift               // implemented M2 candidate extraction and policy records
@@ -126,13 +129,13 @@ CameraVision/
         RawJSONSidecarDocument.swift       // implemented schema-evolution wrapper
         RawJSONSidecarInputResolver.swift  // implemented M1 from-json scan/source resolution
       Pipeline/
-        XMPExportPipeline.swift            // from-json/change-plan/write/report path
-        AnalyzeAndXMPPipeline.swift        // thin adapter over AnalyzePipeline + export path
+        XMPExportPipeline.swift            // implemented M6/M8 from-json/change-plan/write/report path
+        AnalyzeAndXMPPipeline.swift        // implemented M7 thin adapter over AnalyzePipeline + export path
       Reporting/
         XMPExportSchemaIdentifiers.swift       // implemented M0 schema constants
-        XMPExportProgressLog.swift         // one record per XMP target
-        XMPExportReport.swift              // ai-sidecar-xmp-export/1.0
-        XMPExportSummary.swift             // Markdown human summary
+        XMPExportProgressLog.swift         // implemented M6 one record per XMP target
+        XMPExportReport.swift              // implemented M6 ai-sidecar-xmp-export/1.0
+        XMPExportSummary.swift             // implemented M6 Markdown human summary
     AISidecarCLI/
       WriteXMPCommand.swift                // argument handling only
       AISidecarCommand.swift               // registers write-xmp subcommand
@@ -151,7 +154,11 @@ CameraVision/
         xmp/
         source-images/
       MetadataTests/
-      XMPExportPipelineTests/
+      XMPMergeValidatorTests.swift
+      XMPBackupManagerTests.swift
+      XMPExportReportTests.swift
+      XMPExportPipelineTests.swift
+      AnalyzeAndXMPPipelineTests.swift
 ```
 
 Do not put XML/RDF implementation details into candidate extraction, grouping, or policy modules. The engine boundary should allow tests to prove policy behavior with a mock engine and XMP preservation behavior with focused owned-engine fixtures. Do not introduce a required external metadata executable.
@@ -240,7 +247,7 @@ Implemented:
 5. Added `--pair-scope union|raw-only|jpeg-only` selection over RAW-like (`nef`, `nrw`, `cr3`, `cr2`, `arw`, `raf`, `orf`, `rw2`, `dng`) and JPEG (`jpg`, `jpeg`) member classes (FR2-002a/b).
 6. Added `XMPChangePlanner`, producing one `XMPChangePlan` per target XMP sidecar and unioning planned flat/hierarchical keywords case-insensitively while retaining all candidate provenance (FR2-002c/006d).
 7. Updated `write-xmp --from-json --dry-run` to emit deterministic pretty JSON using the same change-plan document that later write mode will consume (FR2-033).
-8. Kept non-dry-run `write-xmp` non-writing: it builds the plan, then fails with a not-implemented error until the owned XMP engine and export pipeline milestones land.
+8. At Milestone 3, kept non-dry-run `write-xmp` non-writing until the owned XMP engine and export pipeline milestones landed. This historical guard is superseded by the Milestone 6 export pipeline.
 
 Implemented core model:
 
@@ -309,9 +316,11 @@ swift test --filter XMPOwnedEngineTests        11 tests, 0 failures
 swift test                                      199 tests, 1 skipped, 0 failures
 ```
 
-The non-dry-run `write-xmp` CLI path still stops after planning. Backup/restore, post-write validation policy, export reports, progress logs, summaries, and command-level write execution remain later milestones.
+At Milestone 4, the non-dry-run `write-xmp` CLI path still stopped after planning. Backup/restore, post-write validation policy, export reports, progress logs, summaries, and command-level write execution are now implemented by Milestones 5-8.
 
 ## 9. Milestone 5 - Merge, Backup, Restore, and Validation
+
+Status: implemented.
 
 Tasks:
 
@@ -326,7 +335,17 @@ Tasks:
 
 Exit criteria: tests cover existing keyword preservation, unknown namespace semantic preservation, develop namespace semantic preservation, conflict-policy fail, merge without backup, backup-and-merge, invalid backup flag combination, simulated validation failure with restore, malformed/unsupported XMP failure, and source hash non-modification.
 
+Implemented notes:
+
+1. Added `XMPBackupManager` and `XMPBackupRecord` for deterministic sibling backups and atomic restore.
+2. Added `XMPMergeValidator` and `XMPMergeValidationResult` for expected keyword additions, pre-existing keyword preservation, and unmanaged-content fingerprint preservation.
+3. Enforced `fail`, `merge`, and `backup-and-merge` in `XMPExportPipeline`; config resolution rejects `backup-and-merge` with `--no-backup-sidecars`.
+4. Restored backups on validation failure or interruption after backup; invalid newly created sidecars are removed when validation fails.
+5. Recomputed source image hashes before and after XMP export and recorded `XMPSourceHashCheck` records in target reports.
+
 ## 10. Milestone 6 - Write-from-JSON End-to-End Pipeline
+
+Status: implemented.
 
 Tasks:
 
@@ -346,7 +365,16 @@ swift test --filter XMPExportPipelineTests
 
 The dry-run output must be complete enough to explain exactly why every candidate was written or skipped.
 
+Implemented notes:
+
+1. Added `XMPExportPipeline` for the complete from-json workflow: raw sidecar resolution, extraction, grouping, planning, optional dry-run, owned-engine write, validation, and reporting.
+2. Folder runs create `xmp-export-progress-<ISO>.jsonl`, `xmp-export-report-<ISO>.json`, and `xmp-export-summary-<ISO>.md`; progress is one record per XMP target.
+3. Single-file runs return an in-memory `XMPExportReport` for CLI presentation without creating batch report artifacts.
+4. Reports include the resolved export configuration, engine identity, writer recipe version, group membership, skipped candidates, warnings, backups, validation, source hash checks, structured errors, and Lightroom Classic/Capture One instructions.
+
 ## 11. Milestone 7 - Analyze-and-Write Integration
+
+Status: implemented.
 
 Tasks:
 
@@ -359,7 +387,17 @@ Tasks:
 
 Exit criteria: analyze-and-write creates an `.ai.json` and `.xmp` for a mocked model fixture; `--no-write-ai-json` creates only XMP and report artifacts; model prepare failure leaves no XMP; partial analysis failure does not corrupt a grouped XMP target.
 
+Implemented notes:
+
+1. Added `AnalyzeAndXMPPipeline` as a thin adapter over `AnalyzePipeline` and `XMPExportPipeline`.
+2. Analyze-and-write preserves `.ai.json` sidecars by default; `--no-write-ai-json` removes newly created raw sidecars after extraction.
+3. `CandidateProvenance` now carries model, model digest, runtime, runtime version, prompt version, prompt hash, and response schema version so reports remain auditable when raw sidecars are not retained.
+4. Model preparation remains fail-fast because XMP planning starts only after `AnalyzePipeline.run` returns successful records.
+5. Derivative-cache clear-after-success is deferred until both analysis and XMP export succeed.
+
 ## 12. Milestone 8 - Batch Interruption, Resume, and Operational Semantics
+
+Status: implemented.
 
 Tasks:
 
@@ -372,7 +410,17 @@ Tasks:
 
 Exit criteria: an interruption test using the mock engine leaves no partial target and rerun completes deterministically. A simulated interruption after backup but before replacement restores or leaves the original sidecar unmodified.
 
+Implemented notes:
+
+1. `WriteXMPCommand` installs `InterruptionMonitor` signal handlers and passes the monitor into from-json and analyze-and-write pipelines.
+2. `XMPExportPipeline` observes interruption before starting each target and after backup creation; interrupted targets are reported and restored when a backup exists.
+3. `XMPExportProgressLog.append` synchronizes after every target record.
+4. Reruns use the configured `--xmp-conflict-policy`; Phase 2 does not add a checkpoint format.
+5. XMP failure prevents analyze-and-write derivative-cache success cleanup when the overall invocation fails.
+
 ## 13. Milestone 9 - Tests and Fixtures
+
+Status: implemented for the required offline test suite; release smoke evidence remains Milestone 10.
 
 Automated tests:
 

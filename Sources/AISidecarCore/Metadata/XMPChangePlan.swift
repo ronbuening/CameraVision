@@ -159,6 +159,7 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
     public var existingPolicy: XMPConflictPolicy
     public var backupPlan: BackupPlan
     public var validationPlan: ValidationPlan
+    public var preview: XMPWritePreview?
     public var failures: [SidecarError]
 
     enum CodingKeys: String, CodingKey {
@@ -176,6 +177,7 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         case existingPolicy = "existing_policy"
         case backupPlan = "backup_plan"
         case validationPlan = "validation_plan"
+        case preview
         case failures
     }
 
@@ -194,6 +196,7 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         existingPolicy: XMPConflictPolicy,
         backupPlan: BackupPlan,
         validationPlan: ValidationPlan,
+        preview: XMPWritePreview? = nil,
         failures: [SidecarError]
     ) {
         self.status = status
@@ -210,6 +213,7 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         self.existingPolicy = existingPolicy
         self.backupPlan = backupPlan
         self.validationPlan = validationPlan
+        self.preview = preview
         self.failures = failures
     }
 }
@@ -366,8 +370,8 @@ public struct XMPChangePlanner {
                 backupRequiredBeforeMerge: configuration.xmpConflictPolicy == .backupAndMerge,
                 conflictPolicy: configuration.xmpConflictPolicy
             ),
-            // Milestone 3 records validation intent only; the owned parser and
-            // preservation checks materialize these flags in later milestones.
+            // The planner records validation intent; the export pipeline turns
+            // these flags into post-write snapshot and fingerprint checks.
             validationPlan: .phase2Default,
             failures: selectedGroup.failures
         )
