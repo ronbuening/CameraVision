@@ -29,7 +29,7 @@ swift run aisidecar purge --help               passed
 swift run aisidecar --help                     passed
 ```
 
-The next implementation unit is completing Milestone 9 calibration and quality review.
+The remaining Phase 1 implementation unit is completing Milestone 9 calibration and quality review. Before Phase 3 starts, archive this evidence or explicitly document any deferrals alongside the Phase 2 Milestone 10 compatibility smoke results.
 
 ## 1. Implementation Position
 

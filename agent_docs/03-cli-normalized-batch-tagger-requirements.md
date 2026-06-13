@@ -27,6 +27,18 @@ This revision updates Phase 3 for the Phase 2 decision to use a project-owned XM
 
 For continuity, all substantive v0.2 changes remain active: the single `aisidecar` binary, JSON-only vocabulary, vocabulary integrity rules, hierarchy-aware consensus, removal of the undefined `batch-folder-context` mode, `--unknown-subject-policy`, measurable conflict semantics, session identity binding, and ordinal confidence bands.
 
+## 0.1 Current Entry Status
+
+Phase 3 is specified but not implemented. The repository currently has Phase 1 Milestones 0-8 plus the Milestone 9a benchmark harness, and Phase 2 Milestones 0-9 including owned XMP export, backup/restore, validation, reports, interruption handling, and analyze-and-write integration.
+
+Before implementing Phase 3, complete or explicitly defer:
+
+- Phase 2 Milestone 10 compatibility smoke evidence for from-json export, analyze-and-write, Lightroom Classic import, and Capture One synchronization;
+- Phase 1 Milestone 9 calibration and quality review evidence;
+- a fresh `swift test` baseline after any Milestone 10 documentation or fixture updates.
+
+The first Phase 3 implementation unit should be CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, plus core vocabulary/session schema types. Do not add a second XMP writer; normalized export plans must flow through the Phase 2 `MetadataWriteEngine` and `OwnedXMPSidecarEngine`.
+
 ## 1. Purpose
 
 Phase 3 shall expand the command-line toolchain so whole-folder scans produce consistent, normalized metadata. The target workflow is a real photographic batch: multiple frames often contain the same subject, event, habitat, or scene type, while the model may describe those things inconsistently across files.

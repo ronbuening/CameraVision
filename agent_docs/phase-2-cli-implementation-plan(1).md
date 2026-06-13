@@ -39,6 +39,8 @@ swift run aisidecar write-xmp --help            passed
 
 The next implementation unit is Milestone 10: compatibility smoke and release evidence. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
 
+Phase 3 implementation is blocked until Milestone 10 evidence is recorded or explicitly deferred. The gate is: owned XMP from-json smoke, owned XMP analyze-and-write smoke, Lightroom Classic import verification, Capture One synchronization verification, Phase 1 no-XMP regression pass after Phase 2 merge, and Phase 1 Milestone 9 evidence or documented deferral.
+
 ## 1. Implementation Position
 
 Phase 2 is a metadata-write phase, not a second analysis phase. The safest path is to implement `write-from-json` first, using recorded Phase 1 sidecars and synthetic fixtures. That exercises candidate extraction, source verification, XMP naming, same-base-name grouping, change planning, merge, backup, restore, validation, dry-run, and reporting without invoking Ollama, Apple Vision, RAW decoding, or derivative rendering.
@@ -470,6 +472,8 @@ Fixture policy:
 
 ## 14. Milestone 10 - Compatibility Smoke and Release Evidence
 
+Status: pending. This milestone is the Phase 3 entry gate.
+
 Manual or semi-manual checks:
 
 1. Write a new XMP sidecar beside a throwaway proprietary RAW file and verify the owned parser reads `XMP-dc:Subject` and `XMP-lr:HierarchicalSubject`.
@@ -480,6 +484,13 @@ Manual or semi-manual checks:
 6. Run analyze-and-write against at least one JPEG and one RAW sample using the default model on the target machine.
 7. Run the Phase 1 no-XMP regression set after Phase 2 is merged.
 8. Archive or link final Phase 1 Milestone 9 evidence, or explicitly document any deferrals before Phase 2 release.
+
+Exit criteria before Phase 3:
+
+1. Record command output paths, sidecar/report artifact paths, and any application screenshots or notes needed to reproduce the Lightroom Classic and Capture One checks.
+2. Confirm `swift test` still passes after any Milestone 10 fixture or documentation updates.
+3. Update `README.md`, `AGENTS.md`, and this plan with the final Milestone 10 evidence location.
+4. If any Phase 1 Milestone 9 evidence remains deferred, add an explicit deferral note that names the missing sample/check, reason, and residual risk.
 
 Recommended command set:
 

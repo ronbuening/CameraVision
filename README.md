@@ -45,6 +45,16 @@ Still pending before release signoff:
 - Phase 1 Milestone 9 calibration and quality review evidence.
 - Phase 2 Milestone 10 compatibility smoke checks with Lightroom Classic, Capture One, and representative RAW/JPEG samples.
 
+## Before Phase 3
+
+Phase 3 normalization work should start only after:
+
+- Phase 2 Milestone 10 compatibility smoke evidence is recorded for owned XMP export, including from-json staging, analyze-and-write, Lightroom Classic import, and Capture One synchronization checks.
+- Phase 1 Milestone 9 calibration and quality review evidence is archived, or remaining evidence is explicitly listed as deferred in release notes.
+- The latest `swift test` and `swift run aisidecar write-xmp --help` results are recorded in `agent_docs/phase-2-cli-implementation-plan(1).md`.
+
+Once those gates are satisfied, the next implementation unit is Phase 3 Milestone 0/1: add `aisidecar normalize` and `aisidecar apply-session` scaffolding, then build the vocabulary/session layer described in `agent_docs/03-cli-normalized-batch-tagger-requirements.md`.
+
 ## Repository Layout
 
 ```text
@@ -130,4 +140,4 @@ Folder export runs write `xmp-export-progress-<timestamp>.jsonl`, `xmp-export-re
 
 ## Next Steps
 
-The next planned work is Phase 2 Milestone 10 compatibility smoke and release evidence, while Phase 1 Milestone 9 calibration and quality review remain required before release signoff. Follow-up work should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.
+The next planned work is Phase 2 Milestone 10 compatibility smoke and release evidence, while Phase 1 Milestone 9 calibration and quality review remain required before Phase 3 starts. Follow-up work should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.

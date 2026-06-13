@@ -59,6 +59,7 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 
 - Implement one milestone at a time unless the user explicitly expands scope.
 - The next planned implementation unit is Phase 2 Milestone 10 compatibility smoke and release evidence. Phase 1 Milestone 9 calibration and quality review remain required before release signoff.
+- Do not start Phase 3 implementation until Phase 2 Milestone 10 smoke evidence is recorded and Phase 1 Milestone 9 evidence is either archived or explicitly deferred in release notes. After that gate, Phase 3 begins with `aisidecar normalize` / `aisidecar apply-session` scaffolding from `agent_docs/03-cli-normalized-batch-tagger-requirements.md`.
 - Do not jump ahead to XMP writing while implementing Phase 1 work.
 - Do not add XMP writing outside `aisidecar write-xmp` or the Phase 2 export pipeline it invokes.
 - Keep the project macOS-only. Do not add cross-platform availability annotations or platform documentation unless a future requirement explicitly broadens the supported platforms.

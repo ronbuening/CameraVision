@@ -57,7 +57,7 @@ Phase 2 Milestones 0-9 are implemented. The repository now has:
 - `aisidecar write-xmp --help` and command-shape validation;
 - Phase 2 export configuration defaults with `CLI > AISIDECAR_* > JSON config > built-in default` precedence;
 - Phase 2 policy enums for source verification, XMP conflict policy, minimum confidence, and pair scope;
-- placeholder schema identifiers `ai-sidecar-xmp-export/1.0` and `ai-sidecar-xmp-change-plan/1.0`;
+- schema identifiers `ai-sidecar-xmp-export/1.0` and `ai-sidecar-xmp-change-plan/1.0`;
 - additive source-verification and XMP-engine error codes: `E_SOURCE_MISSING`, `E_SOURCE_IDENTITY_MISMATCH`, `E_XMP_PARSE_FAILED`, and `E_XMP_UNSUPPORTED_RDF`;
 - no-XMP regression coverage for `analyze`, `benchmark`, `purge`, and `analyze --export-model-inputs`;
 - `RawJSONSidecarReader` plus `write-xmp --from-json` sidecar scanning and source resolution;
@@ -77,6 +77,14 @@ Phase 2 Milestones 0-9 are implemented. The repository now has:
 - offline tests for canonical sidecar generation, alternate namespace prefixes, missing managed bags, existing keyword merge, unmanaged semantic preservation, malformed XML, unsupported RDF, backup/restore, validation failure restore, progress/report/summary artifacts, interruption behavior, and analyze-and-write.
 
 Phase 2 implementation is now complete through Milestone 9. The remaining Phase 2 release work is Milestone 10 compatibility smoke evidence: Lightroom Classic/Capture One import checks, representative RAW/JPEG samples, and final Phase 1 Milestone 9 release-evidence linkage or documented deferral.
+
+Phase 3 shall not start until this release evidence is recorded or explicitly deferred:
+
+- run and archive the Phase 2 Milestone 10 from-json and analyze-and-write smoke checks against throwaway JPEG and RAW inputs;
+- verify Lightroom Classic can import written sidecar keywords with Metadata > Read Metadata from Files;
+- verify Capture One can load or synchronize the written sidecar keywords with the intended Metadata preferences;
+- run the no-XMP regression checks for Phase 1 commands after the Phase 2 writer is merged;
+- archive Phase 1 Milestone 9 calibration/quality evidence, or record an explicit deferral with the reason and residual risk.
 
 ## 1. Purpose
 

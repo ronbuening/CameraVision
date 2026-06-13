@@ -27,6 +27,10 @@ This revision updates Phase 4 for the Phase 2/3 decision to use a project-owned 
 
 For continuity, all substantive v0.2 changes remain active: out-of-band sidecar edit detection, versioned SQLite schema, scoped batch correction, 5,000-image responsiveness target, crash-resumability through transactions and pipeline artifacts, direct surfacing of structured error codes, SwiftUI on macOS 15, and a thin owned SQLite data layer.
 
+## 0.1 Current Dependency Status
+
+Phase 4 is not the next implementation target. The repository is ready through Phase 2 Milestone 9; Phase 2 Milestone 10 compatibility smoke evidence and Phase 1 Milestone 9 release evidence still gate Phase 3. Phase 4 work should wait until Phase 3 provides vocabulary files, normalization sessions, normalized export plans, and `normalize` / `apply-session` command behavior in `AISidecarCore`.
+
 ## 1. Purpose
 
 Phase 4 shall turn the command-line phases into the original GUI MVP: a local-first macOS application for AI-assisted subject and scene tagging that writes clean XMP sidecars for Lightroom Classic, Capture One, and similar tools.

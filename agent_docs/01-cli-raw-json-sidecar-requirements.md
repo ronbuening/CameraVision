@@ -16,7 +16,7 @@ This revision records implementation status. It does not broaden Phase 1 scope o
 1. Phase 1 Milestones 0-8 are implemented, including the full `aisidecar analyze` pipeline, diagnostic model-input export, derivative-cache lifecycle controls, `aisidecar purge`, v1.3 prompt/schema resources, schema-constrained model-response repair, schema-evolution sidecar rewrites, no-XMP guards, and offline tests.
 2. The Milestone 9a benchmark harness is implemented as `aisidecar benchmark`, with the legacy `benchmarks/run-milestone9a.swift` wrapper retained for compatibility.
 3. Final Phase 1 signoff is still pending Milestone 9 calibration and quality review: a full benchmark run, conservative default selection for model input profile / `keep_alive` / `stage_concurrency`, foreground-mask failure classification, tag-quality review, and manual instance-selection spot checks.
-4. XMP writeback, tag normalization, review workflows, OCR/text extraction, alternate runtime support beyond the adapter seam, and GUI behavior remain later-phase work.
+4. XMP writeback is implemented by Phase 2 outside the Phase 1 `analyze` command. Tag normalization, review workflows, OCR/text extraction, alternate runtime support beyond the adapter seam, and GUI behavior remain later-phase work.
 
 ## 0.1 Current Implementation Status
 
@@ -39,6 +39,8 @@ Not complete for final Phase 1 signoff:
 - Complete quality review beyond timing/schema-validity: tag-quality review, foreground-mask failure classification by subject class, and manual multi-subject instance-selection spot checks.
 - Add rights-cleared HEIC, TIFF, NEF, and RAF benchmark coverage, or document those timing checks as manual/deferred until usable samples are available.
 - Perform the final acceptance pass for AC1-001 through AC1-015, including live local-model smoke checks where the criteria depend on Ollama, Apple Vision, or real RAW decoder behavior.
+
+Before Phase 3 starts, these remaining Phase 1 signoff items must either be completed and archived or explicitly listed as deferred release evidence. Phase 3 may build on the current Phase 1 APIs, but release readiness still depends on a clear Phase 1 Milestone 9 record.
 
 Explicitly not Phase 1:
 
