@@ -461,6 +461,10 @@ public struct AnalyzePipeline {
             return .prepared(
                 PreparedRenderedAnalysis(
                     derivatives: derivatives,
+                    modelInputContext: GPSContextExtractor.context(
+                        for: entry.source,
+                        mode: configuration.gpsContext
+                    ),
                     subjectIsolation: subjectIsolation,
                     errors: errors,
                     renderMs: renderMs,
@@ -498,6 +502,7 @@ public struct AnalyzePipeline {
             let modelStartedAt = now()
             let modelRuns = await runModelRuns(
                 derivatives: prepared.derivatives,
+                modelInputContext: prepared.modelInputContext,
                 configuration: configuration,
                 runtime: runtime
             )
@@ -614,6 +619,7 @@ public struct AnalyzePipeline {
 
     private func runModelRuns(
         derivatives: [DerivativeRecord],
+        modelInputContext: ModelInputContext?,
         configuration: ResolvedRunConfiguration,
         runtime: ModelRuntimeContext
     ) async -> [ModelRunRecord] {
@@ -621,7 +627,13 @@ public struct AnalyzePipeline {
         // PW-015 requires exactly one model request in flight; keep this loop
         // sequential even when render/isolation preparation has worked ahead.
         for (role, derivative) in modelInputs(derivatives: derivatives, mode: configuration.mode) {
-            runs.append(await runModel(role: role, derivative: derivative, configuration: configuration, runtime: runtime))
+            runs.append(await runModel(
+                role: role,
+                derivative: derivative,
+                modelInputContext: modelInputContext,
+                configuration: configuration,
+                runtime: runtime
+            ))
         }
         return runs
     }
@@ -629,6 +641,7 @@ public struct AnalyzePipeline {
     private func runModel(
         role: ModelInputRole,
         derivative: DerivativeRecord,
+        modelInputContext: ModelInputContext?,
         configuration: ResolvedRunConfiguration,
         runtime: ModelRuntimeContext
     ) async -> ModelRunRecord {
@@ -636,9 +649,9 @@ public struct AnalyzePipeline {
         options.keepAlive = configuration.modelKeepAlive
         options.responseRepairAttempts = configuration.modelResponseRepairAttempts
         do {
-            let prompt = try PromptRegistry.prompt(for: role)
+            let prompt = try PromptRegistry.prompt(for: role, context: modelInputContext)
             let schema = try ResponseSchemas.schema(for: role)
-            return await runner.analyze(
+            var record = await runner.analyze(
                 image: derivative,
                 inputRole: role,
                 prompt: prompt,
@@ -646,6 +659,8 @@ public struct AnalyzePipeline {
                 options: options,
                 runtime: runtime
             )
+            record.modelInputContext = modelInputContext?.isEmpty == false ? modelInputContext : nil
+            return record
         } catch {
             return ModelRunRecord(
                 inputRole: role,
@@ -657,6 +672,7 @@ public struct AnalyzePipeline {
                 promptSHA256: "",
                 responseSchemaVersion: "",
                 requestOptions: options,
+                modelInputContext: modelInputContext?.isEmpty == false ? modelInputContext : nil,
                 inputDerivativeSHA256: derivative.sha256,
                 rawResponseText: "",
                 parsedResponseJSON: nil,
@@ -819,6 +835,7 @@ private enum PreparedAnalysis: Sendable {
 
 private struct PreparedRenderedAnalysis: Sendable {
     var derivatives: [DerivativeRecord]
+    var modelInputContext: ModelInputContext?
     var subjectIsolation: SubjectIsolationRecord?
     var errors: [SidecarError]
     var renderMs: Int

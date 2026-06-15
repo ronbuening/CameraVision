@@ -14,6 +14,31 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertFalse(resolved.clearDerivativeCacheAfterSuccess)
         XCTAssertEqual(resolved.modelKeepAlive, "30m")
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 1)
+        XCTAssertEqual(resolved.gpsContext, .coarse)
+    }
+
+    func testXMPExportDefaultsLoadWhenDefaultConfigIsMissing() throws {
+        let resolved = try ConfigurationResolver.resolveXMPExport(
+            environment: [:],
+            defaultConfigPath: missingConfigPath()
+        )
+
+        XCTAssertEqual(resolved, .builtInDefaults)
+        XCTAssertFalse(resolved.recursive)
+        XCTAssertNil(resolved.outputDir)
+        XCTAssertEqual(resolved.logLevel, .info)
+        XCTAssertEqual(resolved.logFormat, .text)
+        XCTAssertFalse(resolved.dryRun)
+        XCTAssertNil(resolved.sourceRoot)
+        XCTAssertEqual(resolved.sourceVerification, .fail)
+        XCTAssertTrue(resolved.writeFlatKeywords)
+        XCTAssertTrue(resolved.writeHierarchicalKeywords)
+        XCTAssertTrue(resolved.backupSidecars)
+        XCTAssertEqual(resolved.xmpConflictPolicy, .backupAndMerge)
+        XCTAssertEqual(resolved.minConfidence, .medium)
+        XCTAssertFalse(resolved.allowSpecificTags)
+        XCTAssertEqual(resolved.pairScope, .union)
+        XCTAssertTrue(resolved.writeAIJSON)
     }
 
     func testConfigFileOverridesDefaults() throws {
@@ -40,7 +65,8 @@ final class ConfigResolutionTests: XCTestCase {
               "subject_crop_margin_fraction": 0.12,
               "subject_merge_dominance_threshold": 0.75,
               "stage_concurrency": 3,
-              "model_response_repair_attempts": 0
+              "model_response_repair_attempts": 0,
+              "gps_context": "exact"
             }
             """
         )
@@ -71,6 +97,52 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.75)
         XCTAssertEqual(resolved.stageConcurrency, 3)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 0)
+        XCTAssertEqual(resolved.gpsContext, .exact)
+    }
+
+    func testXMPExportConfigFileOverridesDefaults() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "recursive": true,
+              "output_dir": "/tmp/xmp-sidecars",
+              "log_level": "debug",
+              "log_format": "json",
+              "dry_run": true,
+              "source_root": "/tmp/source-images",
+              "source_verification": "warn",
+              "write_flat_keywords": false,
+              "write_hierarchical_keywords": false,
+              "backup_sidecars": false,
+              "xmp_conflict_policy": "merge",
+              "min_confidence": "high",
+              "allow_specific_tags": true,
+              "pair_scope": "raw-only",
+              "write_ai_json": false
+            }
+            """
+        )
+
+        let resolved = try ConfigurationResolver.resolveXMPExport(
+            environment: [:],
+            defaultConfigPath: configPath
+        )
+
+        XCTAssertTrue(resolved.recursive)
+        XCTAssertEqual(resolved.outputDir, "/tmp/xmp-sidecars")
+        XCTAssertEqual(resolved.logLevel, .debug)
+        XCTAssertEqual(resolved.logFormat, .json)
+        XCTAssertTrue(resolved.dryRun)
+        XCTAssertEqual(resolved.sourceRoot, "/tmp/source-images")
+        XCTAssertEqual(resolved.sourceVerification, .warn)
+        XCTAssertFalse(resolved.writeFlatKeywords)
+        XCTAssertFalse(resolved.writeHierarchicalKeywords)
+        XCTAssertFalse(resolved.backupSidecars)
+        XCTAssertEqual(resolved.xmpConflictPolicy, .merge)
+        XCTAssertEqual(resolved.minConfidence, .high)
+        XCTAssertTrue(resolved.allowSpecificTags)
+        XCTAssertEqual(resolved.pairScope, .rawOnly)
+        XCTAssertFalse(resolved.writeAIJSON)
     }
 
     func testEnvironmentOverridesConfigFile() throws {
@@ -101,7 +173,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_SUBJECT_CROP_MARGIN_FRACTION": "0.15",
                 "AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD": "0.65",
                 "AISIDECAR_STAGE_CONCURRENCY": "5",
-                "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2"
+                "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2",
+                "AISIDECAR_GPS_CONTEXT": "off"
             ],
             defaultConfigPath: configPath
         )
@@ -120,6 +193,64 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.65)
         XCTAssertEqual(resolved.stageConcurrency, 5)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 2)
+        XCTAssertEqual(resolved.gpsContext, .off)
+    }
+
+    func testXMPExportEnvironmentOverridesConfigFile() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "recursive": false,
+              "output_dir": "/tmp/file-xmp",
+              "log_level": "error",
+              "source_verification": "fail",
+              "write_flat_keywords": true,
+              "backup_sidecars": true,
+              "xmp_conflict_policy": "backup-and-merge",
+              "min_confidence": "medium",
+              "allow_specific_tags": false,
+              "pair_scope": "union",
+              "write_ai_json": true
+            }
+            """
+        )
+
+        let resolved = try ConfigurationResolver.resolveXMPExport(
+            environment: [
+                "AISIDECAR_RECURSIVE": "1",
+                "AISIDECAR_OUTPUT_DIR": "/tmp/env-xmp",
+                "AISIDECAR_LOG_LEVEL": "debug",
+                "AISIDECAR_LOG_FORMAT": "json",
+                "AISIDECAR_DRY_RUN": "yes",
+                "AISIDECAR_SOURCE_ROOT": "/tmp/env-source",
+                "AISIDECAR_SOURCE_VERIFICATION": "skip",
+                "AISIDECAR_WRITE_FLAT_KEYWORDS": "false",
+                "AISIDECAR_WRITE_HIERARCHICAL_KEYWORDS": "false",
+                "AISIDECAR_BACKUP_SIDECARS": "false",
+                "AISIDECAR_XMP_CONFLICT_POLICY": "merge",
+                "AISIDECAR_MIN_CONFIDENCE": "low",
+                "AISIDECAR_ALLOW_SPECIFIC_TAGS": "true",
+                "AISIDECAR_PAIR_SCOPE": "jpeg-only",
+                "AISIDECAR_WRITE_AI_JSON": "false"
+            ],
+            defaultConfigPath: configPath
+        )
+
+        XCTAssertTrue(resolved.recursive)
+        XCTAssertEqual(resolved.outputDir, "/tmp/env-xmp")
+        XCTAssertEqual(resolved.logLevel, .debug)
+        XCTAssertEqual(resolved.logFormat, .json)
+        XCTAssertTrue(resolved.dryRun)
+        XCTAssertEqual(resolved.sourceRoot, "/tmp/env-source")
+        XCTAssertEqual(resolved.sourceVerification, .skip)
+        XCTAssertFalse(resolved.writeFlatKeywords)
+        XCTAssertFalse(resolved.writeHierarchicalKeywords)
+        XCTAssertFalse(resolved.backupSidecars)
+        XCTAssertEqual(resolved.xmpConflictPolicy, .merge)
+        XCTAssertEqual(resolved.minConfidence, .low)
+        XCTAssertTrue(resolved.allowSpecificTags)
+        XCTAssertEqual(resolved.pairScope, .jpegOnly)
+        XCTAssertFalse(resolved.writeAIJSON)
     }
 
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
@@ -131,7 +262,18 @@ final class ConfigResolutionTests: XCTestCase {
             subjectCropMarginFraction: 0.12,
             subjectMergeDominanceThreshold: 0.75,
             stageConcurrency: 3,
-            modelResponseRepairAttempts: 0
+            modelResponseRepairAttempts: 0,
+            gpsContext: .exact,
+            sourceRoot: "/tmp/source-root",
+            sourceVerification: .warn,
+            writeFlatKeywords: false,
+            writeHierarchicalKeywords: true,
+            backupSidecars: false,
+            xmpConflictPolicy: .merge,
+            minConfidence: .high,
+            allowSpecificTags: true,
+            pairScope: .rawOnly,
+            writeAIJSON: false
         )
         let data = try JSONEncoder().encode(config)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -145,6 +287,17 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(object["subject_merge_dominance_threshold"] as? Double, 0.75)
         XCTAssertEqual(object["stage_concurrency"] as? Int, 3)
         XCTAssertEqual(object["model_response_repair_attempts"] as? Int, 0)
+        XCTAssertEqual(object["gps_context"] as? String, "exact")
+        XCTAssertEqual(object["source_root"] as? String, "/tmp/source-root")
+        XCTAssertEqual(object["source_verification"] as? String, "warn")
+        XCTAssertEqual(object["write_flat_keywords"] as? Bool, false)
+        XCTAssertEqual(object["write_hierarchical_keywords"] as? Bool, true)
+        XCTAssertEqual(object["backup_sidecars"] as? Bool, false)
+        XCTAssertEqual(object["xmp_conflict_policy"] as? String, "merge")
+        XCTAssertEqual(object["min_confidence"] as? String, "high")
+        XCTAssertEqual(object["allow_specific_tags"] as? Bool, true)
+        XCTAssertEqual(object["pair_scope"] as? String, "raw-only")
+        XCTAssertEqual(object["write_ai_json"] as? Bool, false)
     }
 
     func testCLIOverridesEnvironment() throws {
@@ -159,7 +312,8 @@ final class ConfigResolutionTests: XCTestCase {
                 clearDerivativeCacheOnStart: true,
                 clearDerivativeCacheAfterSuccess: true,
                 stageConcurrency: 7,
-                modelResponseRepairAttempts: 3
+                modelResponseRepairAttempts: 3,
+                gpsContext: .exact
             ),
             environment: [
                 "AISIDECAR_MODE": "subject",
@@ -171,7 +325,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_ON_START": "false",
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS": "false",
                 "AISIDECAR_STAGE_CONCURRENCY": "5",
-                "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2"
+                "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2",
+                "AISIDECAR_GPS_CONTEXT": "off"
             ],
             defaultConfigPath: missingConfigPath()
         )
@@ -186,6 +341,60 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertTrue(resolved.clearDerivativeCacheAfterSuccess)
         XCTAssertEqual(resolved.stageConcurrency, 7)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 3)
+        XCTAssertEqual(resolved.gpsContext, .exact)
+    }
+
+    func testXMPExportCLIOverridesEnvironment() throws {
+        let resolved = try ConfigurationResolver.resolveXMPExport(
+            cli: XMPExportConfigurationOverrides(
+                recursive: false,
+                outputDir: "/tmp/cli-xmp",
+                logFormat: .text,
+                dryRun: false,
+                sourceRoot: "/tmp/cli-source",
+                sourceVerification: .warn,
+                writeFlatKeywords: true,
+                writeHierarchicalKeywords: true,
+                backupSidecars: true,
+                xmpConflictPolicy: .backupAndMerge,
+                minConfidence: .high,
+                allowSpecificTags: false,
+                pairScope: .rawOnly,
+                writeAIJSON: true
+            ),
+            environment: [
+                "AISIDECAR_RECURSIVE": "1",
+                "AISIDECAR_OUTPUT_DIR": "/tmp/env-xmp",
+                "AISIDECAR_LOG_FORMAT": "json",
+                "AISIDECAR_DRY_RUN": "yes",
+                "AISIDECAR_SOURCE_ROOT": "/tmp/env-source",
+                "AISIDECAR_SOURCE_VERIFICATION": "skip",
+                "AISIDECAR_WRITE_FLAT_KEYWORDS": "false",
+                "AISIDECAR_WRITE_HIERARCHICAL_KEYWORDS": "false",
+                "AISIDECAR_BACKUP_SIDECARS": "false",
+                "AISIDECAR_XMP_CONFLICT_POLICY": "merge",
+                "AISIDECAR_MIN_CONFIDENCE": "low",
+                "AISIDECAR_ALLOW_SPECIFIC_TAGS": "true",
+                "AISIDECAR_PAIR_SCOPE": "jpeg-only",
+                "AISIDECAR_WRITE_AI_JSON": "false"
+            ],
+            defaultConfigPath: missingConfigPath()
+        )
+
+        XCTAssertFalse(resolved.recursive)
+        XCTAssertEqual(resolved.outputDir, "/tmp/cli-xmp")
+        XCTAssertEqual(resolved.logFormat, .text)
+        XCTAssertFalse(resolved.dryRun)
+        XCTAssertEqual(resolved.sourceRoot, "/tmp/cli-source")
+        XCTAssertEqual(resolved.sourceVerification, .warn)
+        XCTAssertTrue(resolved.writeFlatKeywords)
+        XCTAssertTrue(resolved.writeHierarchicalKeywords)
+        XCTAssertTrue(resolved.backupSidecars)
+        XCTAssertEqual(resolved.xmpConflictPolicy, .backupAndMerge)
+        XCTAssertEqual(resolved.minConfidence, .high)
+        XCTAssertFalse(resolved.allowSpecificTags)
+        XCTAssertEqual(resolved.pairScope, .rawOnly)
+        XCTAssertTrue(resolved.writeAIJSON)
     }
 
     func testCLIConfigPathChoosesAlternateJSON() throws {
@@ -207,6 +416,7 @@ final class ConfigResolutionTests: XCTestCase {
             {
               "model_endpoint": "not-a-url",
               "profile": "unknown-profile",
+              "gps_context": "precise",
               "derivative_cache_dir": "/tmp/file-cache",
               "derivative_cache_size_bytes": 1048576
             }
@@ -220,7 +430,8 @@ final class ConfigResolutionTests: XCTestCase {
             ),
             environment: [
                 "AISIDECAR_DERIVATIVE_CACHE_DIR": "/tmp/env-cache",
-                "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152"
+                "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152",
+                "AISIDECAR_GPS_CONTEXT": "precise"
             ],
             defaultConfigPath: configPath
         )

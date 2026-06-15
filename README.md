@@ -1,17 +1,17 @@
 # CameraVision
 
-CameraVision is a local macOS utility for generating AI-assisted image metadata for photo workflows. The long-term goal is to support Lightroom and Capture One sidecar workflows, but the current implementation is in Phase 1: generating auditable raw AI JSON sidecars before any XMP writeback exists.
+CameraVision is a local macOS utility for generating AI-assisted image metadata for photo workflows. The current implementation generates auditable raw AI JSON sidecars and exports accepted Phase 1 candidates into safe XMP sidecars through `aisidecar write-xmp`; those sidecars have been smoke-verified as readable by Lightroom Classic and Capture One.
 
 ## Current State
 
-Phase 1 Milestones 0-8 and the Milestone 9a benchmark harness are implemented. Phase 1 still produces only auditable raw AI JSON sidecars; XMP writeback starts in Phase 2.
+Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, Phase 2 Milestones 0-10, and the pre-Phase-3 GPS context milestone are implemented. Phase 1 commands still produce only auditable raw AI JSON sidecars and remain XMP-silent. Phase 2 can resolve raw sidecars, extract candidate keywords, reject coordinate/GPS-only export candidates, plan XMP targets, group same-base-name sources, merge existing XMP sidecars through the owned engine, create deterministic backups, validate semantic preservation, restore on validation failure, write export reports, run analyze-and-write through the same export planner, and produce XMP keyword sidecars readable by Lightroom Classic and Capture One.
 
 The repository currently contains:
 
 - A Swift Package Manager project targeting macOS 15 and Swift 6.
 - `AISidecarCore`, the shared library where reusable project logic lives.
 - `aisidecar`, the command-line executable.
-- `aisidecar analyze` command wiring with the Phase 1 shared flag surface, `aisidecar benchmark` for Milestone 9a timing/validity runs, and `aisidecar purge` for derivative cache maintenance.
+- `aisidecar analyze` command wiring with the Phase 1 shared flag surface, `aisidecar write-xmp` Phase 2 XMP export, `aisidecar benchmark` for Milestone 9a timing/validity runs, and `aisidecar purge` for derivative cache maintenance.
 - A reusable `AISidecarCore/Benchmarking` harness for benchmark specs, result documents, sidecar metric aggregation, no-XMP checks, scratch cleanup, and offline self-test.
 - Configuration resolution with precedence: CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default.
 - The frozen Phase 1 structured error taxonomy.
@@ -24,22 +24,35 @@ The repository currently contains:
 - Content-addressed derivative caching with manifest-backed LRU eviction, configurable cache directory/size, opt-in start/success cache clearing, and explicit purge command.
 - Subject isolation with Apple Vision foreground masks, deterministic instance selection/merge policy, in-memory native-resolution crop/matte compositing, and `subject_isolated` derivative provenance.
 - Diagnostic model-input export via `--export-model-inputs` for reviewing the exact images that model calls receive.
-- Versioned whole-image and subject-isolated prompts plus bundled v1.3 response schemas.
+- Read-only EXIF GPS capture context for model prompts via `--gps-context off|coarse|exact`, defaulting to coarse context and recorded only in raw sidecar provenance.
+- Versioned whole-image and subject-isolated prompts plus bundled v1.4 response schemas.
 - A reusable Ollama vision model runtime layer with tag/digest verification, runtime provenance, `/api/chat` request encoding, response parsing, schema validation, schema-constrained response repair, retry/error classification, and mock/recorded-fixture runners.
-- Full `aisidecar analyze` model execution with populated `model_runs` records, prompt/schema provenance, model digest/runtime provenance, raw response preservation, parsed JSON when valid, and optional per-attempt response provenance when repair is used.
+- Full `aisidecar analyze` model execution with populated `model_runs` records, optional model input context provenance, prompt/schema provenance, model digest/runtime provenance, raw response preservation, parsed JSON when valid, and optional per-attempt response provenance when repair is used.
+- `aisidecar write-xmp --from-json` raw sidecar scanning, source resolution, source verification policy, candidate extraction, `<base>.xmp` naming, same-base-name RAW/JPEG group planning, `--pair-scope`, and `--dry-run` change-plan JSON.
+- Owned XMP sidecar parsing, keyword merge, atomic write, backup/restore, post-write validation, source hash recheck, progress JSONL, JSON export report, and Markdown summary artifacts.
+- Analyze-and-write integration that reuses `AnalyzePipeline`, preserves `.ai.json` sidecars by default, supports `--no-write-ai-json`, and passes successful analysis results into the shared XMP export path.
 - Bounded render/isolation preparation through `stage_concurrency`, feeding a serialized single-flight model stage.
 - JSON/env configuration for subject crop margin and merge dominance threshold.
-- JSON/env/CLI configuration for `stage_concurrency`, model response repair attempts, and derivative cache clearing.
+- JSON/env/CLI configuration for `stage_concurrency`, model response repair attempts, GPS context, and derivative cache clearing.
 - Atomic writes for sidecars and batch summaries.
 - `--existing skip|overwrite|fail` handling.
 - Optional `--debug-derivatives` copies beside source images.
 - Folder-run JSONL progress logs and derived batch summaries.
 - SIGINT/SIGTERM-aware interruption handling for the full analyze pipeline.
-- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, source identity, sidecar naming/writing, schema-evolution sidecar rewrites, rendering, derivative cache behavior and purge resolution, subject-isolation geometry/pipeline behavior, model-runtime behavior including repair success/failure, progress logs, summaries, diagnostic export, golden sidecars, no-XMP Phase 1 guards, the shell pipeline, and the full analyze pipeline.
+- Offline XCTest coverage for config resolution, validation, logging, error serialization, scanning, source identity, sidecar naming/writing, schema-evolution sidecar rewrites, rendering, derivative cache behavior and purge resolution, subject-isolation geometry/pipeline behavior, GPS context extraction/provenance, model-runtime behavior including repair success/failure, progress logs, summaries, diagnostic export, golden sidecars, no-XMP guards, the shell pipeline, the full analyze pipeline, and Phase 2 `write-xmp` planning, writeback, reporting, validation, interruption, and analyze-and-write paths.
 
-Not implemented yet:
+Still pending before release signoff:
 
-- XMP output of any kind.
+- Phase 1 Milestone 9 calibration and quality review evidence.
+
+## Before Phase 3
+
+Phase 2 Milestone 10 compatibility smoke evidence is recorded in `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`. Phase 3 normalization work should start after:
+
+- Phase 1 Milestone 9 calibration and quality review evidence is archived, or remaining evidence is explicitly listed as deferred in release notes.
+- The latest `swift test` and `swift run aisidecar write-xmp --help` results are recorded in `agent_docs/phase-2-cli-implementation-plan(1).md`.
+
+Once those gates are satisfied, the next implementation unit is Phase 3 Milestone 0/1: add `aisidecar normalize` and `aisidecar apply-session` scaffolding, then build the vocabulary/session layer described in `agent_docs/03-cli-normalized-batch-tagger-requirements.md`.
 
 ## Repository Layout
 
@@ -51,10 +64,11 @@ Sources/
     Errors/            Frozen Phase 1 structured error taxonomy.
     FileScanning/      Input discovery and source image records.
     Identity/          Source content identity hashing.
+    Metadata/          Phase 2 candidate extraction, keyword policy, XMP naming, grouping, planning, owned XMP engine, backup, and validation.
     ModelRuntime/      Ollama runner, model-run records, JSON schema validation, and test runners.
     Rendering/         Model input profiles, render recipes, renderer, and derivative cache.
-    Pipeline/          Full analyze pipeline, analyze shell pipeline, and diagnostic model-input export.
-    Reporting/         CLI logs, JSONL progress logs, batch summaries.
+    Pipeline/          Full analyze pipeline, analyze shell pipeline, diagnostic model-input export, and XMP export/analyze-and-write pipelines.
+    Reporting/         CLI logs, JSONL progress logs, batch summaries, and XMP export reports/summaries.
     Sidecars/          Raw JSON sidecar naming, schema records, and atomic writes.
     SubjectIsolation/  Foreground masks, instance selection, two-resolution crops.
   AISidecarCLI/        CLI argument handling and command wiring only.
@@ -67,7 +81,8 @@ agent_docs/           Requirements, implementation plans, and agent guidance.
 
 - `agent_docs/01-cli-raw-json-sidecar-requirements.md` - Phase 1 requirements.
 - `agent_docs/phase-1-cli-implementation-plan.md` - Phase 1 milestone plan.
-- `agent_docs/02-cli-xmp-sidecar-requirements.md` - Phase 2 requirements.
+- `agent_docs/02-cli-xmp-sidecar-requirements-updated.md` - Phase 2 requirements.
+- `agent_docs/phase-2-cli-implementation-plan(1).md` - Phase 2 milestone plan.
 - `agent_docs/03-cli-normalized-batch-tagger-requirements.md` - Phase 3 requirements.
 - `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` - Phase 4 requirements.
 - `agent_docs/commenting_guide.md` - Commenting rules for Swift source and tests.
@@ -80,6 +95,7 @@ The project uses SwiftPM and depends on Swift ArgumentParser.
 ```bash
 swift test
 swift run aisidecar analyze --help
+swift run aisidecar write-xmp --help
 swift run aisidecar benchmark --help
 swift run aisidecar purge --help
 swift run aisidecar benchmark --self-test
@@ -87,6 +103,8 @@ swift run aisidecar analyze <folder> --recursive --output-dir <tmp-output>
 swift run aisidecar analyze <image-or-folder> --mode subject --debug-derivatives --output-dir <tmp-output>
 swift run aisidecar analyze <image-or-folder> --mode both --export-model-inputs <tmp-output>
 swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --output-dir <tmp-output>
+swift run aisidecar write-xmp --from-json <json-file-or-folder> --recursive --source-root <image-root> --dry-run
+swift run aisidecar write-xmp --from-json <json-file-or-folder> --recursive --source-root <image-root> --output-dir <tmp-output>
 ```
 
 If `xcode-select` points at Command Line Tools and XCTest is unavailable, run SwiftPM through the installed Xcode developer directory:
@@ -94,19 +112,26 @@ If `xcode-select` points at Command Line Tools and XCTest is unavailable, run Sw
 ```bash
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar analyze --help
+env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar write-xmp --help
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar benchmark --help
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift run aisidecar purge --help
 ```
 
 ## Current Analyze Behavior
 
-`aisidecar analyze` currently performs the full Phase 1 analyze pipeline. It scans inputs, computes source identities, verifies the configured Ollama model tag at startup, renders `whole_image` derivatives when requested, optionally isolates foreground subjects for `--mode subject|both` from an in-memory native-resolution source render, runs the model with versioned prompts and response schemas, and writes schema-versioned `.ai.json` sidecars with model input profile, derivative provenance, subject-isolation provenance, and populated `model_runs`. New runs write at most two cached image artifacts per source: `whole_image` when whole-image analysis is requested and `subject_isolated` when subject isolation succeeds, excluding the cache index manifest. Invalid model JSON or schema violations get one schema-constrained no-image repair attempt by default; set `model_response_repair_attempts` or `--model-response-repair-attempts 0` to disable repair. Folder runs write JSONL progress and batch summary artifacts. The render/isolation stage is bounded by `stage_concurrency`, while model requests are serialized with one in-flight request. The derivative cache is retained by default; set `clear_derivative_cache_on_start` or `clear_derivative_cache_after_success` in config, or use the matching CLI flags, to clear cache artifacts at those run boundaries.
+`aisidecar analyze` currently performs the full Phase 1 analyze pipeline. It scans inputs, computes source identities, verifies the configured Ollama model tag at startup, renders `whole_image` derivatives when requested, optionally isolates foreground subjects for `--mode subject|both` from an in-memory native-resolution source render, runs the model with versioned prompts and response schemas, and writes schema-versioned `.ai.json` sidecars with model input profile, derivative provenance, subject-isolation provenance, and populated `model_runs`. When EXIF GPS exists, `--gps-context coarse` appends rounded capture coordinates to both whole-image and subject-isolated model prompts by default; `off` disables this and `exact` records the exact submitted coordinates in `model_runs[*].model_input_context.gps`. GPS context is never written to XMP and is guarded from becoming coordinate keywords. New runs write at most two cached image artifacts per source: `whole_image` when whole-image analysis is requested and `subject_isolated` when subject isolation succeeds, excluding the cache index manifest. Invalid model JSON or schema violations get one schema-constrained no-image repair attempt by default; set `model_response_repair_attempts` or `--model-response-repair-attempts 0` to disable repair. Folder runs write JSONL progress and batch summary artifacts. The render/isolation stage is bounded by `stage_concurrency`, while model requests are serialized with one in-flight request. The derivative cache is retained by default; set `clear_derivative_cache_on_start` or `clear_derivative_cache_after_success` in config, or use the matching CLI flags, to clear cache artifacts at those run boundaries.
 
-For visual validation, `--export-model-inputs <folder>` switches `analyze` into the diagnostic export path. It renders through the same cache and subject-isolation pipeline, mirrors source relative paths under the export folder, writes only `whole_image` and/or `subject_isolated` model-input files, and writes a timestamped `model-input-export-*.json` manifest. Subject-only export does not create a cached `whole_image` artifact. It does not write `.ai.json` sidecars, progress logs, batch summaries, XMP, or model output. `--dry-run` and `--debug-derivatives` are rejected in this mode because export mode writes only to the requested export folder.
+For visual validation, `--export-model-inputs <folder>` switches `analyze` into the diagnostic export path. It renders through the same cache and subject-isolation pipeline, mirrors source relative paths under the export folder, writes only `whole_image` and/or `subject_isolated` model-input files, and writes a timestamped `model-input-export-*.json` manifest. Subject-only export does not create a cached `whole_image` artifact. It does not read or send GPS context, and it does not write `.ai.json` sidecars, progress logs, batch summaries, XMP, or model output. `--dry-run` and `--debug-derivatives` are rejected in this mode because export mode writes only to the requested export folder.
 
 `aisidecar purge` removes derivative cache artifacts from the resolved cache directory. It honors `--config`, `--cache-dir`, `AISIDECAR_CONFIG`, and `AISIDECAR_DERIVATIVE_CACHE_DIR`; it does not contact Ollama or validate analyze-only model settings.
 
 Cache cleanup is scoped to files owned by the derivative cache manifest or matching aisidecar's deterministic derivative names, so unrelated files in a misconfigured cache directory are not intentionally removed.
+
+## Current Write-XMP Behavior
+
+`aisidecar write-xmp --from-json` reads one `.ai.json` sidecar or scans a folder, resolves the recorded source image, applies source-verification policy, extracts accepted keyword candidates, derives `<base>.xmp` target paths, groups same-base-name sources into one target plan, applies `--pair-scope union|raw-only|jpeg-only`, and emits `ai-sidecar-xmp-change-plan/1.0` JSON when `--dry-run` is supplied. Non-dry-run export writes through `OwnedXMPSidecarEngine`, merges only `dc:subject` and `lr:hierarchicalSubject`, backs up existing sidecars when policy requires it, validates managed keyword additions plus unmanaged semantic preservation, restores backups on validation failure, and rechecks source image hashes.
+
+Folder export runs write `xmp-export-progress-<timestamp>.jsonl`, `xmp-export-report-<timestamp>.json`, and `xmp-export-summary-<timestamp>.md` in the output/report directory. Single-file runs print an essential stdout summary while still returning the in-memory report through the core pipeline. `aisidecar write-xmp <image-file-or-folder>` runs Phase 1 analysis first, preserves `.ai.json` sidecars by default, honors analyze-mode `--gps-context`, and sends successful raw sidecars through the same XMP export planner; `--no-write-ai-json` removes newly created raw sidecars after extracting report-ready provenance. `write-xmp --from-json` rejects explicit `--gps-context` because the model output already exists.
 
 ## Current Benchmark Behavior
 
@@ -114,4 +139,4 @@ Cache cleanup is scoped to files owned by the derivative cache manifest or match
 
 ## Next Steps
 
-The next planned work is completing Phase 1 Milestone 9 calibration and quality review, then starting Phase 2 XMP writeback. Milestone 9 follow-up should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.
+The next planned work is Phase 3 Milestone 0/1: `aisidecar normalize` and `aisidecar apply-session` scaffolding plus the vocabulary/session schema layer. Phase 1 Milestone 9 calibration and quality review remain required before release signoff unless explicitly deferred. Follow-up work should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.

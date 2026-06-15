@@ -3,18 +3,18 @@ import Foundation
 /// Loads the versioned Phase 1 prompts submitted to vision model runs.
 public enum PromptRegistry {
     /// Return the submitted prompt for the requested model-input role.
-    public static func prompt(for role: ModelInputRole) throws -> VersionedPrompt {
+    public static func prompt(for role: ModelInputRole, context: ModelInputContext? = nil) throws -> VersionedPrompt {
         let text = try normalizedResourceText(named: resourceName(for: role))
         let version = try promptVersion(from: text, resourceName: resourceName(for: role))
-        return VersionedPrompt(version: version, text: text)
+        return VersionedPrompt(version: version, text: textWithContext(text, context: context))
     }
 
     private static func resourceName(for role: ModelInputRole) -> String {
         switch role {
         case .wholeImage:
-            return "whole_image_v1.3.0"
+            return "whole_image_v1.4.0"
         case .subjectIsolated:
-            return "subject_isolated_v1.3.0"
+            return "subject_isolated_v1.4.0"
         }
     }
 
@@ -43,6 +43,13 @@ public enum PromptRegistry {
         }
         return version
     }
+}
+
+private func textWithContext(_ text: String, context: ModelInputContext?) -> String {
+    guard let context, !context.isEmpty, let promptBlock = context.promptBlock else {
+        return text
+    }
+    return text + "\n" + promptBlock + "\n"
 }
 
 private func normalizeFinalNewline(_ text: String) -> String {

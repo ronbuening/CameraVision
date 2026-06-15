@@ -138,7 +138,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertNil(record.error)
         XCTAssertEqual(record.rawResponseText, rawResponse)
         XCTAssertEqual(record.inputDerivativeSHA256, "image-sha")
-        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.3.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.4.0")
         XCTAssertEqual(record.runtimeMetrics?.totalDurationNs, 21_000_000)
         XCTAssertEqual(record.runtimeMetrics?.loadDurationNs, 2_000_000)
         XCTAssertEqual(record.runtimeMetrics?.promptEvalCount, 31)
@@ -163,6 +163,41 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(requestOptions["temperature"]?.numberValue, 0)
         XCTAssertEqual(requestOptions["seed"]?.numberValue, 42)
         XCTAssertEqual(requestOptions["num_ctx"]?.numberValue, 4096)
+    }
+
+    func testAnalyzeRequestCarriesGPSContextInPromptText() async throws {
+        let imageURL = try writeModelInput()
+        let transport = RecordingOllamaTransport([
+            .success(chatResponse(content: wholeImageModelResponseJSON()))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+        let prompt = try PromptRegistry.prompt(
+            for: .wholeImage,
+            context: ModelInputContext(gps: GPSModelInputContext(
+                mode: .coarse,
+                latitude: 45.1,
+                longitude: -122.7,
+                precisionDegrees: 0.1
+            ))
+        )
+
+        _ = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: prompt,
+            schema: try ResponseSchemas.schema(for: .wholeImage),
+            options: .default,
+            runtime: runtimeContext()
+        )
+
+        let requests = await transport.capturedRequests()
+        let request = try XCTUnwrap(requests.first)
+        let body = try decodeJSONObject(from: try XCTUnwrap(request.body))
+        let message = try XCTUnwrap(body["messages"]?.arrayValue?.first?.objectValue)
+        XCTAssertEqual(message["content"]?.stringValue, prompt.text)
+        XCTAssertTrue(message["content"]?.stringValue?.contains("MODEL INPUT CONTEXT") == true)
+        XCTAssertTrue(message["content"]?.stringValue?.contains("latitude: 45.1") == true)
+        XCTAssertTrue(message["content"]?.stringValue?.contains("longitude: -122.7") == true)
     }
 
     func testAnalyzeRetriesTimeoutsAndTransportErrorsOnly() async throws {
@@ -368,7 +403,7 @@ final class ModelRuntimeTests: XCTestCase {
 
         XCTAssertTrue(record.jsonValid)
         XCTAssertNil(record.error)
-        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.3.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.4.0")
         let attempts = try XCTUnwrap(record.responseAttempts)
         XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
         XCTAssertEqual(attempts.first?.rawResponseText, malformed)

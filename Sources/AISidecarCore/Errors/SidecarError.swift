@@ -1,6 +1,6 @@
 import Foundation
 
-/// Frozen Phase 1 error code set.
+/// Project-wide additive error code set.
 ///
 /// Raw string values are stable public data because logs, progress records, and
 /// sidecars depend on them across later phases.
@@ -26,6 +26,10 @@ public enum SidecarErrorCode: String, Codable, CaseIterable, Sendable {
     case configInvalid = "E_CONFIG_INVALID"
     case exifToolMissing = "E_EXIFTOOL_MISSING"
     case interrupted = "E_INTERRUPTED"
+    case sourceMissing = "E_SOURCE_MISSING"
+    case sourceIdentityMismatch = "E_SOURCE_IDENTITY_MISMATCH"
+    case xmpParseFailed = "E_XMP_PARSE_FAILED"
+    case xmpUnsupportedRDF = "E_XMP_UNSUPPORTED_RDF"
 }
 
 /// Pipeline stage where a structured error occurred.
@@ -62,7 +66,7 @@ public struct SidecarError: Error, Codable, Sendable, Equatable, LocalizedError 
         self.recoverable = recoverable
     }
 
-    /// Build a fatal configuration error with the stable Phase 1 code.
+    /// Build a fatal configuration error with the stable project-wide code.
     public static func configInvalid(_ message: String) -> SidecarError {
         SidecarError(
             code: .configInvalid,

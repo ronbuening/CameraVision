@@ -2,7 +2,6 @@ import Foundation
 import ArgumentParser
 import AISidecarCore
 
-@available(macOS 10.15, macCatalyst 13, iOS 13, tvOS 13, watchOS 6, *)
 struct BenchmarkCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "benchmark",

@@ -1,7 +1,6 @@
 import ArgumentParser
 import AISidecarCore
 
-@available(macOS 10.15, macCatalyst 13, iOS 13, tvOS 13, watchOS 6, *)
 @main
 struct AISidecarCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -10,6 +9,7 @@ struct AISidecarCommand: AsyncParsableCommand {
         version: "0.0.0",
         subcommands: [
             AnalyzeCommand.self,
+            WriteXMPCommand.self,
             BenchmarkCommand.self,
             PurgeCommand.self
         ]

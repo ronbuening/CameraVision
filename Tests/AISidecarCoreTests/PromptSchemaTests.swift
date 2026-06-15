@@ -8,8 +8,8 @@ final class PromptSchemaTests: XCTestCase {
         let whole = try PromptRegistry.prompt(for: .wholeImage)
         let subject = try PromptRegistry.prompt(for: .subjectIsolated)
 
-        XCTAssertEqual(whole.version, "aisidecar.prompt.whole_image/1.3.0")
-        XCTAssertEqual(subject.version, "aisidecar.prompt.subject_isolated/1.3.0")
+        XCTAssertEqual(whole.version, "aisidecar.prompt.whole_image/1.4.0")
+        XCTAssertEqual(subject.version, "aisidecar.prompt.subject_isolated/1.4.0")
         XCTAssertTrue(whole.text.hasPrefix("PROMPT_VERSION: \(whole.version)\n"))
         XCTAssertTrue(subject.text.hasPrefix("PROMPT_VERSION: \(subject.version)\n"))
         XCTAssertTrue(whole.text.hasSuffix("\n"))
@@ -20,22 +20,48 @@ final class PromptSchemaTests: XCTestCase {
         XCTAssertEqual(subject.sha256, sha256(subject.text))
     }
 
+    func testPromptContextAppendsDeterministicGPSBlockWhenAvailable() throws {
+        let context = ModelInputContext(gps: GPSModelInputContext(
+            mode: .coarse,
+            latitude: 45.1,
+            longitude: -122.7,
+            precisionDegrees: 0.1
+        ))
+        let base = try PromptRegistry.prompt(for: .wholeImage)
+        let contextual = try PromptRegistry.prompt(for: .wholeImage, context: context)
+        let repeated = try PromptRegistry.prompt(for: .wholeImage, context: context)
+
+        XCTAssertEqual(contextual.version, base.version)
+        XCTAssertNotEqual(contextual.text, base.text)
+        XCTAssertTrue(contextual.text.contains("MODEL INPUT CONTEXT"))
+        XCTAssertTrue(contextual.text.contains("latitude: 45.1"))
+        XCTAssertTrue(contextual.text.contains("longitude: -122.7"))
+        XCTAssertEqual(contextual.sha256, repeated.sha256)
+        XCTAssertEqual(contextual.sha256, sha256(contextual.text))
+    }
+
     func testSchemasExposeExpectedTopLevelFields() throws {
         let whole = try ResponseSchemas.schema(for: .wholeImage)
         let subject = try ResponseSchemas.schema(for: .subjectIsolated)
 
-        XCTAssertEqual(whole.version, "urn:aisidecar:response:whole-image:1.3.0")
-        XCTAssertEqual(subject.version, "urn:aisidecar:response:subject-isolated:1.3.0")
+        XCTAssertEqual(whole.version, "urn:aisidecar:response:whole-image:1.4.0")
+        XCTAssertEqual(subject.version, "urn:aisidecar:response:subject-isolated:1.4.0")
         let wholeProperties = try XCTUnwrap(whole.schema.objectValue?["properties"]?.objectValue)
         XCTAssertNotNil(wholeProperties["species"])
         XCTAssertNotNil(wholeProperties["scene_context"])
         XCTAssertNotNil(wholeProperties["habitat_or_setting"])
         XCTAssertNil(wholeProperties["visible_text"])
+        XCTAssertNil(wholeProperties["gps"])
+        XCTAssertNil(wholeProperties["latitude"])
+        XCTAssertNil(wholeProperties["longitude"])
         let subjectProperties = try XCTUnwrap(subject.schema.objectValue?["properties"]?.objectValue)
         XCTAssertNotNil(subjectProperties["species"])
         XCTAssertNil(subjectProperties["scene_context"])
         XCTAssertNil(subjectProperties["habitat_or_setting"])
         XCTAssertNil(subjectProperties["visible_text"])
+        XCTAssertNil(subjectProperties["gps"])
+        XCTAssertNil(subjectProperties["latitude"])
+        XCTAssertNil(subjectProperties["longitude"])
     }
 
     func testValidFixtureResponsesPassValidation() throws {
