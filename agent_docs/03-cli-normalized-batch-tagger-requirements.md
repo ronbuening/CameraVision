@@ -1,9 +1,9 @@
 # Phase 3 Requirements - CLI Normalized Batch Tagger
 
-Version: 0.3
-Date: 2026-06-12
-Supersedes: 0.2
-Builds on: Phase 1 Requirements v0.4 (`01-cli-raw-json-sidecar-requirements.md`) and Phase 2 Requirements v0.4 (`02-cli-xmp-sidecar-requirements-updated.md`)
+Version: 0.4
+Date: 2026-06-15
+Supersedes: 0.3
+Builds on: Phase 1 Requirements v0.4 (`01-cli-raw-json-sidecar-requirements.md`) and Phase 2 Requirements v0.5 (`02-cli-xmp-sidecar-requirements-updated.md`)
 Binary: `aisidecar` (subcommands: `normalize`, `apply-session`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15
@@ -12,7 +12,16 @@ Primary output artifacts: normalization session file, normalized XMP sidecar fil
 
 This document inherits the Project-Wide Conventions of the Phase 1 requirements and the owned-XMP metadata-writing requirements of Phase 2. They are not restated except where Phase 3 narrows or clarifies their use.
 
-## 0. Changes from v0.2
+## 0. Changes from v0.3
+
+This revision updates Phase 3 for completed Phase 2 Milestone 10 compatibility evidence and the implementation deltas that Phase 3 now inherits.
+
+1. Phase 2 Milestone 10 is complete for the owned XMP writer: sidecars written by `OwnedXMPSidecarEngine` have been smoke-verified as readable by both Lightroom Classic and Capture One.
+2. Phase 3 starts from Phase 2 Requirements v0.5 and must reuse the compatibility-checked writer path rather than introducing any new export engine.
+3. The pre-Phase-3 GPS context milestone is now an inherited analysis input path. GPS remains prompt/model-input context only; coordinates and GPS-only evidence remain non-exportable.
+4. Phase 3 reports and summaries shall extend the Phase 2 application-instruction pattern, including Lightroom Classic and Capture One post-export guidance, instead of replacing it.
+
+## 0.1 Changes from v0.2
 
 This revision updates Phase 3 for the Phase 2 decision to use a project-owned XMP sidecar engine instead of ExifTool.
 
@@ -27,18 +36,31 @@ This revision updates Phase 3 for the Phase 2 decision to use a project-owned XM
 
 For continuity, all substantive v0.2 changes remain active: the single `aisidecar` binary, JSON-only vocabulary, vocabulary integrity rules, hierarchy-aware consensus, removal of the undefined `batch-folder-context` mode, `--unknown-subject-policy`, measurable conflict semantics, session identity binding, and ordinal confidence bands.
 
-## 0.1 Current Entry Status
+## 0.2 Current Entry Status
 
-Phase 3 is specified but not implemented. The repository currently has Phase 1 Milestones 0-8 plus the Milestone 9a benchmark harness, Phase 2 Milestones 0-9 including owned XMP export, backup/restore, validation, reports, interruption handling, and analyze-and-write integration, and the pre-Phase-3 GPS context milestone for analysis-quality improvement.
+Phase 3 is specified but not implemented. The repository currently has Phase 1 Milestones 0-8 plus the Milestone 9a benchmark harness, Phase 2 Milestones 0-10 including owned XMP export, backup/restore, validation, reports, interruption handling, analyze-and-write integration, and Lightroom Classic/Capture One compatibility smoke evidence, plus the pre-Phase-3 GPS context milestone for analysis-quality improvement.
 
 Before implementing Phase 3, complete or explicitly defer:
 
-- Phase 2 Milestone 10 compatibility smoke evidence for from-json export, analyze-and-write, Lightroom Classic import, and Capture One synchronization;
 - Phase 1 Milestone 9 calibration and quality review evidence;
-- manual quality comparison or documented deferral for representative GPS-tagged images under `--gps-context off|coarse|exact`;
-- a fresh `swift test` baseline after any Milestone 10 documentation or fixture updates.
+- manual quality comparison or documented deferral for representative GPS-tagged images under `--gps-context off|coarse|exact`.
+
+The fresh `swift test` and `write-xmp --help` baseline after the Milestone 10 documentation update is recorded in `agent_docs/phase-2-cli-implementation-plan(1).md`.
 
 The first Phase 3 implementation unit should be CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, plus core vocabulary/session schema types. Do not add a second XMP writer; normalized export plans must flow through the Phase 2 `MetadataWriteEngine` and `OwnedXMPSidecarEngine`.
+
+## 0.3 Phase 2 Implementation Delta Inherited by Phase 3
+
+Phase 3 should treat these Phase 2 deviations and additions as settled foundation:
+
+1. The original external-tool-oriented XMP approach is replaced by the owned sidecar engine. Runtime export, validation, reports, and Phase 3 sessions must record the owned engine identity and writer recipe, not an ExifTool version.
+2. XMP preservation is semantic. Phase 3 must compare parser-derived snapshots and unmanaged-content fingerprints, not byte-for-byte XML formatting, prefix order, attribute order, or whitespace.
+3. Compatibility evidence now exists for the fields Phase 2 writes. Lightroom Classic and Capture One can read the owned-engine keyword sidecars; Phase 3 should continue writing flat `dc:subject` terms for broad interchange and Lightroom-style `lr:HierarchicalSubject` terms for controlled hierarchy.
+4. Same-base-name RAW/JPEG grouping, `--pair-scope`, target collision detection, output-dir mirroring, backup/restore, source-hash recheck, progress logs, JSON reports, Markdown summaries, and interruption semantics already exist in Phase 2 and should be reused.
+5. Phase 2 candidate extraction includes conditional `species` candidates, ordinal confidence bands, evidence strings, input-role provenance, and model/prompt/schema/runtime provenance. Phase 3 normalization should operate on those records rather than re-reading model JSON ad hoc.
+6. Phase 2 added coordinate/GPS-only evidence guards after the GPS context milestone. Phase 3 vocabulary and propagation rules must not convert GPS context, coordinates, or location commonness into XMP keywords without user-supplied vocabulary/session evidence.
+7. Phase 2's heuristic specific-tag policy remains the write-xmp fallback. Phase 3 replaces that heuristic only where a controlled vocabulary entry, `requires_review`, and `auto_apply_allowed` policy make a more explicit decision.
+8. Analyze-and-write can preserve `.ai.json` by default or run with `--no-write-ai-json` while retaining report-ready provenance. Phase 3 may use the same pattern, but normalization sessions remain the durable Phase 3 audit artifact.
 
 ## 1. Purpose
 
@@ -520,7 +542,7 @@ Phase 4 shall turn this into an interactive review and correction workflow over 
 
 ## Reference Basis
 
-This document incorporates the Reference Basis of Phase 1 v0.4 and Phase 2 v0.4. Items load-bearing for this phase specifically:
+This document incorporates the Reference Basis of Phase 1 v0.4 and Phase 2 v0.5. Items load-bearing for this phase specifically:
 
 - Adobe XMP specifications: https://developer.adobe.com/xmp/docs/xmp-specifications/
 - W3C RDF/XML syntax and RDF container vocabulary: https://www.w3.org/TR/rdf-syntax-grammar/

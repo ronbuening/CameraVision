@@ -1,8 +1,8 @@
 # Phase 2 Requirements - CLI XMP Sidecar Writer
 
-Version: 0.4
-Date: 2026-06-12
-Supersedes: 0.3
+Version: 0.5
+Date: 2026-06-15
+Supersedes: 0.4
 Builds on: Phase 1 Requirements v0.4 (`01-cli-raw-json-sidecar-requirements.md`)
 Binary: `aisidecar` (subcommand: `write-xmp`)
 Core library: `AISidecarCore`
@@ -12,7 +12,15 @@ Primary output artifact: XMP sidecar file
 
 This document inherits the Project-Wide Conventions of the Phase 1 requirements: binary/subcommand structure, flag glossary, configuration resolution, error taxonomy, schema evolution, provenance principles, and concurrency model. They are not restated except where Phase 2 narrows or clarifies their use.
 
-## 0. Changes from v0.3
+## 0. Changes from v0.4
+
+This revision records Phase 2 Milestone 10 compatibility smoke completion and clears the Phase 2 portion of the Phase 3 entry gate.
+
+1. XMP sidecars written by the owned XMP engine have been manually smoke-verified as readable by both Lightroom Classic and Capture One.
+2. Milestone 10 compatibility evidence is recorded in `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`.
+3. Phase 3 now inherits a compatibility-checked sidecar writer. Remaining release signoff risk is Phase 1 Milestone 9 evidence or explicit deferral, not Phase 2 XMP application readback.
+
+## 0.1 Changes from v0.3
 
 This revision replaces the required ExifTool runtime dependency with a project-owned XMP sidecar implementation.
 
@@ -26,7 +34,7 @@ This revision replaces the required ExifTool runtime dependency with a project-o
 8. Phase 2 adds four error codes to the additive project taxonomy: `E_SOURCE_MISSING`, `E_SOURCE_IDENTITY_MISMATCH`, `E_XMP_PARSE_FAILED`, and `E_XMP_UNSUPPORTED_RDF`.
 9. The prior ExifTool-specific error `E_EXIFTOOL_MISSING` remains in the inherited additive taxonomy for compatibility, but it is not used by the Phase 2 runtime path.
 
-## 0.1 Rereviewed Phase 1 State
+## 0.2 Rereviewed Phase 1 State
 
 Implemented and stable enough to build on:
 
@@ -50,9 +58,9 @@ Still pending for final Phase 1 signoff:
 
 Phase 2 implementation shall not reopen Phase 1 rendering, isolation, prompting, or model-runtime design unless a Phase 2 acceptance failure exposes an actual interface defect.
 
-## 0.2 Current Implementation Status
+## 0.3 Current Implementation Status
 
-Phase 2 Milestones 0-9 and the pre-Phase-3 GPS context milestone are implemented. The repository now has:
+Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemented. The repository now has:
 
 - `aisidecar write-xmp --help` and command-shape validation;
 - Phase 2 export configuration defaults with `CLI > AISIDECAR_* > JSON config > built-in default` precedence;
@@ -75,16 +83,15 @@ Phase 2 Milestones 0-9 and the pre-Phase-3 GPS context milestone are implemented
 - `AnalyzeAndXMPPipeline` for analyze-and-write integration through the same export planner, with `.ai.json` preservation by default and report-ready model/prompt/schema/runtime provenance under `--no-write-ai-json`;
 - SIGINT/SIGTERM-aware `write-xmp` command wiring that lets in-flight target writes finish, restore, or remain unchanged;
 - offline tests for canonical sidecar generation, alternate namespace prefixes, missing managed bags, existing keyword merge, unmanaged semantic preservation, malformed XML, unsupported RDF, backup/restore, validation failure restore, progress/report/summary artifacts, interruption behavior, and analyze-and-write.
+- Phase 2 Milestone 10 compatibility smoke evidence confirming owned-engine XMP keyword sidecars are readable by Lightroom Classic and Capture One.
 
-Phase 2 implementation is now complete through Milestone 9, with GPS context implemented as analysis-quality work before Phase 3. The remaining Phase 2 release work is Milestone 10 compatibility smoke evidence: Lightroom Classic/Capture One import checks, representative RAW/JPEG samples, and final Phase 1 Milestone 9 release-evidence linkage or documented deferral.
+Phase 2 implementation is now complete through Milestone 10, with GPS context implemented as analysis-quality work before Phase 3. The Phase 2 portion of the Phase 3 entry gate is satisfied by the compatibility evidence recorded in `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`.
 
-Phase 3 shall not start until this release evidence is recorded or explicitly deferred:
+Phase 3 entry still depends on a current baseline and Phase 1 release-evidence handling:
 
-- run and archive the Phase 2 Milestone 10 from-json and analyze-and-write smoke checks against throwaway JPEG and RAW inputs;
-- verify Lightroom Classic can import written sidecar keywords with Metadata > Read Metadata from Files;
-- verify Capture One can load or synchronize the written sidecar keywords with the intended Metadata preferences;
-- run the no-XMP regression checks for Phase 1 commands after the Phase 2 writer is merged;
-- archive Phase 1 Milestone 9 calibration/quality evidence, or record an explicit deferral with the reason and residual risk.
+- run the no-XMP regression checks for Phase 1 commands after Phase 2 documentation or fixture changes when release evidence is refreshed;
+- archive Phase 1 Milestone 9 calibration/quality evidence, or record an explicit deferral with the reason and residual risk;
+- record the latest `swift test` baseline in the Phase 2 plan before beginning Phase 3 implementation.
 
 ## 1. Purpose
 

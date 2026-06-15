@@ -1,10 +1,10 @@
 # CameraVision
 
-CameraVision is a local macOS utility for generating AI-assisted image metadata for photo workflows. The long-term goal is to support Lightroom and Capture One sidecar workflows. The current implementation generates auditable raw AI JSON sidecars and can export accepted Phase 1 candidates into safe XMP sidecars through `aisidecar write-xmp`.
+CameraVision is a local macOS utility for generating AI-assisted image metadata for photo workflows. The current implementation generates auditable raw AI JSON sidecars and exports accepted Phase 1 candidates into safe XMP sidecars through `aisidecar write-xmp`; those sidecars have been smoke-verified as readable by Lightroom Classic and Capture One.
 
 ## Current State
 
-Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, Phase 2 Milestones 0-9, and the pre-Phase-3 GPS context milestone are implemented. Phase 1 commands still produce only auditable raw AI JSON sidecars and remain XMP-silent. Phase 2 can resolve raw sidecars, extract candidate keywords, reject coordinate/GPS-only export candidates, plan XMP targets, group same-base-name sources, merge existing XMP sidecars through the owned engine, create deterministic backups, validate semantic preservation, restore on validation failure, write export reports, and run analyze-and-write through the same export planner.
+Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, Phase 2 Milestones 0-10, and the pre-Phase-3 GPS context milestone are implemented. Phase 1 commands still produce only auditable raw AI JSON sidecars and remain XMP-silent. Phase 2 can resolve raw sidecars, extract candidate keywords, reject coordinate/GPS-only export candidates, plan XMP targets, group same-base-name sources, merge existing XMP sidecars through the owned engine, create deterministic backups, validate semantic preservation, restore on validation failure, write export reports, run analyze-and-write through the same export planner, and produce XMP keyword sidecars readable by Lightroom Classic and Capture One.
 
 The repository currently contains:
 
@@ -44,13 +44,11 @@ The repository currently contains:
 Still pending before release signoff:
 
 - Phase 1 Milestone 9 calibration and quality review evidence.
-- Phase 2 Milestone 10 compatibility smoke checks with Lightroom Classic, Capture One, and representative RAW/JPEG samples.
 
 ## Before Phase 3
 
-Phase 3 normalization work should start only after:
+Phase 2 Milestone 10 compatibility smoke evidence is recorded in `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`. Phase 3 normalization work should start after:
 
-- Phase 2 Milestone 10 compatibility smoke evidence is recorded for owned XMP export, including from-json staging, analyze-and-write, Lightroom Classic import, and Capture One synchronization checks.
 - Phase 1 Milestone 9 calibration and quality review evidence is archived, or remaining evidence is explicitly listed as deferred in release notes.
 - The latest `swift test` and `swift run aisidecar write-xmp --help` results are recorded in `agent_docs/phase-2-cli-implementation-plan(1).md`.
 
@@ -141,4 +139,4 @@ Folder export runs write `xmp-export-progress-<timestamp>.jsonl`, `xmp-export-re
 
 ## Next Steps
 
-The next planned work is Phase 2 Milestone 10 compatibility smoke and release evidence, while Phase 1 Milestone 9 calibration and quality review remain required before Phase 3 starts. Follow-up work should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.
+The next planned work is Phase 3 Milestone 0/1: `aisidecar normalize` and `aisidecar apply-session` scaffolding plus the vocabulary/session schema layer. Phase 1 Milestone 9 calibration and quality review remain required before release signoff unless explicitly deferred. Follow-up work should preserve the existing boundaries: reusable logic belongs in `AISidecarCore`, the executable stays limited to argument handling and command wiring, and default tests must remain offline with no Ollama or network dependency.

@@ -1,9 +1,9 @@
 # Implementation Plan - Phase 2 CLI XMP Sidecar Writer
 
-Version: 0.3
-Date: 2026-06-12
-Supersedes: 0.1, 0.2
-Implements: Phase 2 Requirements v0.4 (`02-cli-xmp-sidecar-requirements-updated.md`)
+Version: 0.4
+Date: 2026-06-15
+Supersedes: 0.1, 0.2, 0.3
+Implements: Phase 2 Requirements v0.5 (`02-cli-xmp-sidecar-requirements-updated.md`)
 Builds on: Phase 1 Requirements v0.4 (`01-cli-raw-json-sidecar-requirements.md`) and Phase 1 Implementation Plan v0.9 (`phase-1-cli-implementation-plan.md`)
 Binary: `aisidecar` (adds subcommand: `write-xmp`)
 Core library: `AISidecarCore`
@@ -11,11 +11,11 @@ Minimum deployment target: macOS 15, Swift 6 strict concurrency
 Default model: `gemma4:26b-a4b-it-qat` for analyze-and-write mode
 Metadata runtime: project-owned `OwnedXMPSidecarEngine`
 
-Traceability in this plan points at Phase 2 v0.4 requirement IDs (`FR2-xxx`, `AC2-xxx`) and inherited project-wide IDs (`PW-xxx`, `FR1-xxx`).
+Traceability in this plan points at Phase 2 v0.5 requirement IDs (`FR2-xxx`, `AC2-xxx`) and inherited project-wide IDs (`PW-xxx`, `FR1-xxx`).
 
 ## 0. Current Implementation Status
 
-Phase 2 Milestones 0-9 and the pre-Phase-3 GPS context milestone are implemented. The repository now includes the `aisidecar write-xmp` CLI surface, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, export report/change-plan schema identifiers, additive source-verification and owned-XMP error codes, no-XMP regression coverage around existing Phase 1 commands, raw sidecar reader/source resolution, candidate extraction with keyword policy, coordinate/GPS-only evidence guards, and model/prompt/schema/runtime provenance, XMP target naming, same-base-name group resolution, pair-scope selection, dry-run change-plan JSON output, the owned XMP sidecar engine parser/writer seam, merge conflict policy, deterministic backups, restore-on-validation-failure, post-write validation, source hash rechecks, export progress/report/summary artifacts, interruption handling, and analyze-and-write integration.
+Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemented. The repository now includes the `aisidecar write-xmp` CLI surface, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, export report/change-plan schema identifiers, additive source-verification and owned-XMP error codes, no-XMP regression coverage around existing Phase 1 commands, raw sidecar reader/source resolution, candidate extraction with keyword policy, coordinate/GPS-only evidence guards, and model/prompt/schema/runtime provenance, XMP target naming, same-base-name group resolution, pair-scope selection, dry-run change-plan JSON output, the owned XMP sidecar engine parser/writer seam, merge conflict policy, deterministic backups, restore-on-validation-failure, post-write validation, source hash rechecks, export progress/report/summary artifacts, interruption handling, analyze-and-write integration, and compatibility smoke evidence confirming owned-engine XMP keyword sidecars are readable by Lightroom Classic and Capture One.
 
 The owned engine can parse existing XMP, generate canonical new sidecars, merge the Phase 2 managed keyword bags, compute `XMPMetadataSnapshot` and `XMPUnmanagedContentFingerprint` records, and fail closed for malformed XML or unsupported RDF shapes. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidate keyword records, groups sources, plans one target per XMP sidecar, previews owned-engine merge effects, and prints `ai-sidecar-xmp-change-plan/1.0` JSON to stdout. The non-dry-run path executes the same plan through `XMPExportPipeline`, writes one target per XMP sidecar, records per-target progress, writes batch reports/summaries for folder runs, validates readback and source hashes, and restores backups when validation fails.
 
@@ -42,9 +42,16 @@ swift run aisidecar benchmark --self-test      passed
 swift run aisidecar purge --help               passed
 ```
 
-The next implementation unit is Milestone 10: compatibility smoke and release evidence. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
+Latest verification recorded after the Milestone 10 documentation pass:
 
-Phase 3 implementation is blocked until Milestone 10 evidence is recorded or explicitly deferred. The gate is: owned XMP from-json smoke, owned XMP analyze-and-write smoke, Lightroom Classic import verification, Capture One synchronization verification, Phase 1 no-XMP regression pass after Phase 2 merge, and Phase 1 Milestone 9 evidence or documented deferral.
+```text
+swift test                                      223 tests, 1 skipped, 0 failures
+swift run aisidecar write-xmp --help            passed
+```
+
+Milestone 10 compatibility smoke and release evidence is complete for the Phase 2 XMP writer. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 3 exposes a concrete interface defect.
+
+The next implementation unit is Phase 3 Milestone 0/1: `aisidecar normalize` / `aisidecar apply-session` scaffolding plus core vocabulary/session schema types. The Phase 2 portion of the Phase 3 gate is satisfied by `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`; Phase 1 Milestone 9 evidence or documented deferral remains a release-readiness requirement.
 
 ## 1. Implementation Position
 
@@ -427,7 +434,7 @@ Implemented notes:
 
 ## 13. Milestone 9 - Tests and Fixtures
 
-Status: implemented for the required offline test suite; release smoke evidence remains Milestone 10.
+Status: implemented for the required offline test suite; release smoke evidence is recorded in Milestone 10.
 
 Automated tests:
 
@@ -477,7 +484,7 @@ Fixture policy:
 
 ## 14. Milestone 10 - Compatibility Smoke and Release Evidence
 
-Status: pending. This milestone is the Phase 3 entry gate.
+Status: completed. This milestone clears the Phase 2 portion of the Phase 3 entry gate.
 
 Manual or semi-manual checks:
 
@@ -490,11 +497,17 @@ Manual or semi-manual checks:
 7. Run the Phase 1 no-XMP regression set after Phase 2 is merged.
 8. Archive or link final Phase 1 Milestone 9 evidence, or explicitly document any deferrals before Phase 2 release.
 
+Recorded result:
+
+1. Owned-engine XMP sidecars containing Phase 2 managed keyword fields were manually smoke-verified as readable by Lightroom Classic and Capture One.
+2. Evidence note: `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`.
+3. The writer remains sidecar-only and manages only `dc:subject` and `lr:hierarchicalSubject`; no application catalog automation, embedded metadata writing, or Lightroom/Capture One adjustment writing was added.
+
 Exit criteria before Phase 3:
 
 1. Record command output paths, sidecar/report artifact paths, and any application screenshots or notes needed to reproduce the Lightroom Classic and Capture One checks.
 2. Confirm `swift test` still passes after any Milestone 10 fixture or documentation updates.
-3. Update `README.md`, `AGENTS.md`, and this plan with the final Milestone 10 evidence location.
+3. Update `README.md`, `AGENTS.md`, and this plan with the final Milestone 10 evidence location. Completed in this documentation pass.
 4. If any Phase 1 Milestone 9 evidence remains deferred, add an explicit deferral note that names the missing sample/check, reason, and residual risk.
 
 Recommended command set:
@@ -558,11 +571,12 @@ Phase 2 implementation is done when:
 14. Phase 2 has no required external metadata executable dependency.
 15. Phase 1 commands remain XMP-silent after the Phase 2 code is merged.
 16. Automated tests cover the policy and pipeline paths without a live model or network dependency.
-17. Phase 2 release has archived Phase 1 final signoff evidence or an explicit release note listing deferred Phase 1 evidence.
+17. Lightroom Classic and Capture One can read sidecars written by the owned XMP engine.
+18. Phase 2 release has archived Phase 1 final signoff evidence or an explicit release note listing deferred Phase 1 evidence.
 
 ## Reference Basis
 
-This plan uses the same reference basis as the Phase 2 v0.4 requirements. The implementation decisions depend directly on:
+This plan uses the same reference basis as the Phase 2 v0.5 requirements. The implementation decisions depend directly on:
 
 - Adobe XMP specifications: https://developer.adobe.com/xmp/docs/xmp-specifications/
 - ISO 16684-1 / XMP data model and serialization overview: https://www.iso.org/obp/ui/

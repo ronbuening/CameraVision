@@ -3,7 +3,7 @@
 Version: 0.3
 Date: 2026-06-12
 Supersedes: 0.2
-Builds on: Phase 1 Requirements v0.4, Phase 2 Requirements v0.4, Phase 3 Requirements v0.3
+Builds on: Phase 1 Requirements v0.4, Phase 2 Requirements v0.5, Phase 3 Requirements v0.4
 Working name: `SidecarTagger.app`
 Core library: `AISidecarCore` (shared with the `aisidecar` CLI by construction, per PW-002)
 Minimum deployment target: macOS 15
@@ -29,7 +29,7 @@ For continuity, all substantive v0.2 changes remain active: out-of-band sidecar 
 
 ## 0.1 Current Dependency Status
 
-Phase 4 is not the next implementation target. The repository is ready through Phase 2 Milestone 9 plus the pre-Phase-3 GPS context milestone; Phase 2 Milestone 10 compatibility smoke evidence and Phase 1 Milestone 9 release evidence still gate Phase 3. Phase 4 work should wait until Phase 3 provides vocabulary files, normalization sessions, normalized export plans, and `normalize` / `apply-session` command behavior in `AISidecarCore`.
+Phase 4 is not the next implementation target. The repository is ready through Phase 2 Milestone 10 plus the pre-Phase-3 GPS context milestone; Phase 1 Milestone 9 release evidence or explicit deferral remains before release signoff. Phase 4 work should wait until Phase 3 provides vocabulary files, normalization sessions, normalized export plans, and `normalize` / `apply-session` command behavior in `AISidecarCore`.
 
 ## 1. Purpose
 
@@ -302,7 +302,7 @@ The GUI phase should leave room for:
 
 ## Reference Basis
 
-This document incorporates the Reference Basis of Phase 1 v0.4, Phase 2 v0.4, and Phase 3 v0.3. Items load-bearing for this phase specifically:
+This document incorporates the Reference Basis of Phase 1 v0.4, Phase 2 v0.5, and Phase 3 v0.4. Items load-bearing for this phase specifically:
 
 - Adobe XMP specifications: https://developer.adobe.com/xmp/docs/xmp-specifications/
 - W3C RDF/XML syntax and RDF container vocabulary: https://www.w3.org/TR/rdf-syntax-grammar/

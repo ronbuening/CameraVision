@@ -2,7 +2,7 @@
 
 ## Project Context
 
-CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state includes Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, Phase 2 Milestones 0-9, and the pre-Phase-3 GPS context milestone: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, sidecar naming, output tree mirroring, raw JSON sidecar writes, JSONL progress logs, batch summaries, interruption handling, model input profiles, whole-image rendering, full-resolution render retention, derivative cache with configurable lifecycle and `aisidecar purge`, subject isolation with the two-resolution Apple Vision/Core Image chain, diagnostic model-input export, Ollama vision model runtime client, v1.4 prompts and response schemas with conditional `species` candidates plus GPS-context instructions, schema-constrained model response repair, full analyze pipeline model execution, `model_runs` sidecar records with optional response-attempt provenance and optional `model_input_context.gps`, configurable `stage_concurrency`, schema-evolution sidecar document rewrite support, golden sidecar fixtures, no-XMP Phase 1/Phase 2 regression guards, `aisidecar benchmark`, `aisidecar write-xmp` from-json and analyze-and-write export, Phase 2 export configuration defaults, raw sidecar reader/source resolution, candidate extraction and keyword policy including coordinate/GPS-only evidence guards, XMP target naming, same-base-name group resolution, dry-run change-plan output, the owned XMP sidecar parser/writer engine seam, merge conflict policy, deterministic backups, restore-on-validation-failure, post-write validation, source hash rechecks, export progress/report/summary artifacts, and offline tests including synthetic malformed-response fixtures.
+CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state includes Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, Phase 2 Milestones 0-10, and the pre-Phase-3 GPS context milestone: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, sidecar naming, output tree mirroring, raw JSON sidecar writes, JSONL progress logs, batch summaries, interruption handling, model input profiles, whole-image rendering, full-resolution render retention, derivative cache with configurable lifecycle and `aisidecar purge`, subject isolation with the two-resolution Apple Vision/Core Image chain, diagnostic model-input export, Ollama vision model runtime client, v1.4 prompts and response schemas with conditional `species` candidates plus GPS-context instructions, schema-constrained model response repair, full analyze pipeline model execution, `model_runs` sidecar records with optional response-attempt provenance and optional `model_input_context.gps`, configurable `stage_concurrency`, schema-evolution sidecar document rewrite support, golden sidecar fixtures, no-XMP Phase 1/Phase 2 regression guards, `aisidecar benchmark`, `aisidecar write-xmp` from-json and analyze-and-write export, Phase 2 export configuration defaults, raw sidecar reader/source resolution, candidate extraction and keyword policy including coordinate/GPS-only evidence guards, XMP target naming, same-base-name group resolution, dry-run change-plan output, the owned XMP sidecar parser/writer engine seam, merge conflict policy, deterministic backups, restore-on-validation-failure, post-write validation, source hash rechecks, export progress/report/summary artifacts, Lightroom Classic/Capture One compatibility smoke evidence, and offline tests including synthetic malformed-response fixtures.
 
 Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files. XMP creation or modification is restricted to `aisidecar write-xmp` and the reusable Phase 2 export pipeline in `AISidecarCore`.
 
@@ -46,10 +46,10 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 
 ## Documentation Index
 
-- `agent_docs/01-cli-raw-json-sidecar-requirements.md`: read before Phase 1 work.
-- `agent_docs/phase-1-cli-implementation-plan.md`: read before implementing any Phase 1 milestone.
-- `agent_docs/02-cli-xmp-sidecar-requirements-updated.md`: read before Phase 2/XMP work.
-- `agent_docs/phase-2-cli-implementation-plan(1).md`: read before implementing any Phase 2 milestone.
+- `agent_docs/01-cli-raw-json-sidecar-requirements.md`: read before changing analyze/raw JSON sidecar behavior.
+- `agent_docs/phase-1-cli-implementation-plan.md`: read before changing analyze, benchmark, rendering, model-runtime, or GPS-context behavior.
+- `agent_docs/02-cli-xmp-sidecar-requirements-updated.md`: read before changing XMP export behavior.
+- `agent_docs/phase-2-cli-implementation-plan(1).md`: read before changing the Phase 2 export pipeline, XMP evidence, or release-gate documentation.
 - `agent_docs/03-cli-normalized-batch-tagger-requirements.md`: read before Phase 3 normalization work.
 - `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md`: read before GUI work.
 - `agent_docs/commenting_guide.md`: read before adding or revising substantive code comments.
@@ -58,10 +58,9 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 ## Implementation Guidance
 
 - Implement one milestone at a time unless the user explicitly expands scope.
-- The next planned implementation unit is Phase 2 Milestone 10 compatibility smoke and release evidence. Phase 1 Milestone 9 calibration and quality review, plus manual quality comparison for GPS context modes if release-significant, remain required before release signoff.
-- Do not start Phase 3 implementation until Phase 2 Milestone 10 smoke evidence is recorded and Phase 1 Milestone 9 evidence is either archived or explicitly deferred in release notes. After that gate, Phase 3 begins with `aisidecar normalize` / `aisidecar apply-session` scaffolding from `agent_docs/03-cli-normalized-batch-tagger-requirements.md`.
-- Do not jump ahead to XMP writing while implementing Phase 1 work.
-- Do not add XMP writing outside `aisidecar write-xmp` or the Phase 2 export pipeline it invokes.
+- The next planned implementation unit is Phase 3 `aisidecar normalize` / `aisidecar apply-session` scaffolding from `agent_docs/03-cli-normalized-batch-tagger-requirements.md`.
+- Phase 2 Milestone 10 compatibility smoke evidence is recorded in `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`. Phase 1 Milestone 9 calibration and quality review, plus manual quality comparison for GPS context modes if release-significant, remain required before release signoff unless explicitly deferred in release notes.
+- Preserve the analyze/raw-sidecar no-XMP invariant: XMP creation or modification belongs only in `aisidecar write-xmp` and the Phase 2 export pipeline it invokes.
 - Keep the project macOS-only. Do not add cross-platform availability annotations or platform documentation unless a future requirement explicitly broadens the supported platforms.
 - Keep `--export-model-inputs` as a diagnostic pre-model path: it must not write raw `.ai.json` sidecars, progress logs, batch summaries, XMP, or model output.
 - Keep config precedence as CLI flag > `AISIDECAR_*` environment > JSON config file > built-in default. `aisidecar purge` resolves only derivative-cache settings and must not depend on model/runtime config validity.
