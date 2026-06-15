@@ -74,6 +74,22 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testInvalidGPSContextFailsAsConfigInvalid() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "gps_context": "precise" }"#)
+            )
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_GPS_CONTEXT": "precise"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     func testUnknownModelInputProfileFailsAsConfigInvalid() throws {
         try assertConfigInvalid {
             _ = try ConfigurationResolver.resolve(

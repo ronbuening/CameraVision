@@ -8,7 +8,7 @@ final class JSONSidecarTests: XCTestCase {
         let json = try jsonValue(for: sidecar)
         let object = try XCTUnwrap(json.objectValue)
 
-        XCTAssertEqual(object["schema_version"]?.stringValue, "ai-sidecar-json/1.2")
+        XCTAssertEqual(object["schema_version"]?.stringValue, "ai-sidecar-json/1.3")
         XCTAssertNotNil(object["source"])
         XCTAssertNotNil(object["run_configuration"])
         XCTAssertNotNil(object["model_input_profile"])
@@ -26,11 +26,14 @@ final class JSONSidecarTests: XCTestCase {
         XCTAssertEqual(run.modelDigest, "sha256:modeldigest")
         XCTAssertEqual(run.runtime, "ollama")
         XCTAssertEqual(run.runtimeVersion, "0.12.6")
-        XCTAssertEqual(run.promptVersion, "aisidecar.prompt.whole_image/1.3.0")
+        XCTAssertEqual(run.promptVersion, "aisidecar.prompt.whole_image/1.4.0")
         XCTAssertEqual(run.promptSHA256.count, 64)
-        XCTAssertEqual(run.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.3.0")
+        XCTAssertEqual(run.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.4.0")
         XCTAssertEqual(run.requestOptions.seed, 123)
         XCTAssertFalse(run.requestOptions.thinkingEnabled)
+        XCTAssertEqual(run.modelInputContext?.gps?.mode, .coarse)
+        XCTAssertEqual(run.modelInputContext?.gps?.latitude, 45.1)
+        XCTAssertEqual(run.modelInputContext?.gps?.longitude, -122.7)
         XCTAssertEqual(run.inputDerivativeSHA256, sidecar.derivatives.first?.sha256)
     }
 
@@ -161,7 +164,13 @@ final class JSONSidecarTests: XCTestCase {
             sha256: String(repeating: "b", count: 64),
             sourceIdentity: source.identity
         )
-        let prompt = VersionedPrompt(version: "aisidecar.prompt.whole_image/1.3.0", text: "Prompt")
+        let prompt = VersionedPrompt(version: "aisidecar.prompt.whole_image/1.4.0", text: "Prompt")
+        let modelInputContext = ModelInputContext(gps: GPSModelInputContext(
+            mode: .coarse,
+            latitude: 45.1,
+            longitude: -122.7,
+            precisionDegrees: 0.1
+        ))
         let modelRun = ModelRunRecord(
             inputRole: .wholeImage,
             model: "gemma4:26b-a4b-it-qat",
@@ -170,8 +179,9 @@ final class JSONSidecarTests: XCTestCase {
             runtimeVersion: "0.12.6",
             promptVersion: prompt.version,
             promptSHA256: prompt.sha256,
-            responseSchemaVersion: "urn:aisidecar:response:whole-image:1.3.0",
+            responseSchemaVersion: "urn:aisidecar:response:whole-image:1.4.0",
             requestOptions: ModelRunOptions(seed: 123),
+            modelInputContext: modelInputContext,
             inputDerivativeSHA256: derivative.sha256,
             rawResponseText: #"{"summary":"fixture"}"#,
             parsedResponseJSON: .object(["summary": .string("fixture")]),

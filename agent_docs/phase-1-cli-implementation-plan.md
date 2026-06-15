@@ -14,19 +14,18 @@ Traceability in this plan points at the v0.3 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-8 and the Milestone 9a benchmark harness are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders whole-image model-input derivatives when requested, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain using an in-memory native render, records model input profile, derivative provenance, and subject-isolation provenance, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command; new runs write at most `whole_image` and `subject_isolated` image artifacts per source, excluding the cache manifest. The Milestone 9a benchmark harness is available through `aisidecar benchmark`, with the legacy script retained as a compatibility wrapper. The `AISidecarCore/ModelRuntime` layer contains the Ollama client, mock and recorded-fixture runners, response parsing, schema-constrained response repair, v1.3 prompt registry, and v1.3 response schemas with conditional `species` candidates for biological target genres. The `AISidecarCore/Sidecars` layer now includes a schema-evolution document wrapper for preserving additive 1.x unknown fields on rewrite. The analyze pipeline does not write XMP.
+Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, and the pre-Phase-3 GPS context milestone are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders whole-image model-input derivatives when requested, optionally reads EXIF GPS context for model prompts, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain using an in-memory native render, records model input profile, derivative provenance, subject-isolation provenance, resolved `gps_context`, and per-run `model_input_context.gps` when coordinates are sent, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution; it does not read or send GPS context. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command; new runs write at most `whole_image` and `subject_isolated` image artifacts per source, excluding the cache manifest. The Milestone 9a benchmark harness is available through `aisidecar benchmark`, with the legacy script retained as a compatibility wrapper. The `AISidecarCore/ModelRuntime` layer contains model input context records, the Ollama client, mock and recorded-fixture runners, response parsing, schema-constrained response repair, v1.4 prompt registry, and v1.4 response schemas with conditional `species` candidates for biological target genres and GPS-context usage rules. The `AISidecarCore/Sidecars` layer includes a schema-evolution document wrapper for preserving additive 1.x unknown fields on rewrite. New raw sidecar writes use `ai-sidecar-json/1.3`. The analyze pipeline does not write XMP.
 
 Latest verification for this baseline:
 
 ```text
-swift test                                      139 tests, 1 skipped, 0 failures
+swift test                                      223 tests, 1 skipped, 0 failures
+swift run aisidecar --help                     passed
 swift run aisidecar analyze --help             passed
+swift run aisidecar write-xmp --help           passed
 swift run aisidecar benchmark --help           passed
 swift run aisidecar benchmark --self-test      passed
-swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --output-dir /private/tmp
-                                                passed, 0 XMP files
 swift run aisidecar purge --help               passed
-swift run aisidecar --help                     passed
 ```
 
 The remaining Phase 1 implementation unit is completing Milestone 9 calibration and quality review. Before Phase 3 starts, archive this evidence or explicitly document any deferrals alongside the Phase 2 Milestone 10 compatibility smoke results.
@@ -145,10 +144,11 @@ CameraVision/
         JSONValue.swift                 // Codable arbitrary JSON representation
         PromptRegistry.swift            // FR1-046 versioned + hashed prompts
         ResponseSchemas.swift           // FR1-045 schemas as format payloads
+        ModelInputContext.swift         // GPS context policy and provenance records
       Resources/
         ModelRuntime/
-          Prompts/                      // whole-image and subject-isolated v1.3 prompts
-          Schemas/                      // whole-image and subject-isolated v1.3 schemas
+          Prompts/                      // whole-image and subject-isolated v1.4 prompts
+          Schemas/                      // whole-image and subject-isolated v1.4 schemas
     AISidecarCLI/
       AISidecarCommand.swift
       SharedOptions.swift               // PW-004 glossary, composed by all subcommands
@@ -364,10 +364,10 @@ Implemented notes:
 1. SwiftPM bundles prompt and response-schema resources under `Sources/AISidecarCore/Resources/ModelRuntime`.
 2. `PromptRegistry` returns `VersionedPrompt` values for `whole_image` and `subject_isolated`, parsing `PROMPT_VERSION` from the submitted text and hashing the exact LF-normalized text with one trailing newline.
 3. `ResponseSchemas` returns `JSONSchemaDocument` values for each role and records the schema `$id` as `response_schema_version`.
-4. The bundled v1.3 schemas match the supplied whole-image and subject-isolated JSON Schema artifacts, with `visible_text` removed from Phase 1 model output. Both active schemas include conditional `species`; the subject schema omits `scene_context` and `habitat_or_setting`.
-5. `JSONSchemaValidator` now supports the owned FR1-045 schema subset used by v1.3, including local `$ref`, enum, object required fields, `additionalProperties: false`, array item limits, string length limits, string `pattern`, and the conditional keywords needed by `species` (`allOf`, `if`, `then`, `else`, `not`, `contains`).
-6. `PromptSchemaTests` cover prompt version/hash behavior, whole-versus-subject field shape, valid fixture responses, conditional `species` requirements and rejections, subject habitat/scene rejection, confidence-band enforcement, bare-string candidate rejection, missing required fields, extra fields, invalid genre terms, max-item and max-length failures, and newline/tab pattern failures.
-7. `ModelRuntimeTests` now asserts that an Ollama chat request can carry the complete v1.3 whole-image schema as the `format` payload.
+4. The bundled v1.4 schemas match the whole-image and subject-isolated JSON Schema artifacts, with `visible_text` removed from Phase 1 model output and no GPS output fields. Both active schemas include conditional `species`; the subject schema omits `scene_context` and `habitat_or_setting`.
+5. `JSONSchemaValidator` supports the owned FR1-045 schema subset used by v1.4, including local `$ref`, enum, object required fields, `additionalProperties: false`, array item limits, string length limits, string `pattern`, and the conditional keywords needed by `species` (`allOf`, `if`, `then`, `else`, `not`, `contains`).
+6. `PromptSchemaTests` cover prompt version/hash behavior, GPS context prompt hashing, whole-versus-subject field shape, valid fixture responses, conditional `species` requirements and rejections, subject habitat/scene rejection, confidence-band enforcement, bare-string candidate rejection, missing required fields, extra fields, invalid genre terms, max-item and max-length failures, and newline/tab pattern failures.
+7. `ModelRuntimeTests` asserts that an Ollama chat request can carry the complete v1.4 whole-image schema as the `format` payload and includes GPS prompt context only when supplied.
 8. Live prompt-quality checks remain opt-in; default `swift test` remains deterministic and offline.
 
 ## 11. Milestone 7 - Full Analyze Command and Pipeline (Implemented)

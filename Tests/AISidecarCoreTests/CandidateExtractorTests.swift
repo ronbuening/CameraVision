@@ -32,10 +32,10 @@ final class CandidateExtractorTests: XCTestCase {
         XCTAssertEqual(birdPhotography.candidates.map(\.provenance.inputRole), [.wholeImage, .subjectIsolated])
         XCTAssertEqual(birdPhotography.candidates.first?.provenance.model, "gemma4:26b-a4b-it-qat")
         XCTAssertEqual(birdPhotography.candidates.first?.provenance.runtime, "ollama")
-        XCTAssertEqual(birdPhotography.candidates.first?.provenance.promptVersion, "aisidecar.prompt.whole_image/1.3.0")
+        XCTAssertEqual(birdPhotography.candidates.first?.provenance.promptVersion, "aisidecar.prompt.whole_image/1.4.0")
         XCTAssertEqual(
             birdPhotography.candidates.first?.provenance.responseSchemaVersion,
-            "urn:aisidecar:response:whole-image:1.3.0"
+            "urn:aisidecar:response:whole-image:1.4.0"
         )
         XCTAssertEqual(
             result.skippedCandidates
@@ -214,6 +214,28 @@ final class CandidateExtractorTests: XCTestCase {
         XCTAssertEqual(
             result.skippedCandidates.filter { $0.reason == .duplicate }.compactMap(\.term),
             ["Great Blue Heron"]
+        )
+    }
+
+    func testCoordinateTermsAndGPSOnlyEvidenceAreNeverExported() throws {
+        let input = try resolvedInput(response: response([
+            .proposedKeywords: .array([
+                candidate("45.1, -122.7", confidence: "high"),
+                candidate("GPS location", confidence: "high"),
+                candidate("Great Egret", confidence: "high", evidence: "GPS location context narrows the range"),
+                candidate("white wading bird", confidence: "high", evidence: "white plumage and long legs")
+            ])
+        ]))
+
+        let result = CandidateExtractor().extract(
+            from: input,
+            configuration: configuration(allowSpecificTags: true)
+        )
+
+        XCTAssertEqual(result.flatKeywords.map(\.term), ["white wading bird"])
+        XCTAssertEqual(
+            result.skippedCandidates.map(\.reason),
+            [.coordinateLikeTerm, .coordinateLikeTerm, .gpsOnlyEvidence]
         )
     }
 

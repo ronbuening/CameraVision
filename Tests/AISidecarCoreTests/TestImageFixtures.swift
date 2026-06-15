@@ -9,6 +9,7 @@ func writeTestImage(
     width: Int = 64,
     height: Int = 32,
     orientation: Int = 1,
+    gps: (latitude: Double, longitude: Double)? = nil,
     in root: URL,
     file: StaticString = #filePath,
     line: UInt = #line
@@ -29,14 +30,20 @@ func writeTestImage(
         return destination
     }
 
-    CGImageDestinationAddImage(
-        imageDestination,
-        image,
-        [
-            kCGImagePropertyOrientation: orientation,
-            kCGImageDestinationLossyCompressionQuality: 0.9
-        ] as CFDictionary
-    )
+    var properties: [CFString: Any] = [
+        kCGImagePropertyOrientation: orientation,
+        kCGImageDestinationLossyCompressionQuality: 0.9
+    ]
+    if let gps {
+        properties[kCGImagePropertyGPSDictionary] = [
+            kCGImagePropertyGPSLatitude: abs(gps.latitude),
+            kCGImagePropertyGPSLatitudeRef: gps.latitude < 0 ? "S" : "N",
+            kCGImagePropertyGPSLongitude: abs(gps.longitude),
+            kCGImagePropertyGPSLongitudeRef: gps.longitude < 0 ? "W" : "E"
+        ]
+    }
+
+    CGImageDestinationAddImage(imageDestination, image, properties as CFDictionary)
     XCTAssertTrue(CGImageDestinationFinalize(imageDestination), file: file, line: line)
     return destination
 }

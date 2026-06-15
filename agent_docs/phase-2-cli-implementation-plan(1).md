@@ -15,17 +15,17 @@ Traceability in this plan points at Phase 2 v0.4 requirement IDs (`FR2-xxx`, `AC
 
 ## 0. Current Implementation Status
 
-Phase 2 Milestones 0-9 are implemented. The repository now includes the `aisidecar write-xmp` CLI surface, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, export report/change-plan schema identifiers, additive source-verification and owned-XMP error codes, no-XMP regression coverage around existing Phase 1 commands, raw sidecar reader/source resolution, candidate extraction with keyword policy and model/prompt/schema/runtime provenance, XMP target naming, same-base-name group resolution, pair-scope selection, dry-run change-plan JSON output, the owned XMP sidecar engine parser/writer seam, merge conflict policy, deterministic backups, restore-on-validation-failure, post-write validation, source hash rechecks, export progress/report/summary artifacts, interruption handling, and analyze-and-write integration.
+Phase 2 Milestones 0-9 and the pre-Phase-3 GPS context milestone are implemented. The repository now includes the `aisidecar write-xmp` CLI surface, Phase 2 export configuration defaults and precedence resolution, Phase 2 policy enums, export report/change-plan schema identifiers, additive source-verification and owned-XMP error codes, no-XMP regression coverage around existing Phase 1 commands, raw sidecar reader/source resolution, candidate extraction with keyword policy, coordinate/GPS-only evidence guards, and model/prompt/schema/runtime provenance, XMP target naming, same-base-name group resolution, pair-scope selection, dry-run change-plan JSON output, the owned XMP sidecar engine parser/writer seam, merge conflict policy, deterministic backups, restore-on-validation-failure, post-write validation, source hash rechecks, export progress/report/summary artifacts, interruption handling, and analyze-and-write integration.
 
 The owned engine can parse existing XMP, generate canonical new sidecars, merge the Phase 2 managed keyword bags, compute `XMPMetadataSnapshot` and `XMPUnmanagedContentFingerprint` records, and fail closed for malformed XML or unsupported RDF shapes. The `write-xmp --from-json --dry-run` path resolves raw sidecars, extracts candidate keyword records, groups sources, plans one target per XMP sidecar, previews owned-engine merge effects, and prints `ai-sidecar-xmp-change-plan/1.0` JSON to stdout. The non-dry-run path executes the same plan through `XMPExportPipeline`, writes one target per XMP sidecar, records per-target progress, writes batch reports/summaries for folder runs, validates readback and source hashes, and restores backups when validation fails.
 
-The useful baseline remains Phase 1: Milestones 0-8 and the Milestone 9a benchmark harness are implemented. The repository has the reusable scanner, source identity, raw sidecar naming/writing, atomic file writer, progress log, batch summary, derivative renderer/cache, subject-isolation service, `VisionModelRunner` protocol, Ollama runner, mock and recorded-fixture runners, v1.3 prompt/schema resources, response parser/repair path, raw sidecar schema-evolution wrapper, diagnostic model-input export, no-XMP guards, and `aisidecar benchmark` / `aisidecar purge` commands.
+The useful baseline remains Phase 1: Milestones 0-8, the Milestone 9a benchmark harness, and the pre-Phase-3 GPS context milestone are implemented. The repository has the reusable scanner, source identity, raw sidecar naming/writing, atomic file writer, progress log, batch summary, derivative renderer/cache, subject-isolation service, `VisionModelRunner` protocol, Ollama runner, mock and recorded-fixture runners, v1.4 prompt/schema resources, read-only EXIF GPS model context, response parser/repair path, raw sidecar schema-evolution wrapper, diagnostic model-input export, no-XMP guards, and `aisidecar benchmark` / `aisidecar purge` commands.
 
 The Phase 1 release signoff is not complete. The remaining evidence is Milestone 9 calibration and manual quality review: full benchmark matrix, final profile/`keep_alive`/`stage_concurrency` defaults, foreground-mask failure classification, tag-quality review, multi-subject instance-selection spot checks, rights-cleared format coverage or documented deferral, and final AC1-001 through AC1-015 acceptance evidence.
 
 That state is good enough for Phase 2 implementation. It is not good enough for Phase 2 release without either archived Phase 1 signoff evidence or an explicit release note listing any deferred Phase 1 evidence.
 
-Latest verification recorded after Milestones 5-9 review:
+Latest verification recorded after the GPS context documentation pass:
 
 ```text
 swift test --filter CandidateExtractorTests       9 tests, 0 failures
@@ -33,8 +33,13 @@ swift test --filter XMPBackupManagerTests         2 tests, 0 failures
 swift test --filter XMPMergeValidatorTests        2 tests, 0 failures
 swift test --filter XMPExportPipelineTests        6 tests, 0 failures
 swift test --filter AnalyzeAndXMPPipelineTests    4 tests, 0 failures
-swift test                                      215 tests, 1 skipped, 0 failures
+swift test                                      223 tests, 1 skipped, 0 failures
+swift run aisidecar --help                     passed
+swift run aisidecar analyze --help             passed
 swift run aisidecar write-xmp --help            passed
+swift run aisidecar benchmark --help           passed
+swift run aisidecar benchmark --self-test      passed
+swift run aisidecar purge --help               passed
 ```
 
 The next implementation unit is Milestone 10: compatibility smoke and release evidence. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 2 exposes a concrete interface defect.
@@ -220,7 +225,7 @@ Status: implemented.
 
 Tasks:
 
-1. Implement `CandidateExtractor` over `model_runs[*].parsed_response_json` for Phase 1 v1.3 candidate-bearing fields: `genre_or_photography_type`, `species`, `main_subjects`, `secondary_subjects`, `scene_context`, `habitat_or_setting`, `behavior_or_action`, and `proposed_keywords` (FR2-013a).
+1. Implement `CandidateExtractor` over `model_runs[*].parsed_response_json` for Phase 1 v1.3+ candidate-bearing fields: `genre_or_photography_type`, `species`, `main_subjects`, `secondary_subjects`, `scene_context`, `habitat_or_setting`, `behavior_or_action`, and `proposed_keywords` (FR2-013a).
 2. Preserve role, source field, source image, source sidecar, model-run index, confidence, and evidence where present (FR2-013b/014).
 3. Implement confidence-band filtering using `low < medium < high`, default `medium` (FR2-018).
 4. Implement `KeywordTextNormalizer`: NFC, trim, whitespace collapse, empty-term handling, `|` rejection, case-insensitive de-duplication with first casing preserved (FR2-006a-d).
@@ -433,7 +438,7 @@ RawJSONSidecarReaderTests   ai-sidecar-json/1.x acceptance; higher-major rejecti
                             unknown field preservation when rewriting
 SourceResolutionTests       --source-root mapping; recorded path fallback;
                             sibling fallback; missing source; identity mismatch
-CandidateExtractorTests     all Phase 1 v1.3 candidate fields; role provenance;
+CandidateExtractorTests     all Phase 1 v1.3+ candidate fields; role provenance;
                             confidence thresholds; malformed/missing fields
 KeywordTextNormalizerTests  NFC; trim; whitespace collapse; pipe rejection;
                             empty terms; case-insensitive de-duplication
@@ -540,7 +545,7 @@ Phase 2 implementation is done when:
 1. `aisidecar write-xmp --from-json` reads Phase 1 `.ai.json` files or folders and writes safe XMP sidecars.
 2. `aisidecar write-xmp <image-file-or-folder>` reuses `AnalyzePipeline`, preserves `.ai.json` by default, and writes XMP from the same export planner.
 3. Source resolution and identity verification work for beside-source sidecars and mirrored `--output-dir` raw-sidecar trees.
-4. Candidate extraction handles all Phase 1 v1.3 candidate fields, confidence bands, evidence, roles, and source provenance.
+4. Candidate extraction handles all Phase 1 v1.3+ candidate fields, confidence bands, evidence, roles, and source provenance.
 5. Flat keywords write to `XMP-dc:Subject`; hierarchical export writes one-level entries to `XMP-lr:HierarchicalSubject` when enabled.
 6. Common-name `species` field terms are included by default; scientific binomials, named places, named people, named events, and non-species exact-ID terms are exported only when `--allow-specific-tags` is supplied.
 7. RAW+JPEG same-base-name groups produce exactly one XMP write plan and one write per target sidecar.

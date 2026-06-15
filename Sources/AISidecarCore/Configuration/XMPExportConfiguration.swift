@@ -214,6 +214,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
     public var clearDerivativeCacheOnStart: Bool
     public var clearDerivativeCacheAfterSuccess: Bool
     public var modelResponseRepairAttempts: Int?
+    public var gpsContext: GPSContextMode?
     public var writeFlatKeywords: Bool
     public var noWriteFlatKeywords: Bool
     public var writeHierarchicalKeywords: Bool
@@ -237,6 +238,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         clearDerivativeCacheOnStart: Bool = false,
         clearDerivativeCacheAfterSuccess: Bool = false,
         modelResponseRepairAttempts: Int? = nil,
+        gpsContext: GPSContextMode? = nil,
         writeFlatKeywords: Bool = false,
         noWriteFlatKeywords: Bool = false,
         writeHierarchicalKeywords: Bool = false,
@@ -259,6 +261,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         self.clearDerivativeCacheOnStart = clearDerivativeCacheOnStart
         self.clearDerivativeCacheAfterSuccess = clearDerivativeCacheAfterSuccess
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
+        self.gpsContext = gpsContext
         self.writeFlatKeywords = writeFlatKeywords
         self.noWriteFlatKeywords = noWriteFlatKeywords
         self.writeHierarchicalKeywords = writeHierarchicalKeywords
@@ -344,6 +347,9 @@ public enum XMPExportInvocationValidator {
         }
         if request.modelResponseRepairAttempts != nil {
             throw SidecarError.configInvalid("--model-response-repair-attempts is invalid with --from-json.")
+        }
+        if request.gpsContext != nil {
+            throw SidecarError.configInvalid("--gps-context is invalid with --from-json.")
         }
         if request.writeAIJSON || request.noWriteAIJSON {
             throw SidecarError.configInvalid("--write-ai-json is valid only with analyze-and-write mode.")

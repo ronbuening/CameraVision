@@ -13,7 +13,7 @@ Primary output artifact: raw AI JSON sidecar file, not XMP
 
 This revision records implementation status. It does not broaden Phase 1 scope or start Phase 2/XMP work.
 
-1. Phase 1 Milestones 0-8 are implemented, including the full `aisidecar analyze` pipeline, diagnostic model-input export, derivative-cache lifecycle controls, `aisidecar purge`, v1.3 prompt/schema resources, schema-constrained model-response repair, schema-evolution sidecar rewrites, no-XMP guards, and offline tests.
+1. Phase 1 Milestones 0-8 are implemented, including the full `aisidecar analyze` pipeline, diagnostic model-input export, derivative-cache lifecycle controls, `aisidecar purge`, v1.4 prompt/schema resources, read-only EXIF GPS model context, schema-constrained model-response repair, schema-evolution sidecar rewrites, no-XMP guards, and offline tests.
 2. The Milestone 9a benchmark harness is implemented as `aisidecar benchmark`, with the legacy `benchmarks/run-milestone9a.swift` wrapper retained for compatibility.
 3. Final Phase 1 signoff is still pending Milestone 9 calibration and quality review: a full benchmark run, conservative default selection for model input profile / `keep_alive` / `stage_concurrency`, foreground-mask failure classification, tag-quality review, and manual instance-selection spot checks.
 4. XMP writeback is implemented by Phase 2 outside the Phase 1 `analyze` command. Tag normalization, review workflows, OCR/text extraction, alternate runtime support beyond the adapter seam, and GUI behavior remain later-phase work.
@@ -28,7 +28,8 @@ Implemented in the current repository:
 - Subject isolation through the two-resolution Apple Vision/Core Image chain, including deterministic instance selection, merge policy, native-resolution crop/matte compositing, failure recording, and sidecar provenance.
 - Diagnostic `--export-model-inputs` mode that writes model-input images and a manifest without writing sidecars, model output, progress logs, batch summaries, or XMP.
 - Ollama runtime preparation and model execution through `VisionModelRunner`: tag/digest/runtime verification, `/api/chat` with base64 images and `format` schemas, request options, retries/timeouts, raw response preservation, parsed JSON, per-attempt repair provenance, mock runners, and recorded-fixture replay.
-- Versioned v1.3 prompts and response schemas with conditional `species` candidates for biological target genres and no Phase 1 `visible_text`.
+- Read-only EXIF GPS model context with `off`, `coarse`, and `exact` modes; new sidecars record `run_configuration.gps_context` and per-run `model_input_context.gps` only when coordinates are sent to the model.
+- Versioned v1.4 prompts and response schemas with conditional `species` candidates for biological target genres, GPS-context usage rules, and no Phase 1 `visible_text`.
 - Offline XCTest coverage for configuration, validation, logging, scanning, identity, sidecar naming/writing, schema-evolution rewrites, rendering, derivative cache behavior, purge resolution, subject isolation, model runtime behavior, response repair, progress logs, summaries, diagnostic export, golden sidecars, no-XMP guards, and full analyze pipeline seams.
 - `aisidecar benchmark` for Milestone 9a timing/schema-validity/default-calibration runs, result documents, aggregation self-test, scratch cleanup, and no-XMP verification.
 
@@ -58,6 +59,12 @@ This revision updates the active model response contract without changing the ra
 1. The whole-image and subject-isolated response schemas add a conditional top-level `species` array for `wildlife`, `bird_photography`, and `plant_botanical` genres (FR1-045).
 2. The active prompt and response-schema resources move to v1.3.0 so model-run provenance distinguishes pre-species and post-species outputs (FR1-046).
 3. The local response-schema validator owns the small additional JSON Schema subset needed to enforce this contract offline: `allOf`, `if`, `then`, `else`, `not`, and `contains`.
+
+## 0.2a Current GPS Context Addendum
+
+After Phase 2 Milestone 9 and before Phase 3 implementation, the active prompts and response schemas move to v1.4.0 without changing model response shape. New raw sidecar writes use `ai-sidecar-json/1.3` and add `gps_context` to run configuration plus optional `model_runs[*].model_input_context.gps` provenance.
+
+GPS is read only from Image I/O metadata and passed only as external model context. It must not be written to XMP fields, embedded metadata, or candidate keywords. The model may use it only to narrow visually plausible determinations, never as sole evidence.
 
 ## 0.3 Changes from v0.1
 
@@ -106,6 +113,7 @@ PW-004 - The following flags shall have identical names, types, and semantics in
 --clear-derivative-cache-after-success
                                       Clear derivative cache artifacts after a successful analyze invocation.
 --model-response-repair-attempts <n> Schema-constrained repair attempts after invalid model JSON or schema failure. Default: 1.
+--gps-context <off|coarse|exact>      EXIF GPS context for model prompts. Default: coarse.
 ```
 
 PW-005 - Enum-valued flags shall be used instead of families of mutually exclusive boolean flags. The v0.1 triplets (`--whole-only/--subject-only/--both`, `--skip-existing/--overwrite/--fail-existing`) are replaced by `--mode` and `--existing` and shall not reappear in later phases.
@@ -158,7 +166,7 @@ PW-012 - Readers shall accept any file sharing their major version, shall preser
 
 ### 1.6 Provenance Principles
 
-PW-013 - Reproducibility is defined as recorded configuration, not promised bit-identical output. Temperature 0 narrows sampling but does not guarantee identical text across runtime versions, quantizations, or MoE routing. Every model run shall therefore record: model tag, model digest, runtime name and version, sampling options, seed, thinking-mode setting, prompt version and prompt content hash, response schema version, and input-derivative hash.
+PW-013 - Reproducibility is defined as recorded configuration, not promised bit-identical output. Temperature 0 narrows sampling but does not guarantee identical text across runtime versions, quantizations, or MoE routing. Every model run shall therefore record: model tag, model digest, runtime name and version, sampling options, seed, thinking-mode setting, prompt version and prompt content hash, response schema version, optional model input context, and input-derivative hash.
 
 PW-014 - Model tags are mutable references; the model digest reported by the runtime is the durable identity and shall always be recorded alongside the tag.
 
@@ -349,13 +357,13 @@ FR1-038 - Sampling shall target temperature 0 with a recorded seed. Reproducibil
 
 ## 10. Raw JSON Sidecar Schema Requirements
 
-FR1-039 - The sidecar shall use the versioned schema identifier `ai-sidecar-json/1.0`, governed by PW-011/012.
+FR1-039 - The sidecar shall use a versioned schema identifier in the `ai-sidecar-json/1.x` family, governed by PW-011/012. New writes use `ai-sidecar-json/1.3`.
 
 Minimum top-level structure:
 
 ```json
 {
-  "schema_version": "ai-sidecar-json/1.0",
+  "schema_version": "ai-sidecar-json/1.3",
   "source": {},
   "run_configuration": {},
   "model_input_profile": {},
@@ -380,6 +388,7 @@ FR1-040 - Each `model_runs` entry shall include:
   "prompt_sha256": "string",
   "response_schema_version": "string",
   "request_options": {},
+  "model_input_context": {},
   "raw_response_text": "string",
   "parsed_response_json": {},
   "json_valid": true,
@@ -390,6 +399,8 @@ FR1-040 - Each `model_runs` entry shall include:
 ```
 
 FR1-041 - Invalid primary model JSON shall be preserved as raw text. When repair is attempted, `response_attempts` shall preserve the primary response, repair response, per-attempt prompt hash, request options, parsed JSON when available, and per-attempt error. The top-level `model_runs` fields represent the final accepted response or final failure. The parser shall strip Markdown code fences before parsing, since fenced-but-valid JSON is a common local-model failure mode; fence-stripped valid JSON is not an error.
+
+FR1-041a - `model_input_context.gps`, when present, shall record only the coordinates actually sent to the model. `coarse` mode rounds signed decimal latitude/longitude to the nearest 0.1 degree and records `precision_degrees: 0.1`; `exact` mode records the deterministic signed decimal values submitted in the prompt. Missing, malformed, invalid-range, or disabled GPS context is omitted.
 
 FR1-042 - The sidecar shall include enough derivative provenance to reproduce which input image the model saw: derivative hash, dimensions, color space, recipe version, and the source identity (FR1-006a).
 
@@ -425,6 +436,8 @@ The `species` field shall be required when any `genre_or_photography_type` item 
 The subject-isolated schema is identical except that `scene_context` and `habitat_or_setting` are absent (FR1-036); its `species` candidates shall be based only on visible subject traits, not removed background context. Phase 1 model JSON shall not include `visible_text`; text extraction is deferred to a dedicated OCR-capable path in a later phase. Both schemas shall be fully specified JSON Schema documents — item types, required fields, bounded array and string lengths, and the conditional `species` rule — because the schema is the literal `format` payload sent to the runtime: an API contract, not documentation.
 
 FR1-046 - Prompts shall be versioned resources carrying a semantic version and a SHA-256 of their text; both shall be recorded per run, making "same prompt version" verifiable rather than asserted.
+
+FR1-046a - Prompt hashes shall be computed over the final submitted prompt text, including the appended GPS context block when present. The response schema shall not add GPS output fields.
 
 ## 11. Command-Line Interface Requirements
 
@@ -535,7 +548,7 @@ Status terms:
 | AC1-010 | Implemented | Enumerated scan/render/isolate/model/write/config errors and response-repair failure paths are covered offline. |
 | AC1-011 | Implemented; signoff pending | Atomic writes and interruption/resume behavior are implemented; final acceptance should include or reference an interruption smoke check. |
 | AC1-012 | Implemented; signoff pending | Orientation and sRGB behavior are implemented and tested. Final RAW/HEIC/TIFF format smoke coverage depends on available samples. |
-| AC1-013 | Implemented | v1.3 response schemas enforce confidence bands, conditional biological `species`, and the subject-isolated field exclusions. |
+| AC1-013 | Implemented | v1.4 response schemas enforce confidence bands, conditional biological `species`, GPS-context instructions, and the subject-isolated field exclusions. |
 | AC1-014 | Implemented; signoff pending | Runtime/model verification and provenance are implemented. Final live signoff should record default-model digest/runtime behavior. |
 | AC1-015 | Implemented | Tests and benchmark harness checks guard that Phase 1 creates no `.xmp` files. |
 

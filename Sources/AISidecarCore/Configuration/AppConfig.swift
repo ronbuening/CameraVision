@@ -25,6 +25,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var stageConcurrency: Int?
     /// Bounded model-output repair attempts after invalid JSON or schema failure.
     public var modelResponseRepairAttempts: Int?
+    /// Optional EXIF GPS context policy for model prompts.
+    public var gpsContext: GPSContextMode?
     public var sourceRoot: String?
     public var sourceVerification: XMPSourceVerificationPolicy?
     public var writeFlatKeywords: Bool?
@@ -58,6 +60,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
         case stageConcurrency = "stage_concurrency"
         case modelResponseRepairAttempts = "model_response_repair_attempts"
+        case gpsContext = "gps_context"
         case sourceRoot = "source_root"
         case sourceVerification = "source_verification"
         case writeFlatKeywords = "write_flat_keywords"
@@ -92,6 +95,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         subjectMergeDominanceThreshold: Double? = nil,
         stageConcurrency: Int? = nil,
         modelResponseRepairAttempts: Int? = nil,
+        gpsContext: GPSContextMode? = nil,
         sourceRoot: String? = nil,
         sourceVerification: XMPSourceVerificationPolicy? = nil,
         writeFlatKeywords: Bool? = nil,
@@ -124,6 +128,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
         self.stageConcurrency = stageConcurrency
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
+        self.gpsContext = gpsContext
         self.sourceRoot = sourceRoot
         self.sourceVerification = sourceVerification
         self.writeFlatKeywords = writeFlatKeywords
@@ -188,6 +193,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         )
         self.stageConcurrency = try container.decodeIfPresent(Int.self, forKey: .stageConcurrency)
         self.modelResponseRepairAttempts = try container.decodeIfPresent(Int.self, forKey: .modelResponseRepairAttempts)
+        self.gpsContext = try container.decodeIfPresent(GPSContextMode.self, forKey: .gpsContext)
         self.sourceRoot = try container.decodeIfPresent(String.self, forKey: .sourceRoot)
         self.sourceVerification = try container.decodeIfPresent(
             XMPSourceVerificationPolicy.self,
@@ -226,6 +232,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(subjectMergeDominanceThreshold, forKey: .subjectMergeDominanceThreshold)
         try container.encodeIfPresent(stageConcurrency, forKey: .stageConcurrency)
         try container.encodeIfPresent(modelResponseRepairAttempts, forKey: .modelResponseRepairAttempts)
+        try container.encodeIfPresent(gpsContext, forKey: .gpsContext)
         try container.encodeIfPresent(sourceRoot, forKey: .sourceRoot)
         try container.encodeIfPresent(sourceVerification, forKey: .sourceVerification)
         try container.encodeIfPresent(writeFlatKeywords, forKey: .writeFlatKeywords)

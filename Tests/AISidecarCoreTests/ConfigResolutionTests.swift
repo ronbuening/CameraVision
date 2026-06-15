@@ -14,6 +14,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertFalse(resolved.clearDerivativeCacheAfterSuccess)
         XCTAssertEqual(resolved.modelKeepAlive, "30m")
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 1)
+        XCTAssertEqual(resolved.gpsContext, .coarse)
     }
 
     func testXMPExportDefaultsLoadWhenDefaultConfigIsMissing() throws {
@@ -64,7 +65,8 @@ final class ConfigResolutionTests: XCTestCase {
               "subject_crop_margin_fraction": 0.12,
               "subject_merge_dominance_threshold": 0.75,
               "stage_concurrency": 3,
-              "model_response_repair_attempts": 0
+              "model_response_repair_attempts": 0,
+              "gps_context": "exact"
             }
             """
         )
@@ -95,6 +97,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.75)
         XCTAssertEqual(resolved.stageConcurrency, 3)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 0)
+        XCTAssertEqual(resolved.gpsContext, .exact)
     }
 
     func testXMPExportConfigFileOverridesDefaults() throws {
@@ -170,7 +173,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_SUBJECT_CROP_MARGIN_FRACTION": "0.15",
                 "AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD": "0.65",
                 "AISIDECAR_STAGE_CONCURRENCY": "5",
-                "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2"
+                "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2",
+                "AISIDECAR_GPS_CONTEXT": "off"
             ],
             defaultConfigPath: configPath
         )
@@ -189,6 +193,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.subjectMergeDominanceThreshold, 0.65)
         XCTAssertEqual(resolved.stageConcurrency, 5)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 2)
+        XCTAssertEqual(resolved.gpsContext, .off)
     }
 
     func testXMPExportEnvironmentOverridesConfigFile() throws {
@@ -258,6 +263,7 @@ final class ConfigResolutionTests: XCTestCase {
             subjectMergeDominanceThreshold: 0.75,
             stageConcurrency: 3,
             modelResponseRepairAttempts: 0,
+            gpsContext: .exact,
             sourceRoot: "/tmp/source-root",
             sourceVerification: .warn,
             writeFlatKeywords: false,
@@ -281,6 +287,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(object["subject_merge_dominance_threshold"] as? Double, 0.75)
         XCTAssertEqual(object["stage_concurrency"] as? Int, 3)
         XCTAssertEqual(object["model_response_repair_attempts"] as? Int, 0)
+        XCTAssertEqual(object["gps_context"] as? String, "exact")
         XCTAssertEqual(object["source_root"] as? String, "/tmp/source-root")
         XCTAssertEqual(object["source_verification"] as? String, "warn")
         XCTAssertEqual(object["write_flat_keywords"] as? Bool, false)
@@ -305,7 +312,8 @@ final class ConfigResolutionTests: XCTestCase {
                 clearDerivativeCacheOnStart: true,
                 clearDerivativeCacheAfterSuccess: true,
                 stageConcurrency: 7,
-                modelResponseRepairAttempts: 3
+                modelResponseRepairAttempts: 3,
+                gpsContext: .exact
             ),
             environment: [
                 "AISIDECAR_MODE": "subject",
@@ -317,7 +325,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_ON_START": "false",
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS": "false",
                 "AISIDECAR_STAGE_CONCURRENCY": "5",
-                "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2"
+                "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2",
+                "AISIDECAR_GPS_CONTEXT": "off"
             ],
             defaultConfigPath: missingConfigPath()
         )
@@ -332,6 +341,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertTrue(resolved.clearDerivativeCacheAfterSuccess)
         XCTAssertEqual(resolved.stageConcurrency, 7)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 3)
+        XCTAssertEqual(resolved.gpsContext, .exact)
     }
 
     func testXMPExportCLIOverridesEnvironment() throws {
@@ -406,6 +416,7 @@ final class ConfigResolutionTests: XCTestCase {
             {
               "model_endpoint": "not-a-url",
               "profile": "unknown-profile",
+              "gps_context": "precise",
               "derivative_cache_dir": "/tmp/file-cache",
               "derivative_cache_size_bytes": 1048576
             }
@@ -419,7 +430,8 @@ final class ConfigResolutionTests: XCTestCase {
             ),
             environment: [
                 "AISIDECAR_DERIVATIVE_CACHE_DIR": "/tmp/env-cache",
-                "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152"
+                "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152",
+                "AISIDECAR_GPS_CONTEXT": "precise"
             ],
             defaultConfigPath: configPath
         )

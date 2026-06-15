@@ -85,7 +85,7 @@ public enum ConfigurationResolver {
             ?? Self.defaultConfigPath(environment: environment)
         let explicitConfigPath = cli.configPath != nil || environment["AISIDECAR_CONFIG"] != nil
 
-        let fileConfig = try loadConfig(
+        let fileConfig = try loadDerivativeCacheConfig(
             path: selectedConfigPath,
             explicit: explicitConfigPath,
             fileManager: fileManager
@@ -146,6 +146,33 @@ public enum ConfigurationResolver {
         }
     }
 
+    private static func loadDerivativeCacheConfig(
+        path: String,
+        explicit: Bool,
+        fileManager: FileManager
+    ) throws -> DerivativeCacheFileConfig {
+        let lowercasedPath = path.lowercased()
+        if lowercasedPath.hasSuffix(".yaml") || lowercasedPath.hasSuffix(".yml") {
+            throw SidecarError.configInvalid("YAML configuration is not supported: \(path)")
+        }
+
+        guard fileManager.fileExists(atPath: path) else {
+            if explicit {
+                throw SidecarError.configInvalid("Configuration file does not exist: \(path)")
+            }
+            return DerivativeCacheFileConfig()
+        }
+
+        do {
+            let data = try Data(contentsOf: URL(fileURLWithPath: path))
+            return try JSONDecoder().decode(DerivativeCacheFileConfig.self, from: data)
+        } catch let error as SidecarError {
+            throw error
+        } catch {
+            throw SidecarError.configInvalid("Invalid configuration file \(path): \(error.localizedDescription)")
+        }
+    }
+
     private static func environmentOverrides(from environment: [String: String]) throws -> RunConfigurationOverrides {
         RunConfigurationOverrides(
             mode: try enumValue(AnalysisMode.self, from: environment["AISIDECAR_MODE"], key: "AISIDECAR_MODE"),
@@ -196,6 +223,11 @@ public enum ConfigurationResolver {
             modelResponseRepairAttempts: try nonNegativeIntValue(
                 from: environment["AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS"],
                 key: "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS"
+            ),
+            gpsContext: try enumValue(
+                GPSContextMode.self,
+                from: environment["AISIDECAR_GPS_CONTEXT"],
+                key: "AISIDECAR_GPS_CONTEXT"
             )
         )
     }
@@ -319,6 +351,21 @@ public enum ConfigurationResolver {
     }
 }
 
+private struct DerivativeCacheFileConfig: Decodable {
+    var derivativeCacheDir: String?
+    var derivativeCacheSizeBytes: Int64?
+
+    enum CodingKeys: String, CodingKey {
+        case derivativeCacheDir = "derivative_cache_dir"
+        case derivativeCacheSizeBytes = "derivative_cache_size_bytes"
+    }
+
+    init(derivativeCacheDir: String? = nil, derivativeCacheSizeBytes: Int64? = nil) {
+        self.derivativeCacheDir = derivativeCacheDir
+        self.derivativeCacheSizeBytes = derivativeCacheSizeBytes
+    }
+}
+
 private struct ConfigurationBuilder {
     private var mode: AnalysisMode
     private var existing: ExistingPolicy
@@ -341,6 +388,7 @@ private struct ConfigurationBuilder {
     private var subjectMergeDominanceThreshold: Double
     private var stageConcurrency: Int
     private var modelResponseRepairAttempts: Int
+    private var gpsContext: GPSContextMode
 
     init(defaults: ResolvedRunConfiguration) {
         self.mode = defaults.mode
@@ -364,6 +412,7 @@ private struct ConfigurationBuilder {
         self.subjectMergeDominanceThreshold = defaults.subjectMergeDominanceThreshold
         self.stageConcurrency = defaults.stageConcurrency
         self.modelResponseRepairAttempts = defaults.modelResponseRepairAttempts
+        self.gpsContext = defaults.gpsContext
     }
 
     mutating func apply(config: AppConfig) {
@@ -388,6 +437,7 @@ private struct ConfigurationBuilder {
         if let value = config.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
         if let value = config.stageConcurrency { stageConcurrency = value }
         if let value = config.modelResponseRepairAttempts { modelResponseRepairAttempts = value }
+        if let value = config.gpsContext { gpsContext = value }
     }
 
     mutating func apply(overrides: RunConfigurationOverrides) {
@@ -412,6 +462,7 @@ private struct ConfigurationBuilder {
         if let value = overrides.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
         if let value = overrides.stageConcurrency { stageConcurrency = value }
         if let value = overrides.modelResponseRepairAttempts { modelResponseRepairAttempts = value }
+        if let value = overrides.gpsContext { gpsContext = value }
     }
 
     func resolved() throws -> ResolvedRunConfiguration {
@@ -466,7 +517,8 @@ private struct ConfigurationBuilder {
             subjectCropMarginFraction: subjectCropMarginFraction,
             subjectMergeDominanceThreshold: subjectMergeDominanceThreshold,
             stageConcurrency: stageConcurrency,
-            modelResponseRepairAttempts: modelResponseRepairAttempts
+            modelResponseRepairAttempts: modelResponseRepairAttempts,
+            gpsContext: gpsContext
         )
     }
 }
@@ -592,7 +644,8 @@ private extension RunConfigurationOverrides {
             subjectCropMarginFraction: subjectCropMarginFraction,
             subjectMergeDominanceThreshold: subjectMergeDominanceThreshold,
             stageConcurrency: stageConcurrency,
-            modelResponseRepairAttempts: modelResponseRepairAttempts
+            modelResponseRepairAttempts: modelResponseRepairAttempts,
+            gpsContext: gpsContext
         )
     }
 }

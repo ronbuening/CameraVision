@@ -141,6 +141,10 @@ public enum SkippedCandidateReason: String, Codable, Equatable, Sendable {
     case duplicate
     case disabledFlatExport = "disabled_flat_export"
     case disabledHierarchicalExport = "disabled_hierarchical_export"
+    /// The model produced coordinates or GPS-label terms, which are never XMP keywords.
+    case coordinateLikeTerm = "coordinate_like_term"
+    /// The model cited GPS/location context as evidence instead of visible image evidence.
+    case gpsOnlyEvidence = "gps_only_evidence"
 }
 
 /// Diagnostic for a candidate or keyword that Milestone 2 did not export.
@@ -557,6 +561,16 @@ public struct CandidateExtractor {
                         skippedCandidates.append(SkippedCandidate(reason: .belowConfidenceThreshold, candidate: candidate))
                         continue
                     }
+                    // GPS may help model selection, but coordinate terms and GPS-only
+                    // evidence cannot cross the Phase 2 XMP boundary.
+                    guard !Self.isCoordinateLikeTerm(candidate.normalizedTerm) else {
+                        skippedCandidates.append(SkippedCandidate(reason: .coordinateLikeTerm, candidate: candidate))
+                        continue
+                    }
+                    guard !Self.evidenceReliesOnGPS(candidate.evidence) else {
+                        skippedCandidates.append(SkippedCandidate(reason: .gpsOnlyEvidence, candidate: candidate))
+                        continue
+                    }
 
                     // Accepted terms retain later provenance before role-specific heuristics
                     // can reject a duplicate from a different source field.
@@ -631,6 +645,46 @@ public struct CandidateExtractor {
                 normalizedTerm: keyword.term
             )
         }
+    }
+
+    private static func isCoordinateLikeTerm(_ term: String) -> Bool {
+        let lowercased = term.lowercased()
+        if lowercased.contains("gps")
+            || lowercased.contains("geotag")
+            || lowercased.contains("latitude")
+            || lowercased.contains("longitude")
+            || lowercased.contains("coordinate") {
+            return true
+        }
+
+        let decimalPairPattern = #"(?<!\d)[+-]?\d{1,3}\.\d+\s*[,/ ]\s*[+-]?\d{1,3}\.\d+(?!\d)"#
+        if term.range(of: decimalPairPattern, options: .regularExpression) != nil {
+            return true
+        }
+
+        let cardinalCoordinatePattern = #"\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[NS]\b.*\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[EW]\b"#
+        return term.range(of: cardinalCoordinatePattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private static func evidenceReliesOnGPS(_ evidence: String?) -> Bool {
+        guard let evidence else {
+            return false
+        }
+        let lowercased = evidence.lowercased()
+        let gpsSignals = [
+            "gps",
+            "geotag",
+            "coordinates",
+            "coordinate",
+            "latitude",
+            "longitude",
+            "exif location",
+            "location context",
+            "range map",
+            "common in this location",
+            "common near this location"
+        ]
+        return gpsSignals.contains { lowercased.contains($0) }
     }
 
     private func issue(

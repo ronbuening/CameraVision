@@ -206,6 +206,8 @@ final class GoldenSidecarTests: XCTestCase {
             return .number(0)
         case "sha256":
             return .string("<sha256>")
+        case "prompt_sha256":
+            return .string("<prompt-sha256>")
         case "input_derivative_sha256":
             return .string("<derivative-sha256>")
         default:

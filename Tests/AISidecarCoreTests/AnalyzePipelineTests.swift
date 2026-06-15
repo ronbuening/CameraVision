@@ -120,6 +120,53 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(maxInFlight, 1)
     }
 
+    func testGPSContextIsSentToBothModelRolesAndRecordedInSidecar() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage(
+            "GPSBird.JPG",
+            width: 120,
+            height: 80,
+            gps: (latitude: 45.16, longitude: -122.64),
+            in: root
+        )
+        let runner = RecordingVisionModelRunner()
+
+        let result = try await pipeline(
+            maskProvider: StaticForegroundMaskProvider([
+                StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
+            ]),
+            runner: runner
+        ).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .both,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        let calls = await runner.capturedCalls()
+        XCTAssertEqual(calls.map(\.inputRole), [.wholeImage, .subjectIsolated])
+        XCTAssertTrue(calls.allSatisfy { $0.promptText.contains("MODEL INPUT CONTEXT") })
+        XCTAssertTrue(calls.allSatisfy { $0.promptText.contains("latitude: 45.2") })
+        XCTAssertTrue(calls.allSatisfy { $0.promptText.contains("longitude: -122.6") })
+
+        let sidecar = try decodeSidecar(output.appendingPathComponent("GPSBird.JPG.ai.json"))
+        XCTAssertEqual(sidecar.runConfiguration.gpsContext, .coarse)
+        XCTAssertEqual(sidecar.modelRuns.map(\.modelInputContext?.gps?.mode), [.coarse, .coarse])
+        for run in sidecar.modelRuns {
+            XCTAssertEqual(run.modelInputContext?.gps?.latitude ?? 0, 45.2, accuracy: 0.000001)
+            XCTAssertEqual(run.modelInputContext?.gps?.longitude ?? 0, -122.6, accuracy: 0.000001)
+        }
+    }
+
     func testBothModeNoForegroundWritesWholeRunWithRecoverableError() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -499,6 +546,7 @@ private struct CapturedModelCall: Sendable, Equatable {
     var inputRole: ModelInputRole
     var derivativeSHA256: String
     var promptVersion: String
+    var promptText: String
     var schemaVersion: String
     var keepAlive: String
     var thinkingEnabled: Bool
@@ -573,6 +621,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
                 inputRole: inputRole,
                 derivativeSHA256: image.sha256,
                 promptVersion: prompt.version,
+                promptText: prompt.text,
                 schemaVersion: schema.version,
                 keepAlive: options.keepAlive,
                 thinkingEnabled: options.thinkingEnabled

@@ -71,6 +71,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var stageConcurrency: Int?
     /// Bounded model-output repair attempts after invalid JSON or schema failure.
     public var modelResponseRepairAttempts: Int?
+    /// Controls whether EXIF GPS coordinates are attached to model prompts.
+    public var gpsContext: GPSContextMode?
 
     public init(
         mode: AnalysisMode? = nil,
@@ -94,7 +96,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         subjectCropMarginFraction: Double? = nil,
         subjectMergeDominanceThreshold: Double? = nil,
         stageConcurrency: Int? = nil,
-        modelResponseRepairAttempts: Int? = nil
+        modelResponseRepairAttempts: Int? = nil,
+        gpsContext: GPSContextMode? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -118,6 +121,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
         self.stageConcurrency = stageConcurrency
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
+        self.gpsContext = gpsContext
     }
 }
 
@@ -180,6 +184,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var stageConcurrency: Int
     /// Number of schema-constrained model-output repair attempts before recording failure.
     public var modelResponseRepairAttempts: Int
+    /// GPS context policy for model prompts; coordinates are never written to XMP.
+    public var gpsContext: GPSContextMode
 
     enum CodingKeys: String, CodingKey {
         case mode
@@ -203,6 +209,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case subjectMergeDominanceThreshold = "subject_merge_dominance_threshold"
         case stageConcurrency = "stage_concurrency"
         case modelResponseRepairAttempts = "model_response_repair_attempts"
+        case gpsContext = "gps_context"
     }
 
     public init(
@@ -226,7 +233,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         subjectCropMarginFraction: Double = 0.08,
         subjectMergeDominanceThreshold: Double = 0.8,
         stageConcurrency: Int = Self.defaultStageConcurrency(),
-        modelResponseRepairAttempts: Int = 1
+        modelResponseRepairAttempts: Int = 1,
+        gpsContext: GPSContextMode = .coarse
     ) {
         self.mode = mode
         self.existing = existing
@@ -249,6 +257,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.subjectMergeDominanceThreshold = subjectMergeDominanceThreshold
         self.stageConcurrency = stageConcurrency
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
+        self.gpsContext = gpsContext
     }
 
     /// Default bounded render/isolation worker count for PW-015.
@@ -286,7 +295,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         subjectCropMarginFraction: 0.08,
         subjectMergeDominanceThreshold: 0.8,
         stageConcurrency: ResolvedRunConfiguration.defaultStageConcurrency(),
-        modelResponseRepairAttempts: 1
+        modelResponseRepairAttempts: 1,
+        gpsContext: .coarse
     )
 
     public init(from decoder: Decoder) throws {
@@ -318,5 +328,9 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
             Int.self,
             forKey: .modelResponseRepairAttempts
         ) ?? Self.builtInDefaults.modelResponseRepairAttempts
+        self.gpsContext = try container.decodeIfPresent(
+            GPSContextMode.self,
+            forKey: .gpsContext
+        ) ?? Self.builtInDefaults.gpsContext
     }
 }

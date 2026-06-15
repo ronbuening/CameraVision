@@ -29,12 +29,13 @@ For continuity, all substantive v0.2 changes remain active: the single `aisideca
 
 ## 0.1 Current Entry Status
 
-Phase 3 is specified but not implemented. The repository currently has Phase 1 Milestones 0-8 plus the Milestone 9a benchmark harness, and Phase 2 Milestones 0-9 including owned XMP export, backup/restore, validation, reports, interruption handling, and analyze-and-write integration.
+Phase 3 is specified but not implemented. The repository currently has Phase 1 Milestones 0-8 plus the Milestone 9a benchmark harness, Phase 2 Milestones 0-9 including owned XMP export, backup/restore, validation, reports, interruption handling, and analyze-and-write integration, and the pre-Phase-3 GPS context milestone for analysis-quality improvement.
 
 Before implementing Phase 3, complete or explicitly defer:
 
 - Phase 2 Milestone 10 compatibility smoke evidence for from-json export, analyze-and-write, Lightroom Classic import, and Capture One synchronization;
 - Phase 1 Milestone 9 calibration and quality review evidence;
+- manual quality comparison or documented deferral for representative GPS-tagged images under `--gps-context off|coarse|exact`;
 - a fresh `swift test` baseline after any Milestone 10 documentation or fixture updates.
 
 The first Phase 3 implementation unit should be CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, plus core vocabulary/session schema types. Do not add a second XMP writer; normalized export plans must flow through the Phase 2 `MetadataWriteEngine` and `OwnedXMPSidecarEngine`.
@@ -122,6 +123,7 @@ Accepted project-wide flags in analyze-and-normalize mode:
 --clear-derivative-cache-on-start
 --clear-derivative-cache-after-success
 --model-response-repair-attempts <n>
+--gps-context <off|coarse|exact>
 ```
 
 Accepted project-wide flags in `normalize --from-json` mode:

@@ -49,6 +49,12 @@ extension XMPPairScope: ExpressibleByArgument {
     }
 }
 
+extension GPSContextMode: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
 struct SharedOptions: ParsableArguments {
     @Option(help: "Analysis mode: whole, subject, or both.")
     var mode: AnalysisMode?
@@ -95,6 +101,9 @@ struct SharedOptions: ParsableArguments {
     @Option(help: "Schema-constrained repair attempts after invalid model JSON or schema failure.")
     var modelResponseRepairAttempts: Int?
 
+    @Option(help: "EXIF GPS context for model prompts: off, coarse, or exact.")
+    var gpsContext: GPSContextMode?
+
     var overrides: RunConfigurationOverrides {
         RunConfigurationOverrides(
             mode: mode,
@@ -111,7 +120,8 @@ struct SharedOptions: ParsableArguments {
             debugDerivatives: debugDerivatives ? true : nil,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart ? true : nil,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess ? true : nil,
-            modelResponseRepairAttempts: modelResponseRepairAttempts
+            modelResponseRepairAttempts: modelResponseRepairAttempts,
+            gpsContext: gpsContext
         )
     }
 }

@@ -36,7 +36,7 @@ Implemented and stable enough to build on:
 - orientation-correct sRGB model-input rendering with model profiles, derivative provenance, derivative cache reuse, LRU eviction, debug derivative copies, and purge controls;
 - two-resolution Apple Vision/Core Image subject isolation with deterministic instance selection, merge policy, failure records, and subject-isolation provenance;
 - Ollama model preparation and execution behind `VisionModelRunner`, with mock and recorded-fixture runners;
-- v1.3 prompts and response schemas, including ordinal confidence bands, candidate evidence, conditional biological `species`, and no Phase 1 `visible_text` field;
+- v1.4 prompts and response schemas, including ordinal confidence bands, candidate evidence, conditional biological `species`, GPS-context instructions, and no Phase 1 `visible_text` or GPS output field;
 - raw JSON schema-evolution handling for additive `ai-sidecar-json/1.x` rewrites;
 - no-XMP tests and benchmark checks.
 
@@ -52,7 +52,7 @@ Phase 2 implementation shall not reopen Phase 1 rendering, isolation, prompting,
 
 ## 0.2 Current Implementation Status
 
-Phase 2 Milestones 0-9 are implemented. The repository now has:
+Phase 2 Milestones 0-9 and the pre-Phase-3 GPS context milestone are implemented. The repository now has:
 
 - `aisidecar write-xmp --help` and command-shape validation;
 - Phase 2 export configuration defaults with `CLI > AISIDECAR_* > JSON config > built-in default` precedence;
@@ -62,7 +62,7 @@ Phase 2 Milestones 0-9 are implemented. The repository now has:
 - no-XMP regression coverage for `analyze`, `benchmark`, `purge`, and `analyze --export-model-inputs`;
 - `RawJSONSidecarReader` plus `write-xmp --from-json` sidecar scanning and source resolution;
 - source identity verification policies for `fail`, `warn`, and `skip`;
-- `CandidateExtractor`, keyword text normalization, confidence-band filtering, de-duplication, skipped-candidate diagnostics, and conservative specific-tag filtering;
+- `CandidateExtractor`, keyword text normalization, confidence-band filtering, de-duplication, skipped-candidate diagnostics, coordinate/GPS-only evidence guards, and conservative specific-tag filtering;
 - `XMPNaming` for `<base>.xmp` target paths and mirrored `--output-dir` staging paths;
 - `SameBaseNameGroupResolver` for same-base-name source groups, RAW/JPEG pair scope selection, contribution accounting, and case-insensitive target collision detection;
 - `XMPChangePlanner` plus `ai-sidecar-xmp-change-plan/1.0` dry-run JSON output from `write-xmp --from-json --dry-run`;
@@ -76,7 +76,7 @@ Phase 2 Milestones 0-9 are implemented. The repository now has:
 - SIGINT/SIGTERM-aware `write-xmp` command wiring that lets in-flight target writes finish, restore, or remain unchanged;
 - offline tests for canonical sidecar generation, alternate namespace prefixes, missing managed bags, existing keyword merge, unmanaged semantic preservation, malformed XML, unsupported RDF, backup/restore, validation failure restore, progress/report/summary artifacts, interruption behavior, and analyze-and-write.
 
-Phase 2 implementation is now complete through Milestone 9. The remaining Phase 2 release work is Milestone 10 compatibility smoke evidence: Lightroom Classic/Capture One import checks, representative RAW/JPEG samples, and final Phase 1 Milestone 9 release-evidence linkage or documented deferral.
+Phase 2 implementation is now complete through Milestone 9, with GPS context implemented as analysis-quality work before Phase 3. The remaining Phase 2 release work is Milestone 10 compatibility smoke evidence: Lightroom Classic/Capture One import checks, representative RAW/JPEG samples, and final Phase 1 Milestone 9 release-evidence linkage or documented deferral.
 
 Phase 3 shall not start until this release evidence is recorded or explicitly deferred:
 
@@ -274,7 +274,7 @@ FR2-004 - Phase 2 shall not modify source image files. Proprietary RAW file hash
 
 FR2-013 - The program shall extract candidate terms from Phase 1 model JSON using the Phase 1 response schema, including conditional `species` candidates when present, and respecting schema evolution under PW-012.
 
-FR2-013a - Candidate-bearing fields in Phase 1 v1.3 responses are:
+FR2-013a - Candidate-bearing fields in Phase 1 v1.3+ responses are:
 
 ```text
 genre_or_photography_type
@@ -288,6 +288,8 @@ proposed_keywords
 ```
 
 The extractor shall ignore `summary` and `uncertainty_notes` for export.
+
+FR2-013g - Coordinate-like terms and candidates whose evidence explicitly relies on GPS, coordinates, EXIF location, range maps, or location commonness shall be skipped with machine-readable reasons. This guard is independent of `--allow-specific-tags`; location context can strengthen model analysis, but it is never exportable metadata by itself.
 
 FR2-013b - Candidate records shall preserve these fields in the intermediate extraction record where available:
 

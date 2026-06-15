@@ -65,6 +65,9 @@ struct WriteXMPCommand: AsyncParsableCommand {
     @Option(help: "Schema-constrained repair attempts after invalid model JSON or schema failure.")
     var modelResponseRepairAttempts: Int?
 
+    @Option(help: "EXIF GPS context for analyze-and-write model prompts: off, coarse, or exact.")
+    var gpsContext: GPSContextMode?
+
     @Flag(name: .customLong("write-flat-keywords"), help: "Write accepted flat keywords to XMP-dc:Subject.")
     var writeFlatKeywords = false
 
@@ -161,6 +164,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
+            gpsContext: gpsContext,
             writeFlatKeywords: writeFlatKeywords,
             noWriteFlatKeywords: noWriteFlatKeywords,
             writeHierarchicalKeywords: writeHierarchicalKeywords,
@@ -212,7 +216,8 @@ struct WriteXMPCommand: AsyncParsableCommand {
             debugDerivatives: debugDerivatives ? true : nil,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart ? true : nil,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess ? true : nil,
-            modelResponseRepairAttempts: modelResponseRepairAttempts
+            modelResponseRepairAttempts: modelResponseRepairAttempts,
+            gpsContext: gpsContext
         )
     }
 

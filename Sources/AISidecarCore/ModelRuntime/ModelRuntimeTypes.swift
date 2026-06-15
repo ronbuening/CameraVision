@@ -275,6 +275,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
     public var promptSHA256: String
     public var responseSchemaVersion: String
     public var requestOptions: ModelRunOptions
+    public var modelInputContext: ModelInputContext?
     public var inputDerivativeSHA256: String
     public var rawResponseText: String
     public var parsedResponseJSON: JSONValue?
@@ -294,6 +295,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         case promptSHA256 = "prompt_sha256"
         case responseSchemaVersion = "response_schema_version"
         case requestOptions = "request_options"
+        case modelInputContext = "model_input_context"
         case inputDerivativeSHA256 = "input_derivative_sha256"
         case rawResponseText = "raw_response_text"
         case parsedResponseJSON = "parsed_response_json"
@@ -314,6 +316,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         promptSHA256: String,
         responseSchemaVersion: String,
         requestOptions: ModelRunOptions,
+        modelInputContext: ModelInputContext? = nil,
         inputDerivativeSHA256: String,
         rawResponseText: String,
         parsedResponseJSON: JSONValue?,
@@ -332,6 +335,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         self.promptSHA256 = promptSHA256
         self.responseSchemaVersion = responseSchemaVersion
         self.requestOptions = requestOptions
+        self.modelInputContext = modelInputContext
         self.inputDerivativeSHA256 = inputDerivativeSHA256
         self.rawResponseText = rawResponseText
         self.parsedResponseJSON = parsedResponseJSON
@@ -353,6 +357,7 @@ public struct ModelRunRecord: Codable, Sendable, Equatable {
         try container.encode(promptSHA256, forKey: .promptSHA256)
         try container.encode(responseSchemaVersion, forKey: .responseSchemaVersion)
         try container.encode(requestOptions, forKey: .requestOptions)
+        try container.encodeIfPresent(modelInputContext, forKey: .modelInputContext)
         try container.encode(inputDerivativeSHA256, forKey: .inputDerivativeSHA256)
         try container.encode(rawResponseText, forKey: .rawResponseText)
         if let parsedResponseJSON {

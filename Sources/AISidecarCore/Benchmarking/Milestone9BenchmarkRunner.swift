@@ -260,7 +260,7 @@ public struct Milestone9BenchmarkRunner {
         try fileManager.createDirectory(at: sidecars, withIntermediateDirectories: true)
         let sidecar = """
         {
-          "schema_version": "ai-sidecar-json/1.2",
+          "schema_version": "ai-sidecar-json/1.3",
           "errors": [],
           "timing": {
             "pipeline_elapsed_ms": 10,

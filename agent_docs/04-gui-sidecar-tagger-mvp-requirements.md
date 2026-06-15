@@ -29,7 +29,7 @@ For continuity, all substantive v0.2 changes remain active: out-of-band sidecar 
 
 ## 0.1 Current Dependency Status
 
-Phase 4 is not the next implementation target. The repository is ready through Phase 2 Milestone 9; Phase 2 Milestone 10 compatibility smoke evidence and Phase 1 Milestone 9 release evidence still gate Phase 3. Phase 4 work should wait until Phase 3 provides vocabulary files, normalization sessions, normalized export plans, and `normalize` / `apply-session` command behavior in `AISidecarCore`.
+Phase 4 is not the next implementation target. The repository is ready through Phase 2 Milestone 9 plus the pre-Phase-3 GPS context milestone; Phase 2 Milestone 10 compatibility smoke evidence and Phase 1 Milestone 9 release evidence still gate Phase 3. Phase 4 work should wait until Phase 3 provides vocabulary files, normalization sessions, normalized export plans, and `normalize` / `apply-session` command behavior in `AISidecarCore`.
 
 ## 1. Purpose
 
@@ -42,6 +42,7 @@ The GUI shall not replace Lightroom, Capture One, Photo Mechanic, or a DAM. It p
 Phase 4 shall reuse, from `AISidecarCore`:
 
 - the Phase 1 scanner, identity, renderer, subject-isolation chain, model runner, raw JSON schema, error taxonomy, progress logs, batch summaries, and provenance structure;
+- the Phase 1 GPS context policy as model-input context only, never as writable GPS metadata;
 - the Phase 2 raw-sidecar reader, source verification, candidate extraction, same-base-name group planning, XMP target naming, export reports, and dry-run change plans;
 - the Phase 2 `MetadataWriteEngine` protocol and required `OwnedXMPSidecarEngine` implementation;
 - the Phase 2 owned XMP modules: `XMPDocumentParser`, `XMPDocumentWriter`, `XMPKeywordReader`, `XMPKeywordMerger`, `XMPMetadataSnapshot`, and `XMPUnmanagedContentFingerprint`;

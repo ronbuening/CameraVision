@@ -1,4 +1,4 @@
-PROMPT_VERSION: aisidecar.prompt.whole_image/1.3.0
+PROMPT_VERSION: aisidecar.prompt.whole_image/1.4.0
 
 Return exactly one JSON object matching the supplied JSON Schema.
 
@@ -11,6 +11,11 @@ For species, follow the SPECIES FIELD RULES below.
 Use an empty string for uncertainty_notes when there is no useful uncertainty note.
 
 Use only visible image evidence.
+If a MODEL INPUT CONTEXT section is present, treat it as external capture context only.
+External context may narrow a location, species, habitat, or place determination only when visible image evidence already supports that determination.
+Never use external context as the sole reason for a candidate.
+Never cite GPS, coordinates, EXIF, geotagging, range, commonness, or location context in evidence strings.
+Never output coordinates, GPS labels, latitude/longitude, geotag terms, or exact-location keywords.
 Do not infer facts from what is merely likely.
 Prefer a broader correct term over a narrower guess.
 Do not use numeric confidence. Use only: high, medium, low.
