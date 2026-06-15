@@ -28,12 +28,12 @@ That state is good enough for Phase 2 implementation. It is not good enough for 
 Latest verification recorded after Milestones 5-9 review:
 
 ```text
-swift test --filter CandidateExtractorTests       8 tests, 0 failures
+swift test --filter CandidateExtractorTests       9 tests, 0 failures
 swift test --filter XMPBackupManagerTests         2 tests, 0 failures
 swift test --filter XMPMergeValidatorTests        2 tests, 0 failures
 swift test --filter XMPExportPipelineTests        6 tests, 0 failures
 swift test --filter AnalyzeAndXMPPipelineTests    4 tests, 0 failures
-swift test                                      214 tests, 1 skipped, 0 failures
+swift test                                      215 tests, 1 skipped, 0 failures
 swift run aisidecar write-xmp --help            passed
 ```
 
@@ -224,7 +224,7 @@ Tasks:
 2. Preserve role, source field, source image, source sidecar, model-run index, confidence, and evidence where present (FR2-013b/014).
 3. Implement confidence-band filtering using `low < medium < high`, default `medium` (FR2-018).
 4. Implement `KeywordTextNormalizer`: NFC, trim, whitespace collapse, empty-term handling, `|` rejection, case-insensitive de-duplication with first casing preserved (FR2-006a-d).
-5. Implement `SpecificTagPolicy`: exclude species field terms, binomials, proper-place/person/event patterns, and exact-ID evidence by default; allow them under `--allow-specific-tags` (FR2-019/019a).
+5. Implement `SpecificTagPolicy`: include common-name `species` field terms by default, exclude binomials, proper-place/person/event patterns, and non-species exact-ID evidence by default, and allow withheld terms under `--allow-specific-tags` (FR2-019/019a).
 6. Record every skipped term with a reason code (FR2-019c).
 
 Exit criteria: recorded sidecar fixtures produce deterministic extraction records and exportable term sets. Tests must include malformed candidate arrays, missing evidence for scene/habitat fields, duplicate terms across roles, a pipe-containing term, an empty/whitespace term, a species candidate, a binomial, and a generic subject term that must not be over-filtered.
@@ -437,7 +437,7 @@ CandidateExtractorTests     all Phase 1 v1.3 candidate fields; role provenance;
                             confidence thresholds; malformed/missing fields
 KeywordTextNormalizerTests  NFC; trim; whitespace collapse; pipe rejection;
                             empty terms; case-insensitive de-duplication
-SpecificTagPolicyTests      species field exclusion; binomials; named places;
+SpecificTagPolicyTests      default species field inclusion; binomials; named places;
                             generic taxonomy allowed; --allow-specific-tags
 XMPNamingTests              <base>.xmp; --output-dir mirroring;
                             case-insensitive collisions
@@ -509,8 +509,8 @@ swift run aisidecar benchmark --self-test
 Risk: the owned XMP writer corrupts or drops existing metadata.
 Mitigation: keep the engine narrow, edit only `dc:subject` and `lr:hierarchicalSubject`, update temporary copies, snapshot pre/post XMP fields, compare unmanaged-content fingerprints, fail closed on unsupported RDF shapes, validate preservation, and restore backups on failure.
 
-Risk: Phase 2 writes species or exact-place tags too aggressively.
-Mitigation: default `--allow-specific-tags` is false; the heuristic errs toward exclusion; reports show skipped terms and reasons; Phase 3 replaces the heuristic with vocabulary policy.
+Risk: Phase 2 writes scientific names, exact-place tags, or other sensitive specific tags too aggressively.
+Mitigation: common-name `species` field terms are included by default, while `--allow-specific-tags` remains false for scientific binomials, named places, named people, named events, and non-species exact-ID terms; reports show skipped terms and reasons; Phase 3 replaces the heuristic with vocabulary policy.
 
 Risk: `--from-json` writes tags for an image that changed after analysis.
 Mitigation: source identity verification defaults to `fail`; `warn` and `skip` require explicit user choice and are recorded in reports.
@@ -542,7 +542,7 @@ Phase 2 implementation is done when:
 3. Source resolution and identity verification work for beside-source sidecars and mirrored `--output-dir` raw-sidecar trees.
 4. Candidate extraction handles all Phase 1 v1.3 candidate fields, confidence bands, evidence, roles, and source provenance.
 5. Flat keywords write to `XMP-dc:Subject`; hierarchical export writes one-level entries to `XMP-lr:HierarchicalSubject` when enabled.
-6. Specific tags are excluded by default and exported only when `--allow-specific-tags` is supplied.
+6. Common-name `species` field terms are included by default; scientific binomials, named places, named people, named events, and non-species exact-ID terms are exported only when `--allow-specific-tags` is supplied.
 7. RAW+JPEG same-base-name groups produce exactly one XMP write plan and one write per target sidecar.
 8. Existing XMP sidecars are merged safely; existing keywords, unknown namespaces, and develop/edit namespaces are preserved and validated.
 9. Backups are deterministic, referenced in reports, and restored on validation failure.

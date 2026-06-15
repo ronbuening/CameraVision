@@ -3,7 +3,7 @@ import XCTest
 @testable import AISidecarCore
 
 final class CandidateExtractorTests: XCTestCase {
-    func testGoldenSidecarFixtureExtractsDeterministicKeywordsAndSkipsSpecies() throws {
+    func testGoldenSidecarFixtureExtractsDeterministicKeywordsAndIncludesSpecies() throws {
         let result = CandidateExtractor().extract(
             from: try resolvedInput(document: goldenSidecarDocument()),
             configuration: configuration()
@@ -13,23 +13,20 @@ final class CandidateExtractorTests: XCTestCase {
             result.flatKeywords.map(\.term),
             [
                 "bird_photography",
+                "great blue heron",
                 "shallow water",
                 "outdoor wildlife scene",
                 "wetland",
                 "standing",
                 "wading bird",
+                "heron",
                 "gray-blue plumage",
                 "long bill"
             ]
         )
         XCTAssertEqual(result.hierarchicalKeywords.map(\.term), result.flatKeywords.map(\.term))
         XCTAssertTrue(result.issues.isEmpty)
-        XCTAssertEqual(
-            result.skippedCandidates
-                .filter { $0.reason == .specificTagPolicy }
-                .compactMap(\.term),
-            ["great blue heron", "great blue heron", "heron", "heron"]
-        )
+        XCTAssertTrue(result.skippedCandidates.filter { $0.reason == .specificTagPolicy }.isEmpty)
 
         let birdPhotography = try XCTUnwrap(result.flatKeywords.first { $0.term == "bird_photography" })
         XCTAssertEqual(birdPhotography.candidates.map(\.provenance.inputRole), [.wholeImage, .subjectIsolated])
@@ -44,7 +41,7 @@ final class CandidateExtractorTests: XCTestCase {
             result.skippedCandidates
                 .filter { $0.reason == .duplicate }
                 .compactMap(\.term),
-            ["bird_photography", "standing"]
+            ["great blue heron", "bird_photography", "heron", "standing"]
         )
     }
 
@@ -171,12 +168,10 @@ final class CandidateExtractorTests: XCTestCase {
         ]))
 
         let defaultResult = CandidateExtractor().extract(from: input, configuration: configuration())
-        XCTAssertEqual(defaultResult.flatKeywords.map(\.term), ["bird", "shorebird", "lake"])
+        XCTAssertEqual(defaultResult.flatKeywords.map(\.term), ["great blue heron", "bird", "shorebird", "lake"])
         XCTAssertEqual(
             defaultResult.skippedCandidates.filter { $0.reason == .specificTagPolicy }.compactMap(\.term),
             [
-                "great blue heron",
-                "great blue heron",
                 "Ardea herodias",
                 "Yosemite National Park",
                 "Jane Doe",
@@ -203,6 +198,23 @@ final class CandidateExtractorTests: XCTestCase {
         )
         XCTAssertTrue(allowedResult.skippedCandidates.contains { $0.reason == .duplicate && $0.term == "great blue heron" })
         XCTAssertTrue(allowedResult.skippedCandidates.contains { $0.reason == .belowConfidenceThreshold && $0.term == "low specific" })
+    }
+
+    func testSpeciesFieldCommonNamesAreIncludedByDefault() throws {
+        let input = try resolvedInput(response: response([
+            .species: .array([candidate("Great Blue Heron", confidence: "high", evidence: "identified as visible bird")]),
+            .mainSubjects: .array([candidate("Great Blue Heron", confidence: "high")])
+        ]))
+
+        let result = CandidateExtractor().extract(from: input, configuration: configuration())
+
+        XCTAssertEqual(result.flatKeywords.map(\.term), ["Great Blue Heron"])
+        XCTAssertEqual(result.flatKeywords.first?.candidates.map(\.provenance.sourceField), [.species, .mainSubjects])
+        XCTAssertTrue(result.skippedCandidates.filter { $0.reason == .specificTagPolicy }.isEmpty)
+        XCTAssertEqual(
+            result.skippedCandidates.filter { $0.reason == .duplicate }.compactMap(\.term),
+            ["Great Blue Heron"]
+        )
     }
 
     func testDisabledFlatAndHierarchicalExportsRecordSkippedReasons() throws {

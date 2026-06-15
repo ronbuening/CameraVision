@@ -92,7 +92,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
     @Option(help: "Minimum candidate confidence to export: low, medium, or high.")
     var minConfidence: XMPMinimumConfidence?
 
-    @Flag(help: "Allow specific tags such as species, named places, named events, or named people.")
+    @Flag(help: "Allow specific tags such as scientific names, named places, named events, or named people.")
     var allowSpecificTags = false
 
     @Option(help: "Same-base-name pair scope: union, raw-only, or jpeg-only.")

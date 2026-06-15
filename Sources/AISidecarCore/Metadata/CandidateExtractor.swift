@@ -274,21 +274,24 @@ public enum KeywordTextNormalizer {
     }
 }
 
-/// Conservative Phase 2 heuristic for excluding specific tags before XMP export.
+/// Conservative Phase 2 heuristic for excluding non-species specific tags before XMP export.
 public struct SpecificTagPolicy {
     public init() {}
 
     /// Return true when a candidate should be skipped by FR2-019 specific-tag policy.
-    public func shouldExclude(_ candidate: ExtractedCandidate, speciesKeysForRun: Set<String>) -> Bool {
-        if candidate.provenance.sourceField == .species {
-            return true
-        }
-        if speciesKeysForRun.contains(KeywordTextNormalizer.deduplicationKey(for: candidate.normalizedTerm)) {
-            return true
-        }
+    public func shouldExclude(_ candidate: ExtractedCandidate) -> Bool {
         if looksLikeLatinBinomial(candidate.normalizedTerm) {
             return true
         }
+
+        // Species common names are now first-class default tags. Keep the
+        // proper-name and exact-ID heuristics focused on non-species fields so
+        // common names such as "Great Blue Heron" are not mistaken for people,
+        // places, or events.
+        guard candidate.provenance.sourceField != .species else {
+            return false
+        }
+
         if looksLikeCapitalizedProperName(candidate.normalizedTerm) {
             return true
         }
@@ -299,6 +302,11 @@ public struct SpecificTagPolicy {
             return true
         }
         return false
+    }
+
+    /// Compatibility overload for callers compiled against the earlier Phase 2 policy signature.
+    public func shouldExclude(_ candidate: ExtractedCandidate, speciesKeysForRun _: Set<String>) -> Bool {
+        shouldExclude(candidate)
     }
 
     private func looksLikeLatinBinomial(_ term: String) -> Bool {
@@ -408,7 +416,6 @@ public struct CandidateExtractor {
     ) -> CandidateExtractionResult {
         let sourceSidecar = input.sidecarPath.standardizedFileURL.path
         let sourceImage = input.sourcePath?.standardizedFileURL.path ?? input.document.sidecar.source.path
-        let speciesKeysByRun = speciesKeysByRun(for: input)
         var extractedCandidates: [ExtractedCandidate] = []
         var skippedCandidates: [SkippedCandidate] = []
         var issues: [CandidateExtractionIssue] = []
@@ -551,30 +558,29 @@ public struct CandidateExtractor {
                         continue
                     }
 
-                    let runKey = ModelRunExtractionKey(sourceSidecar: sourceSidecar, modelRunIndex: modelRunIndex)
-                    if !configuration.allowSpecificTags,
-                       specificTagPolicy.shouldExclude(
-                        candidate,
-                        speciesKeysForRun: speciesKeysByRun[runKey] ?? []
-                       ) {
-                        skippedCandidates.append(SkippedCandidate(reason: .specificTagPolicy, candidate: candidate))
-                        continue
-                    }
-
+                    // Accepted terms retain later provenance before role-specific heuristics
+                    // can reject a duplicate from a different source field.
                     let key = KeywordTextNormalizer.deduplicationKey(for: candidate.normalizedTerm)
                     if let acceptedIndex = acceptedIndexByKey[key] {
                         acceptedKeywords[acceptedIndex].candidates.append(candidate)
                         skippedCandidates.append(SkippedCandidate(reason: .duplicate, candidate: candidate))
-                    } else {
-                        acceptedIndexByKey[key] = acceptedKeywords.count
-                        acceptedKeywords.append(
-                            ExportableKeyword(
-                                term: candidate.normalizedTerm,
-                                normalizedKey: key,
-                                candidates: [candidate]
-                            )
-                        )
+                        continue
                     }
+
+                    if !configuration.allowSpecificTags,
+                       specificTagPolicy.shouldExclude(candidate) {
+                        skippedCandidates.append(SkippedCandidate(reason: .specificTagPolicy, candidate: candidate))
+                        continue
+                    }
+
+                    acceptedIndexByKey[key] = acceptedKeywords.count
+                    acceptedKeywords.append(
+                        ExportableKeyword(
+                            term: candidate.normalizedTerm,
+                            normalizedKey: key,
+                            candidates: [candidate]
+                        )
+                    )
                 }
             }
         }
@@ -613,34 +619,6 @@ public struct CandidateExtractor {
         )
     }
 
-    private func speciesKeysByRun(
-        for input: ResolvedRawSidecarInput
-    ) -> [ModelRunExtractionKey: Set<String>] {
-        let sourceSidecar = input.sidecarPath.standardizedFileURL.path
-        var result: [ModelRunExtractionKey: Set<String>] = [:]
-        for (modelRunIndex, modelRun) in input.document.sidecar.modelRuns.enumerated() {
-            guard
-                let responseObject = modelRun.parsedResponseJSON?.objectValue,
-                let speciesValues = responseObject[CandidateSourceField.species.rawValue]?.arrayValue
-            else {
-                continue
-            }
-
-            let keys = speciesValues.compactMap { value -> String? in
-                guard let term = value.objectValue?["term"]?.stringValue else {
-                    return nil
-                }
-                let normalized = KeywordTextNormalizer.normalize(term)
-                guard !normalized.isEmpty else {
-                    return nil
-                }
-                return KeywordTextNormalizer.deduplicationKey(for: normalized)
-            }
-            result[ModelRunExtractionKey(sourceSidecar: sourceSidecar, modelRunIndex: modelRunIndex)] = Set(keys)
-        }
-        return result
-    }
-
     private func disabledSkips(
         for keywords: [ExportableKeyword],
         reason: SkippedCandidateReason
@@ -674,9 +652,4 @@ public struct CandidateExtractor {
             message: message
         )
     }
-}
-
-private struct ModelRunExtractionKey: Hashable {
-    var sourceSidecar: String
-    var modelRunIndex: Int
 }

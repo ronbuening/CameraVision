@@ -314,9 +314,9 @@ FR2-017 - Phase 2 shall not perform cross-image normalization. De-duplication is
 
 FR2-018 - Candidates below `--min-confidence` shall not be exported. The band ordering is `low < medium < high`; the default threshold is `medium`. Numeric confidence shall not be introduced.
 
-FR2-019 - Specific tags — species names, binomials, named places, named events, named people, rare species, and exact-location implications — shall be excluded unless `--allow-specific-tags` is supplied.
+FR2-019 - Specific tags — scientific binomials, named places, named events, named people, and exact-location implications — shall be excluded unless `--allow-specific-tags` is supplied. Common-name terms from the Phase 1 `species` field shall be included by default when they pass normal confidence, text, and duplicate filtering. Rare-species review policy is deferred to Phase 3 vocabulary metadata.
 
-FR2-019a - Specific-tag detection in Phase 2 is heuristic and shall err toward exclusion. It shall include at least: binomial patterns, capitalized multi-word terms, candidates from the `species` field, terms with evidence indicating an exact identification, and terms matching obvious proper-place/person/event patterns. Phase 3's vocabulary `requires_review` field replaces this heuristic.
+FR2-019a - Specific-tag detection in Phase 2 is heuristic and shall err toward exclusion for non-species candidates. It shall include at least: binomial patterns, capitalized multi-word terms outside the `species` field, terms with evidence indicating an exact identification outside the `species` field, and terms matching obvious proper-place/person/event patterns. Phase 3's vocabulary `requires_review` field replaces this heuristic.
 
 FR2-019b - Broad taxonomy and generic subject terms such as `bird`, `shorebird`, `raptor`, `flower`, `tree`, `mammal`, `architecture`, `portrait`, and `landscape` are not specific merely because they describe a subject.
 
@@ -476,7 +476,7 @@ AC2-010 - Exported sidecars can be read back by the owned XMP parser, validation
 
 AC2-011 - A term containing `|` is rejected with a warning rather than exported or mangled.
 
-AC2-012 - With defaults, no species-level or named-place tag is exported; with `--allow-specific-tags`, eligible specific terms are exported.
+AC2-012 - With defaults, common-name `species` field tags are exported and named-place, named-person, named-event, exact-ID, and scientific-binomial tags are withheld; with `--allow-specific-tags`, eligible withheld specific terms are exported.
 
 AC2-013 - A simulated validation failure restores the backup and the batch continues.
 
