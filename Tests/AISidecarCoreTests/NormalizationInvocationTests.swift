@@ -29,6 +29,7 @@ final class NormalizationInvocationTests: XCTestCase {
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", debugDerivatives: true),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", clearDerivativeCacheOnStart: true),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", clearDerivativeCacheAfterSuccess: true),
+            NormalizationInvocationRequest(fromJSONPath: "A.ai.json", stageConcurrency: 1),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", modelResponseRepairAttempts: 1),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", gpsContext: .coarse),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", writeAIJSON: true),

@@ -36,6 +36,7 @@ final class XMPExportInvocationTests: XCTestCase {
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", debugDerivatives: true),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", clearDerivativeCacheOnStart: true),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", clearDerivativeCacheAfterSuccess: true),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", stageConcurrency: 1),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelResponseRepairAttempts: 1),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", gpsContext: .coarse),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeAIJSON: true),

@@ -62,6 +62,9 @@ struct WriteXMPCommand: AsyncParsableCommand {
     @Flag(help: "Clear the derivative cache after successful analyze-and-write.")
     var clearDerivativeCacheAfterSuccess = false
 
+    @Option(help: "Maximum concurrent render/isolation preparation workers for analyze-and-write.")
+    var stageConcurrency: Int?
+
     @Option(help: "Schema-constrained repair attempts after invalid model JSON or schema failure.")
     var modelResponseRepairAttempts: Int?
 
@@ -163,6 +166,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             debugDerivatives: debugDerivatives,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess,
+            stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext,
             writeFlatKeywords: writeFlatKeywords,
@@ -216,6 +220,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             debugDerivatives: debugDerivatives ? true : nil,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart ? true : nil,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess ? true : nil,
+            stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext
         )

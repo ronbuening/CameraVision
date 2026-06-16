@@ -65,6 +65,9 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Flag(help: "Clear the derivative cache after successful analyze-and-normalize.")
     var clearDerivativeCacheAfterSuccess = false
 
+    @Option(help: "Maximum concurrent render/isolation preparation workers for analyze-and-normalize.")
+    var stageConcurrency: Int?
+
     @Option(help: "Schema-constrained repair attempts after invalid model JSON or schema failure.")
     var modelResponseRepairAttempts: Int?
 
@@ -231,6 +234,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             debugDerivatives: debugDerivatives,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess,
+            stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext,
             writeFlatKeywords: writeFlatKeywords,
@@ -299,6 +303,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             debugDerivatives: debugDerivatives ? true : nil,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart ? true : nil,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess ? true : nil,
+            stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext
         )

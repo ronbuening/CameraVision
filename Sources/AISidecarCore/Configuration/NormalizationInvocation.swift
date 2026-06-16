@@ -22,6 +22,7 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
     public var debugDerivatives: Bool
     public var clearDerivativeCacheOnStart: Bool
     public var clearDerivativeCacheAfterSuccess: Bool
+    public var stageConcurrency: Int?
     public var modelResponseRepairAttempts: Int?
     public var gpsContext: GPSContextMode?
     public var writeFlatKeywords: Bool
@@ -47,6 +48,7 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
         debugDerivatives: Bool = false,
         clearDerivativeCacheOnStart: Bool = false,
         clearDerivativeCacheAfterSuccess: Bool = false,
+        stageConcurrency: Int? = nil,
         modelResponseRepairAttempts: Int? = nil,
         gpsContext: GPSContextMode? = nil,
         writeFlatKeywords: Bool = false,
@@ -71,6 +73,7 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
         self.debugDerivatives = debugDerivatives
         self.clearDerivativeCacheOnStart = clearDerivativeCacheOnStart
         self.clearDerivativeCacheAfterSuccess = clearDerivativeCacheAfterSuccess
+        self.stageConcurrency = stageConcurrency
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
         self.gpsContext = gpsContext
         self.writeFlatKeywords = writeFlatKeywords
@@ -165,6 +168,9 @@ public enum NormalizationInvocationValidator {
         }
         if request.clearDerivativeCacheAfterSuccess {
             throw SidecarError.configInvalid("--clear-derivative-cache-after-success is invalid with --from-json.")
+        }
+        if request.stageConcurrency != nil {
+            throw SidecarError.configInvalid("--stage-concurrency is invalid with --from-json.")
         }
         if request.modelResponseRepairAttempts != nil {
             throw SidecarError.configInvalid("--model-response-repair-attempts is invalid with --from-json.")
