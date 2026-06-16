@@ -82,7 +82,7 @@ final class NoXMPRegressionTests: XCTestCase {
         try assertNoXMPFiles(in: [root, export, cache])
     }
 
-    func testNormalizeScaffoldValidationRemainsXMPSilent() throws {
+    func testNormalizeValidationAndPlanningHelpersRemainXMPSilent() throws {
         let root = try temporaryDirectory()
         addTeardownBlock {
             try? FileManager.default.removeItem(at: root)

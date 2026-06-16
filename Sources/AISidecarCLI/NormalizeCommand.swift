@@ -183,7 +183,31 @@ struct NormalizeCommand: AsyncParsableCommand {
             }
             return
         }
-        FileHandle.standardOutput.write(Data("normalize scaffold validated; execution will be added in later Phase 3 milestones.\n".utf8))
+
+        switch mode {
+        case .analyze(let inputPath):
+            let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
+            let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
+            let interruptionMonitor = InterruptionMonitor()
+            interruptionMonitor.installSignalHandlers()
+            let result = try await AnalyzeAndNormalizePipeline(logger: logger).run(
+                inputPath: inputPath,
+                runConfiguration: runConfiguration,
+                normalizationConfiguration: resolved,
+                interruptionMonitor: interruptionMonitor
+            )
+            writeEssentialSummary(result.normalizeResult.report)
+        case .fromJSON, .fileList:
+            let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
+            let interruptionMonitor = InterruptionMonitor()
+            interruptionMonitor.installSignalHandlers()
+            let result = try NormalizeAndWritePipeline(logger: logger).run(
+                mode: mode,
+                configuration: resolved,
+                interruptionMonitor: interruptionMonitor
+            )
+            writeEssentialSummary(result.normalizeResult.report)
+        }
     }
 
     private var invocationRequest: NormalizationInvocationRequest {
@@ -253,6 +277,27 @@ struct NormalizeCommand: AsyncParsableCommand {
         )
     }
 
+    private var runOverrides: RunConfigurationOverrides {
+        RunConfigurationOverrides(
+            mode: mode,
+            existing: existing,
+            recursive: recursive ? true : nil,
+            outputDir: outputDir,
+            model: model,
+            modelEndpoint: modelEndpoint,
+            profile: profile,
+            configPath: config,
+            logLevel: logLevel,
+            logFormat: logFormat,
+            dryRun: dryRun ? true : nil,
+            debugDerivatives: debugDerivatives ? true : nil,
+            clearDerivativeCacheOnStart: clearDerivativeCacheOnStart ? true : nil,
+            clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess ? true : nil,
+            modelResponseRepairAttempts: modelResponseRepairAttempts,
+            gpsContext: gpsContext
+        )
+    }
+
     private func pairedFlag(positive: Bool, negative: Bool) -> Bool? {
         if positive {
             return true
@@ -269,5 +314,13 @@ struct NormalizeCommand: AsyncParsableCommand {
         let data = try encoder.encode(changePlan)
         FileHandle.standardOutput.write(data)
         FileHandle.standardOutput.write(Data("\n".utf8))
+    }
+
+    private func writeEssentialSummary(_ report: NormalizationReport) {
+        let exportReport = report.xmpExportReport
+        let written = exportReport?.writtenCount ?? 0
+        let failed = exportReport?.failedCount ?? report.errors.count
+        let line = "normalize complete: \(written) written, \(failed) failed."
+        FileHandle.standardOutput.write(Data((line + "\n").utf8))
     }
 }

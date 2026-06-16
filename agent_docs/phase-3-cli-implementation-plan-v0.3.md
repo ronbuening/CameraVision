@@ -43,7 +43,7 @@ Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemente
 
 The Phase 2 writer path is the implementation baseline for Phase 3. Phase 3 must not add another XMP writer, another metadata executable dependency, or another sidecar merge stack. Its normalized output must become a write plan consumed by the same `MetadataWriteEngine` and `OwnedXMPSidecarEngine` used by `aisidecar write-xmp`.
 
-Phase 3 Milestones 0-7 are implemented. The current implementation includes CLI scaffolding for `aisidecar normalize`, executable `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report/summary/progress artifacts, candidate observations, direct vocabulary canonicalization, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, `normalize --dry-run` change-plan output, detailed normalization reports, Markdown summaries, JSONL progress logs, apply-session schema validation, current source identity/staleness checks, target recomputation, dry-run previews, and current-XMP merge/write execution through the Phase 2 owned writer. Remaining milestones add analyze-and-normalize, interruption behavior, and release-gate evidence.
+Phase 3 Milestones 0-8 are implemented. The current implementation includes executable `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report/summary/progress artifacts, candidate observations, direct vocabulary canonicalization, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, `normalize --dry-run` change-plan output, detailed normalization reports, Markdown summaries, JSONL progress logs, normal normalized writes from existing inputs, analyze-and-normalize execution with default raw `.ai.json` preservation and `--no-write-ai-json`, partial-analysis failure reporting, model-prepare fail-fast behavior, apply-session schema validation, current source identity/staleness checks, target recomputation, dry-run previews, and current-XMP merge/write execution through the Phase 2 owned writer. Remaining milestones add interruption behavior and release-gate evidence.
 
 The Phase 1 release signoff is still separate. Phase 3 implementation may begin from the Phase 2 baseline, but Phase 3 release should either archive Phase 1 Milestone 9 calibration/quality evidence or explicitly defer it with the missing checks, reason, and residual risk.
 
@@ -196,7 +196,9 @@ CameraVision/
         NormalizedXMPChangePlanner.swift          // M5 adapter to Phase 2 export plans
         SessionStalenessChecker.swift             // M7 apply-session identity checks
       Pipeline/
-        NormalizePipeline.swift                   // M2-M6 from-json/file/folder/session paths
+        NormalizePipeline.swift                   // M2-M8 from-json/file/folder/session/write-plan paths
+        NormalizeAndWritePipeline.swift           // M8 existing inputs -> normalized XMP writes
+        NormalizationXMPExecutionRecorder.swift   // M8 execution results into reports/progress
         ApplySessionPipeline.swift                // M7 session -> current XMP writes
         AnalyzeAndNormalizePipeline.swift         // M8 AnalyzePipeline -> NormalizePipeline
       Reporting/
@@ -211,7 +213,7 @@ CameraVision/
         Vocabularies/
           default-vocabulary.json                 // M1 conservative starter vocabulary
     AISidecarCLI/
-      NormalizeCommand.swift                      // M0 argument handling only
+      NormalizeCommand.swift                      // M0-M8 argument handling and command wiring
       ApplySessionCommand.swift                   // M0/M7 argument handling only
       AISidecarCommand.swift                      // M0 registers subcommands
   Tests/
@@ -241,6 +243,7 @@ CameraVision/
       NormalizationReportTests.swift              // M6 report/summary/progress artifacts
       ApplySessionPipelineTests.swift             // M7 stale/moved/current-XMP merge tests
       AnalyzeAndNormalizePipelineTests.swift      // M8 mocked analyze integration
+      NormalizeAndWritePipelineTests.swift        // M8 normal from-json normalized write
       NoXMPRegressionTests.swift                  // M0/M9 inherited command guard extension
       Fixtures/
         normalization/
@@ -296,7 +299,7 @@ No vocabulary decisions, session writing, model runs, XMP planning, or XMP writi
 
 ## 5. Milestone 1 - Vocabulary Schema, Loader, Integrity Checks, and Starter Vocabulary
 
-Status: planned.
+Status: implemented.
 
 Tasks:
 
@@ -530,7 +533,7 @@ Exit criteria: session fixture tests prove model-free execution, stale identity 
 
 ## 12. Milestone 8 - Analyze-and-Normalize Integration
 
-Status: planned.
+Status: implemented.
 
 Tasks:
 
@@ -542,6 +545,31 @@ Tasks:
 6. Ensure GPS context remains prompt/model-input context only. Coordinates, GPS-only evidence, and location commonness remain non-exportable unless supplied by user vocabulary/session evidence; affinity use of GPS remains internal and non-exportable (FR3-AFF-019).
 
 Exit criteria: mocked analyze-and-normalize tests cover successful folder run, partial analysis failure, `--no-write-ai-json`, model-prepare failure, GPS-context provenance not exported as coordinates/location tags, and reuse of the same normalization path as from-json.
+
+Implemented in Milestone 8:
+
+- Added `AnalyzeAndNormalizePipeline` as the Phase 1 to Phase 3 adapter. It runs `AnalyzePipeline`, resolves successful raw sidecars into `NormalizationResolvedInputBatch`, removes newly created raw sidecars only for `--no-write-ai-json`, runs the shared `NormalizePipeline`, executes normalized XMP plans through `XMPExportPipeline`, and defers derivative-cache success cleanup until both analysis and XMP export succeed.
+- Added `NormalizePipeline.runResolvedInputs` and `NormalizationInputResolver.resolve(rawSidecarBatch:)` so analyze-and-normalize can reuse the same normalization path as `--from-json` without rereading sidecars after `--no-write-ai-json` cleanup.
+- Added `NormalizePipeline.runWritePlan`, `NormalizeAndWritePipeline`, and `NormalizationXMPExecutionRecorder` so normal `normalize --from-json` / `--file-list` writes and analyze-and-normalize both update the normalization report, summary, and progress log with Phase 2 XMP execution results.
+- Wired `aisidecar normalize <image-or-folder>` to real analyze-and-normalize execution and `aisidecar normalize --from-json` / `--file-list` normal invocations to normalized XMP writes while preserving the existing session-only and dry-run no-XMP behavior.
+- Added `AnalyzeAndNormalizePipelineTests` for successful folder execution, partial analysis failure, `--no-write-ai-json`, model-prepare fail-fast behavior, and GPS/coordinate non-export behavior, plus `NormalizeAndWritePipelineTests` for normal from-json writes.
+
+M8 verification:
+
+```text
+swift test --filter AnalyzeAndNormalizePipelineTests   5 tests, 0 failures
+swift test --filter NormalizeAndWritePipelineTests     1 test, 0 failures
+swift test --filter NormalizationInvocationTests       9 tests, 0 failures
+swift test --filter NoXMPRegressionTests               5 tests, 0 failures
+swift test --filter NormalizationSessionTests          5 tests, 0 failures
+swift test --filter ApplySessionPipelineTests          6 tests, 0 failures
+swift test --filter XMPExportPipelineTests             6 tests, 0 failures
+swift test --filter AnalyzeAndXMPPipelineTests         4 tests, 0 failures
+swift test                                             287 tests, 1 skipped, 0 failures
+swift run aisidecar --help                             passed
+swift run aisidecar normalize --help                   passed
+swift run aisidecar apply-session --help               passed
+```
 
 ## 13. Milestone 9 - Interruption, Concurrency, and File-Safety Hardening
 
@@ -587,6 +615,7 @@ OutputArtifactPolicyTests      normalize default; dry-run; session-only; session
 NormalizationReportTests       JSON report; Markdown summary; progress JSONL; skip reasons; privacy redaction; affinity explanations; Lightroom/Capture One instructions; engine/writer identity
 ApplySessionPipelineTests      model-free execution; stale identity fail; --allow-stale override; current sidecar merge; target recomputation; malformed XMP fail-closed; no affinity recomputation
 AnalyzeAndNormalizePipelineTests mocked analyze path; --no-write-ai-json; partial failures; model prepare fail-fast; GPS context not exported
+NormalizeAndWritePipelineTests normal from-json normalized write; report/summary/progress execution update
 NoXMPRegressionTests           analyze, benchmark, purge, export-model-inputs, normalize --session-only, dry-run paths, and apply-session --dry-run remain XMP-silent where required
 ```
 
@@ -617,6 +646,7 @@ swift test --filter OutputArtifactPolicyTests
 swift test --filter NormalizedXMPChangePlanTests
 swift test --filter ApplySessionPipelineTests
 swift test --filter AnalyzeAndNormalizePipelineTests
+swift test --filter NormalizeAndWritePipelineTests
 swift test
 ```
 

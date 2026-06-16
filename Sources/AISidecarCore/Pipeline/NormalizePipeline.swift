@@ -68,6 +68,45 @@ public struct NormalizePipeline {
         )
     }
 
+    /// Resolve inputs, normalize decisions, and write executable XMP plans.
+    public func runWritePlan(
+        mode: NormalizationInvocationMode,
+        configuration: ResolvedNormalizationConfiguration,
+        timestamp: Date = Date(),
+        sessionID: String = UUID().uuidString
+    ) throws -> NormalizePipelineResult {
+        try run(
+            mode: mode,
+            configuration: configuration,
+            timestamp: timestamp,
+            sessionID: sessionID,
+            includeXMPPlans: true
+        )
+    }
+
+    /// Normalize raw sidecars already resolved by an upstream workflow.
+    public func runResolvedInputs(
+        _ input: NormalizationResolvedInputBatch,
+        configuration: ResolvedNormalizationConfiguration,
+        timestamp: Date = Date(),
+        sessionID: String = UUID().uuidString,
+        includeXMPPlans: Bool = true
+    ) throws -> NormalizePipelineResult {
+        let vocabulary = try loadVocabulary(configuration)
+        try CandidateCanonicalizer.preflightSessionContext(
+            configuration: configuration,
+            vocabulary: vocabulary
+        )
+        return try runResolvedInput(
+            input,
+            configuration: configuration,
+            timestamp: timestamp,
+            sessionID: sessionID,
+            includeXMPPlans: includeXMPPlans,
+            vocabulary: vocabulary
+        )
+    }
+
     private func run(
         mode: NormalizationInvocationMode,
         configuration: ResolvedNormalizationConfiguration,
@@ -81,6 +120,24 @@ public struct NormalizePipeline {
             vocabulary: vocabulary
         )
         let input = try inputResolver.resolve(mode: mode, configuration: configuration)
+        return try runResolvedInput(
+            input,
+            configuration: configuration,
+            timestamp: timestamp,
+            sessionID: sessionID,
+            includeXMPPlans: includeXMPPlans,
+            vocabulary: vocabulary
+        )
+    }
+
+    private func runResolvedInput(
+        _ input: NormalizationResolvedInputBatch,
+        configuration: ResolvedNormalizationConfiguration,
+        timestamp: Date,
+        sessionID: String,
+        includeXMPPlans: Bool,
+        vocabulary: LoadedVocabulary
+    ) throws -> NormalizePipelineResult {
         let extractionResults = CandidateExtractor().extract(
             from: input.rawSidecarInputs,
             configuration: xmpExportConfiguration(from: configuration)

@@ -80,6 +80,42 @@ public struct NormalizationInputResolver {
         }
     }
 
+    /// Build normalization inputs from raw sidecars already resolved by an upstream pipeline.
+    ///
+    /// Analyze-and-normalize uses this path to avoid rereading `.ai.json` files
+    /// after Phase 1 analysis, especially when the invocation later removes new
+    /// raw sidecars for `--no-write-ai-json`.
+    public func resolve(
+        rawSidecarBatch batch: RawJSONSidecarInputBatch,
+        workflow: NormalizationInputWorkflow,
+        inputPath: String,
+        inputBasePath: String,
+        scanRoot: String?,
+        configuration: ResolvedNormalizationConfiguration
+    ) -> NormalizationResolvedInputBatch {
+        let records = buildAssets(from: batch.inputs)
+        let grouped = buildGroups(for: records.assets, pairScope: configuration.pairScope)
+        let failures = batch.failures.map {
+            NormalizationInputFailure(
+                path: $0.sidecarPath.standardizedFileURL.path,
+                relativePath: $0.relativePath,
+                error: $0.error
+            )
+        }
+        return NormalizationResolvedInputBatch(
+            workflow: workflow,
+            inputPath: inputPath,
+            inputBasePath: inputBasePath,
+            scanRoot: scanRoot,
+            rawSidecarInputs: batch.inputs,
+            sourceAssets: grouped.assets,
+            sourceAISidecars: records.sidecars,
+            sameBaseNameGroups: grouped.groups,
+            warnings: records.warnings,
+            failures: failures
+        )
+    }
+
     private func resolveFromJSON(
         _ path: String,
         configuration: ResolvedNormalizationConfiguration
