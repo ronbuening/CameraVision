@@ -479,9 +479,100 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
     }
 }
 
-/// Placeholder normalized XMP plan record populated by the Phase 2 plan adapter milestone.
+/// Managed keyword bag targeted by a normalized XMP term.
+public enum NormalizedXMPKeywordBag: String, Codable, Sendable, Equatable {
+    case flat = "dc_subject"
+    case hierarchical = "lr_hierarchical_subject"
+}
+
+/// Phase 3 decision provenance retained for one planned XMP keyword.
+public struct NormalizedXMPKeywordProvenance: Codable, Sendable, Equatable {
+    public var term: String
+    public var normalizedKey: String
+    public var keywordBag: NormalizedXMPKeywordBag
+    public var decisionIDs: [String]
+    public var assetIDs: [String]
+    public var stages: [NormalizationDecisionStage]
+    public var candidateKinds: [NormalizedCandidateKind]
+    public var canonicalPaths: [String]
+    public var observationIDs: [String]
+    public var sourceTexts: [String]
+    public var contextTypes: [NormalizationSessionContextType]
+    public var governingRules: [String]
+    public var supportingAssetIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case term
+        case normalizedKey = "normalized_key"
+        case keywordBag = "keyword_bag"
+        case decisionIDs = "decision_ids"
+        case assetIDs = "asset_ids"
+        case stages
+        case candidateKinds = "candidate_kinds"
+        case canonicalPaths = "canonical_paths"
+        case observationIDs = "observation_ids"
+        case sourceTexts = "source_texts"
+        case contextTypes = "context_types"
+        case governingRules = "governing_rules"
+        case supportingAssetIDs = "supporting_asset_ids"
+    }
+
+    public init(
+        term: String,
+        normalizedKey: String,
+        keywordBag: NormalizedXMPKeywordBag,
+        decisionIDs: [String],
+        assetIDs: [String],
+        stages: [NormalizationDecisionStage],
+        candidateKinds: [NormalizedCandidateKind],
+        canonicalPaths: [String],
+        observationIDs: [String],
+        sourceTexts: [String],
+        contextTypes: [NormalizationSessionContextType],
+        governingRules: [String],
+        supportingAssetIDs: [String]
+    ) {
+        self.term = term
+        self.normalizedKey = normalizedKey
+        self.keywordBag = keywordBag
+        self.decisionIDs = decisionIDs
+        self.assetIDs = assetIDs
+        self.stages = stages
+        self.candidateKinds = candidateKinds
+        self.canonicalPaths = canonicalPaths
+        self.observationIDs = observationIDs
+        self.sourceTexts = sourceTexts
+        self.contextTypes = contextTypes
+        self.governingRules = governingRules
+        self.supportingAssetIDs = supportingAssetIDs
+    }
+}
+
+/// Normalized XMP plan plus Phase 3 provenance consumed later by `apply-session`.
 public struct NormalizedXMPWritePlan: Codable, Sendable, Equatable {
-    public init() {}
+    public var xmpChangePlan: XMPChangePlan
+    public var flatKeywordProvenance: [NormalizedXMPKeywordProvenance]
+    public var hierarchicalKeywordProvenance: [NormalizedXMPKeywordProvenance]
+    public var normalizationSkips: [NormalizationCandidateSkip]
+
+    enum CodingKeys: String, CodingKey {
+        case xmpChangePlan = "xmp_change_plan"
+        case flatKeywordProvenance = "flat_keyword_provenance"
+        case hierarchicalKeywordProvenance = "hierarchical_keyword_provenance"
+        case normalizationSkips = "normalization_skips"
+    }
+
+    public init(
+        xmpChangePlan: XMPChangePlan,
+        flatKeywordProvenance: [NormalizedXMPKeywordProvenance],
+        hierarchicalKeywordProvenance: [NormalizedXMPKeywordProvenance],
+        normalizationSkips: [NormalizationCandidateSkip]
+    ) {
+        self.xmpChangePlan = xmpChangePlan
+        self.flatKeywordProvenance = flatKeywordProvenance
+        self.hierarchicalKeywordProvenance = hierarchicalKeywordProvenance
+        self.normalizationSkips = normalizationSkips
+    }
 }
 
 /// Durable Phase 3 normalization session consumed later by `apply-session`.

@@ -176,6 +176,13 @@ struct NormalizeCommand: AsyncParsableCommand {
             )
             return
         }
+        if resolved.dryRun {
+            let result = try NormalizePipeline().runDryRun(mode: mode, configuration: resolved)
+            if let changePlan = result.changePlan {
+                try writeChangePlan(changePlan)
+            }
+            return
+        }
         FileHandle.standardOutput.write(Data("normalize scaffold validated; execution will be added in later Phase 3 milestones.\n".utf8))
     }
 
@@ -254,5 +261,13 @@ struct NormalizeCommand: AsyncParsableCommand {
             return false
         }
         return nil
+    }
+
+    private func writeChangePlan(_ changePlan: XMPChangePlanDocument) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(changePlan)
+        FileHandle.standardOutput.write(data)
+        FileHandle.standardOutput.write(Data("\n".utf8))
     }
 }

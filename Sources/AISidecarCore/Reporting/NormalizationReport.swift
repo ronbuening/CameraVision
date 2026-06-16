@@ -9,6 +9,7 @@ public struct NormalizationInputSummary: Codable, Sendable, Equatable {
     public var candidateSkipCount: Int
     public var batchCandidateCount: Int
     public var perAssetDecisionCount: Int
+    public var xmpWritePlanCount: Int
     public var warningCount: Int
     public var failureCount: Int
 
@@ -20,6 +21,7 @@ public struct NormalizationInputSummary: Codable, Sendable, Equatable {
         case candidateSkipCount = "candidate_skip_count"
         case batchCandidateCount = "batch_candidate_count"
         case perAssetDecisionCount = "per_asset_decision_count"
+        case xmpWritePlanCount = "xmp_write_plan_count"
         case warningCount = "warning_count"
         case failureCount = "failure_count"
     }
@@ -32,6 +34,7 @@ public struct NormalizationInputSummary: Codable, Sendable, Equatable {
         candidateSkipCount: Int = 0,
         batchCandidateCount: Int = 0,
         perAssetDecisionCount: Int = 0,
+        xmpWritePlanCount: Int = 0,
         warningCount: Int,
         failureCount: Int
     ) {
@@ -42,6 +45,7 @@ public struct NormalizationInputSummary: Codable, Sendable, Equatable {
         self.candidateSkipCount = candidateSkipCount
         self.batchCandidateCount = batchCandidateCount
         self.perAssetDecisionCount = perAssetDecisionCount
+        self.xmpWritePlanCount = xmpWritePlanCount
         self.warningCount = warningCount
         self.failureCount = failureCount
     }

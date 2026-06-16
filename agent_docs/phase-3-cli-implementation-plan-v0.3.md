@@ -43,7 +43,7 @@ Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemente
 
 The Phase 2 writer path is the implementation baseline for Phase 3. Phase 3 must not add another XMP writer, another metadata executable dependency, or another sidecar merge stack. Its normalized output must become a write plan consumed by the same `MetadataWriteEngine` and `OwnedXMPSidecarEngine` used by `aisidecar write-xmp`.
 
-Phase 3 Milestones 0-4 are implemented. The current implementation includes CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report artifacts, candidate observations, direct vocabulary canonicalization, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, and session-context propagation gates. Remaining milestones add normalized XMP planning/writing, apply-session execution, analyze-and-normalize, interruption behavior, and release-gate evidence.
+Phase 3 Milestones 0-5 are implemented. The current implementation includes CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report artifacts, candidate observations, direct vocabulary canonicalization, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, and `normalize --dry-run` change-plan output. Remaining milestones add richer reports/summaries/progress logs, normalized XMP writing, apply-session execution, analyze-and-normalize, interruption behavior, and release-gate evidence.
 
 The Phase 1 release signoff is still separate. Phase 3 implementation may begin from the Phase 2 baseline, but Phase 3 release should either archive Phase 1 Milestone 9 calibration/quality evidence or explicitly defer it with the missing checks, reason, and residual risk.
 
@@ -449,7 +449,15 @@ Exit criteria: batch fixtures demonstrate high-affinity broad ancestor propagati
 
 ## 9. Milestone 5 - Normalized XMP Plan Adapter and Dry-Run Output
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Added `NormalizedXMPChangePlanner` to convert accepted direct, local, global, fallback, and user-context decisions into Phase 2-compatible `XMPChangePlan` target plans without invoking the writer or preview/validation path.
+- Added normalized write-plan session records that wrap each Phase 2 plan with flat/hierarchical per-term decision provenance, including decision IDs, asset IDs, stages, candidate kinds, canonical paths, observation IDs, session context types, governing rules, and supporting assets.
+- Wired `NormalizePipeline.runDryRun` and `aisidecar normalize --dry-run` to write the normalization session/report and emit `ai-sidecar-xmp-change-plan/1.0` JSON while creating no `.xmp` files, backups, restores, or validation attempts.
+- Extended skip reason mapping so normalized policy blocks can appear in dry-run plan diagnostics, and ensured `write-unnormalized` session context remains flat-only.
+- Added `NormalizationSessionTests` coverage for normalized dry-run XMP plans, output-dir mirroring, no-XMP dry-run behavior, direct model provenance, report plan counts, and flat-only unknown session-context output.
 
 Tasks:
 

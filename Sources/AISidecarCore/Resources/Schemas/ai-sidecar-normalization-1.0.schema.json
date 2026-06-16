@@ -324,9 +324,70 @@
         "additionalProperties": true
       }
     },
+    "xmp_write_plans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "xmp_change_plan",
+          "flat_keyword_provenance",
+          "hierarchical_keyword_provenance",
+          "normalization_skips"
+        ],
+        "properties": {
+          "xmp_change_plan": { "type": "object" },
+          "flat_keyword_provenance": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/normalizedKeywordProvenance" }
+          },
+          "hierarchical_keyword_provenance": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/normalizedKeywordProvenance" }
+          },
+          "normalization_skips": {
+            "type": "array",
+            "items": { "type": "object" }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
     "artifacts": {
       "type": "object",
       "required": ["session_path", "report_path", "summary_path", "progress_path"],
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "normalizedKeywordProvenance": {
+      "type": "object",
+      "required": [
+        "term",
+        "normalized_key",
+        "keyword_bag",
+        "decision_ids",
+        "asset_ids",
+        "stages",
+        "candidate_kinds",
+        "canonical_paths",
+        "observation_ids",
+        "supporting_asset_ids"
+      ],
+      "properties": {
+        "term": { "type": "string" },
+        "normalized_key": { "type": "string" },
+        "keyword_bag": { "enum": ["dc_subject", "lr_hierarchical_subject"] },
+        "decision_ids": { "type": "array", "items": { "type": "string" } },
+        "asset_ids": { "type": "array", "items": { "type": "string" } },
+        "stages": { "type": "array", "items": { "type": "string" } },
+        "candidate_kinds": { "type": "array", "items": { "type": "string" } },
+        "canonical_paths": { "type": "array", "items": { "type": "string" } },
+        "observation_ids": { "type": "array", "items": { "type": "string" } },
+        "source_texts": { "type": "array", "items": { "type": "string" } },
+        "context_types": { "type": "array", "items": { "type": "string" } },
+        "governing_rules": { "type": "array", "items": { "type": "string" } },
+        "supporting_asset_ids": { "type": "array", "items": { "type": "string" } }
+      },
       "additionalProperties": true
     }
   },

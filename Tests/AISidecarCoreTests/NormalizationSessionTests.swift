@@ -132,6 +132,96 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(report.decisionSummary.acceptedCount, 1)
     }
 
+    func testNormalizeDryRunPersistsNormalizedXMPPlansWithoutCreatingXMP() throws {
+        let jsonRoot = try temporaryDirectory()
+        let sourceRoot = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        let vocabularyPath = try writeVocabulary()
+        let source = try writeTestImage("Bird.JPG", in: sourceRoot)
+        let sourceImage = try scannedSourceImage(source, relativePath: "Bird.JPG")
+        _ = try writeRawSidecar(
+            source: sourceImage,
+            named: "Bird.JPG.ai.json",
+            in: jsonRoot,
+            modelRuns: [
+                modelRun(role: .wholeImage, response: response([
+                    .mainSubjects: .array([
+                        candidate("bird", confidence: "high")
+                    ])
+                ]), index: 0)
+            ]
+        )
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.recursive = true
+        configuration.sourceRoot = sourceRoot.path
+        configuration.outputDir = output.path
+        configuration.dryRun = true
+        configuration.normalizationMode = .singleImage
+        configuration.vocabularyPath = vocabularyPath
+
+        let result = try NormalizePipeline().runDryRun(
+            mode: .fromJSON(path: jsonRoot.path),
+            configuration: configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_200),
+            sessionID: "session-dry-run"
+        )
+
+        XCTAssertTrue(try xmpFiles(in: sourceRoot).isEmpty)
+        XCTAssertTrue(try xmpFiles(in: output).isEmpty)
+        let changePlan = try XCTUnwrap(result.changePlan)
+        XCTAssertTrue(changePlan.dryRun)
+        XCTAssertEqual(changePlan.targetPlans.count, 1)
+        XCTAssertEqual(changePlan.targetPlans[0].flatKeywordsToAdd.map(\.term), ["Birds"])
+        XCTAssertEqual(changePlan.targetPlans[0].hierarchicalKeywordsToAdd.map(\.term), ["Subject|Wildlife|Birds"])
+        XCTAssertEqual(changePlan.targetPlans[0].targetXMPPath, output.appendingPathComponent("Bird.xmp").path)
+
+        let decoded = try decodeSession(at: URL(fileURLWithPath: try XCTUnwrap(result.session.artifacts.sessionPath)))
+        let writePlan = try XCTUnwrap(decoded.xmpWritePlans.first)
+        XCTAssertEqual(writePlan.xmpChangePlan.targetXMPPath, output.appendingPathComponent("Bird.xmp").path)
+        XCTAssertEqual(writePlan.flatKeywordProvenance.first?.decisionIDs, ["decision-000001"])
+        XCTAssertEqual(writePlan.flatKeywordProvenance.first?.observationIDs, ["obs-000001"])
+        XCTAssertEqual(writePlan.hierarchicalKeywordProvenance.first?.canonicalPaths, ["Subject|Wildlife|Birds"])
+
+        let report = try decodeReport(at: URL(fileURLWithPath: decoded.artifacts.reportPath))
+        XCTAssertEqual(report.inputSummary.xmpWritePlanCount, 1)
+    }
+
+    func testNormalizeDryRunWriteUnnormalizedSessionContextPlansFlatKeywordOnly() throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        let vocabularyPath = try writeVocabulary()
+        _ = try writeTestImage("Mystery.JPG", in: root)
+        let list = root.appendingPathComponent("images.txt")
+        try "Mystery.JPG\n".write(to: list, atomically: true, encoding: .utf8)
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.outputDir = output.path
+        configuration.dryRun = true
+        configuration.vocabularyPath = vocabularyPath
+        configuration.sessionSubject = "Folder Mystery"
+        configuration.unknownSessionContextPolicy = .writeUnnormalized
+        configuration.allowSessionSubjectPropagation = true
+
+        let result = try NormalizePipeline().runDryRun(
+            mode: .fileList(path: list.path),
+            configuration: configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_300),
+            sessionID: "session-flat-only"
+        )
+
+        XCTAssertTrue(try xmpFiles(in: output).isEmpty)
+        let plan = try XCTUnwrap(result.changePlan?.targetPlans.first)
+        XCTAssertEqual(plan.flatKeywordsToAdd.map(\.term), ["Folder Mystery"])
+        XCTAssertTrue(plan.hierarchicalKeywordsToAdd.isEmpty)
+
+        let decoded = try decodeSession(at: URL(fileURLWithPath: try XCTUnwrap(result.session.artifacts.sessionPath)))
+        let writePlan = try XCTUnwrap(decoded.xmpWritePlans.first)
+        XCTAssertEqual(writePlan.flatKeywordProvenance.first?.candidateKinds, [.userContextUnnormalized])
+        XCTAssertEqual(writePlan.flatKeywordProvenance.first?.contextTypes, [.subject])
+        XCTAssertTrue(writePlan.hierarchicalKeywordProvenance.isEmpty)
+    }
+
     func testApplySessionAllowStaleIsInvocationOnlyResolvedConfiguration() throws {
         let configPath = try writeConfig(#"{ "allow_stale": true }"#)
         XCTAssertThrowsError(

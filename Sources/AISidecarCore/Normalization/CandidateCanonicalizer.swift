@@ -423,10 +423,13 @@ public struct CandidateCanonicalizer {
                         candidateKind: .userContextUnnormalized,
                         flatKeyword: keyword,
                         sourceText: record.originalText,
+                        contextType: record.contextType,
                         directApplyPolicy: .flatOnly,
                         exportFlatKeyword: true,
                         exportHierarchicalKeyword: false,
                         supportUnits: 1,
+                        supportingAssetIDs: [assetID],
+                        governingRule: "user_session_context_\(record.contextType.rawValue)_unnormalized",
                         observationCount: 0,
                         skipReasons: [.unknownSessionContextFlatOnly]
                     )
@@ -584,6 +587,14 @@ public struct CandidateCanonicalizer {
         switch reason {
         case .belowConfidenceThreshold:
             return .belowConfidenceThreshold
+        case .unmatchedVocabulary:
+            return .unmatchedVocabulary
+        case .directApplyWithheld:
+            return .directApplyWithheld
+        case .directApplyFlatOnly:
+            return .directApplyFlatOnly
+        case .requiresReview:
+            return .requiresReview
         case .specificTagPolicy:
             return .specificTagPolicy
         case .containsHierarchySeparator:
@@ -600,6 +611,28 @@ public struct CandidateCanonicalizer {
             return .coordinateLikeTerm
         case .gpsOnlyEvidence:
             return .gpsOnlyEvidence
+        case .unknownSessionContextRejected:
+            return .unknownSessionContextRejected
+        case .unknownSessionContextFlatOnly:
+            return .unknownSessionContextFlatOnly
+        case .weakLocalAgreement:
+            return .weakLocalAgreement
+        case .lowSupportMass:
+            return .lowSupportMass
+        case .lowSupportingNeighborCount:
+            return .lowSupportingNeighborCount
+        case .lowMaxSupportingAffinity:
+            return .lowMaxSupportingAffinity
+        case .blockedDirectConflict:
+            return .blockedDirectConflict
+        case .blockedLocalConflictMass:
+            return .blockedLocalConflictMass
+        case .gearOnlyAffinity:
+            return .gearOnlyAffinity
+        case .globalBackstopThreshold:
+            return .globalBackstopThreshold
+        case .sessionContextConflict:
+            return .sessionContextConflict
         }
     }
 

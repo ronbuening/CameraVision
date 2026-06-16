@@ -4,14 +4,20 @@ import Foundation
 public struct NormalizePipelineResult: Sendable, Equatable {
     public var session: NormalizationSessionDocument
     public var report: NormalizationReport
+    public var changePlan: XMPChangePlanDocument?
 
-    public init(session: NormalizationSessionDocument, report: NormalizationReport) {
+    public init(
+        session: NormalizationSessionDocument,
+        report: NormalizationReport,
+        changePlan: XMPChangePlanDocument? = nil
+    ) {
         self.session = session
         self.report = report
+        self.changePlan = changePlan
     }
 }
 
-/// Builds Phase 3 normalization sessions before later milestones add decisions and XMP writes.
+/// Builds Phase 3 normalization sessions and normalized dry-run XMP plans.
 public struct NormalizePipeline {
     private let inputResolver: NormalizationInputResolver
     private let sessionWriter: NormalizationSessionWriter
@@ -33,6 +39,38 @@ public struct NormalizePipeline {
         configuration: ResolvedNormalizationConfiguration,
         timestamp: Date = Date(),
         sessionID: String = UUID().uuidString
+    ) throws -> NormalizePipelineResult {
+        try run(
+            mode: mode,
+            configuration: configuration,
+            timestamp: timestamp,
+            sessionID: sessionID,
+            includeXMPPlans: false
+        )
+    }
+
+    /// Resolve inputs, normalize decisions, and write dry-run plans without touching XMP sidecars.
+    public func runDryRun(
+        mode: NormalizationInvocationMode,
+        configuration: ResolvedNormalizationConfiguration,
+        timestamp: Date = Date(),
+        sessionID: String = UUID().uuidString
+    ) throws -> NormalizePipelineResult {
+        try run(
+            mode: mode,
+            configuration: configuration,
+            timestamp: timestamp,
+            sessionID: sessionID,
+            includeXMPPlans: true
+        )
+    }
+
+    private func run(
+        mode: NormalizationInvocationMode,
+        configuration: ResolvedNormalizationConfiguration,
+        timestamp: Date,
+        sessionID: String,
+        includeXMPPlans: Bool
     ) throws -> NormalizePipelineResult {
         let vocabulary = try loadVocabulary(configuration)
         try CandidateCanonicalizer.preflightSessionContext(
@@ -74,6 +112,14 @@ public struct NormalizePipeline {
             engineVersion: OwnedXMPSidecarEngine.engineVersion,
             writerRecipeVersion: OwnedXMPSidecarEngine.writerRecipeVersion
         )
+        let normalizedPlans = includeXMPPlans
+            ? NormalizedXMPChangePlanner().plan(
+                input: input,
+                decisions: consensus.perAssetDecisions,
+                candidateSkips: consensus.skips,
+                configuration: configuration
+            )
+            : nil
         let privacy = NormalizationPrivacyRecord(privacyMode: configuration.affinityPrivacyMode)
         let session = makeSession(
             sessionID: sessionID,
@@ -84,7 +130,8 @@ public struct NormalizePipeline {
             privacy: privacy,
             writerIdentity: writerIdentity,
             artifactPlan: artifactPlan,
-            consensus: consensus
+            consensus: consensus,
+            xmpWritePlans: normalizedPlans?.writePlans ?? []
         )
         let report = makeReport(
             timestamp: timestamp,
@@ -93,12 +140,13 @@ public struct NormalizePipeline {
             vocabulary: vocabulary,
             writerIdentity: writerIdentity,
             artifactPlan: artifactPlan,
-            consensus: consensus
+            consensus: consensus,
+            xmpWritePlanCount: normalizedPlans?.writePlans.count ?? 0
         )
 
         try sessionWriter.write(session, to: sessionPath)
         try reportWriter.write(report, to: artifactPlan.reportPath)
-        return NormalizePipelineResult(session: session, report: report)
+        return NormalizePipelineResult(session: session, report: report, changePlan: normalizedPlans?.changePlan)
     }
 
     private func loadVocabulary(_ configuration: ResolvedNormalizationConfiguration) throws -> LoadedVocabulary {
@@ -117,7 +165,8 @@ public struct NormalizePipeline {
         privacy: NormalizationPrivacyRecord,
         writerIdentity: MetadataWriteEngineContext,
         artifactPlan: NormalizationArtifactPlan,
-        consensus: BatchConsensusResult
+        consensus: BatchConsensusResult,
+        xmpWritePlans: [NormalizedXMPWritePlan]
     ) -> NormalizationSessionDocument {
         let warnings = input.warnings
         let errors = input.failures.map(\.error)
@@ -147,6 +196,7 @@ public struct NormalizePipeline {
             batchCandidates: consensus.batchCandidates,
             localConsensus: consensus.localConsensus,
             perAssetDecisions: consensus.perAssetDecisions,
+            xmpWritePlans: xmpWritePlans,
             artifacts: artifactPlan,
             deterministicPolicy: NormalizationDeterministicPolicyRecord(
                 exactAffinityInputsPersisted: privacy.exactAffinityInputsPersisted
@@ -163,7 +213,8 @@ public struct NormalizePipeline {
         vocabulary: LoadedVocabulary,
         writerIdentity: MetadataWriteEngineContext,
         artifactPlan: NormalizationArtifactPlan,
-        consensus: BatchConsensusResult
+        consensus: BatchConsensusResult,
+        xmpWritePlanCount: Int
     ) -> NormalizationReport {
         NormalizationReport(
             createdAt: timestamp,
@@ -182,6 +233,7 @@ public struct NormalizePipeline {
                 candidateSkipCount: consensus.skips.count,
                 batchCandidateCount: consensus.batchCandidates.count,
                 perAssetDecisionCount: consensus.perAssetDecisions.count,
+                xmpWritePlanCount: xmpWritePlanCount,
                 warningCount: input.warnings.count,
                 failureCount: input.failures.count
             ),
