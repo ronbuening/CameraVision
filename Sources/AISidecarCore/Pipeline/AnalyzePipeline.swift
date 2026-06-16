@@ -83,11 +83,11 @@ public struct AnalyzePipeline {
         )
         let plan = SidecarNaming.plan(for: scanResult.images, outputDir: configuration.outputDir)
         let actions = entryActions(for: plan.entries, configuration: configuration)
-        let pendingWork = actions.enumerated().compactMap { index, action -> PendingWork? in
-            guard case .pending(let startedAt) = action else {
+        let pendingWork = actions.indices.compactMap { index -> PendingWork? in
+            guard case .pending = actions[index] else {
                 return nil
             }
-            return PendingWork(index: index, entry: plan.entries[index], startedAt: startedAt)
+            return PendingWork(index: index)
         }
 
         // FR1-030b fail-fast model verification must happen before progress,
@@ -261,11 +261,12 @@ public struct AnalyzePipeline {
             func fillWorkers() {
                 while inFlight < maxWorkers, nextPendingToSchedule < pendingWork.count {
                     let work = pendingWork[nextPendingToSchedule]
+                    let entry = entries[work.index]
                     nextPendingToSchedule += 1
                     inFlight += 1
                     group.addTask {
                         let prepared = await Self.prepare(
-                            entry: work.entry,
+                            entry: entry,
                             configuration: configuration,
                             profile: profile,
                             fileManager: fileManagerBox.value,
@@ -884,8 +885,6 @@ public struct AnalyzePipeline {
 
 private struct PendingWork: Sendable {
     var index: Int
-    var entry: SidecarPlanEntry
-    var startedAt: Date
 }
 
 private enum EntryAction: Sendable {
