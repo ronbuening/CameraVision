@@ -1,8 +1,13 @@
 # AISidecarCore Test Fixtures
 
 Fixtures in this directory are committed test data for deterministic, offline
-Phase 1 coverage. They must not require Ollama, model downloads, image
-downloads, private photographs, or network access.
+Phase 1 coverage and shared regression checks. They must not require Ollama,
+model downloads, image downloads, private photographs, or network access.
+
+Phase 3 Milestone 10 baseline tests use synthetic in-memory fixtures from
+`../Phase3NormalizationTestSupport.swift` for vocabulary, affinity, consensus,
+session-context, planning, artifact, and reporting coverage. No proprietary
+image or application fixture files are required for that baseline.
 
 ## Directories
 

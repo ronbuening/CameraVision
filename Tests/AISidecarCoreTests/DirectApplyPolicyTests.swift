@@ -59,4 +59,91 @@ final class DirectApplyPolicyTests: XCTestCase {
         XCTAssertEqual(species.propagationScope, .none)
         XCTAssertTrue(species.requiresReview)
     }
+
+    func testModelEvidenceObeysUserOnlyAndAllowSpecificTagsCannotOverrideVocabularyPolicy() throws {
+        let vocabulary = try VocabularyLoader.load(data: vocabularyData(entries: [
+            VocabularyEntry(
+                canonicalPath: "Subject",
+                flatKeyword: "Subject",
+                namespace: .subject,
+                parentPath: nil,
+                requiresReview: false,
+                autoApplyAllowed: false,
+                directApplyPolicy: .withhold,
+                propagationScope: PropagationScope.none,
+                specificity: .broad
+            ),
+            VocabularyEntry(
+                canonicalPath: "Subject|User Only",
+                flatKeyword: "User Only",
+                namespace: .subject,
+                parentPath: "Subject",
+                synonyms: ["user-only"],
+                requiresReview: false,
+                directApplyPolicy: .userOnly
+            ),
+            VocabularyEntry(
+                canonicalPath: "Subject|Review Specific",
+                flatKeyword: "Review Specific",
+                namespace: .subject,
+                parentPath: "Subject",
+                synonyms: ["review-specific"],
+                requiresReview: true,
+                directApplyPolicy: .withhold
+            )
+        ]), sourcePath: "memory://direct-apply-policy.json")
+        var configuration = phase3Configuration(normalizationMode: .singleImage)
+        configuration.allowSpecificTags = true
+
+        let result = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+            extractionResults: [extractionResult(terms: ["user-only", "review-specific"])],
+            input: phase3InputBatch(["Bird.JPG"]),
+            configuration: configuration
+        )
+
+        let userOnly: PerAssetNormalizationDecision = try XCTUnwrap(result.perAssetDecisions.first {
+            $0.canonicalPath == "Subject|User Only"
+        })
+        XCTAssertEqual(userOnly.status, NormalizationDecisionStatus.withheld)
+        XCTAssertEqual(userOnly.directApplyPolicy, DirectApplyPolicy.userOnly)
+        XCTAssertEqual(userOnly.skipReasons, [NormalizationCandidateSkipReason.directApplyWithheld])
+
+        let review: PerAssetNormalizationDecision = try XCTUnwrap(result.perAssetDecisions.first {
+            $0.canonicalPath == "Subject|Review Specific"
+        })
+        XCTAssertEqual(review.status, NormalizationDecisionStatus.withheld)
+        XCTAssertEqual(review.skipReasons, [
+            NormalizationCandidateSkipReason.directApplyWithheld,
+            NormalizationCandidateSkipReason.requiresReview
+        ])
+        XCTAssertNil(review.flatKeyword)
+        XCTAssertNil(review.hierarchicalKeyword)
+    }
+
+    private func extractionResult(terms: [String]) -> CandidateExtractionResult {
+        let candidates = terms.map { term in
+            ExtractedCandidate(
+                term: term,
+                normalizedTerm: term,
+                confidence: .high,
+                evidence: "fixture evidence",
+                provenance: CandidateProvenance(
+                    sourceField: .proposedKeywords,
+                    inputRole: .wholeImage,
+                    sourceSidecar: "/sidecars/Bird.JPG.ai.json",
+                    sourceImage: "/photos/Bird.JPG",
+                    modelRunIndex: 0
+                )
+            )
+        }
+        return CandidateExtractionResult(
+            sourceSidecar: "/sidecars/Bird.JPG.ai.json",
+            sourceImage: "/photos/Bird.JPG",
+            extractedCandidates: candidates,
+            flatKeywords: [],
+            hierarchicalKeywords: [],
+            skippedCandidates: [],
+            issues: []
+        )
+    }
 }

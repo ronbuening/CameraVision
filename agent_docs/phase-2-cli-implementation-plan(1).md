@@ -56,9 +56,16 @@ swift test                                      291 tests, 1 skipped, 0 failures
 swift run aisidecar write-xmp --help            passed
 ```
 
+Latest verification recorded during Phase 3 Milestone 10 offline baseline:
+
+```text
+swift test                                      317 tests, 1 skipped, 0 failures
+swift run aisidecar write-xmp --help            passed
+```
+
 Milestone 10 compatibility smoke and release evidence is complete for the Phase 2 XMP writer. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 3 exposes a concrete interface defect.
 
-Phase 3 Milestones 0-9 are implemented, and the next implementation unit is Phase 3 Milestone 10: automated tests, fixtures, and offline baseline. The Phase 2 portion of the Phase 3 gate is satisfied by `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`; Phase 1 Milestone 9 evidence or documented deferral remains a release-readiness requirement.
+Phase 3 Milestones 0-10 are implemented, and the next implementation unit is Phase 3 Milestone 11: compatibility smoke and release evidence. The Phase 2 portion of the Phase 3 gate is satisfied by `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`; Phase 1 Milestone 9 evidence or documented deferral remains a release-readiness requirement.
 
 ## 1. Implementation Position
 
