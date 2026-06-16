@@ -69,6 +69,63 @@ public enum ConfigurationResolver {
         return try builder.resolved()
     }
 
+    /// Resolve Phase 3 normalization settings without starting analysis or writes.
+    public static func resolveNormalization(
+        cli: NormalizationConfigurationOverrides = NormalizationConfigurationOverrides(),
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaultConfigPath: String? = nil,
+        fileManager: FileManager = .default
+    ) throws -> ResolvedNormalizationConfiguration {
+        let selectedConfigPath = cli.configPath
+            ?? environment["AISIDECAR_CONFIG"]
+            ?? defaultConfigPath
+            ?? Self.defaultConfigPath(environment: environment)
+        let explicitConfigPath = cli.configPath != nil || environment["AISIDECAR_CONFIG"] != nil
+
+        let fileConfig = try loadConfig(
+            path: selectedConfigPath,
+            explicit: explicitConfigPath,
+            fileManager: fileManager
+        )
+        let envOverrides = try normalizationEnvironmentOverrides(from: environment)
+
+        var builder = NormalizationConfigurationBuilder(defaults: .builtInDefaults)
+        builder.apply(config: fileConfig)
+        builder.apply(overrides: envOverrides)
+        builder.apply(overrides: cli.withoutConfigPath())
+        return try builder.resolved()
+    }
+
+    /// Resolve model-free `apply-session` write-safety settings.
+    ///
+    /// `allow-stale` is deliberately absent: FR3-030b requires it to be an
+    /// explicit invocation override, not a persistent config default.
+    public static func resolveApplySession(
+        cli: ApplySessionConfigurationOverrides = ApplySessionConfigurationOverrides(),
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaultConfigPath: String? = nil,
+        fileManager: FileManager = .default
+    ) throws -> ResolvedApplySessionConfiguration {
+        let selectedConfigPath = cli.configPath
+            ?? environment["AISIDECAR_CONFIG"]
+            ?? defaultConfigPath
+            ?? Self.defaultConfigPath(environment: environment)
+        let explicitConfigPath = cli.configPath != nil || environment["AISIDECAR_CONFIG"] != nil
+
+        let fileConfig = try loadConfig(
+            path: selectedConfigPath,
+            explicit: explicitConfigPath,
+            fileManager: fileManager
+        )
+        let envOverrides = try applySessionEnvironmentOverrides(from: environment)
+
+        var builder = ApplySessionConfigurationBuilder(defaults: .builtInDefaults)
+        builder.apply(config: fileConfig)
+        builder.apply(overrides: envOverrides)
+        builder.apply(overrides: cli.withoutConfigPath())
+        return try builder.resolved()
+    }
+
     /// Resolve only derivative cache settings for maintenance commands.
     ///
     /// This intentionally avoids validating model/runtime fields so `aisidecar purge`
@@ -279,6 +336,129 @@ public enum ConfigurationResolver {
                 key: "AISIDECAR_PAIR_SCOPE"
             ),
             writeAIJSON: try boolValue(from: environment["AISIDECAR_WRITE_AI_JSON"], key: "AISIDECAR_WRITE_AI_JSON")
+        )
+    }
+
+    private static func normalizationEnvironmentOverrides(
+        from environment: [String: String]
+    ) throws -> NormalizationConfigurationOverrides {
+        NormalizationConfigurationOverrides(
+            recursive: try boolValue(from: environment["AISIDECAR_RECURSIVE"], key: "AISIDECAR_RECURSIVE"),
+            outputDir: environment["AISIDECAR_OUTPUT_DIR"],
+            logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
+            logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
+            dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
+            sourceRoot: environment["AISIDECAR_SOURCE_ROOT"],
+            sourceVerification: try enumValue(
+                XMPSourceVerificationPolicy.self,
+                from: environment["AISIDECAR_SOURCE_VERIFICATION"],
+                key: "AISIDECAR_SOURCE_VERIFICATION"
+            ),
+            writeFlatKeywords: try boolValue(
+                from: environment["AISIDECAR_WRITE_FLAT_KEYWORDS"],
+                key: "AISIDECAR_WRITE_FLAT_KEYWORDS"
+            ),
+            writeHierarchicalKeywords: try boolValue(
+                from: environment["AISIDECAR_WRITE_HIERARCHICAL_KEYWORDS"],
+                key: "AISIDECAR_WRITE_HIERARCHICAL_KEYWORDS"
+            ),
+            backupSidecars: try boolValue(
+                from: environment["AISIDECAR_BACKUP_SIDECARS"],
+                key: "AISIDECAR_BACKUP_SIDECARS"
+            ),
+            xmpConflictPolicy: try enumValue(
+                XMPConflictPolicy.self,
+                from: environment["AISIDECAR_XMP_CONFLICT_POLICY"],
+                key: "AISIDECAR_XMP_CONFLICT_POLICY"
+            ),
+            minConfidence: try enumValue(
+                XMPMinimumConfidence.self,
+                from: environment["AISIDECAR_MIN_CONFIDENCE"],
+                key: "AISIDECAR_MIN_CONFIDENCE"
+            ),
+            allowSpecificTags: try boolValue(
+                from: environment["AISIDECAR_ALLOW_SPECIFIC_TAGS"],
+                key: "AISIDECAR_ALLOW_SPECIFIC_TAGS"
+            ),
+            pairScope: try enumValue(XMPPairScope.self, from: environment["AISIDECAR_PAIR_SCOPE"], key: "AISIDECAR_PAIR_SCOPE"),
+            writeAIJSON: try boolValue(from: environment["AISIDECAR_WRITE_AI_JSON"], key: "AISIDECAR_WRITE_AI_JSON"),
+            vocabularyPath: environment["AISIDECAR_VOCABULARY"],
+            normalizationMode: try enumValue(
+                NormalizationMode.self,
+                from: environment["AISIDECAR_NORMALIZATION_MODE"],
+                key: "AISIDECAR_NORMALIZATION_MODE"
+            ),
+            sessionSubject: environment["AISIDECAR_SESSION_SUBJECT"],
+            sessionHabitat: environment["AISIDECAR_SESSION_HABITAT"],
+            sessionEvent: environment["AISIDECAR_SESSION_EVENT"],
+            consensusThreshold: try doubleValue(
+                from: environment["AISIDECAR_CONSENSUS_THRESHOLD"],
+                key: "AISIDECAR_CONSENSUS_THRESHOLD"
+            ),
+            affinityMode: try enumValue(
+                NormalizationAffinityMode.self,
+                from: environment["AISIDECAR_AFFINITY_MODE"],
+                key: "AISIDECAR_AFFINITY_MODE"
+            ),
+            affinityProfile: try enumValue(
+                NormalizationAffinityProfile.self,
+                from: environment["AISIDECAR_AFFINITY_PROFILE"],
+                key: "AISIDECAR_AFFINITY_PROFILE"
+            ),
+            minAffinityForConsensus: try doubleValue(
+                from: environment["AISIDECAR_MIN_AFFINITY_FOR_CONSENSUS"],
+                key: "AISIDECAR_MIN_AFFINITY_FOR_CONSENSUS"
+            ),
+            sessionOnly: try boolValue(from: environment["AISIDECAR_SESSION_ONLY"], key: "AISIDECAR_SESSION_ONLY"),
+            unknownSessionContextPolicy: try enumValue(
+                UnknownSessionContextPolicy.self,
+                from: environment["AISIDECAR_UNKNOWN_SESSION_CONTEXT_POLICY"],
+                key: "AISIDECAR_UNKNOWN_SESSION_CONTEXT_POLICY"
+            ),
+            allowSessionSubjectPropagation: try boolValue(
+                from: environment["AISIDECAR_ALLOW_SESSION_SUBJECT_PROPAGATION"],
+                key: "AISIDECAR_ALLOW_SESSION_SUBJECT_PROPAGATION"
+            ),
+            allowSessionHabitatPropagation: try boolValue(
+                from: environment["AISIDECAR_ALLOW_SESSION_HABITAT_PROPAGATION"],
+                key: "AISIDECAR_ALLOW_SESSION_HABITAT_PROPAGATION"
+            ),
+            allowSessionEventPropagation: try boolValue(
+                from: environment["AISIDECAR_ALLOW_SESSION_EVENT_PROPAGATION"],
+                key: "AISIDECAR_ALLOW_SESSION_EVENT_PROPAGATION"
+            ),
+            affinityPrivacyMode: try enumValue(
+                AffinityPrivacyMode.self,
+                from: environment["AISIDECAR_AFFINITY_PRIVACY_MODE"],
+                key: "AISIDECAR_AFFINITY_PRIVACY_MODE"
+            ),
+            writeReportPath: environment["AISIDECAR_WRITE_REPORT"]
+        )
+    }
+
+    private static func applySessionEnvironmentOverrides(
+        from environment: [String: String]
+    ) throws -> ApplySessionConfigurationOverrides {
+        ApplySessionConfigurationOverrides(
+            outputDir: environment["AISIDECAR_OUTPUT_DIR"],
+            logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
+            logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
+            dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
+            sourceRoot: environment["AISIDECAR_SOURCE_ROOT"],
+            sourceVerification: try enumValue(
+                XMPSourceVerificationPolicy.self,
+                from: environment["AISIDECAR_SOURCE_VERIFICATION"],
+                key: "AISIDECAR_SOURCE_VERIFICATION"
+            ),
+            backupSidecars: try boolValue(
+                from: environment["AISIDECAR_BACKUP_SIDECARS"],
+                key: "AISIDECAR_BACKUP_SIDECARS"
+            ),
+            xmpConflictPolicy: try enumValue(
+                XMPConflictPolicy.self,
+                from: environment["AISIDECAR_XMP_CONFLICT_POLICY"],
+                key: "AISIDECAR_XMP_CONFLICT_POLICY"
+            )
         )
     }
 
@@ -619,6 +799,132 @@ private struct XMPExportConfigurationBuilder {
     }
 }
 
+private struct NormalizationConfigurationBuilder {
+    private var config: ResolvedNormalizationConfiguration
+
+    init(defaults: ResolvedNormalizationConfiguration) {
+        self.config = defaults
+    }
+
+    mutating func apply(config fileConfig: AppConfig) {
+        if let value = fileConfig.recursive { config.recursive = value }
+        if let value = fileConfig.outputDir { config.outputDir = value }
+        if let value = fileConfig.logLevel { config.logLevel = value }
+        if let value = fileConfig.logFormat { config.logFormat = value }
+        if let value = fileConfig.dryRun { config.dryRun = value }
+        if let value = fileConfig.sourceRoot { config.sourceRoot = value }
+        if let value = fileConfig.sourceVerification { config.sourceVerification = value }
+        if let value = fileConfig.writeFlatKeywords { config.writeFlatKeywords = value }
+        if let value = fileConfig.writeHierarchicalKeywords { config.writeHierarchicalKeywords = value }
+        if let value = fileConfig.backupSidecars { config.backupSidecars = value }
+        if let value = fileConfig.xmpConflictPolicy { config.xmpConflictPolicy = value }
+        if let value = fileConfig.minConfidence { config.minConfidence = value }
+        if let value = fileConfig.allowSpecificTags { config.allowSpecificTags = value }
+        if let value = fileConfig.pairScope { config.pairScope = value }
+        if let value = fileConfig.writeAIJSON { config.writeAIJSON = value }
+        if let value = fileConfig.vocabularyPath { config.vocabularyPath = value }
+        if let value = fileConfig.normalizationMode { config.normalizationMode = value }
+        if let value = fileConfig.sessionSubject { config.sessionSubject = value }
+        if let value = fileConfig.sessionHabitat { config.sessionHabitat = value }
+        if let value = fileConfig.sessionEvent { config.sessionEvent = value }
+        if let value = fileConfig.consensusThreshold { config.consensusThreshold = value }
+        if let value = fileConfig.affinityMode { config.affinityMode = value }
+        if let value = fileConfig.affinityProfile { config.affinityProfile = value }
+        if let value = fileConfig.minAffinityForConsensus { config.minAffinityForConsensus = value }
+        if let value = fileConfig.sessionOnly { config.sessionOnly = value }
+        if let value = fileConfig.unknownSessionContextPolicy { config.unknownSessionContextPolicy = value }
+        if let value = fileConfig.allowSessionSubjectPropagation { config.allowSessionSubjectPropagation = value }
+        if let value = fileConfig.allowSessionHabitatPropagation { config.allowSessionHabitatPropagation = value }
+        if let value = fileConfig.allowSessionEventPropagation { config.allowSessionEventPropagation = value }
+        if let value = fileConfig.affinityPrivacyMode { config.affinityPrivacyMode = value }
+        if let value = fileConfig.writeReportPath { config.writeReportPath = value }
+    }
+
+    mutating func apply(overrides: NormalizationConfigurationOverrides) {
+        if let value = overrides.recursive { config.recursive = value }
+        if let value = overrides.outputDir { config.outputDir = value }
+        if let value = overrides.logLevel { config.logLevel = value }
+        if let value = overrides.logFormat { config.logFormat = value }
+        if let value = overrides.dryRun { config.dryRun = value }
+        if let value = overrides.sourceRoot { config.sourceRoot = value }
+        if let value = overrides.sourceVerification { config.sourceVerification = value }
+        if let value = overrides.writeFlatKeywords { config.writeFlatKeywords = value }
+        if let value = overrides.writeHierarchicalKeywords { config.writeHierarchicalKeywords = value }
+        if let value = overrides.backupSidecars { config.backupSidecars = value }
+        if let value = overrides.xmpConflictPolicy { config.xmpConflictPolicy = value }
+        if let value = overrides.minConfidence { config.minConfidence = value }
+        if let value = overrides.allowSpecificTags { config.allowSpecificTags = value }
+        if let value = overrides.pairScope { config.pairScope = value }
+        if let value = overrides.writeAIJSON { config.writeAIJSON = value }
+        if let value = overrides.vocabularyPath { config.vocabularyPath = value }
+        if let value = overrides.normalizationMode { config.normalizationMode = value }
+        if let value = overrides.sessionSubject { config.sessionSubject = value }
+        if let value = overrides.sessionHabitat { config.sessionHabitat = value }
+        if let value = overrides.sessionEvent { config.sessionEvent = value }
+        if let value = overrides.consensusThreshold { config.consensusThreshold = value }
+        if let value = overrides.affinityMode { config.affinityMode = value }
+        if let value = overrides.affinityProfile { config.affinityProfile = value }
+        if let value = overrides.minAffinityForConsensus { config.minAffinityForConsensus = value }
+        if let value = overrides.sessionOnly { config.sessionOnly = value }
+        if let value = overrides.unknownSessionContextPolicy { config.unknownSessionContextPolicy = value }
+        if let value = overrides.allowSessionSubjectPropagation { config.allowSessionSubjectPropagation = value }
+        if let value = overrides.allowSessionHabitatPropagation { config.allowSessionHabitatPropagation = value }
+        if let value = overrides.allowSessionEventPropagation { config.allowSessionEventPropagation = value }
+        if let value = overrides.affinityPrivacyMode { config.affinityPrivacyMode = value }
+        if let value = overrides.writeReportPath { config.writeReportPath = value }
+    }
+
+    func resolved() throws -> ResolvedNormalizationConfiguration {
+        guard (0...1).contains(config.consensusThreshold), config.consensusThreshold.isFinite else {
+            throw SidecarError.configInvalid("consensus_threshold must be a finite value between zero and one")
+        }
+        guard (0...1).contains(config.minAffinityForConsensus), config.minAffinityForConsensus.isFinite else {
+            throw SidecarError.configInvalid("min_affinity_for_consensus must be a finite value between zero and one")
+        }
+        if config.xmpConflictPolicy == .backupAndMerge, !config.backupSidecars {
+            throw SidecarError.configInvalid("xmp_conflict_policy backup-and-merge requires backup_sidecars to be true")
+        }
+        return config
+    }
+}
+
+private struct ApplySessionConfigurationBuilder {
+    private var config: ResolvedApplySessionConfiguration
+
+    init(defaults: ResolvedApplySessionConfiguration) {
+        self.config = defaults
+    }
+
+    mutating func apply(config fileConfig: AppConfig) {
+        if let value = fileConfig.outputDir { config.outputDir = value }
+        if let value = fileConfig.logLevel { config.logLevel = value }
+        if let value = fileConfig.logFormat { config.logFormat = value }
+        if let value = fileConfig.dryRun { config.dryRun = value }
+        if let value = fileConfig.sourceRoot { config.sourceRoot = value }
+        if let value = fileConfig.sourceVerification { config.sourceVerification = value }
+        if let value = fileConfig.backupSidecars { config.backupSidecars = value }
+        if let value = fileConfig.xmpConflictPolicy { config.xmpConflictPolicy = value }
+    }
+
+    mutating func apply(overrides: ApplySessionConfigurationOverrides) {
+        if let value = overrides.outputDir { config.outputDir = value }
+        if let value = overrides.logLevel { config.logLevel = value }
+        if let value = overrides.logFormat { config.logFormat = value }
+        if let value = overrides.dryRun { config.dryRun = value }
+        if let value = overrides.sourceRoot { config.sourceRoot = value }
+        if let value = overrides.sourceVerification { config.sourceVerification = value }
+        if let value = overrides.backupSidecars { config.backupSidecars = value }
+        if let value = overrides.xmpConflictPolicy { config.xmpConflictPolicy = value }
+    }
+
+    func resolved() throws -> ResolvedApplySessionConfiguration {
+        if config.xmpConflictPolicy == .backupAndMerge, !config.backupSidecars {
+            throw SidecarError.configInvalid("xmp_conflict_policy backup-and-merge requires backup_sidecars to be true")
+        }
+        return config
+    }
+}
+
 private extension RunConfigurationOverrides {
     func withoutConfigPath() -> RunConfigurationOverrides {
         // The selected config path controls which file is read, but it is not a
@@ -670,6 +976,59 @@ private extension XMPExportConfigurationOverrides {
             allowSpecificTags: allowSpecificTags,
             pairScope: pairScope,
             writeAIJSON: writeAIJSON
+        )
+    }
+}
+
+private extension NormalizationConfigurationOverrides {
+    func withoutConfigPath() -> NormalizationConfigurationOverrides {
+        NormalizationConfigurationOverrides(
+            recursive: recursive,
+            outputDir: outputDir,
+            logLevel: logLevel,
+            logFormat: logFormat,
+            dryRun: dryRun,
+            sourceRoot: sourceRoot,
+            sourceVerification: sourceVerification,
+            writeFlatKeywords: writeFlatKeywords,
+            writeHierarchicalKeywords: writeHierarchicalKeywords,
+            backupSidecars: backupSidecars,
+            xmpConflictPolicy: xmpConflictPolicy,
+            minConfidence: minConfidence,
+            allowSpecificTags: allowSpecificTags,
+            pairScope: pairScope,
+            writeAIJSON: writeAIJSON,
+            vocabularyPath: vocabularyPath,
+            normalizationMode: normalizationMode,
+            sessionSubject: sessionSubject,
+            sessionHabitat: sessionHabitat,
+            sessionEvent: sessionEvent,
+            consensusThreshold: consensusThreshold,
+            affinityMode: affinityMode,
+            affinityProfile: affinityProfile,
+            minAffinityForConsensus: minAffinityForConsensus,
+            sessionOnly: sessionOnly,
+            unknownSessionContextPolicy: unknownSessionContextPolicy,
+            allowSessionSubjectPropagation: allowSessionSubjectPropagation,
+            allowSessionHabitatPropagation: allowSessionHabitatPropagation,
+            allowSessionEventPropagation: allowSessionEventPropagation,
+            affinityPrivacyMode: affinityPrivacyMode,
+            writeReportPath: writeReportPath
+        )
+    }
+}
+
+private extension ApplySessionConfigurationOverrides {
+    func withoutConfigPath() -> ApplySessionConfigurationOverrides {
+        ApplySessionConfigurationOverrides(
+            outputDir: outputDir,
+            logLevel: logLevel,
+            logFormat: logFormat,
+            dryRun: dryRun,
+            sourceRoot: sourceRoot,
+            sourceVerification: sourceVerification,
+            backupSidecars: backupSidecars,
+            xmpConflictPolicy: xmpConflictPolicy
         )
     }
 }

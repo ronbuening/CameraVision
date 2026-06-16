@@ -1,0 +1,37 @@
+{
+  "schema_version": "ai-sidecar-vocabulary/1.0",
+  "entries": [
+    {
+      "canonical_path": "Subject",
+      "flat_keyword": "Subject",
+      "namespace": "Subject",
+      "parent_path": null,
+      "synonyms": [],
+      "requires_review": false,
+      "direct_apply_policy": "withhold",
+      "auto_apply_allowed": false,
+      "propagation_scope": "none",
+      "specificity": "broad",
+      "mutually_exclusive_group": null,
+      "export_flat_keyword": false,
+      "export_hierarchical_keyword": false,
+      "notes": "Fixture root."
+    },
+    {
+      "canonical_path": "Subject|Wildlife",
+      "flat_keyword": "Wildlife",
+      "namespace": "Subject",
+      "parent_path": "Subject",
+      "synonyms": ["wild animal"],
+      "requires_review": false,
+      "direct_apply_policy": "allow",
+      "auto_apply_allowed": true,
+      "propagation_scope": "local",
+      "specificity": "broad",
+      "mutually_exclusive_group": null,
+      "export_flat_keyword": true,
+      "export_hierarchical_keyword": true,
+      "notes": "Fixture child."
+    }
+  ]
+}

@@ -10,6 +10,8 @@ struct AISidecarCommand: AsyncParsableCommand {
         subcommands: [
             AnalyzeCommand.self,
             WriteXMPCommand.self,
+            NormalizeCommand.self,
+            ApplySessionCommand.self,
             BenchmarkCommand.self,
             PurgeCommand.self
         ]

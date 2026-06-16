@@ -55,6 +55,30 @@ extension GPSContextMode: ExpressibleByArgument {
     }
 }
 
+extension NormalizationMode: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension NormalizationAffinityMode: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension NormalizationAffinityProfile: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension UnknownSessionContextPolicy: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
 struct SharedOptions: ParsableArguments {
     @Option(help: "Analysis mode: whole, subject, or both.")
     var mode: AnalysisMode?

@@ -1,0 +1,26 @@
+{
+  "schema_version": "ai-sidecar-vocabulary/1.0",
+  "entries": [
+    {
+      "canonical_path": "Subject",
+      "flat_keyword": "Subject",
+      "namespace": "Subject",
+      "parent_path": null,
+      "synonyms": []
+    },
+    {
+      "canonical_path": "Subject|Wildlife",
+      "flat_keyword": "Wildlife",
+      "namespace": "Subject",
+      "parent_path": "Subject",
+      "synonyms": ["animal"]
+    },
+    {
+      "canonical_path": "Subject|Pets",
+      "flat_keyword": "Pets",
+      "namespace": "Subject",
+      "parent_path": "Subject",
+      "synonyms": ["animal"]
+    }
+  ]
+}
