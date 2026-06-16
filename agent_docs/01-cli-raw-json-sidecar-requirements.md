@@ -3,7 +3,7 @@
 Version: 0.4
 Date: 2026-06-12
 Supersedes: 0.3
-Binary: `aisidecar` (subcommands: `analyze`, `benchmark`, `purge`)
+Binary: `aisidecar` (subcommands: `analyze`, `benchmark`, `purge`, `cleanup`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15
 Default vision model: `gemma4:26b-a4b-it-qat` (verified against the local Ollama install at startup)
@@ -13,7 +13,7 @@ Primary output artifact: raw AI JSON sidecar file, not XMP
 
 This revision records implementation status. It does not broaden Phase 1 scope or start Phase 2/XMP work.
 
-1. Phase 1 Milestones 0-8 are implemented, including the full `aisidecar analyze` pipeline, diagnostic model-input export, derivative-cache lifecycle controls, `aisidecar purge`, v1.4 prompt/schema resources, read-only EXIF GPS model context, schema-constrained model-response repair, schema-evolution sidecar rewrites, no-XMP guards, and offline tests.
+1. Phase 1 Milestones 0-8 are implemented, including the full `aisidecar analyze` pipeline, diagnostic model-input export, derivative-cache lifecycle controls, `aisidecar purge`, scoped raw-sidecar/run-artifact removal with `aisidecar cleanup`, v1.4 prompt/schema resources, read-only EXIF GPS model context, schema-constrained model-response repair, schema-evolution sidecar rewrites, no-XMP guards, and offline tests.
 2. The Milestone 9a benchmark harness is implemented as `aisidecar benchmark`, with the legacy `benchmarks/run-milestone9a.swift` wrapper retained for compatibility.
 3. Final Phase 1 signoff is still pending Milestone 9 calibration and quality review: a full benchmark run, conservative default selection for model input profile / `keep_alive` / `stage_concurrency`, foreground-mask failure classification, tag-quality review, and manual instance-selection spot checks.
 4. XMP writeback is implemented by Phase 2 outside the Phase 1 `analyze` command. Tag normalization, review workflows, OCR/text extraction, alternate runtime support beyond the adapter seam, and GUI behavior remain later-phase work.
@@ -25,12 +25,13 @@ Implemented in the current repository:
 - One SwiftPM package with `AISidecarCore`, `AISidecarCLI`, Swift 6 strict concurrency, and macOS 15 deployment.
 - `aisidecar analyze` with shared Phase 1 flags, config precedence, structured errors, text/JSON logging, `--dry-scan`, `--existing`, folder recursion, relative-path recording, source identity hashing, output-tree mirroring, atomic raw `.ai.json` writes, JSONL progress logs, batch summaries, and interruption/resume behavior.
 - Whole-image rendering with EXIF orientation baking, sRGB output, model input profiles, derivative provenance, content-addressed derivative cache, LRU eviction, opt-in cache clearing, debug derivative copies, and explicit `aisidecar purge`.
+- Scoped cleanup for raw `.ai.json` sidecars plus analyze, XMP export, normalization, and apply-session progress/report/summary artifacts via `aisidecar cleanup`.
 - Subject isolation through the two-resolution Apple Vision/Core Image chain, including deterministic instance selection, merge policy, native-resolution crop/matte compositing, failure recording, and sidecar provenance.
 - Diagnostic `--export-model-inputs` mode that writes model-input images and a manifest without writing sidecars, model output, progress logs, batch summaries, or XMP.
 - Ollama runtime preparation and model execution through `VisionModelRunner`: tag/digest/runtime verification, `/api/chat` with base64 images and `format` schemas, request options, retries/timeouts, raw response preservation, parsed JSON, per-attempt repair provenance, mock runners, and recorded-fixture replay.
 - Read-only EXIF GPS model context with `off`, `coarse`, and `exact` modes; new sidecars record `run_configuration.gps_context` and per-run `model_input_context.gps` only when coordinates are sent to the model.
 - Versioned v1.4 prompts and response schemas with conditional `species` candidates for biological target genres, GPS-context usage rules, and no Phase 1 `visible_text`.
-- Offline XCTest coverage for configuration, validation, logging, scanning, identity, sidecar naming/writing, schema-evolution rewrites, rendering, derivative cache behavior, purge resolution, subject isolation, model runtime behavior, response repair, progress logs, summaries, diagnostic export, golden sidecars, no-XMP guards, and full analyze pipeline seams.
+- Offline XCTest coverage for configuration, validation, logging, scanning, identity, sidecar naming/writing, schema-evolution rewrites, rendering, derivative cache behavior, purge resolution, cleanup safety, subject isolation, model runtime behavior, response repair, progress logs, summaries, diagnostic export, golden sidecars, no-XMP guards, and full analyze pipeline seams.
 - `aisidecar benchmark` for Milestone 9a timing/schema-validity/default-calibration runs, result documents, aggregation self-test, scratch cleanup, and no-XMP verification.
 
 Not complete for final Phase 1 signoff:
@@ -447,6 +448,7 @@ Required command shape:
 aisidecar analyze <file-or-folder> [--mode both]
 aisidecar benchmark [--samples <manifest>] [--output-dir <path>]
 aisidecar purge [--cache-dir <path>] [--config <path>]
+aisidecar cleanup <folder> [--recursive] [--dry-run]
 ```
 
 Accepted flags: the project-wide glossary (PW-004) plus:
@@ -482,6 +484,15 @@ Purge-specific flags:
 
 `aisidecar purge` removes derivative cache artifacts from the resolved cache directory and does not contact Ollama or validate analyze-only model settings. It also accepts the project-wide `--config` flag.
 
+Cleanup-specific flags:
+
+```text
+--recursive    Recurse into subfolders when finding cleanup artifacts.
+--dry-run      Count matching artifacts without deleting them.
+```
+
+`aisidecar cleanup` removes raw `.ai.json` sidecars plus known analyze, XMP export, normalization, and apply-session progress/report/summary artifacts from the selected folder. It intentionally does not remove source images, `.xmp` sidecars, XMP backups, diagnostic model-input exports, debug derivative copies, derivative cache files, or normalization session JSON.
+
 Recommended examples:
 
 ```bash
@@ -492,6 +503,8 @@ aisidecar analyze /Photos/Birds --recursive --mode whole --output-dir ./ai-json
 aisidecar analyze /Photos/Birds --recursive --mode subject --existing skip
 
 aisidecar purge
+
+aisidecar cleanup /Photos/Birds --recursive --dry-run
 ```
 
 ## 12. Acceptance Criteria

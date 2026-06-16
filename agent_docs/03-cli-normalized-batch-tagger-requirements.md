@@ -923,6 +923,8 @@ normalization-progress-<ISO-8601-timestamp>.jsonl
 
 These files shall be written under `--output-dir` when supplied, otherwise beside the scan root, JSON scan root, or session file as appropriate.
 
+`aisidecar cleanup` may remove normalization progress/report/summary artifacts from a selected folder, but it shall retain normalization session JSON because that file is the durable input for `apply-session`. Cleanup also shall not remove XMP sidecars, backups, source images, or derivative cache artifacts.
+
 FR3-038 - The report schema identifier shall be `ai-sidecar-normalization-report/1.0`.
 
 FR3-039 - Dry-run mode shall build the full normalization session and XMP change plans, but shall not create, modify, back up, restore, or validate XMP sidecars on disk.

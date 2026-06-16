@@ -501,8 +501,9 @@ normalization-summary-<ISO-8601-timestamp>.md
 normalization-progress-<ISO-8601-timestamp>.jsonl
 ```
 
-6. Implement `--write-report <path>` for explicit report output while keeping the default artifact locations under `--output-dir`, scan root, JSON scan root, or session-file directory.
-7. Finish `--session-only`: produce valid session/report/summary/progress artifacts and no `.xmp` sidecars, backups, restores, or validation attempts (AC3-017).
+6. `aisidecar cleanup` can remove normalization progress/report/summary artifacts while preserving normalization session JSON for later `apply-session` use.
+7. Implement `--write-report <path>` for explicit report output while keeping the default artifact locations under `--output-dir`, scan root, JSON scan root, or session-file directory.
+8. Finish `--session-only`: produce valid session/report/summary/progress artifacts and no `.xmp` sidecars, backups, restores, or validation attempts (AC3-017).
 
 Exit criteria: reports are deterministic for fixtures, contain vocabulary hash, owned XMP writer identity, normalized decisions, affinity profile, affinity edges, local weighted consensus records, per-asset provenance, skip reasons, group membership, and application instructions. `--session-only` is covered by no-XMP tests.
 

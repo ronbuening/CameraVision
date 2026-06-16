@@ -380,8 +380,9 @@ Tasks:
 1. Implement `XMPExportPipeline` for `--from-json`: JSON scan -> source resolution -> source verification -> extraction -> grouping -> change planning -> optional dry-run -> engine write -> validation -> report.
 2. Folder runs write one progress record per XMP target, not per source member (FR2-032c).
 3. Folder runs produce `xmp-export-progress-<ISO>.jsonl`, `xmp-export-report-<ISO>.json`, and `xmp-export-summary-<ISO>.md` (FR2-032).
-4. Single-file runs print essential summary to stdout; dry-run emits the full change plan (FR2-034b).
-5. Reports include source verification status, owned XMP engine name/version, writer recipe version, group membership, tags added, tags skipped, backups, validation, errors, and application instructions (FR2-034/034a).
+4. `aisidecar cleanup` can remove generated XMP export progress/report/summary artifacts while leaving XMP sidecars, backups, source images, and derivative cache artifacts in place.
+5. Single-file runs print essential summary to stdout; dry-run emits the full change plan (FR2-034b).
+6. Reports include source verification status, owned XMP engine name/version, writer recipe version, group membership, tags added, tags skipped, backups, validation, errors, and application instructions (FR2-034/034a).
 
 Exit criteria:
 

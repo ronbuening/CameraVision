@@ -158,25 +158,27 @@ public struct SubjectIsolationService {
             return cached
         }
 
-        let composited = try subjectComposite(
-            fullImage: prepared.fullImage,
-            fullDimensions: fullDimensions,
-            selectedMasks: selectedMasks,
-            cropBox: cropBox,
-            matteRGB: matteRGB
-        )
-        let recipe = RenderRecipe(profile: profile)
-        let finalImage = recipe.resized(composited, to: finalDimensions)
-        var record = try cache.store(
-            source: source,
-            recipeVersion: recipeVersion,
-            role: .subjectIsolated,
-            format: format,
-            dimensions: finalDimensions,
-            colorSpace: profile.colorSpace,
-            appliedOrientation: prepared.appliedOrientation
-        ) { destination in
-            try writeJPEG(image: finalImage, to: destination, quality: profile.jpegQuality)
+        var record = try autoreleasepool {
+            let composited = try subjectComposite(
+                fullImage: prepared.fullImage,
+                fullDimensions: fullDimensions,
+                selectedMasks: selectedMasks,
+                cropBox: cropBox,
+                matteRGB: matteRGB
+            )
+            let recipe = RenderRecipe(profile: profile)
+            let finalImage = recipe.resized(composited, to: finalDimensions)
+            return try cache.store(
+                source: source,
+                recipeVersion: recipeVersion,
+                role: .subjectIsolated,
+                format: format,
+                dimensions: finalDimensions,
+                colorSpace: profile.colorSpace,
+                appliedOrientation: prepared.appliedOrientation
+            ) { destination in
+                try writeJPEG(image: finalImage, to: destination, quality: profile.jpegQuality)
+            }
         }
 
         if debugDerivatives {

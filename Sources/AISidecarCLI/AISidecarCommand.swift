@@ -13,7 +13,8 @@ struct AISidecarCommand: AsyncParsableCommand {
             NormalizeCommand.self,
             ApplySessionCommand.self,
             BenchmarkCommand.self,
-            PurgeCommand.self
+            PurgeCommand.self,
+            CleanupCommand.self
         ]
     )
 }
