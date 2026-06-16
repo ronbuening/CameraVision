@@ -97,6 +97,31 @@ final class ApplySessionPipelineTests: XCTestCase {
         XCTAssertEqual(result.exportReport?.targetReports.first?.status, .dryRun)
     }
 
+    func testApplySessionInterruptedAfterSourceResolutionDoesNotWriteXMP() throws {
+        let fixture = try makeSessionFixture(dryRun: false)
+        let originalSourceData = try Data(contentsOf: fixture.sourceURL)
+        let output = try temporaryDirectory()
+        let monitor = InterruptionMonitor()
+        let result = try ApplySessionPipeline(
+            afterSourceResolution: { monitor.requestInterruption() }
+        ).run(
+            sessionPath: fixture.sessionPath,
+            configuration: applyConfiguration(outputDir: output),
+            timestamp: Date(timeIntervalSince1970: 1_800_001_100),
+            interruptionMonitor: monitor
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.xmp").path))
+        XCTAssertEqual(result.exportReport?.inputFailures.map(\.error.code), [.interrupted])
+        XCTAssertEqual(result.report.errors.map(\.code), [.interrupted])
+        XCTAssertEqual(try Data(contentsOf: fixture.sourceURL), originalSourceData)
+        XCTAssertTrue(try decodeProgress(at: result.report.artifacts.progressPath).contains {
+            $0.stage == .xmpTarget
+                && $0.status == .failed
+                && $0.errors.map(\.code) == [.interrupted]
+        })
+    }
+
     func testApplySessionFailsClosedForMalformedCurrentXMP() throws {
         let fixture = try makeSessionFixture(dryRun: false)
         let output = try temporaryDirectory()

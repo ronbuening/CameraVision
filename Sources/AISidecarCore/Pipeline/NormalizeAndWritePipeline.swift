@@ -17,14 +17,19 @@ public struct NormalizeAndWritePipeline {
     private let normalizePipeline: NormalizePipeline
     private let exportPipeline: XMPExportPipeline
     private let executionRecorder: NormalizationXMPExecutionRecorder
+    private let afterNormalization: @Sendable () -> Void
 
-    /// Create a normalize-and-write pipeline with injectable collaborators for tests.
+    /// Create a normalize-and-write pipeline with injectable collaborators.
+    ///
+    /// `afterNormalization` fires after the session and normalized change plan are written,
+    /// but before XMP export begins, so tests can assert the Milestone 9 interruption boundary.
     public init(
         fileManager: FileManager = .default,
         normalizePipeline: NormalizePipeline = NormalizePipeline(),
         exportPipeline: XMPExportPipeline? = nil,
         logger: Logger = Logger(),
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        afterNormalization: @escaping @Sendable () -> Void = {}
     ) {
         self.fileManager = fileManager
         self.normalizePipeline = normalizePipeline
@@ -34,6 +39,7 @@ public struct NormalizeAndWritePipeline {
             now: now
         )
         self.executionRecorder = NormalizationXMPExecutionRecorder(fileManager: fileManager)
+        self.afterNormalization = afterNormalization
     }
 
     /// Build a normalization session, execute its XMP plans, and update report artifacts.
@@ -47,12 +53,17 @@ public struct NormalizeAndWritePipeline {
                 "NormalizeAndWritePipeline requires --from-json or --file-list; use AnalyzeAndNormalizePipeline for image input."
             )
         }
-        let normalizeResult = try normalizePipeline.runWritePlan(mode: mode, configuration: configuration)
+        let normalizeResult = try normalizePipeline.runWritePlan(
+            mode: mode,
+            configuration: configuration,
+            interruptionMonitor: interruptionMonitor
+        )
         let changePlan = normalizeResult.changePlan ?? XMPChangePlanDocument(
             dryRun: configuration.dryRun,
             targetPlans: [],
             inputFailures: []
         )
+        afterNormalization()
         let exportResult = try exportPipeline.runChangePlan(
             changePlan,
             inputPath: inputPath(for: mode),

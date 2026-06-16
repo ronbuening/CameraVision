@@ -77,6 +77,21 @@ struct NormalizationXMPExecutionRecorder {
                 )
             )
         }
+        // Phase 2 reports interruption-before-target as an input failure; mirror it
+        // into the Phase 3 progress log so normalized writes identify the stop stage.
+        for failure in exportReport.inputFailures {
+            try progressLog.append(
+                NormalizationProgressRecord(
+                    timestamp: exportReport.createdAt,
+                    stage: .xmpTarget,
+                    status: .failed,
+                    message: "XMP export did not process all targets.",
+                    xmpWritePlanCount: 0,
+                    targetRelativePath: failure.relativePath,
+                    errors: [failure.error]
+                )
+            )
+        }
         try progressLog.close()
     }
 

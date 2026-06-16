@@ -24,8 +24,12 @@ public struct AnalyzeAndNormalizePipeline {
     private let normalizePipeline: NormalizePipeline
     private let exportPipeline: XMPExportPipeline
     private let executionRecorder: NormalizationXMPExecutionRecorder
+    private let afterNormalization: @Sendable () -> Void
 
-    /// Create an analyze-and-normalize pipeline with injectable test seams.
+    /// Create an analyze-and-normalize pipeline with injectable collaborators.
+    ///
+    /// `afterNormalization` fires after the session and normalized change plan are written,
+    /// but before XMP export begins, so tests can assert the Milestone 9 interruption boundary.
     public init(
         fileManager: FileManager = .default,
         analyzePipeline: AnalyzePipeline? = nil,
@@ -34,7 +38,8 @@ public struct AnalyzeAndNormalizePipeline {
         logger: Logger = Logger(),
         maskProvider: (any ForegroundMaskProvider)? = nil,
         runner: any VisionModelRunner = OllamaVisionRunner(),
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        afterNormalization: @escaping @Sendable () -> Void = {}
     ) {
         self.fileManager = fileManager
         self.analyzePipeline = analyzePipeline ?? AnalyzePipeline(
@@ -51,6 +56,7 @@ public struct AnalyzeAndNormalizePipeline {
             now: now
         )
         self.executionRecorder = NormalizationXMPExecutionRecorder(fileManager: fileManager)
+        self.afterNormalization = afterNormalization
     }
 
     /// Run Phase 1 analysis, normalize successful sidecars, then execute normalized XMP plans.
@@ -89,13 +95,15 @@ public struct AnalyzeAndNormalizePipeline {
         let normalizeResult = try normalizePipeline.runResolvedInputs(
             resolvedInput,
             configuration: normalizationConfiguration,
-            includeXMPPlans: true
+            includeXMPPlans: true,
+            interruptionMonitor: interruptionMonitor
         )
         let changePlan = normalizeResult.changePlan ?? XMPChangePlanDocument(
             dryRun: normalizationConfiguration.dryRun,
             targetPlans: [],
             inputFailures: []
         )
+        afterNormalization()
         let exportResult = try exportPipeline.runChangePlan(
             changePlan,
             inputPath: URL(fileURLWithPath: inputPath).standardizedFileURL.path,

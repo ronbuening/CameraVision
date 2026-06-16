@@ -162,8 +162,14 @@ struct NormalizeCommand: AsyncParsableCommand {
     mutating func run() async throws {
         let mode = try NormalizationInvocationValidator.validate(invocationRequest)
         let resolved = try ConfigurationResolver.resolveNormalization(cli: normalizationOverrides)
+        let interruptionMonitor = InterruptionMonitor()
+        interruptionMonitor.installSignalHandlers()
         if resolved.sessionOnly {
-            let result = try NormalizePipeline().runSessionOnly(mode: mode, configuration: resolved)
+            let result = try NormalizePipeline().runSessionOnly(
+                mode: mode,
+                configuration: resolved,
+                interruptionMonitor: interruptionMonitor
+            )
             let sessionPath = result.session.artifacts.sessionPath ?? "unplanned"
             FileHandle.standardOutput.write(
                 Data(
@@ -177,7 +183,11 @@ struct NormalizeCommand: AsyncParsableCommand {
             return
         }
         if resolved.dryRun {
-            let result = try NormalizePipeline().runDryRun(mode: mode, configuration: resolved)
+            let result = try NormalizePipeline().runDryRun(
+                mode: mode,
+                configuration: resolved,
+                interruptionMonitor: interruptionMonitor
+            )
             if let changePlan = result.changePlan {
                 try writeChangePlan(changePlan)
             }
@@ -188,8 +198,6 @@ struct NormalizeCommand: AsyncParsableCommand {
         case .analyze(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
-            let interruptionMonitor = InterruptionMonitor()
-            interruptionMonitor.installSignalHandlers()
             let result = try await AnalyzeAndNormalizePipeline(logger: logger).run(
                 inputPath: inputPath,
                 runConfiguration: runConfiguration,
@@ -199,8 +207,6 @@ struct NormalizeCommand: AsyncParsableCommand {
             writeEssentialSummary(result.normalizeResult.report)
         case .fromJSON, .fileList:
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
-            let interruptionMonitor = InterruptionMonitor()
-            interruptionMonitor.installSignalHandlers()
             let result = try NormalizeAndWritePipeline(logger: logger).run(
                 mode: mode,
                 configuration: resolved,

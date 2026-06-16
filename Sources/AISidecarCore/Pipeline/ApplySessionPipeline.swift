@@ -27,20 +27,26 @@ public struct ApplySessionPipeline {
     private let reportWriter: NormalizationReportWriter
     private let summaryWriter: NormalizationSummaryWriter
     private let xmpPipeline: XMPExportPipeline
+    private let afterSourceResolution: @Sendable () -> Void
 
-    /// Create an apply-session pipeline with injectable collaborators for tests.
+    /// Create an apply-session pipeline with injectable collaborators.
+    ///
+    /// `afterSourceResolution` fires after current source identity and staleness checks,
+    /// but before the stored decisions are converted into a current XMP export run.
     public init(
         fileManager: FileManager = .default,
         sessionReader: NormalizationSessionReader? = nil,
         reportWriter: NormalizationReportWriter = NormalizationReportWriter(),
         summaryWriter: NormalizationSummaryWriter = NormalizationSummaryWriter(),
-        xmpPipeline: XMPExportPipeline? = nil
+        xmpPipeline: XMPExportPipeline? = nil,
+        afterSourceResolution: @escaping @Sendable () -> Void = {}
     ) {
         self.fileManager = fileManager
         self.sessionReader = sessionReader ?? NormalizationSessionReader(fileManager: fileManager)
         self.reportWriter = reportWriter
         self.summaryWriter = summaryWriter
         self.xmpPipeline = xmpPipeline ?? XMPExportPipeline(fileManager: fileManager)
+        self.afterSourceResolution = afterSourceResolution
     }
 
     /// Read a saved normalization session and apply its stored decisions.
@@ -64,6 +70,7 @@ public struct ApplySessionPipeline {
             sessionPath: absoluteSessionPath,
             configuration: configuration
         )
+        afterSourceResolution()
         let planningConfiguration = normalizedPlanningConfiguration(
             session: session,
             applyConfiguration: configuration
@@ -370,6 +377,21 @@ public struct ApplySessionPipeline {
                         ?? target.preview?.hierarchicalKeywordsToAdd
                         ?? target.plan.hierarchicalKeywordsToAdd.map(\.term),
                     errors: target.errors
+                )
+            )
+        }
+        // Phase 2 reports interruption-before-target as an input failure; mirror it
+        // into the Phase 3 progress log so apply-session artifacts identify the stop stage.
+        for failure in exportReport?.inputFailures ?? [] {
+            try progressLog.append(
+                NormalizationProgressRecord(
+                    timestamp: timestamp,
+                    stage: .xmpTarget,
+                    status: .failed,
+                    message: "Apply-session XMP export did not process all targets.",
+                    xmpWritePlanCount: 0,
+                    targetRelativePath: failure.relativePath,
+                    errors: [failure.error]
                 )
             )
         }

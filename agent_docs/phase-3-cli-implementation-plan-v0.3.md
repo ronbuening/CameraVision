@@ -573,7 +573,17 @@ swift run aisidecar apply-session --help               passed
 
 ## 13. Milestone 9 - Interruption, Concurrency, and File-Safety Hardening
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Wired `aisidecar normalize` to install the shared Phase 2 `InterruptionMonitor` for session-only, dry-run, existing-input normalized writes, and analyze-and-normalize runs.
+- Extended `NormalizePipeline` to check for an already requested interruption after vocabulary loading, input resolution, candidate extraction, consensus, and normalized plan construction, but before session/report/summary/progress artifact creation. This keeps interrupted session-only and dry-run runs free of `.xmp` sidecars, backups, restores, validation attempts, and partial normalization artifacts.
+- Preserved the batch ordering required by Phase 3: normalization aggregation and normalized change-plan construction complete before `NormalizeAndWritePipeline` or `AnalyzeAndNormalizePipeline` invokes the Phase 2 XMP export path.
+- Reused `XMPExportPipeline.runChangePlan` for normalized writes and apply-session, so per-target XMP execution keeps the inherited one-write-per-target rule, backup/restore behavior, validation failure restoration, and source hash rechecks.
+- Added interruption-boundary seams for tests immediately after normalization and after apply-session source resolution, without changing production ordering.
+- Mirrored Phase 2 export input failures, including interruption-before-target failures, into Phase 3 normalization/apply-session progress logs so the artifacts identify the stop stage even when no target write begins.
+- Added fixture tests for cancellation before session artifact write, after session write before XMP export, during XMP backup handling, validation-failure restoration via the inherited Phase 2 tests, and apply-session interruption after stale/source checks.
 
 Tasks:
 
@@ -586,6 +596,23 @@ Tasks:
 7. Keep concurrency simple until correctness is proven: batch aggregation and plan construction may be parallelized later, but XMP writes should reuse the Phase 2 per-target safety semantics first.
 
 Exit criteria: interruption tests simulate cancellation before session write, after session write before XMP write, during XMP write with backup, during validation failure restore, and during apply-session stale checks. Source images and existing sidecars remain unchanged or restored.
+
+M9 verification:
+
+```text
+swift test --filter NormalizeAndWritePipelineTests      4 tests, 0 failures
+swift test --filter ApplySessionPipelineTests           7 tests, 0 failures
+swift test --filter NormalizationSessionTests           5 tests, 0 failures
+swift test --filter AnalyzeAndNormalizePipelineTests    5 tests, 0 failures
+swift test --filter NoXMPRegressionTests                5 tests, 0 failures
+swift test --filter XMPExportPipelineTests              6 tests, 0 failures
+swift test --filter NormalizationInvocationTests        9 tests, 0 failures
+swift test                                             291 tests, 1 skipped, 0 failures
+swift run aisidecar --help                              passed
+swift run aisidecar normalize --help                    passed
+swift run aisidecar apply-session --help                passed
+swift run aisidecar write-xmp --help                    passed
+```
 
 ## 14. Milestone 10 - Automated Tests, Fixtures, and Offline Baseline
 

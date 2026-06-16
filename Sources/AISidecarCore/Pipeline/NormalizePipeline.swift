@@ -17,7 +17,7 @@ public struct NormalizePipelineResult: Sendable, Equatable {
     }
 }
 
-/// Builds Phase 3 normalization sessions and normalized dry-run XMP plans.
+/// Builds complete Phase 3 normalization sessions and normalized XMP plans before any XMP write starts.
 public struct NormalizePipeline {
     private let inputResolver: NormalizationInputResolver
     private let sessionWriter: NormalizationSessionWriter
@@ -41,14 +41,16 @@ public struct NormalizePipeline {
         mode: NormalizationInvocationMode,
         configuration: ResolvedNormalizationConfiguration,
         timestamp: Date = Date(),
-        sessionID: String = UUID().uuidString
+        sessionID: String = UUID().uuidString,
+        interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> NormalizePipelineResult {
         try run(
             mode: mode,
             configuration: configuration,
             timestamp: timestamp,
             sessionID: sessionID,
-            includeXMPPlans: false
+            includeXMPPlans: false,
+            interruptionMonitor: interruptionMonitor
         )
     }
 
@@ -57,14 +59,16 @@ public struct NormalizePipeline {
         mode: NormalizationInvocationMode,
         configuration: ResolvedNormalizationConfiguration,
         timestamp: Date = Date(),
-        sessionID: String = UUID().uuidString
+        sessionID: String = UUID().uuidString,
+        interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> NormalizePipelineResult {
         try run(
             mode: mode,
             configuration: configuration,
             timestamp: timestamp,
             sessionID: sessionID,
-            includeXMPPlans: true
+            includeXMPPlans: true,
+            interruptionMonitor: interruptionMonitor
         )
     }
 
@@ -73,14 +77,16 @@ public struct NormalizePipeline {
         mode: NormalizationInvocationMode,
         configuration: ResolvedNormalizationConfiguration,
         timestamp: Date = Date(),
-        sessionID: String = UUID().uuidString
+        sessionID: String = UUID().uuidString,
+        interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> NormalizePipelineResult {
         try run(
             mode: mode,
             configuration: configuration,
             timestamp: timestamp,
             sessionID: sessionID,
-            includeXMPPlans: true
+            includeXMPPlans: true,
+            interruptionMonitor: interruptionMonitor
         )
     }
 
@@ -90,7 +96,8 @@ public struct NormalizePipeline {
         configuration: ResolvedNormalizationConfiguration,
         timestamp: Date = Date(),
         sessionID: String = UUID().uuidString,
-        includeXMPPlans: Bool = true
+        includeXMPPlans: Bool = true,
+        interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> NormalizePipelineResult {
         let vocabulary = try loadVocabulary(configuration)
         try CandidateCanonicalizer.preflightSessionContext(
@@ -103,7 +110,8 @@ public struct NormalizePipeline {
             timestamp: timestamp,
             sessionID: sessionID,
             includeXMPPlans: includeXMPPlans,
-            vocabulary: vocabulary
+            vocabulary: vocabulary,
+            interruptionMonitor: interruptionMonitor
         )
     }
 
@@ -112,7 +120,8 @@ public struct NormalizePipeline {
         configuration: ResolvedNormalizationConfiguration,
         timestamp: Date,
         sessionID: String,
-        includeXMPPlans: Bool
+        includeXMPPlans: Bool,
+        interruptionMonitor: InterruptionMonitor?
     ) throws -> NormalizePipelineResult {
         let vocabulary = try loadVocabulary(configuration)
         try CandidateCanonicalizer.preflightSessionContext(
@@ -126,7 +135,8 @@ public struct NormalizePipeline {
             timestamp: timestamp,
             sessionID: sessionID,
             includeXMPPlans: includeXMPPlans,
-            vocabulary: vocabulary
+            vocabulary: vocabulary,
+            interruptionMonitor: interruptionMonitor
         )
     }
 
@@ -136,7 +146,8 @@ public struct NormalizePipeline {
         timestamp: Date,
         sessionID: String,
         includeXMPPlans: Bool,
-        vocabulary: LoadedVocabulary
+        vocabulary: LoadedVocabulary,
+        interruptionMonitor: InterruptionMonitor?
     ) throws -> NormalizePipelineResult {
         let extractionResults = CandidateExtractor().extract(
             from: input.rawSidecarInputs,
@@ -203,6 +214,13 @@ public struct NormalizePipeline {
             consensus: consensus,
             xmpWritePlans: normalizedPlans?.writePlans ?? []
         )
+
+        // Milestone 9 keeps session-only and dry-run interruption fail-closed: once
+        // aggregation and planning finish, an already requested interruption stops
+        // before any normalization artifacts or XMP side effects are created.
+        if interruptionMonitor?.isInterrupted == true {
+            throw interruptedError("Normalization interrupted before session artifact write.")
+        }
 
         let progressLog = try NormalizationProgressLog(path: artifactPlan.progressPath)
         defer {
@@ -411,5 +429,9 @@ public struct NormalizePipeline {
             pairScope: configuration.pairScope,
             writeAIJSON: configuration.writeAIJSON
         )
+    }
+
+    private func interruptedError(_ message: String) -> SidecarError {
+        SidecarError(code: .interrupted, stage: .normalize, message: message, recoverable: true)
     }
 }
