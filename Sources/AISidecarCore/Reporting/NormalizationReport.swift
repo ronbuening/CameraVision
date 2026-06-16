@@ -1,6 +1,6 @@
 import Foundation
 
-/// Input counts recorded by the initial Phase 3 normalization report.
+/// Input and output counts recorded by the Phase 3 normalization report.
 public struct NormalizationInputSummary: Codable, Sendable, Equatable {
     public var sourceAssetCount: Int
     public var sourceAISidecarCount: Int
@@ -89,6 +89,14 @@ public struct NormalizationReport: Codable, Sendable, Equatable {
     public var artifacts: NormalizationArtifactPlan
     public var inputSummary: NormalizationInputSummary
     public var decisionSummary: NormalizationDecisionSummary
+    public var sourceAssets: [NormalizationSourceAsset]
+    public var sameBaseNameGroups: [NormalizationSourceGroup]
+    public var affinity: NormalizationAffinityRecord
+    public var candidateSkips: [NormalizationCandidateSkip]
+    public var batchCandidates: [BatchCandidateSummary]
+    public var localConsensus: [LocalWeightedConsensusRecord]
+    public var perAssetDecisions: [PerAssetNormalizationDecision]
+    public var xmpWritePlans: [NormalizedXMPWritePlan]
     public var warnings: [SidecarError]
     public var errors: [SidecarError]
     public var applicationInstructions: [String]
@@ -105,6 +113,14 @@ public struct NormalizationReport: Codable, Sendable, Equatable {
         case artifacts
         case inputSummary = "input_summary"
         case decisionSummary = "decision_summary"
+        case sourceAssets = "source_assets"
+        case sameBaseNameGroups = "same_base_name_groups"
+        case affinity
+        case candidateSkips = "candidate_skips"
+        case batchCandidates = "batch_candidates"
+        case localConsensus = "local_consensus"
+        case perAssetDecisions = "per_asset_decisions"
+        case xmpWritePlans = "xmp_write_plans"
         case warnings
         case errors
         case applicationInstructions = "application_instructions"
@@ -122,6 +138,19 @@ public struct NormalizationReport: Codable, Sendable, Equatable {
         artifacts: NormalizationArtifactPlan,
         inputSummary: NormalizationInputSummary,
         decisionSummary: NormalizationDecisionSummary = NormalizationDecisionSummary(),
+        sourceAssets: [NormalizationSourceAsset] = [],
+        sameBaseNameGroups: [NormalizationSourceGroup] = [],
+        affinity: NormalizationAffinityRecord = NormalizationAffinityRecord(
+            mode: .off,
+            profile: .conservative,
+            minAffinityForConsensus: 0,
+            nodes: []
+        ),
+        candidateSkips: [NormalizationCandidateSkip] = [],
+        batchCandidates: [BatchCandidateSummary] = [],
+        localConsensus: [LocalWeightedConsensusRecord] = [],
+        perAssetDecisions: [PerAssetNormalizationDecision] = [],
+        xmpWritePlans: [NormalizedXMPWritePlan] = [],
         warnings: [SidecarError],
         errors: [SidecarError],
         applicationInstructions: [String] = XMPExportReport.applicationInstructions
@@ -137,6 +166,14 @@ public struct NormalizationReport: Codable, Sendable, Equatable {
         self.artifacts = artifacts
         self.inputSummary = inputSummary
         self.decisionSummary = decisionSummary
+        self.sourceAssets = sourceAssets
+        self.sameBaseNameGroups = sameBaseNameGroups
+        self.affinity = affinity
+        self.candidateSkips = candidateSkips
+        self.batchCandidates = batchCandidates
+        self.localConsensus = localConsensus
+        self.perAssetDecisions = perAssetDecisions
+        self.xmpWritePlans = xmpWritePlans
         self.warnings = warnings
         self.errors = errors
         self.applicationInstructions = applicationInstructions
@@ -148,6 +185,7 @@ public struct NormalizationReportWriter {
     private let fileManager: FileManager
     private let encoder: JSONEncoder
 
+    /// Create a report writer that uses stable JSON formatting for fixture diffs.
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
         self.encoder = JSONEncoder()
@@ -155,6 +193,7 @@ public struct NormalizationReportWriter {
         self.encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     }
 
+    /// Atomically write one machine-readable normalization report.
     public func write(_ report: NormalizationReport, to path: String) throws {
         do {
             let data = try encoder.encode(report)

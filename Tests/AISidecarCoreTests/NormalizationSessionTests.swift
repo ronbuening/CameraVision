@@ -30,6 +30,8 @@ final class NormalizationSessionTests: XCTestCase {
         let sessionPath = try XCTUnwrap(result.session.artifacts.sessionPath)
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: result.session.artifacts.reportPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.session.artifacts.summaryPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.session.artifacts.progressPath))
         XCTAssertTrue(try xmpFiles(in: jsonRoot).isEmpty)
         XCTAssertTrue(try xmpFiles(in: sourceRoot).isEmpty)
         XCTAssertTrue(try xmpFiles(in: output).isEmpty)
@@ -68,7 +70,14 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(report.inputSummary.candidateObservationCount, 0)
         XCTAssertGreaterThan(report.inputSummary.batchCandidateCount, 0)
         XCTAssertEqual(report.inputSummary.perAssetDecisionCount, 1)
+        XCTAssertEqual(report.inputSummary.xmpWritePlanCount, 0)
+        XCTAssertEqual(report.perAssetDecisions.count, 1)
+        XCTAssertEqual(report.sourceAssets.count, 1)
         XCTAssertTrue(report.applicationInstructions.contains { $0.contains("Lightroom Classic") })
+        XCTAssertTrue(try readText(at: result.session.artifacts.summaryPath).contains("Normalization Summary"))
+        let progress = try decodeProgress(at: result.session.artifacts.progressPath)
+        XCTAssertEqual(progress.map(\.stage), [.inputResolution, .normalization, .xmpPlanning, .artifactWrite])
+        XCTAssertEqual(progress.map(\.status), [.completed, .completed, .skipped, .completed])
     }
 
     func testFromJSONSessionOnlyPersistsCanonicalizedCandidateDecisionsAndReportCounts() throws {
@@ -169,6 +178,8 @@ final class NormalizationSessionTests: XCTestCase {
 
         XCTAssertTrue(try xmpFiles(in: sourceRoot).isEmpty)
         XCTAssertTrue(try xmpFiles(in: output).isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.session.artifacts.summaryPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: result.session.artifacts.progressPath))
         let changePlan = try XCTUnwrap(result.changePlan)
         XCTAssertTrue(changePlan.dryRun)
         XCTAssertEqual(changePlan.targetPlans.count, 1)
@@ -185,6 +196,15 @@ final class NormalizationSessionTests: XCTestCase {
 
         let report = try decodeReport(at: URL(fileURLWithPath: decoded.artifacts.reportPath))
         XCTAssertEqual(report.inputSummary.xmpWritePlanCount, 1)
+        XCTAssertEqual(report.xmpWritePlans.count, 1)
+        let progress = try decodeProgress(at: decoded.artifacts.progressPath)
+        XCTAssertEqual(
+            progress.map(\.stage),
+            [.inputResolution, .normalization, .xmpPlanning, .xmpTarget, .artifactWrite]
+        )
+        XCTAssertEqual(progress[3].targetXMPPath, output.appendingPathComponent("Bird.xmp").path)
+        XCTAssertEqual(progress[3].plannedFlatKeywords, ["Birds"])
+        XCTAssertEqual(progress[3].plannedHierarchicalKeywords, ["Subject|Wildlife|Birds"])
     }
 
     func testNormalizeDryRunWriteUnnormalizedSessionContextPlansFlatKeywordOnly() throws {
@@ -220,6 +240,7 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(writePlan.flatKeywordProvenance.first?.candidateKinds, [.userContextUnnormalized])
         XCTAssertEqual(writePlan.flatKeywordProvenance.first?.contextTypes, [.subject])
         XCTAssertTrue(writePlan.hierarchicalKeywordProvenance.isEmpty)
+        XCTAssertTrue(try readText(at: decoded.artifacts.summaryPath).contains("Folder Mystery"))
     }
 
     func testApplySessionAllowStaleIsInvocationOnlyResolvedConfiguration() throws {
@@ -287,6 +308,18 @@ final class NormalizationSessionTests: XCTestCase {
             }
             return url
         }
+    }
+
+    private func readText(at path: String) throws -> String {
+        String(decoding: try Data(contentsOf: URL(fileURLWithPath: path)), as: UTF8.self)
+    }
+
+    private func decodeProgress(at path: String) throws -> [NormalizationProgressRecord] {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try readText(at: path)
+            .split(separator: "\n")
+            .map { try decoder.decode(NormalizationProgressRecord.self, from: Data($0.utf8)) }
     }
 
     private func writeConfig(_ contents: String) throws -> String {

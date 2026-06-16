@@ -22,15 +22,18 @@ public struct NormalizePipeline {
     private let inputResolver: NormalizationInputResolver
     private let sessionWriter: NormalizationSessionWriter
     private let reportWriter: NormalizationReportWriter
+    private let summaryWriter: NormalizationSummaryWriter
 
     public init(
         inputResolver: NormalizationInputResolver = NormalizationInputResolver(),
         sessionWriter: NormalizationSessionWriter = NormalizationSessionWriter(),
-        reportWriter: NormalizationReportWriter = NormalizationReportWriter()
+        reportWriter: NormalizationReportWriter = NormalizationReportWriter(),
+        summaryWriter: NormalizationSummaryWriter = NormalizationSummaryWriter()
     ) {
         self.inputResolver = inputResolver
         self.sessionWriter = sessionWriter
         self.reportWriter = reportWriter
+        self.summaryWriter = summaryWriter
     }
 
     /// Resolve inputs and write session/report artifacts without touching XMP sidecars.
@@ -141,11 +144,35 @@ public struct NormalizePipeline {
             writerIdentity: writerIdentity,
             artifactPlan: artifactPlan,
             consensus: consensus,
-            xmpWritePlanCount: normalizedPlans?.writePlans.count ?? 0
+            xmpWritePlans: normalizedPlans?.writePlans ?? []
         )
 
+        let progressLog = try NormalizationProgressLog(path: artifactPlan.progressPath)
+        defer {
+            try? progressLog.close()
+        }
+        try appendProgressRecords(
+            to: progressLog,
+            timestamp: timestamp,
+            input: input,
+            consensus: consensus,
+            xmpWritePlans: normalizedPlans?.writePlans ?? []
+        )
         try sessionWriter.write(session, to: sessionPath)
         try reportWriter.write(report, to: artifactPlan.reportPath)
+        try summaryWriter.write(report, to: artifactPlan.summaryPath)
+        try progressLog.append(
+            NormalizationProgressRecord(
+                timestamp: timestamp,
+                stage: .artifactWrite,
+                status: .completed,
+                message: "Normalization artifacts written.",
+                sourceAssetCount: input.sourceAssets.count,
+                perAssetDecisionCount: consensus.perAssetDecisions.count,
+                xmpWritePlanCount: normalizedPlans?.writePlans.count ?? 0
+            )
+        )
+        try progressLog.close()
         return NormalizePipelineResult(session: session, report: report, changePlan: normalizedPlans?.changePlan)
     }
 
@@ -214,7 +241,7 @@ public struct NormalizePipeline {
         writerIdentity: MetadataWriteEngineContext,
         artifactPlan: NormalizationArtifactPlan,
         consensus: BatchConsensusResult,
-        xmpWritePlanCount: Int
+        xmpWritePlans: [NormalizedXMPWritePlan]
     ) -> NormalizationReport {
         NormalizationReport(
             createdAt: timestamp,
@@ -233,14 +260,78 @@ public struct NormalizePipeline {
                 candidateSkipCount: consensus.skips.count,
                 batchCandidateCount: consensus.batchCandidates.count,
                 perAssetDecisionCount: consensus.perAssetDecisions.count,
-                xmpWritePlanCount: xmpWritePlanCount,
+                xmpWritePlanCount: xmpWritePlans.count,
                 warningCount: input.warnings.count,
                 failureCount: input.failures.count
             ),
             decisionSummary: NormalizationDecisionSummary(decisions: consensus.perAssetDecisions),
+            sourceAssets: input.sourceAssets,
+            sameBaseNameGroups: input.sameBaseNameGroups,
+            affinity: consensus.affinity,
+            candidateSkips: consensus.skips,
+            batchCandidates: consensus.batchCandidates,
+            localConsensus: consensus.localConsensus,
+            perAssetDecisions: consensus.perAssetDecisions,
+            xmpWritePlans: xmpWritePlans,
             warnings: input.warnings,
             errors: input.failures.map(\.error)
         )
+    }
+
+    private func appendProgressRecords(
+        to progressLog: NormalizationProgressLog,
+        timestamp: Date,
+        input: NormalizationResolvedInputBatch,
+        consensus: BatchConsensusResult,
+        xmpWritePlans: [NormalizedXMPWritePlan]
+    ) throws {
+        try progressLog.append(
+            NormalizationProgressRecord(
+                timestamp: timestamp,
+                stage: .inputResolution,
+                status: .completed,
+                message: "Normalization inputs resolved.",
+                sourceAssetCount: input.sourceAssets.count
+            )
+        )
+        try progressLog.append(
+            NormalizationProgressRecord(
+                timestamp: timestamp,
+                stage: .normalization,
+                status: .completed,
+                message: "Normalization decisions completed.",
+                sourceAssetCount: input.sourceAssets.count,
+                perAssetDecisionCount: consensus.perAssetDecisions.count
+            )
+        )
+        try progressLog.append(
+            NormalizationProgressRecord(
+                timestamp: timestamp,
+                stage: .xmpPlanning,
+                status: xmpWritePlans.isEmpty ? .skipped : .completed,
+                message: xmpWritePlans.isEmpty
+                    ? "XMP planning skipped for session-only invocation."
+                    : "Normalized XMP plans completed.",
+                xmpWritePlanCount: xmpWritePlans.count
+            )
+        )
+        for writePlan in xmpWritePlans {
+            let plan = writePlan.xmpChangePlan
+            try progressLog.append(
+                NormalizationProgressRecord(
+                    timestamp: timestamp,
+                    stage: .xmpTarget,
+                    status: plan.status == .planned ? .planned : .failed,
+                    message: "Normalized XMP target planned.",
+                    xmpWritePlanCount: 1,
+                    targetXMPPath: plan.targetXMPPath,
+                    targetRelativePath: plan.targetRelativePath,
+                    plannedFlatKeywords: plan.flatKeywordsToAdd.map(\.term),
+                    plannedHierarchicalKeywords: plan.hierarchicalKeywordsToAdd.map(\.term),
+                    errors: plan.failures
+                )
+            )
+        }
     }
 
     private func xmpExportConfiguration(

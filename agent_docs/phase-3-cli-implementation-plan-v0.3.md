@@ -43,7 +43,7 @@ Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemente
 
 The Phase 2 writer path is the implementation baseline for Phase 3. Phase 3 must not add another XMP writer, another metadata executable dependency, or another sidecar merge stack. Its normalized output must become a write plan consumed by the same `MetadataWriteEngine` and `OwnedXMPSidecarEngine` used by `aisidecar write-xmp`.
 
-Phase 3 Milestones 0-5 are implemented. The current implementation includes CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report artifacts, candidate observations, direct vocabulary canonicalization, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, and `normalize --dry-run` change-plan output. Remaining milestones add richer reports/summaries/progress logs, normalized XMP writing, apply-session execution, analyze-and-normalize, interruption behavior, and release-gate evidence.
+Phase 3 Milestones 0-6 are implemented. The current implementation includes CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report/summary/progress artifacts, candidate observations, direct vocabulary canonicalization, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, `normalize --dry-run` change-plan output, detailed normalization reports, Markdown summaries, and JSONL progress logs. Remaining milestones add normalized XMP writing, apply-session execution, analyze-and-normalize, interruption behavior, and release-gate evidence.
 
 The Phase 1 release signoff is still separate. Phase 3 implementation may begin from the Phase 2 baseline, but Phase 3 release should either archive Phase 1 Milestone 9 calibration/quality evidence or explicitly defer it with the missing checks, reason, and residual risk.
 
@@ -269,7 +269,7 @@ These deltas are normative for the milestone sections that follow. They avoid sp
 
 ## 4. Milestone 0 - Command Scaffold, Configuration, and Regression Guard
 
-Status: planned.
+Status: implemented.
 
 Tasks:
 
@@ -473,7 +473,15 @@ Exit criteria: dry-run output explains every normalized tag, every skipped tag, 
 
 ## 10. Milestone 6 - Reports, Summaries, Progress Logs, and Session-Only Finalization
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Expanded `NormalizationReport` to include source assets, same-base-name groups, affinity records, candidate skips, batch candidates, local consensus, per-asset decisions, normalized XMP write plans, writer identity, vocabulary identity, application instructions, and deterministic summary counts.
+- Added `NormalizationProgressLog` JSONL artifacts with stage records for input resolution, normalization, XMP planning, each planned XMP target, and artifact writes, flushing after each append.
+- Added `NormalizationSummaryWriter` Markdown output that summarizes counts, affinity profile/edges, per-stage decisions, skip/block reasons, XMP plans, warnings/errors, and Lightroom Classic/Capture One post-export instructions.
+- Wired `NormalizePipeline` to produce session/report/summary/progress artifacts for session-only and dry-run runs, respecting `--write-report` for the report path while keeping the other artifacts under the planned artifact directory.
+- Extended `NormalizationSessionTests` to decode progress JSONL records, assert report detail, assert summary creation, and preserve no-XMP behavior for session-only and dry-run fixture paths.
 
 Tasks:
 
