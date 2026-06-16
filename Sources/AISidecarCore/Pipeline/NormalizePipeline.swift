@@ -35,7 +35,20 @@ public struct NormalizePipeline {
         sessionID: String = UUID().uuidString
     ) throws -> NormalizePipelineResult {
         let vocabulary = try loadVocabulary(configuration)
+        try CandidateCanonicalizer.preflightSessionContext(
+            configuration: configuration,
+            vocabulary: vocabulary
+        )
         let input = try inputResolver.resolve(mode: mode, configuration: configuration)
+        let extractionResults = CandidateExtractor().extract(
+            from: input.rawSidecarInputs,
+            configuration: xmpExportConfiguration(from: configuration)
+        )
+        let canonicalization = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+            extractionResults: extractionResults,
+            input: input,
+            configuration: configuration
+        )
         let artifactPlan = NormalizationArtifactPlanner.planNormalize(
             inputBasePath: input.inputBasePath,
             outputDir: configuration.outputDir,
@@ -65,7 +78,8 @@ public struct NormalizePipeline {
             vocabulary: vocabulary,
             privacy: privacy,
             writerIdentity: writerIdentity,
-            artifactPlan: artifactPlan
+            artifactPlan: artifactPlan,
+            canonicalization: canonicalization
         )
         let report = makeReport(
             timestamp: timestamp,
@@ -73,7 +87,8 @@ public struct NormalizePipeline {
             configuration: configuration,
             vocabulary: vocabulary,
             writerIdentity: writerIdentity,
-            artifactPlan: artifactPlan
+            artifactPlan: artifactPlan,
+            canonicalization: canonicalization
         )
 
         try sessionWriter.write(session, to: sessionPath)
@@ -96,7 +111,8 @@ public struct NormalizePipeline {
         vocabulary: LoadedVocabulary,
         privacy: NormalizationPrivacyRecord,
         writerIdentity: MetadataWriteEngineContext,
-        artifactPlan: NormalizationArtifactPlan
+        artifactPlan: NormalizationArtifactPlan,
+        canonicalization: CandidateCanonicalizationResult
     ) -> NormalizationSessionDocument {
         let warnings = input.warnings
         let errors = input.failures.map(\.error)
@@ -121,7 +137,7 @@ public struct NormalizePipeline {
             ),
             vocabulary: vocabulary.identity,
             resolvedConfiguration: configuration,
-            sessionContext: sessionContextRecords(configuration),
+            sessionContext: canonicalization.sessionContext,
             privacy: privacy,
             xmpWriter: writerIdentity,
             sourceAISidecars: input.sourceAISidecars,
@@ -133,6 +149,10 @@ public struct NormalizePipeline {
                 minAffinityForConsensus: configuration.minAffinityForConsensus,
                 nodes: nodes
             ),
+            candidateObservations: canonicalization.observations,
+            candidateSkips: canonicalization.skips,
+            batchCandidates: canonicalization.batchCandidates,
+            perAssetDecisions: canonicalization.perAssetDecisions,
             artifacts: artifactPlan,
             deterministicPolicy: NormalizationDeterministicPolicyRecord(
                 exactAffinityInputsPersisted: privacy.exactAffinityInputsPersisted
@@ -148,7 +168,8 @@ public struct NormalizePipeline {
         configuration: ResolvedNormalizationConfiguration,
         vocabulary: LoadedVocabulary,
         writerIdentity: MetadataWriteEngineContext,
-        artifactPlan: NormalizationArtifactPlan
+        artifactPlan: NormalizationArtifactPlan,
+        canonicalization: CandidateCanonicalizationResult
     ) -> NormalizationReport {
         NormalizationReport(
             createdAt: timestamp,
@@ -163,52 +184,38 @@ public struct NormalizePipeline {
                 sourceAssetCount: input.sourceAssets.count,
                 sourceAISidecarCount: input.sourceAISidecars.count,
                 sameBaseNameGroupCount: input.sameBaseNameGroups.count,
+                candidateObservationCount: canonicalization.observations.count,
+                candidateSkipCount: canonicalization.skips.count,
+                batchCandidateCount: canonicalization.batchCandidates.count,
+                perAssetDecisionCount: canonicalization.perAssetDecisions.count,
                 warningCount: input.warnings.count,
                 failureCount: input.failures.count
             ),
+            decisionSummary: NormalizationDecisionSummary(decisions: canonicalization.perAssetDecisions),
             warnings: input.warnings,
             errors: input.failures.map(\.error)
         )
     }
 
-    private func sessionContextRecords(
-        _ configuration: ResolvedNormalizationConfiguration
-    ) -> [NormalizationSessionContextRecord] {
-        [
-            contextRecord(
-                type: .subject,
-                value: configuration.sessionSubject,
-                propagationAllowed: configuration.allowSessionSubjectPropagation
-            ),
-            contextRecord(
-                type: .habitat,
-                value: configuration.sessionHabitat,
-                propagationAllowed: configuration.allowSessionHabitatPropagation
-            ),
-            contextRecord(
-                type: .event,
-                value: configuration.sessionEvent,
-                propagationAllowed: configuration.allowSessionEventPropagation
-            )
-        ].compactMap { $0 }
-    }
-
-    private func contextRecord(
-        type: NormalizationSessionContextType,
-        value: String?,
-        propagationAllowed: Bool
-    ) -> NormalizationSessionContextRecord? {
-        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return nil
-        }
-        return NormalizationSessionContextRecord(
-            contextType: type,
-            originalText: value,
-            foldedText: VocabularyTextFolder.fold(value),
-            matchedCanonicalPath: nil,
-            unknownPolicyResult: "pending_vocabulary_match",
-            propagationAllowed: propagationAllowed,
-            exportResult: "pending_decision"
+    private func xmpExportConfiguration(
+        from configuration: ResolvedNormalizationConfiguration
+    ) -> ResolvedXMPExportConfiguration {
+        ResolvedXMPExportConfiguration(
+            recursive: configuration.recursive,
+            outputDir: configuration.outputDir,
+            logLevel: configuration.logLevel,
+            logFormat: configuration.logFormat,
+            dryRun: configuration.dryRun,
+            sourceRoot: configuration.sourceRoot,
+            sourceVerification: configuration.sourceVerification,
+            writeFlatKeywords: configuration.writeFlatKeywords,
+            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
+            backupSidecars: configuration.backupSidecars,
+            xmpConflictPolicy: configuration.xmpConflictPolicy,
+            minConfidence: configuration.minConfidence,
+            allowSpecificTags: configuration.allowSpecificTags,
+            pairScope: configuration.pairScope,
+            writeAIJSON: configuration.writeAIJSON
         )
     }
 }

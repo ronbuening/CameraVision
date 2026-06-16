@@ -21,7 +21,9 @@ public struct NormalizationSessionContextRecord: Codable, Sendable, Equatable {
     public var foldedText: String
     public var matchedCanonicalPath: String?
     public var unknownPolicyResult: String
+    public var directApplyPolicy: DirectApplyPolicy?
     public var propagationAllowed: Bool
+    public var conflictCount: Int
     public var exportResult: String
 
     enum CodingKeys: String, CodingKey {
@@ -30,7 +32,9 @@ public struct NormalizationSessionContextRecord: Codable, Sendable, Equatable {
         case foldedText = "folded_text"
         case matchedCanonicalPath = "matched_canonical_path"
         case unknownPolicyResult = "unknown_policy_result"
+        case directApplyPolicy = "direct_apply_policy"
         case propagationAllowed = "propagation_allowed"
+        case conflictCount = "conflict_count"
         case exportResult = "export_result"
     }
 
@@ -40,7 +44,9 @@ public struct NormalizationSessionContextRecord: Codable, Sendable, Equatable {
         foldedText: String,
         matchedCanonicalPath: String?,
         unknownPolicyResult: String,
+        directApplyPolicy: DirectApplyPolicy?,
         propagationAllowed: Bool,
+        conflictCount: Int = 0,
         exportResult: String
     ) {
         self.contextType = contextType
@@ -48,7 +54,9 @@ public struct NormalizationSessionContextRecord: Codable, Sendable, Equatable {
         self.foldedText = foldedText
         self.matchedCanonicalPath = matchedCanonicalPath
         self.unknownPolicyResult = unknownPolicyResult
+        self.directApplyPolicy = directApplyPolicy
         self.propagationAllowed = propagationAllowed
+        self.conflictCount = conflictCount
         self.exportResult = exportResult
     }
 }
@@ -215,9 +223,66 @@ public struct NormalizationAffinityRecord: Codable, Sendable, Equatable {
     }
 }
 
-/// Placeholder batch candidate summary populated by later normalization milestones.
+/// Normalized candidate category recorded in batch summaries.
+public enum NormalizedCandidateKind: String, Codable, Sendable, Equatable {
+    case canonicalVocabulary = "canonical_vocabulary"
+    case phase2Fallback = "phase2_fallback"
+    case userContextUnnormalized = "user_context_unnormalized"
+}
+
+/// Summary of direct support for one normalized or fallback candidate.
 public struct BatchCandidateSummary: Codable, Sendable, Equatable {
-    public init() {}
+    public var candidateKind: NormalizedCandidateKind
+    public var canonicalPath: String?
+    public var flatKeyword: String?
+    public var hierarchicalKeyword: String?
+    public var namespace: VocabularyNamespace?
+    public var supportingAssetIDs: [String]
+    public var directAssetSupportCount: Int
+    public var observationCount: Int
+    public var confidenceBands: [String: Int]
+    public var sourceFields: [String: Int]
+    public var inputRoles: [String: Int]
+
+    enum CodingKeys: String, CodingKey {
+        case candidateKind = "candidate_kind"
+        case canonicalPath = "canonical_path"
+        case flatKeyword = "flat_keyword"
+        case hierarchicalKeyword = "hierarchical_keyword"
+        case namespace
+        case supportingAssetIDs = "supporting_asset_ids"
+        case directAssetSupportCount = "direct_asset_support_count"
+        case observationCount = "observation_count"
+        case confidenceBands = "confidence_bands"
+        case sourceFields = "source_fields"
+        case inputRoles = "input_roles"
+    }
+
+    public init(
+        candidateKind: NormalizedCandidateKind = .canonicalVocabulary,
+        canonicalPath: String? = nil,
+        flatKeyword: String? = nil,
+        hierarchicalKeyword: String? = nil,
+        namespace: VocabularyNamespace? = nil,
+        supportingAssetIDs: [String] = [],
+        directAssetSupportCount: Int = 0,
+        observationCount: Int = 0,
+        confidenceBands: [String: Int] = [:],
+        sourceFields: [String: Int] = [:],
+        inputRoles: [String: Int] = [:]
+    ) {
+        self.candidateKind = candidateKind
+        self.canonicalPath = canonicalPath
+        self.flatKeyword = flatKeyword
+        self.hierarchicalKeyword = hierarchicalKeyword
+        self.namespace = namespace
+        self.supportingAssetIDs = supportingAssetIDs
+        self.directAssetSupportCount = directAssetSupportCount
+        self.observationCount = observationCount
+        self.confidenceBands = confidenceBands
+        self.sourceFields = sourceFields
+        self.inputRoles = inputRoles
+    }
 }
 
 /// Placeholder local consensus record populated once affinity scoring exists.
@@ -225,9 +290,107 @@ public struct LocalWeightedConsensusRecord: Codable, Sendable, Equatable {
     public init() {}
 }
 
-/// Placeholder per-asset decision record populated by canonicalization and propagation milestones.
+/// Ordered stage that first created a Phase 3 per-asset decision.
+public enum NormalizationDecisionStage: String, Codable, Sendable, Equatable {
+    case directModelObservation = "direct_model_observation"
+    case userSessionContext = "user_session_context"
+    case localAffinityPropagation = "local_affinity_propagation"
+    case globalBackstopPropagation = "global_backstop_propagation"
+    case phase2Fallback = "phase2_fallback"
+}
+
+/// Export status for a direct normalization decision before XMP writing.
+public enum NormalizationDecisionStatus: String, Codable, Sendable, Equatable {
+    case accepted
+    case withheld
+    case skipped
+}
+
+/// Per-asset decision emitted before later milestones adapt decisions into XMP plans.
 public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
-    public init() {}
+    public var decisionID: String
+    public var assetID: String
+    public var groupID: String?
+    public var stage: NormalizationDecisionStage
+    public var status: NormalizationDecisionStatus
+    public var candidateKind: NormalizedCandidateKind
+    public var canonicalPath: String?
+    public var flatKeyword: String?
+    public var hierarchicalKeyword: String?
+    public var sourceText: String?
+    public var namespace: VocabularyNamespace?
+    public var directApplyPolicy: DirectApplyPolicy?
+    public var requiresReview: Bool
+    public var exportFlatKeyword: Bool
+    public var exportHierarchicalKeyword: Bool
+    public var supportUnits: Int
+    public var observationCount: Int
+    public var skipReasons: [NormalizationCandidateSkipReason]
+    public var observations: [CandidateObservation]
+
+    enum CodingKeys: String, CodingKey {
+        case decisionID = "decision_id"
+        case assetID = "asset_id"
+        case groupID = "group_id"
+        case stage
+        case status
+        case candidateKind = "candidate_kind"
+        case canonicalPath = "canonical_path"
+        case flatKeyword = "flat_keyword"
+        case hierarchicalKeyword = "hierarchical_keyword"
+        case sourceText = "source_text"
+        case namespace
+        case directApplyPolicy = "direct_apply_policy"
+        case requiresReview = "requires_review"
+        case exportFlatKeyword = "export_flat_keyword"
+        case exportHierarchicalKeyword = "export_hierarchical_keyword"
+        case supportUnits = "support_units"
+        case observationCount = "observation_count"
+        case skipReasons = "skip_reasons"
+        case observations
+    }
+
+    public init(
+        decisionID: String = "",
+        assetID: String = "",
+        groupID: String? = nil,
+        stage: NormalizationDecisionStage = .directModelObservation,
+        status: NormalizationDecisionStatus = .skipped,
+        candidateKind: NormalizedCandidateKind = .canonicalVocabulary,
+        canonicalPath: String? = nil,
+        flatKeyword: String? = nil,
+        hierarchicalKeyword: String? = nil,
+        sourceText: String? = nil,
+        namespace: VocabularyNamespace? = nil,
+        directApplyPolicy: DirectApplyPolicy? = nil,
+        requiresReview: Bool = false,
+        exportFlatKeyword: Bool = false,
+        exportHierarchicalKeyword: Bool = false,
+        supportUnits: Int = 0,
+        observationCount: Int = 0,
+        skipReasons: [NormalizationCandidateSkipReason] = [],
+        observations: [CandidateObservation] = []
+    ) {
+        self.decisionID = decisionID
+        self.assetID = assetID
+        self.groupID = groupID
+        self.stage = stage
+        self.status = status
+        self.candidateKind = candidateKind
+        self.canonicalPath = canonicalPath
+        self.flatKeyword = flatKeyword
+        self.hierarchicalKeyword = hierarchicalKeyword
+        self.sourceText = sourceText
+        self.namespace = namespace
+        self.directApplyPolicy = directApplyPolicy
+        self.requiresReview = requiresReview
+        self.exportFlatKeyword = exportFlatKeyword
+        self.exportHierarchicalKeyword = exportHierarchicalKeyword
+        self.supportUnits = supportUnits
+        self.observationCount = observationCount
+        self.skipReasons = skipReasons
+        self.observations = observations
+    }
 }
 
 /// Placeholder normalized XMP plan record populated by the Phase 2 plan adapter milestone.
@@ -248,6 +411,8 @@ public struct NormalizationSessionDocument: Codable, Sendable, Equatable {
     public var sourceAssets: [NormalizationSourceAsset]
     public var sameBaseNameGroups: [NormalizationSourceGroup]
     public var affinity: NormalizationAffinityRecord
+    public var candidateObservations: [CandidateObservation]
+    public var candidateSkips: [NormalizationCandidateSkip]
     public var batchCandidates: [BatchCandidateSummary]
     public var localConsensus: [LocalWeightedConsensusRecord]
     public var perAssetDecisions: [PerAssetNormalizationDecision]
@@ -269,6 +434,8 @@ public struct NormalizationSessionDocument: Codable, Sendable, Equatable {
         case sourceAssets = "source_assets"
         case sameBaseNameGroups = "same_base_name_groups"
         case affinity
+        case candidateObservations = "candidate_observations"
+        case candidateSkips = "candidate_skips"
         case batchCandidates = "batch_candidates"
         case localConsensus = "local_consensus"
         case perAssetDecisions = "per_asset_decisions"
@@ -291,6 +458,8 @@ public struct NormalizationSessionDocument: Codable, Sendable, Equatable {
         sourceAssets: [NormalizationSourceAsset],
         sameBaseNameGroups: [NormalizationSourceGroup],
         affinity: NormalizationAffinityRecord,
+        candidateObservations: [CandidateObservation] = [],
+        candidateSkips: [NormalizationCandidateSkip] = [],
         batchCandidates: [BatchCandidateSummary] = [],
         localConsensus: [LocalWeightedConsensusRecord] = [],
         perAssetDecisions: [PerAssetNormalizationDecision] = [],
@@ -311,6 +480,8 @@ public struct NormalizationSessionDocument: Codable, Sendable, Equatable {
         self.sourceAssets = sourceAssets
         self.sameBaseNameGroups = sameBaseNameGroups
         self.affinity = affinity
+        self.candidateObservations = candidateObservations
+        self.candidateSkips = candidateSkips
         self.batchCandidates = batchCandidates
         self.localConsensus = localConsensus
         self.perAssetDecisions = perAssetDecisions

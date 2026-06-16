@@ -43,7 +43,7 @@ Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemente
 
 The Phase 2 writer path is the implementation baseline for Phase 3. Phase 3 must not add another XMP writer, another metadata executable dependency, or another sidecar merge stack. Its normalized output must become a write plan consumed by the same `MetadataWriteEngine` and `OwnedXMPSidecarEngine` used by `aisidecar write-xmp`.
 
-Phase 3 itself is not implemented. The first implementation unit is CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, and core vocabulary/session model types. The v0.7 requirements add the ordered decision pipeline, direct-apply policy, full session-context handling, metadata-affinity graph construction, local weighted consensus, privacy/redaction, deterministic scoring, local conflict mass, global-backstop minimums, artifact truth-table behavior, starter vocabulary coverage, scalable graph construction, and traceability matrix requirements as part of the first production normalization path.
+Phase 3 Milestones 0-3 are implemented. The current implementation includes CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report artifacts, candidate observations, direct vocabulary canonicalization, `off` and `single-image` normalization behavior, and direct-apply decision records. Remaining milestones add the metadata-affinity graph, local weighted consensus, normalized XMP planning/writing, apply-session execution, analyze-and-normalize, interruption behavior, and release-gate evidence.
 
 The Phase 1 release signoff is still separate. Phase 3 implementation may begin from the Phase 2 baseline, but Phase 3 release should either archive Phase 1 Milestone 9 calibration/quality evidence or explicitly defer it with the missing checks, reason, and residual risk.
 
@@ -387,7 +387,15 @@ Exit criteria: `normalize --from-json <folder> --recursive --source-root <root> 
 
 ## 7. Milestone 3 - Candidate Observation Layer and Single-Image Canonicalization
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Added `CandidateObservation`, `NormalizationCandidateSkip`, `CandidateCanonicalizer`, concrete batch candidate summaries, and concrete per-asset decision records to the normalization session.
+- Wired `NormalizePipeline.runSessionOnly` to extract Phase 2 candidates from resolved raw sidecars, persist observation provenance, apply vocabulary matching through `VocabularyIndex`, record direct-apply policy decisions, and add decision counts to normalization reports.
+- Implemented `--normalization-mode off` as Phase 2 fallback pass-through, and `single-image`/`batch-conservative` as direct per-asset vocabulary canonicalization without propagation.
+- Enforced confidence filtering before matching, unit same-asset support, raw model hierarchy-separator rejection, GPS/coordinate candidate guards, unmatched-vocabulary skips, duplicate provenance preservation, and default rejection of unknown session context with `write-unnormalized` flat-only user-context fallback.
+- Added `CandidateCanonicalizerTests` and expanded `NormalizationSessionTests` for synonym collapse, canonical casing, unmatched terms, Phase 2 pass-through, pipe-containing raw candidates, flat-only unnormalized session subject, direct-apply policy boundaries, confidence filtering, and whole-image/subject-isolated provenance.
 
 Tasks:
 

@@ -25,6 +25,7 @@ public struct NormalizationResolvedInputBatch: Sendable, Equatable {
     public var inputPath: String
     public var inputBasePath: String
     public var scanRoot: String?
+    public var rawSidecarInputs: [ResolvedRawSidecarInput]
     public var sourceAssets: [NormalizationSourceAsset]
     public var sourceAISidecars: [NormalizationSourceAISidecarRecord]
     public var sameBaseNameGroups: [NormalizationSourceGroup]
@@ -36,6 +37,7 @@ public struct NormalizationResolvedInputBatch: Sendable, Equatable {
         inputPath: String,
         inputBasePath: String,
         scanRoot: String?,
+        rawSidecarInputs: [ResolvedRawSidecarInput] = [],
         sourceAssets: [NormalizationSourceAsset],
         sourceAISidecars: [NormalizationSourceAISidecarRecord],
         sameBaseNameGroups: [NormalizationSourceGroup],
@@ -46,6 +48,7 @@ public struct NormalizationResolvedInputBatch: Sendable, Equatable {
         self.inputPath = inputPath
         self.inputBasePath = inputBasePath
         self.scanRoot = scanRoot
+        self.rawSidecarInputs = rawSidecarInputs
         self.sourceAssets = sourceAssets
         self.sourceAISidecars = sourceAISidecars
         self.sameBaseNameGroups = sameBaseNameGroups
@@ -119,6 +122,7 @@ public struct NormalizationInputResolver {
             inputPath: inputURL.path,
             inputBasePath: inputBasePath,
             scanRoot: inputBasePath,
+            rawSidecarInputs: batch.inputs,
             sourceAssets: grouped.assets,
             sourceAISidecars: records.sidecars,
             sameBaseNameGroups: grouped.groups,

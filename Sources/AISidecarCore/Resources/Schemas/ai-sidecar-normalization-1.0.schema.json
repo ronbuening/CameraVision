@@ -15,6 +15,8 @@
     "source_assets",
     "same_base_name_groups",
     "affinity",
+    "candidate_observations",
+    "candidate_skips",
     "batch_candidates",
     "local_consensus",
     "per_asset_decisions",
@@ -114,6 +116,133 @@
           "selected_asset_ids",
           "skipped_asset_ids"
         ],
+        "additionalProperties": true
+      }
+    },
+    "candidate_observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "observation_id",
+          "asset_id",
+          "term",
+          "normalized_term",
+          "folded_term",
+          "confidence",
+          "provenance"
+        ],
+        "properties": {
+          "observation_id": { "type": "string", "pattern": "^obs-[0-9]{6}$" },
+          "asset_id": { "type": "string", "pattern": "^asset-[0-9]{6}$" },
+          "group_id": { "type": ["string", "null"] },
+          "term": { "type": "string" },
+          "normalized_term": { "type": "string" },
+          "folded_term": { "type": "string" },
+          "confidence": { "enum": ["low", "medium", "high"] },
+          "evidence": { "type": ["string", "null"] },
+          "provenance": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "candidate_skips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["skip_id", "reason"],
+        "properties": {
+          "skip_id": { "type": "string", "pattern": "^skip-[0-9]{6}$" },
+          "reason": {
+            "enum": [
+              "below_confidence_threshold",
+              "unmatched_vocabulary",
+              "direct_apply_withheld",
+              "direct_apply_flat_only",
+              "requires_review",
+              "specific_tag_policy",
+              "contains_hierarchy_separator",
+              "empty_after_normalization",
+              "duplicate",
+              "disabled_flat_export",
+              "disabled_hierarchical_export",
+              "coordinate_like_term",
+              "gps_only_evidence",
+              "unknown_session_context_rejected",
+              "unknown_session_context_flat_only"
+            ]
+          },
+          "asset_id": { "type": ["string", "null"] },
+          "group_id": { "type": ["string", "null"] },
+          "observation_id": { "type": ["string", "null"] },
+          "canonical_path": { "type": ["string", "null"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "batch_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_kind",
+          "supporting_asset_ids",
+          "direct_asset_support_count",
+          "observation_count"
+        ],
+        "properties": {
+          "candidate_kind": {
+            "enum": ["canonical_vocabulary", "phase2_fallback", "user_context_unnormalized"]
+          },
+          "canonical_path": { "type": ["string", "null"] },
+          "flat_keyword": { "type": ["string", "null"] },
+          "hierarchical_keyword": { "type": ["string", "null"] },
+          "supporting_asset_ids": { "type": "array", "items": { "type": "string" } },
+          "direct_asset_support_count": { "type": "integer", "minimum": 0 },
+          "observation_count": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "per_asset_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "decision_id",
+          "asset_id",
+          "stage",
+          "status",
+          "candidate_kind",
+          "support_units",
+          "observation_count",
+          "skip_reasons",
+          "observations"
+        ],
+        "properties": {
+          "decision_id": { "type": "string", "pattern": "^decision-[0-9]{6}$" },
+          "asset_id": { "type": "string", "pattern": "^asset-[0-9]{6}$" },
+          "stage": {
+            "enum": [
+              "direct_model_observation",
+              "user_session_context",
+              "local_affinity_propagation",
+              "global_backstop_propagation",
+              "phase2_fallback"
+            ]
+          },
+          "status": { "enum": ["accepted", "withheld", "skipped"] },
+          "candidate_kind": {
+            "enum": ["canonical_vocabulary", "phase2_fallback", "user_context_unnormalized"]
+          },
+          "canonical_path": { "type": ["string", "null"] },
+          "flat_keyword": { "type": ["string", "null"] },
+          "hierarchical_keyword": { "type": ["string", "null"] },
+          "support_units": { "type": "integer", "minimum": 0 },
+          "observation_count": { "type": "integer", "minimum": 0 },
+          "skip_reasons": { "type": "array", "items": { "type": "string" } },
+          "observations": { "type": "array", "items": { "type": "object" } }
+        },
         "additionalProperties": true
       }
     },
