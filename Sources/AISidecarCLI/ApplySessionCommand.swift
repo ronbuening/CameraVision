@@ -99,9 +99,26 @@ struct ApplySessionCommand: AsyncParsableCommand {
     }
 
     mutating func run() async throws {
-        _ = try ApplySessionInvocationValidator.validate(invocationRequest)
-        _ = try ConfigurationResolver.resolveApplySession(cli: applyOverrides)
-        FileHandle.standardOutput.write(Data("apply-session scaffold validated; execution will be added in later Phase 3 milestones.\n".utf8))
+        let sessionPath = try ApplySessionInvocationValidator.validate(invocationRequest)
+        let resolved = try ConfigurationResolver.resolveApplySession(cli: applyOverrides)
+        let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
+        let interruptionMonitor = InterruptionMonitor()
+        interruptionMonitor.installSignalHandlers()
+        let result = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(
+                engine: OwnedXMPSidecarEngine(),
+                logger: logger
+            )
+        ).run(
+            sessionPath: sessionPath,
+            configuration: resolved,
+            interruptionMonitor: interruptionMonitor
+        )
+        if resolved.dryRun {
+            try writeChangePlan(result.changePlan)
+            return
+        }
+        writeEssentialSummary(result.report)
     }
 
     private var invocationRequest: ApplySessionInvocationRequest {
@@ -165,5 +182,21 @@ struct ApplySessionCommand: AsyncParsableCommand {
             return false
         }
         return nil
+    }
+
+    private func writeChangePlan(_ changePlan: XMPChangePlanDocument) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(changePlan)
+        FileHandle.standardOutput.write(data)
+        FileHandle.standardOutput.write(Data("\n".utf8))
+    }
+
+    private func writeEssentialSummary(_ report: NormalizationReport) {
+        let exportReport = report.xmpExportReport
+        let written = exportReport?.writtenCount ?? 0
+        let failed = exportReport?.failedCount ?? report.errors.count
+        let line = "apply-session complete: \(written) written, \(failed) failed."
+        FileHandle.standardOutput.write(Data((line + "\n").utf8))
     }
 }

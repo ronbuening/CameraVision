@@ -43,7 +43,7 @@ Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemente
 
 The Phase 2 writer path is the implementation baseline for Phase 3. Phase 3 must not add another XMP writer, another metadata executable dependency, or another sidecar merge stack. Its normalized output must become a write plan consumed by the same `MetadataWriteEngine` and `OwnedXMPSidecarEngine` used by `aisidecar write-xmp`.
 
-Phase 3 Milestones 0-6 are implemented. The current implementation includes CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report/summary/progress artifacts, candidate observations, direct vocabulary canonicalization, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, `normalize --dry-run` change-plan output, detailed normalization reports, Markdown summaries, and JSONL progress logs. Remaining milestones add normalized XMP writing, apply-session execution, analyze-and-normalize, interruption behavior, and release-gate evidence.
+Phase 3 Milestones 0-7 are implemented. The current implementation includes CLI scaffolding for `aisidecar normalize`, executable `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report/summary/progress artifacts, candidate observations, direct vocabulary canonicalization, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, `normalize --dry-run` change-plan output, detailed normalization reports, Markdown summaries, JSONL progress logs, apply-session schema validation, current source identity/staleness checks, target recomputation, dry-run previews, and current-XMP merge/write execution through the Phase 2 owned writer. Remaining milestones add analyze-and-normalize, interruption behavior, and release-gate evidence.
 
 The Phase 1 release signoff is still separate. Phase 3 implementation may begin from the Phase 2 baseline, but Phase 3 release should either archive Phase 1 Milestone 9 calibration/quality evidence or explicitly defer it with the missing checks, reason, and residual risk.
 
@@ -505,7 +505,15 @@ Exit criteria: reports are deterministic for fixtures, contain vocabulary hash, 
 
 ## 11. Milestone 7 - Apply-Session Pipeline
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Added `NormalizationSessionReader` with supported-major schema checks for `ai-sidecar-normalization/1.0` before apply-session execution.
+- Added `ApplySessionPipeline` to rebuild XMP plans from stored session decisions, resolve current sources via stored paths or `--source-root`, verify source identities, fail stale selected assets as `E_SESSION_STALE`, and record explicit `--allow-stale` overrides.
+- Added a reusable `XMPExportPipeline.runChangePlan` seam so apply-session feeds current plans into the existing Phase 2 preview/write/backup/restore/validation/source-hash path without candidate extraction or vocabulary/affinity recomputation.
+- Wired `aisidecar apply-session` to execute the core pipeline, emit dry-run change-plan JSON, and write apply report/summary/progress artifacts.
+- Added `ApplySessionPipelineTests` for model-free session-only application, stale rejection, stale override, moved `--source-root` resolution, output-dir target recomputation, dry-run no-XMP behavior, current-XMP merge, malformed XMP fail-closed behavior, validation-failure backup restore, and unsupported session schema rejection.
 
 Tasks:
 

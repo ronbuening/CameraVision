@@ -97,6 +97,7 @@ public struct NormalizationReport: Codable, Sendable, Equatable {
     public var localConsensus: [LocalWeightedConsensusRecord]
     public var perAssetDecisions: [PerAssetNormalizationDecision]
     public var xmpWritePlans: [NormalizedXMPWritePlan]
+    public var xmpExportReport: XMPExportReport?
     public var warnings: [SidecarError]
     public var errors: [SidecarError]
     public var applicationInstructions: [String]
@@ -121,6 +122,7 @@ public struct NormalizationReport: Codable, Sendable, Equatable {
         case localConsensus = "local_consensus"
         case perAssetDecisions = "per_asset_decisions"
         case xmpWritePlans = "xmp_write_plans"
+        case xmpExportReport = "xmp_export_report"
         case warnings
         case errors
         case applicationInstructions = "application_instructions"
@@ -151,6 +153,7 @@ public struct NormalizationReport: Codable, Sendable, Equatable {
         localConsensus: [LocalWeightedConsensusRecord] = [],
         perAssetDecisions: [PerAssetNormalizationDecision] = [],
         xmpWritePlans: [NormalizedXMPWritePlan] = [],
+        xmpExportReport: XMPExportReport? = nil,
         warnings: [SidecarError],
         errors: [SidecarError],
         applicationInstructions: [String] = XMPExportReport.applicationInstructions
@@ -174,6 +177,7 @@ public struct NormalizationReport: Codable, Sendable, Equatable {
         self.localConsensus = localConsensus
         self.perAssetDecisions = perAssetDecisions
         self.xmpWritePlans = xmpWritePlans
+        self.xmpExportReport = xmpExportReport
         self.warnings = warnings
         self.errors = errors
         self.applicationInstructions = applicationInstructions

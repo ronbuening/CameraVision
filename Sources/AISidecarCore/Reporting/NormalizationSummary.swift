@@ -33,6 +33,7 @@ public struct NormalizationSummaryWriter {
         appendDecisions(&lines, report: report)
         appendSkippedCandidates(&lines, report: report)
         appendTargets(&lines, report: report)
+        appendExportResults(&lines, report: report)
         appendErrors(&lines, title: "Warnings", errors: report.warnings)
         appendErrors(&lines, title: "Errors", errors: report.errors)
         lines.append("## Post-Export Application Instructions")
@@ -125,6 +126,26 @@ public struct NormalizationSummaryWriter {
                 if !plan.failures.isEmpty {
                     lines.append("  - Failures: \(plan.failures.map(\.code.rawValue).joined(separator: ", "))")
                 }
+            }
+        }
+        lines.append("")
+    }
+
+    private func appendExportResults(_ lines: inout [String], report: NormalizationReport) {
+        guard let exportReport = report.xmpExportReport else {
+            return
+        }
+        lines.append("## XMP Results")
+        lines.append("- Dry run: \(exportReport.dryRun)")
+        lines.append("- Written or created: \(exportReport.writtenCount)")
+        lines.append("- Failed: \(exportReport.failedCount)")
+        for target in exportReport.targetReports {
+            lines.append("- \(target.status.rawValue): \(target.plan.targetRelativePath)")
+            if let validation = target.validation {
+                lines.append("  - Validation errors: \(validation.errors.count)")
+            }
+            if !target.errors.isEmpty {
+                lines.append("  - Errors: \(target.errors.map(\.code.rawValue).joined(separator: ", "))")
             }
         }
         lines.append("")

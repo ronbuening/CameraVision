@@ -36,7 +36,7 @@ public struct NormalizePipeline {
         self.summaryWriter = summaryWriter
     }
 
-    /// Resolve inputs and write session/report artifacts without touching XMP sidecars.
+    /// Resolve inputs and write session/report/summary/progress artifacts without touching XMP sidecars.
     public func runSessionOnly(
         mode: NormalizationInvocationMode,
         configuration: ResolvedNormalizationConfiguration,

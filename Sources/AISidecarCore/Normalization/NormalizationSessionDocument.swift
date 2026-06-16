@@ -698,3 +698,76 @@ public struct NormalizationSessionWriter {
         }
     }
 }
+
+/// Reads Phase 3 normalization sessions and rejects unsupported schema majors before use.
+public struct NormalizationSessionReader {
+    private let fileManager: FileManager
+
+    /// Create a reader for durable `ai-sidecar-normalization/1.0` sessions.
+    public init(fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+    }
+
+    /// Decode a normalization session from disk after checking the schema identifier.
+    public func read(from path: String) throws -> NormalizationSessionDocument {
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        do {
+            let data = try Data(contentsOf: url)
+            let json = try JSONDecoder().decode(JSONValue.self, from: data)
+            guard let object = json.objectValue else {
+                throw SidecarError(
+                    code: .schemaUnsupported,
+                    stage: .write,
+                    message: "Normalization session document must be a JSON object.",
+                    recoverable: false
+                )
+            }
+            guard let schemaVersion = object["schema_version"]?.stringValue else {
+                throw SidecarError(
+                    code: .schemaUnsupported,
+                    stage: .write,
+                    message: "Normalization session document is missing schema_version.",
+                    recoverable: false
+                )
+            }
+            try Self.validateSchemaVersion(schemaVersion)
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(NormalizationSessionDocument.self, from: data)
+        } catch let error as SidecarError {
+            throw error
+        } catch {
+            throw SidecarError(
+                code: .decodeFailed,
+                stage: .write,
+                message: "Unable to read normalization session \(url.path): \(error.localizedDescription)",
+                recoverable: false
+            )
+        }
+    }
+
+    private static func validateSchemaVersion(_ schemaVersion: String) throws {
+        guard
+            let slashIndex = schemaVersion.firstIndex(of: "/"),
+            schemaVersion[..<slashIndex] == "ai-sidecar-normalization"
+        else {
+            throw unsupportedSchema(schemaVersion)
+        }
+
+        let version = schemaVersion[schemaVersion.index(after: slashIndex)...]
+        let majorText = version.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false).first
+        guard let majorText, let major = Int(majorText), major == 1 else {
+            throw unsupportedSchema(schemaVersion)
+        }
+    }
+
+    private static func unsupportedSchema(_ schemaVersion: String) -> SidecarError {
+        SidecarError(
+            code: .schemaUnsupported,
+            stage: .write,
+            message: "Unsupported normalization session schema version: \(schemaVersion).",
+            recoverable: false
+        )
+    }
+}
