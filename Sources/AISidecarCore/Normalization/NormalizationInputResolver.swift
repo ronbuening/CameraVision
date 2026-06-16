@@ -320,7 +320,7 @@ public struct NormalizationInputResolver {
             sourceSidecarRelativePath: sourceSidecarRelativePath,
             sourceIdentityStatus: sourceIdentityStatus,
             fileListIndex: fileListIndex,
-            affinityInputs: AssetAffinityInputBuilder.make(
+            affinityInputs: AssetAffinityInputExtractor().make(
                 assetID: assetID,
                 source: source,
                 fileListIndex: fileListIndex

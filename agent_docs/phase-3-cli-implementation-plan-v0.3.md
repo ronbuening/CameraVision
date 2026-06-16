@@ -43,7 +43,7 @@ Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemente
 
 The Phase 2 writer path is the implementation baseline for Phase 3. Phase 3 must not add another XMP writer, another metadata executable dependency, or another sidecar merge stack. Its normalized output must become a write plan consumed by the same `MetadataWriteEngine` and `OwnedXMPSidecarEngine` used by `aisidecar write-xmp`.
 
-Phase 3 Milestones 0-3 are implemented. The current implementation includes CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report artifacts, candidate observations, direct vocabulary canonicalization, `off` and `single-image` normalization behavior, and direct-apply decision records. Remaining milestones add the metadata-affinity graph, local weighted consensus, normalized XMP planning/writing, apply-session execution, analyze-and-normalize, interruption behavior, and release-gate evidence.
+Phase 3 Milestones 0-4 are implemented. The current implementation includes CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report artifacts, candidate observations, direct vocabulary canonicalization, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, and session-context propagation gates. Remaining milestones add normalized XMP planning/writing, apply-session execution, analyze-and-normalize, interruption behavior, and release-gate evidence.
 
 The Phase 1 release signoff is still separate. Phase 3 implementation may begin from the Phase 2 baseline, but Phase 3 release should either archive Phase 1 Milestone 9 calibration/quality evidence or explicitly defer it with the missing checks, reason, and residual risk.
 
@@ -415,7 +415,16 @@ Exit criteria: fixture sidecars produce deterministic canonicalized per-asset de
 
 ## 8. Milestone 4 - Metadata Affinity Graph, Local Weighted Consensus, and Session Context
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Added `AssetAffinityProfile`, deterministic decay/scoring helpers, `CandidateNeighborGenerator`, `AssetAffinityGraphBuilder`, typed affinity edge/component records, and explanatory cluster records.
+- Added `AssetAffinityInputExtractor` and wired session input resolution to persist metadata presence flags, normalized camera/lens classes, and hashed serials without storing exact GPS coordinates, exact timestamps, or raw serial values.
+- Added `BatchConsensusEngine` to enrich `NormalizePipeline` sessions with hierarchy-aware support counts, local weighted consensus records, local conflict-mass blocks, local propagation decisions, strict global backstop decisions, and matched session-context user-evidence decisions.
+- Implemented filename-sequence and explicit file-list adjacency as the active offline primary affinity signals, with capture-time/GPS/gear scorers available for deterministic tests and future metadata enrichment; gear-only affinity remains blocked from edge creation/propagation.
+- Added local propagation safeguards for `auto_apply_allowed`, `requires_review`, propagation scope, specificity thresholds, direct target conflicts, sibling/mutual-exclusion conflict mass, support mass, neighbor count, and maximum supporting affinity.
+- Added `AssetAffinityScorerTests` and `BatchConsensusEngineTests` covering score decay/bands, filename/list scoring, gear-only blocking, large-batch bounded neighbor generation, high-affinity propagation, low-affinity non-propagation, direct conflict suppression, review-required non-propagation, session-context gates, and global backstop minimum/threshold behavior.
 
 Tasks:
 

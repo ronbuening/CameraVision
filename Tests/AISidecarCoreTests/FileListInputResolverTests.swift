@@ -55,4 +55,22 @@ final class FileListInputResolverTests: XCTestCase {
             Set(["group-000001"])
         )
     }
+
+    func testFileListPersistsGPSPresenceWithoutCoordinates() throws {
+        let root = try temporaryDirectory()
+        _ = try writeTestImage("GPSBird.JPG", gps: (latitude: 40.7128, longitude: -74.0060), in: root)
+        let list = root.appendingPathComponent("images.txt")
+        try "GPSBird.JPG\n".write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        let inputs = try XCTUnwrap(batch.sourceAssets.first?.affinityInputs)
+        XCTAssertEqual(inputs.gpsStatus, .present)
+        XCTAssertNil(inputs.cameraSerialHash)
+        XCTAssertNil(inputs.cameraIdentityClass)
+        XCTAssertNil(inputs.lensIdentityClass)
+    }
 }

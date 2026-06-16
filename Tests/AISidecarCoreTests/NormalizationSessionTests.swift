@@ -49,13 +49,16 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(decoded.sameBaseNameGroups[0].memberAssetIDs, [decoded.sourceAssets[0].assetID])
         XCTAssertTrue(decoded.candidateObservations.isEmpty)
         XCTAssertTrue(decoded.candidateSkips.isEmpty)
-        XCTAssertTrue(decoded.batchCandidates.isEmpty)
-        XCTAssertTrue(decoded.perAssetDecisions.isEmpty)
+        XCTAssertFalse(decoded.batchCandidates.isEmpty)
+        XCTAssertEqual(decoded.perAssetDecisions.count, 1)
+        XCTAssertEqual(decoded.perAssetDecisions[0].stage, .userSessionContext)
+        XCTAssertEqual(decoded.perAssetDecisions[0].contextType, .subject)
         XCTAssertTrue(decoded.xmpWritePlans.isEmpty)
         XCTAssertEqual(decoded.sessionContext.map(\.contextType), [.subject])
         XCTAssertEqual(decoded.sessionContext[0].foldedText, "birds")
         XCTAssertEqual(decoded.sessionContext[0].unknownPolicyResult, "matched")
         XCTAssertNotNil(decoded.sessionContext[0].matchedCanonicalPath)
+        XCTAssertEqual(decoded.sessionContext[0].exportResult, "applied")
 
         let report = try decodeReport(at: URL(fileURLWithPath: result.session.artifacts.reportPath))
         XCTAssertEqual(report.schemaVersion, NormalizationSchemaIdentifiers.report)
@@ -63,7 +66,8 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(report.inputSummary.sourceAssetCount, 1)
         XCTAssertEqual(report.inputSummary.sourceAISidecarCount, 1)
         XCTAssertEqual(report.inputSummary.candidateObservationCount, 0)
-        XCTAssertEqual(report.inputSummary.perAssetDecisionCount, 0)
+        XCTAssertGreaterThan(report.inputSummary.batchCandidateCount, 0)
+        XCTAssertEqual(report.inputSummary.perAssetDecisionCount, 1)
         XCTAssertTrue(report.applicationInstructions.contains { $0.contains("Lightroom Classic") })
     }
 

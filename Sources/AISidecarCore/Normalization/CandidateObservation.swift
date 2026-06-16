@@ -68,6 +68,15 @@ public enum NormalizationCandidateSkipReason: String, Codable, CaseIterable, Sen
     case gpsOnlyEvidence = "gps_only_evidence"
     case unknownSessionContextRejected = "unknown_session_context_rejected"
     case unknownSessionContextFlatOnly = "unknown_session_context_flat_only"
+    case weakLocalAgreement = "weak_local_agreement"
+    case lowSupportMass = "low_support_mass"
+    case lowSupportingNeighborCount = "low_supporting_neighbor_count"
+    case lowMaxSupportingAffinity = "low_max_supporting_affinity"
+    case blockedDirectConflict = "blocked_direct_conflict"
+    case blockedLocalConflictMass = "blocked_local_conflict_mass"
+    case gearOnlyAffinity = "gear_only_affinity"
+    case globalBackstopThreshold = "global_backstop_threshold"
+    case sessionContextConflict = "session_context_conflict"
 }
 
 /// One candidate-level skip or decision-policy block recorded in the session.

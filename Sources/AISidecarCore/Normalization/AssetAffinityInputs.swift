@@ -10,10 +10,11 @@ public enum AssetAffinityInputStatus: String, Codable, Sendable, Equatable {
 
 /// Metadata-affinity inputs persisted with Phase 3 sessions.
 ///
-/// Milestone 2 records only values already available from source records and
-/// filenames. Later affinity scoring can enrich these fields from read-only
-/// image metadata, but the default session path still avoids exact GPS
-/// coordinates, exact capture timestamps, and raw camera serials.
+/// The session record stores filenames, ordering hints, metadata-presence
+/// status, normalized gear classes, and hashed serials only. It deliberately
+/// avoids exact GPS coordinates, exact capture timestamps, and raw camera
+/// serial strings so consensus can explain its signal sources without leaking
+/// sensitive source metadata into review artifacts.
 public struct AssetAffinityInputs: Codable, Sendable, Equatable {
     public var assetID: String
     public var sourceIdentityHash: String
@@ -113,7 +114,7 @@ public enum AssetAffinityInputBuilder {
         return nil
     }
 
-    private static func stableSessionHash(_ value: String) -> String {
+    static func stableSessionHash(_ value: String) -> String {
         let digest = SHA256.hash(data: Data(value.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
     }

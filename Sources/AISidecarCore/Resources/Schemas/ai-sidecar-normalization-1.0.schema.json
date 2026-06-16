@@ -119,6 +119,35 @@
         "additionalProperties": true
       }
     },
+    "affinity": {
+      "type": "object",
+      "required": ["mode", "profile", "min_affinity_for_consensus", "nodes", "edges", "clusters"],
+      "properties": {
+        "mode": { "enum": ["off", "metadata-weighted"] },
+        "profile": { "enum": ["conservative", "balanced", "aggressive"] },
+        "min_affinity_for_consensus": { "type": "number", "minimum": 0, "maximum": 1 },
+        "nodes": { "type": "array", "items": { "type": "object" } },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from_node_id", "to_node_id", "affinity", "score_band", "components"],
+            "properties": {
+              "from_node_id": { "type": "string" },
+              "to_node_id": { "type": "string" },
+              "affinity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "score_band": {
+                "enum": ["very_strong", "strong", "moderate", "weak", "ignored"]
+              },
+              "components": { "type": "object" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "clusters": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
     "candidate_observations": {
       "type": "array",
       "items": {
@@ -169,7 +198,16 @@
               "coordinate_like_term",
               "gps_only_evidence",
               "unknown_session_context_rejected",
-              "unknown_session_context_flat_only"
+              "unknown_session_context_flat_only",
+              "weak_local_agreement",
+              "low_support_mass",
+              "low_supporting_neighbor_count",
+              "low_max_supporting_affinity",
+              "blocked_direct_conflict",
+              "blocked_local_conflict_mass",
+              "gear_only_affinity",
+              "global_backstop_threshold",
+              "session_context_conflict"
             ]
           },
           "asset_id": { "type": ["string", "null"] },
@@ -199,7 +237,43 @@
           "hierarchical_keyword": { "type": ["string", "null"] },
           "supporting_asset_ids": { "type": "array", "items": { "type": "string" } },
           "direct_asset_support_count": { "type": "integer", "minimum": 0 },
+          "eligible_asset_count": { "type": "integer", "minimum": 0 },
+          "agreement_frequency": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
           "observation_count": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "local_consensus": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "target_asset_id",
+          "canonical_path",
+          "support_mass",
+          "eligible_mass",
+          "supporting_neighbor_count",
+          "max_supporting_affinity",
+          "decision_eligible",
+          "block_reasons",
+          "governing_rule"
+        ],
+        "properties": {
+          "target_asset_id": { "type": "string" },
+          "target_node_id": { "type": ["string", "null"] },
+          "canonical_path": { "type": "string" },
+          "local_weighted_agreement": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "support_mass": { "type": "number", "minimum": 0 },
+          "eligible_mass": { "type": "number", "minimum": 0 },
+          "supporting_neighbor_count": { "type": "integer", "minimum": 0 },
+          "max_supporting_affinity": { "type": "number", "minimum": 0, "maximum": 1 },
+          "conflict_support_mass": { "type": "number", "minimum": 0 },
+          "conflict_weighted_agreement": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "conflicting_canonical_paths": { "type": "array", "items": { "type": "string" } },
+          "decision_eligible": { "type": "boolean" },
+          "block_reasons": { "type": "array", "items": { "type": "string" } },
+          "governing_rule": { "type": "string" }
         },
         "additionalProperties": true
       }
@@ -238,9 +312,13 @@
           "canonical_path": { "type": ["string", "null"] },
           "flat_keyword": { "type": ["string", "null"] },
           "hierarchical_keyword": { "type": ["string", "null"] },
+          "context_type": { "type": ["string", "null"] },
           "support_units": { "type": "integer", "minimum": 0 },
+          "supporting_asset_ids": { "type": "array", "items": { "type": "string" } },
+          "governing_rule": { "type": ["string", "null"] },
           "observation_count": { "type": "integer", "minimum": 0 },
           "skip_reasons": { "type": "array", "items": { "type": "string" } },
+          "local_consensus": { "type": ["object", "null"] },
           "observations": { "type": "array", "items": { "type": "object" } }
         },
         "additionalProperties": true

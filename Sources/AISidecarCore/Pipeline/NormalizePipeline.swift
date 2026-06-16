@@ -49,6 +49,11 @@ public struct NormalizePipeline {
             input: input,
             configuration: configuration
         )
+        let consensus = BatchConsensusEngine(vocabulary: vocabulary).apply(
+            canonicalization: canonicalization,
+            input: input,
+            configuration: configuration
+        )
         let artifactPlan = NormalizationArtifactPlanner.planNormalize(
             inputBasePath: input.inputBasePath,
             outputDir: configuration.outputDir,
@@ -79,7 +84,7 @@ public struct NormalizePipeline {
             privacy: privacy,
             writerIdentity: writerIdentity,
             artifactPlan: artifactPlan,
-            canonicalization: canonicalization
+            consensus: consensus
         )
         let report = makeReport(
             timestamp: timestamp,
@@ -88,7 +93,7 @@ public struct NormalizePipeline {
             vocabulary: vocabulary,
             writerIdentity: writerIdentity,
             artifactPlan: artifactPlan,
-            canonicalization: canonicalization
+            consensus: consensus
         )
 
         try sessionWriter.write(session, to: sessionPath)
@@ -112,17 +117,10 @@ public struct NormalizePipeline {
         privacy: NormalizationPrivacyRecord,
         writerIdentity: MetadataWriteEngineContext,
         artifactPlan: NormalizationArtifactPlan,
-        canonicalization: CandidateCanonicalizationResult
+        consensus: BatchConsensusResult
     ) -> NormalizationSessionDocument {
         let warnings = input.warnings
         let errors = input.failures.map(\.error)
-        let nodes = input.sameBaseNameGroups.map {
-            NormalizationAffinityNodeRecord(
-                nodeID: $0.groupID,
-                groupID: $0.groupID,
-                memberAssetIDs: $0.memberAssetIDs
-            )
-        }
 
         return NormalizationSessionDocument(
             session: NormalizationSessionMetadata(
@@ -137,22 +135,18 @@ public struct NormalizePipeline {
             ),
             vocabulary: vocabulary.identity,
             resolvedConfiguration: configuration,
-            sessionContext: canonicalization.sessionContext,
+            sessionContext: consensus.sessionContext,
             privacy: privacy,
             xmpWriter: writerIdentity,
             sourceAISidecars: input.sourceAISidecars,
             sourceAssets: input.sourceAssets,
             sameBaseNameGroups: input.sameBaseNameGroups,
-            affinity: NormalizationAffinityRecord(
-                mode: configuration.affinityMode,
-                profile: configuration.affinityProfile,
-                minAffinityForConsensus: configuration.minAffinityForConsensus,
-                nodes: nodes
-            ),
-            candidateObservations: canonicalization.observations,
-            candidateSkips: canonicalization.skips,
-            batchCandidates: canonicalization.batchCandidates,
-            perAssetDecisions: canonicalization.perAssetDecisions,
+            affinity: consensus.affinity,
+            candidateObservations: consensus.observations,
+            candidateSkips: consensus.skips,
+            batchCandidates: consensus.batchCandidates,
+            localConsensus: consensus.localConsensus,
+            perAssetDecisions: consensus.perAssetDecisions,
             artifacts: artifactPlan,
             deterministicPolicy: NormalizationDeterministicPolicyRecord(
                 exactAffinityInputsPersisted: privacy.exactAffinityInputsPersisted
@@ -169,7 +163,7 @@ public struct NormalizePipeline {
         vocabulary: LoadedVocabulary,
         writerIdentity: MetadataWriteEngineContext,
         artifactPlan: NormalizationArtifactPlan,
-        canonicalization: CandidateCanonicalizationResult
+        consensus: BatchConsensusResult
     ) -> NormalizationReport {
         NormalizationReport(
             createdAt: timestamp,
@@ -184,14 +178,14 @@ public struct NormalizePipeline {
                 sourceAssetCount: input.sourceAssets.count,
                 sourceAISidecarCount: input.sourceAISidecars.count,
                 sameBaseNameGroupCount: input.sameBaseNameGroups.count,
-                candidateObservationCount: canonicalization.observations.count,
-                candidateSkipCount: canonicalization.skips.count,
-                batchCandidateCount: canonicalization.batchCandidates.count,
-                perAssetDecisionCount: canonicalization.perAssetDecisions.count,
+                candidateObservationCount: consensus.observations.count,
+                candidateSkipCount: consensus.skips.count,
+                batchCandidateCount: consensus.batchCandidates.count,
+                perAssetDecisionCount: consensus.perAssetDecisions.count,
                 warningCount: input.warnings.count,
                 failureCount: input.failures.count
             ),
-            decisionSummary: NormalizationDecisionSummary(decisions: canonicalization.perAssetDecisions),
+            decisionSummary: NormalizationDecisionSummary(decisions: consensus.perAssetDecisions),
             warnings: input.warnings,
             errors: input.failures.map(\.error)
         )
