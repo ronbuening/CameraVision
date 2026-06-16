@@ -123,7 +123,8 @@ struct ApplySessionCommand: AsyncParsableCommand {
             sourceRoot: sourceRoot,
             sourceVerification: sourceVerification,
             backupSidecars: pairedFlag(positive: backupSidecars, negative: noBackupSidecars),
-            xmpConflictPolicy: xmpConflictPolicy
+            xmpConflictPolicy: xmpConflictPolicy,
+            allowStale: allowStale ? true : nil
         )
     }
 

@@ -316,6 +316,7 @@ public struct ApplySessionConfigurationOverrides: Sendable, Equatable {
     public var sourceVerification: XMPSourceVerificationPolicy?
     public var backupSidecars: Bool?
     public var xmpConflictPolicy: XMPConflictPolicy?
+    public var allowStale: Bool?
 
     public init(
         outputDir: String? = nil,
@@ -326,7 +327,8 @@ public struct ApplySessionConfigurationOverrides: Sendable, Equatable {
         sourceRoot: String? = nil,
         sourceVerification: XMPSourceVerificationPolicy? = nil,
         backupSidecars: Bool? = nil,
-        xmpConflictPolicy: XMPConflictPolicy? = nil
+        xmpConflictPolicy: XMPConflictPolicy? = nil,
+        allowStale: Bool? = nil
     ) {
         self.outputDir = outputDir
         self.configPath = configPath
@@ -337,6 +339,7 @@ public struct ApplySessionConfigurationOverrides: Sendable, Equatable {
         self.sourceVerification = sourceVerification
         self.backupSidecars = backupSidecars
         self.xmpConflictPolicy = xmpConflictPolicy
+        self.allowStale = allowStale
     }
 }
 
@@ -350,6 +353,7 @@ public struct ResolvedApplySessionConfiguration: Codable, Sendable, Equatable {
     public var sourceVerification: XMPSourceVerificationPolicy
     public var backupSidecars: Bool
     public var xmpConflictPolicy: XMPConflictPolicy
+    public var allowStale: Bool
 
     enum CodingKeys: String, CodingKey {
         case outputDir = "output_dir"
@@ -360,6 +364,7 @@ public struct ResolvedApplySessionConfiguration: Codable, Sendable, Equatable {
         case sourceVerification = "source_verification"
         case backupSidecars = "backup_sidecars"
         case xmpConflictPolicy = "xmp_conflict_policy"
+        case allowStale = "allow_stale"
     }
 
     public init(
@@ -370,7 +375,8 @@ public struct ResolvedApplySessionConfiguration: Codable, Sendable, Equatable {
         sourceRoot: String?,
         sourceVerification: XMPSourceVerificationPolicy,
         backupSidecars: Bool,
-        xmpConflictPolicy: XMPConflictPolicy
+        xmpConflictPolicy: XMPConflictPolicy,
+        allowStale: Bool
     ) {
         self.outputDir = outputDir
         self.logLevel = logLevel
@@ -380,6 +386,7 @@ public struct ResolvedApplySessionConfiguration: Codable, Sendable, Equatable {
         self.sourceVerification = sourceVerification
         self.backupSidecars = backupSidecars
         self.xmpConflictPolicy = xmpConflictPolicy
+        self.allowStale = allowStale
     }
 
     public static let builtInDefaults = ResolvedApplySessionConfiguration(
@@ -390,6 +397,7 @@ public struct ResolvedApplySessionConfiguration: Codable, Sendable, Equatable {
         sourceRoot: nil,
         sourceVerification: .fail,
         backupSidecars: true,
-        xmpConflictPolicy: .backupAndMerge
+        xmpConflictPolicy: .backupAndMerge,
+        allowStale: false
     )
 }

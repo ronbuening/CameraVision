@@ -2,9 +2,9 @@
 
 ## Project Context
 
-CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state includes Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, Phase 2 Milestones 0-10, and the pre-Phase-3 GPS context milestone: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, sidecar naming, output tree mirroring, raw JSON sidecar writes, JSONL progress logs, batch summaries, interruption handling, model input profiles, whole-image rendering, full-resolution render retention, derivative cache with configurable lifecycle and `aisidecar purge`, subject isolation with the two-resolution Apple Vision/Core Image chain, diagnostic model-input export, Ollama vision model runtime client, v1.4 prompts and response schemas with conditional `species` candidates plus GPS-context instructions, schema-constrained model response repair, full analyze pipeline model execution, `model_runs` sidecar records with optional response-attempt provenance and optional `model_input_context.gps`, configurable `stage_concurrency`, schema-evolution sidecar document rewrite support, golden sidecar fixtures, no-XMP Phase 1/Phase 2 regression guards, `aisidecar benchmark`, `aisidecar write-xmp` from-json and analyze-and-write export, Phase 2 export configuration defaults, raw sidecar reader/source resolution, candidate extraction and keyword policy including coordinate/GPS-only evidence guards, XMP target naming, same-base-name group resolution, dry-run change-plan output, the owned XMP sidecar parser/writer engine seam, merge conflict policy, deterministic backups, restore-on-validation-failure, post-write validation, source hash rechecks, export progress/report/summary artifacts, Lightroom Classic/Capture One compatibility smoke evidence, and offline tests including synthetic malformed-response fixtures.
+CameraVision is a Swift 6 macOS 15 SwiftPM project for local AI-assisted photo metadata workflows. The current implemented state includes Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, Phase 2 Milestones 0-10, the pre-Phase-3 GPS context milestone, and Phase 3 Milestones 0-2: package scaffold, CLI surface, config resolution, structured errors, logging, scanner/source identity, `--dry-scan`, sidecar naming, output tree mirroring, raw JSON sidecar writes, JSONL progress logs, batch summaries, interruption handling, model input profiles, whole-image rendering, full-resolution render retention, derivative cache with configurable lifecycle and `aisidecar purge`, subject isolation with the two-resolution Apple Vision/Core Image chain, diagnostic model-input export, Ollama vision model runtime client, v1.4 prompts and response schemas with conditional `species` candidates plus GPS-context instructions, schema-constrained model response repair, full analyze pipeline model execution, `model_runs` sidecar records with optional response-attempt provenance and optional `model_input_context.gps`, configurable `stage_concurrency`, schema-evolution sidecar document rewrite support, golden sidecar fixtures, no-XMP Phase 1/Phase 2 regression guards, `aisidecar benchmark`, `aisidecar write-xmp` from-json and analyze-and-write export, Phase 2 export configuration defaults, raw sidecar reader/source resolution, candidate extraction and keyword policy including coordinate/GPS-only evidence guards, XMP target naming, same-base-name group resolution, dry-run change-plan output, the owned XMP sidecar parser/writer engine seam, merge conflict policy, deterministic backups, restore-on-validation-failure, post-write validation, source hash rechecks, export progress/report/summary artifacts, Lightroom Classic/Capture One compatibility smoke evidence, Phase 3 `normalize`/`apply-session` scaffolding, controlled-vocabulary loading/defaults, file-list and raw-sidecar normalization input resolution, normalization session/report skeleton writes, source identity binding, privacy defaults, and offline tests including synthetic malformed-response fixtures.
 
-Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files. XMP creation or modification is restricted to `aisidecar write-xmp` and the reusable Phase 2 export pipeline in `AISidecarCore`.
+Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files. XMP creation or modification is restricted to `aisidecar write-xmp` and Phase 3 normalized export paths that reuse the Phase 2 export pipeline in `AISidecarCore`.
 
 ## Architecture Rules
 
@@ -24,24 +24,27 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 - `Sources/AISidecarCore/Identity` owns source content identity hashing.
 - `Sources/AISidecarCore/ModelRuntime` owns Ollama runtime preparation, model-run records, model input context records, request/response handling, JSON schema validation, schema-constrained response repair, mock runners, and recorded-fixture replay.
 - `Sources/AISidecarCore/Metadata` owns Phase 2 candidate extraction, keyword text normalization, specific-tag policy, XMP target naming, same-base-name group resolution, dry-run change planning, the owned XMP sidecar engine/parser/writer seam, backup management, and merge validation.
+- `Sources/AISidecarCore/Normalization` owns Phase 3 vocabulary loading/indexing, artifact planning, normalization input resolution, session schema records, source-asset records, and early affinity input audit records.
 - `Sources/AISidecarCore/Rendering` owns model input profiles, render recipes, whole-image rendering, and the derivative cache.
 - `Sources/AISidecarCore/SubjectIsolation` owns foreground mask generation, instance selection/merge policy, two-resolution subject crops, and subject-isolation provenance.
 - `Sources/AISidecarCore/Sidecars` owns raw `.ai.json` sidecar naming, schema records, schema-evolution document rewrites, and atomic writes.
-- `Sources/AISidecarCore/Reporting` owns text/JSON logging, JSONL progress logs, batch summaries, Phase 2 export schema identifiers, XMP export reports, progress logs, and summaries.
-- `Sources/AISidecarCore/Pipeline` owns the full analyze pipeline, the earlier analyze shell pipeline test seam, the diagnostic model-input export pipeline, XMP export pipeline, analyze-and-write adapter, and interruption handling.
-- `Sources/AISidecarCLI` owns `aisidecar analyze`, `aisidecar write-xmp`, `aisidecar benchmark`, `aisidecar purge`, and shared CLI option bindings.
+- `Sources/AISidecarCore/Reporting` owns text/JSON logging, JSONL progress logs, batch summaries, Phase 2/Phase 3 schema identifiers, XMP export reports, normalization reports, progress logs, and summaries.
+- `Sources/AISidecarCore/Pipeline` owns the full analyze pipeline, the earlier analyze shell pipeline test seam, the diagnostic model-input export pipeline, XMP export pipeline, analyze-and-write adapter, Phase 3 session-only normalize pipeline, and interruption handling.
+- `Sources/AISidecarCLI` owns `aisidecar analyze`, `aisidecar write-xmp`, `aisidecar normalize`, `aisidecar apply-session`, `aisidecar benchmark`, `aisidecar purge`, and shared CLI option bindings.
 - `Tests/AISidecarCoreTests` contains offline XCTest coverage, synthetic model-response fixtures, and normalized golden sidecar fixtures.
 
 ## Commands
 
 - Build and test: `swift test`.
-- CLI help checks: `swift run aisidecar --help`, `swift run aisidecar analyze --help`, `swift run aisidecar write-xmp --help`, `swift run aisidecar benchmark --help`, and `swift run aisidecar purge --help`.
+- CLI help checks: `swift run aisidecar --help`, `swift run aisidecar analyze --help`, `swift run aisidecar write-xmp --help`, `swift run aisidecar normalize --help`, `swift run aisidecar apply-session --help`, `swift run aisidecar benchmark --help`, and `swift run aisidecar purge --help`.
 - Manual full analyze smoke check: `swift run aisidecar analyze <image-or-folder> --mode both --output-dir <tmp-output>`.
 - Manual diagnostic export check: `swift run aisidecar analyze <image-or-folder> --mode both --export-model-inputs <tmp-output>`.
 - Benchmark self-test: `swift run aisidecar benchmark --self-test`.
 - Small offline benchmark smoke check: `swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --output-dir <tmp-output>`.
 - Phase 2 dry-run planning smoke check: `swift run aisidecar write-xmp --from-json <json-file-or-folder> --recursive --source-root <image-root> --dry-run`.
 - Phase 2 write smoke check: `swift run aisidecar write-xmp --from-json <json-file-or-folder> --recursive --source-root <image-root> --output-dir <tmp-output>`.
+- Phase 3 session skeleton smoke check: `swift run aisidecar normalize --from-json <json-file-or-folder> --recursive --source-root <image-root> --session-only --output-dir <tmp-output>`.
+- Phase 3 file-list session skeleton smoke check: `swift run aisidecar normalize --file-list <image-list.txt> --session-only --output-dir <tmp-output>`.
 - If XCTest is missing because `xcode-select` points at Command Line Tools, run the same commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 
 ## Documentation Index
@@ -58,7 +61,7 @@ Phase 1 produces raw `.ai.json` sidecars. It must not create or modify XMP files
 ## Implementation Guidance
 
 - Implement one milestone at a time unless the user explicitly expands scope.
-- The next planned implementation unit is Phase 3 `aisidecar normalize` / `aisidecar apply-session` scaffolding from `agent_docs/03-cli-normalized-batch-tagger-requirements.md`.
+- The next planned implementation unit is Phase 3 Milestone 3 candidate observation and single-image canonicalization from `agent_docs/03-cli-normalized-batch-tagger-requirements.md`.
 - Phase 2 Milestone 10 compatibility smoke evidence is recorded in `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`. Phase 1 Milestone 9 calibration and quality review, plus manual quality comparison for GPS context modes if release-significant, remain required before release signoff unless explicitly deferred in release notes.
 - Preserve the analyze/raw-sidecar no-XMP invariant: XMP creation or modification belongs only in `aisidecar write-xmp` and the Phase 2 export pipeline it invokes.
 - Keep the project macOS-only. Do not add cross-platform availability annotations or platform documentation unless a future requirement explicitly broadens the supported platforms.

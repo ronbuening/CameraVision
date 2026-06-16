@@ -340,7 +340,14 @@ Exit criteria: invalid vocabulary fixtures fail before any model run, session wr
 
 ## 6. Milestone 2 - Input Resolution and Normalization Session Schema
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Added `NormalizationInputResolver` for raw `.ai.json` sidecar collections, explicit UTF-8 file lists, and positional image scans.
+- Added `NormalizationSessionDocument`, source asset records, source sidecar records, same-base-name group skeletons, privacy defaults, deterministic policy metadata, and early filename/list affinity input records.
+- Added `NormalizePipeline.runSessionOnly` and wired `aisidecar normalize --session-only` to write session/report artifacts without creating, backing up, restoring, or validating `.xmp` sidecars.
+- Added the `ai-sidecar-normalization-1.0.schema.json` resource and focused tests for file-list parsing, duplicate collapse, same-base-name grouping, source identity binding, session privacy fields, invocation-only `--allow-stale`, and no-XMP session-only behavior.
 
 Tasks:
 

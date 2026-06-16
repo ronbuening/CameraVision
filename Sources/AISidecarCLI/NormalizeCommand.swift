@@ -160,12 +160,21 @@ struct NormalizeCommand: AsyncParsableCommand {
     }
 
     mutating func run() async throws {
-        _ = try NormalizationInvocationValidator.validate(invocationRequest)
+        let mode = try NormalizationInvocationValidator.validate(invocationRequest)
         let resolved = try ConfigurationResolver.resolveNormalization(cli: normalizationOverrides)
-        if let vocabularyPath = resolved.vocabularyPath {
-            _ = try VocabularyLoader.load(at: vocabularyPath)
-        } else {
-            _ = try DefaultVocabulary.load()
+        if resolved.sessionOnly {
+            let result = try NormalizePipeline().runSessionOnly(mode: mode, configuration: resolved)
+            let sessionPath = result.session.artifacts.sessionPath ?? "unplanned"
+            FileHandle.standardOutput.write(
+                Data(
+                    """
+                    normalization session written: \(sessionPath)
+                    normalization report written: \(result.session.artifacts.reportPath)
+                    \n
+                    """.utf8
+                )
+            )
+            return
         }
         FileHandle.standardOutput.write(Data("normalize scaffold validated; execution will be added in later Phase 3 milestones.\n".utf8))
     }

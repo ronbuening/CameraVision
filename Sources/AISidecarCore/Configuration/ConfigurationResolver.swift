@@ -98,8 +98,8 @@ public enum ConfigurationResolver {
 
     /// Resolve model-free `apply-session` write-safety settings.
     ///
-    /// `allow-stale` is deliberately absent: FR3-030b requires it to be an
-    /// explicit invocation override, not a persistent config default.
+    /// `allow-stale` is accepted only from the explicit invocation override;
+    /// FR3-030b forbids persistent config defaults for stale-session writes.
     public static func resolveApplySession(
         cli: ApplySessionConfigurationOverrides = ApplySessionConfigurationOverrides(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -915,6 +915,7 @@ private struct ApplySessionConfigurationBuilder {
         if let value = overrides.sourceVerification { config.sourceVerification = value }
         if let value = overrides.backupSidecars { config.backupSidecars = value }
         if let value = overrides.xmpConflictPolicy { config.xmpConflictPolicy = value }
+        if let value = overrides.allowStale { config.allowStale = value }
     }
 
     func resolved() throws -> ResolvedApplySessionConfiguration {
@@ -1028,7 +1029,8 @@ private extension ApplySessionConfigurationOverrides {
             sourceRoot: sourceRoot,
             sourceVerification: sourceVerification,
             backupSidecars: backupSidecars,
-            xmpConflictPolicy: xmpConflictPolicy
+            xmpConflictPolicy: xmpConflictPolicy,
+            allowStale: allowStale
         )
     }
 }
