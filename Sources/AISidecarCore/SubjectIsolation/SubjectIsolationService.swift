@@ -192,11 +192,11 @@ public struct SubjectIsolationService {
         configuration: ResolvedRunConfiguration,
         matteRGB: [Int]
     ) -> String {
-        // Subject crops depend on isolation policy as well as render recipe;
-        // including both prevents stale cache hits after margin/merge changes.
+        // Subject crops depend on isolation policy and geometry mapping as well
+        // as render recipe; include them to avoid stale cache hits.
         [
             renderRecipeVersion,
-            "subject-v2",
+            "subject-v3",
             "margin-\(stableDecimal(configuration.subjectCropMarginFraction))",
             "merge-\(stableDecimal(configuration.subjectMergeDominanceThreshold))",
             "matte-\(matteRGB.map(String.init).joined(separator: "-"))"

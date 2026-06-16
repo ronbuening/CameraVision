@@ -26,7 +26,7 @@
       "color_space" : "sRGB",
       "format" : "jpeg",
       "height" : 31,
-      "recipe_version" : "render-v2-gemma4-26b-default-subject-v2-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128",
       "role" : "subject_isolated",
       "sha256" : "<sha256>",
       "source_identity" : {

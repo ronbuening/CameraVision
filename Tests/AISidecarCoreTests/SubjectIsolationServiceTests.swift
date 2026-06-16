@@ -3,6 +3,30 @@ import XCTest
 @testable import AISidecarCore
 
 final class SubjectIsolationServiceTests: XCTestCase {
+    func testMaskGeometryRecordsCoreImageYCoordinates() throws {
+        let dimensions = PixelDimensions(width: 4, height: 4)
+        let bounds = CGRect(x: 0, y: 0, width: dimensions.width, height: dimensions.height)
+        let background = CIImage(color: .black).cropped(to: bounds)
+        let bottomRowMask = CIImage(color: .white)
+            .cropped(to: CGRect(x: 0, y: 0, width: 2, height: 1))
+            .composited(over: background)
+            .cropped(to: bounds)
+
+        let record = try XCTUnwrap(MaskGeometry.instanceRecord(
+            index: 1,
+            maskImage: bottomRowMask,
+            dimensions: dimensions,
+            context: CIContext()
+        ))
+
+        XCTAssertEqual(record.normalizedBoundingBox.x, 0)
+        XCTAssertEqual(record.normalizedBoundingBox.y, 0)
+        XCTAssertEqual(record.normalizedBoundingBox.width, 0.5)
+        XCTAssertEqual(record.normalizedBoundingBox.height, 0.25)
+        XCTAssertEqual(record.normalizedCentroid.x, 0.25)
+        XCTAssertEqual(record.normalizedCentroid.y, 0.125)
+    }
+
     func testSmallSubjectUsesFullResolutionCropBeforeDownsize() async throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
