@@ -45,6 +45,7 @@
         "workflow": { "enum": ["analyze", "from-json", "file-list"] },
         "input_path": { "type": "string", "minLength": 1 },
         "normalization_mode": { "enum": ["off", "single-image", "batch-conservative"] },
+        "vocabulary_mode": { "enum": ["observed-tags", "controlled-vocabulary"] },
         "scan_root": { "type": ["string", "null"] },
         "source_root": { "type": ["string", "null"] },
         "output_dir": { "type": ["string", "null"] }
@@ -57,7 +58,9 @@
       "properties": {
         "path": { "type": "string", "minLength": 1 },
         "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "schema_version": { "const": "ai-sidecar-vocabulary/1.0" }
+        "schema_version": { "const": "ai-sidecar-vocabulary/1.0" },
+        "mode": { "enum": ["observed-tags", "controlled-vocabulary"] },
+        "entry_count": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": true
     },
@@ -232,6 +235,7 @@
           "candidate_kind": {
             "enum": [
               "canonical_vocabulary",
+              "observed_model_tag",
               "model_species_fallback",
               "phase2_fallback",
               "user_context_unnormalized"
@@ -314,6 +318,7 @@
           "candidate_kind": {
             "enum": [
               "canonical_vocabulary",
+              "observed_model_tag",
               "model_species_fallback",
               "phase2_fallback",
               "user_context_unnormalized"

@@ -148,8 +148,61 @@ final class NormalizationInvocationTests: XCTestCase {
         XCTAssertEqual(resolved.sessionSubject, "Birds")
         XCTAssertEqual(resolved.sessionHabitat, "Wetland")
         XCTAssertTrue(resolved.allowSessionSubjectPropagation)
+        XCTAssertEqual(resolved.vocabularyMode, .observedTags)
+        XCTAssertEqual(ResolvedNormalizationConfiguration.builtInDefaults.vocabularyMode, .observedTags)
         XCTAssertEqual(ResolvedNormalizationConfiguration.builtInDefaults.minAffinityForConsensus, 0.35)
         XCTAssertEqual(ResolvedNormalizationConfiguration.builtInDefaults.unknownSessionContextPolicy, .reject)
+    }
+
+    func testNormalizationVocabularyModeResolution() throws {
+        let defaultResolved = try ConfigurationResolver.resolveNormalization(
+            environment: [:],
+            defaultConfigPath: missingConfigPath()
+        )
+        XCTAssertEqual(defaultResolved.vocabularyMode, .observedTags)
+        XCTAssertNil(defaultResolved.vocabularyPath)
+
+        let inferredFromCLIPath = try ConfigurationResolver.resolveNormalization(
+            cli: NormalizationConfigurationOverrides(vocabularyPath: "/tmp/custom-vocabulary.json"),
+            environment: [:],
+            defaultConfigPath: missingConfigPath()
+        )
+        XCTAssertEqual(inferredFromCLIPath.vocabularyMode, .controlledVocabulary)
+        XCTAssertEqual(inferredFromCLIPath.vocabularyPath, "/tmp/custom-vocabulary.json")
+
+        let inferredFromConfigPath = try ConfigurationResolver.resolveNormalization(
+            environment: [:],
+            defaultConfigPath: try writeConfig(#"{ "vocabulary_path": "/tmp/config-vocabulary.json" }"#)
+        )
+        XCTAssertEqual(inferredFromConfigPath.vocabularyMode, .controlledVocabulary)
+        XCTAssertEqual(inferredFromConfigPath.vocabularyPath, "/tmp/config-vocabulary.json")
+
+        let explicitControlled = try ConfigurationResolver.resolveNormalization(
+            cli: NormalizationConfigurationOverrides(vocabularyMode: .controlledVocabulary),
+            environment: [:],
+            defaultConfigPath: missingConfigPath()
+        )
+        XCTAssertEqual(explicitControlled.vocabularyMode, .controlledVocabulary)
+        XCTAssertNil(explicitControlled.vocabularyPath)
+
+        let environmentControlled = try ConfigurationResolver.resolveNormalization(
+            environment: [
+                "AISIDECAR_VOCABULARY_MODE": "controlled-vocabulary"
+            ],
+            defaultConfigPath: missingConfigPath()
+        )
+        XCTAssertEqual(environmentControlled.vocabularyMode, .controlledVocabulary)
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolveNormalization(
+                cli: NormalizationConfigurationOverrides(
+                    vocabularyPath: "/tmp/custom-vocabulary.json",
+                    vocabularyMode: .observedTags
+                ),
+                environment: [:],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
     }
 
     func testApplySessionConfigRejectsPersistentAllowStaleKey() throws {

@@ -19,6 +19,7 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
         _ = try writeRawSidecar(source: source, named: "Bird.JPG.ai.json", in: jsonRoot)
 
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.recursive = true
         configuration.sourceRoot = sourceRoot.path
         configuration.outputDir = output.path
@@ -137,6 +138,7 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
         }
 
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.recursive = true
         configuration.sourceRoot = sourceRoot.path
         configuration.outputDir = output.path

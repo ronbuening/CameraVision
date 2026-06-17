@@ -201,17 +201,29 @@ public struct VocabularyIdentity: Codable, Sendable, Equatable {
     public var path: String
     public var sha256: String
     public var schemaVersion: String
+    public var mode: NormalizationVocabularyMode?
+    public var entryCount: Int?
 
     enum CodingKeys: String, CodingKey {
         case path
         case sha256
         case schemaVersion = "schema_version"
+        case mode
+        case entryCount = "entry_count"
     }
 
-    public init(path: String, sha256: String, schemaVersion: String) {
+    public init(
+        path: String,
+        sha256: String,
+        schemaVersion: String,
+        mode: NormalizationVocabularyMode? = nil,
+        entryCount: Int? = nil
+    ) {
         self.path = path
         self.sha256 = sha256
         self.schemaVersion = schemaVersion
+        self.mode = mode
+        self.entryCount = entryCount
     }
 }
 

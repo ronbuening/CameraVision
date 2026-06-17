@@ -347,6 +347,7 @@ final class CandidateCanonicalizerTests: XCTestCase {
 
     private func normalizationConfiguration() -> ResolvedNormalizationConfiguration {
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.normalizationMode = .singleImage
         configuration.minConfidence = .medium
         return configuration

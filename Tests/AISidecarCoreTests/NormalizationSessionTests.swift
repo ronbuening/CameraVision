@@ -12,6 +12,7 @@ final class NormalizationSessionTests: XCTestCase {
         _ = try writeRawSidecar(source: sourceImage, named: "Bird.JPG.ai.json", in: jsonRoot)
 
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.recursive = true
         configuration.sourceRoot = sourceRoot.path
         configuration.outputDir = output.path
@@ -80,6 +81,71 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(progress.map(\.status), [.completed, .completed, .skipped, .completed])
     }
 
+    func testObservedTagsDefaultWritesFlatOnlyDecisionsAndSyntheticVocabularyIdentity() throws {
+        let jsonRoot = try temporaryDirectory()
+        let sourceRoot = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        let source = try writeTestImage("Heron.JPG", in: sourceRoot)
+        let sourceImage = try scannedSourceImage(source, relativePath: "Heron.JPG")
+        _ = try writeRawSidecar(
+            source: sourceImage,
+            named: "Heron.JPG.ai.json",
+            in: jsonRoot,
+            modelRuns: [
+                modelRun(role: .wholeImage, response: response([
+                    .species: .array([
+                        candidate("great blue herons", confidence: "high"),
+                        candidate("Great Blue Heron", confidence: "medium"),
+                        candidate("Ardea herodias", confidence: "high")
+                    ]),
+                    .proposedKeywords: .array([
+                        candidate("Subject|Wildlife|Birds", confidence: "high"),
+                        candidate("40.7128, -74.0060", confidence: "high", evidence: "GPS coordinates only")
+                    ])
+                ]), index: 0)
+            ]
+        )
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.recursive = true
+        configuration.sourceRoot = sourceRoot.path
+        configuration.outputDir = output.path
+        configuration.dryRun = true
+        configuration.normalizationMode = .singleImage
+
+        let result = try NormalizePipeline().runDryRun(
+            mode: .fromJSON(path: jsonRoot.path),
+            configuration: configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_050),
+            sessionID: "observed-tags-session"
+        )
+
+        let plan = try XCTUnwrap(result.changePlan?.targetPlans.first)
+        XCTAssertEqual(plan.flatKeywordsToAdd.map(\.term), ["Great Blue Heron"])
+        XCTAssertTrue(plan.hierarchicalKeywordsToAdd.isEmpty)
+
+        let decoded = try decodeSession(at: URL(fileURLWithPath: try XCTUnwrap(result.session.artifacts.sessionPath)))
+        XCTAssertEqual(decoded.resolvedConfiguration.vocabularyMode, .observedTags)
+        XCTAssertEqual(decoded.vocabulary.path, "observed-tags://generated")
+        XCTAssertEqual(decoded.vocabulary.schemaVersion, NormalizationSchemaIdentifiers.vocabulary)
+        XCTAssertEqual(decoded.vocabulary.mode, .observedTags)
+        XCTAssertEqual(decoded.vocabulary.entryCount, 1)
+        XCTAssertEqual(
+            decoded.candidateSkips.map(\.reason.rawValue).sorted(),
+            ["contains_hierarchy_separator", "coordinate_like_term", "duplicate", "specific_tag_policy"]
+        )
+        XCTAssertEqual(decoded.batchCandidates.first?.candidateKind, .observedModelTag)
+        XCTAssertNil(decoded.batchCandidates.first?.hierarchicalKeyword)
+        let decision = try XCTUnwrap(decoded.perAssetDecisions.first)
+        XCTAssertEqual(decision.candidateKind, .observedModelTag)
+        XCTAssertEqual(decision.canonicalPath, "Great Blue Heron")
+        XCTAssertEqual(decision.flatKeyword, "Great Blue Heron")
+        XCTAssertNil(decision.hierarchicalKeyword)
+        XCTAssertNil(decision.namespace)
+        XCTAssertEqual(decision.directApplyPolicy, .flatOnly)
+        XCTAssertEqual(decision.skipReasons, [.directApplyFlatOnly])
+    }
+
     func testFromJSONSessionOnlyPersistsCanonicalizedCandidateDecisionsAndReportCounts() throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()
@@ -111,6 +177,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.outputDir = output.path
         configuration.sessionOnly = true
         configuration.normalizationMode = .singleImage
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.vocabularyPath = vocabularyPath
 
         let result = try NormalizePipeline().runSessionOnly(
@@ -167,6 +234,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.outputDir = output.path
         configuration.dryRun = true
         configuration.normalizationMode = .singleImage
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.vocabularyPath = vocabularyPath
 
         let result = try NormalizePipeline().runDryRun(
@@ -233,6 +301,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.outputDir = output.path
         configuration.dryRun = true
         configuration.normalizationMode = .singleImage
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.vocabularyPath = vocabularyPath
 
         let result = try NormalizePipeline().runDryRun(
@@ -270,6 +339,7 @@ final class NormalizationSessionTests: XCTestCase {
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
         configuration.outputDir = output.path
         configuration.dryRun = true
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.vocabularyPath = vocabularyPath
         configuration.sessionSubject = "Folder Mystery"
         configuration.unknownSessionContextPolicy = .writeUnnormalized

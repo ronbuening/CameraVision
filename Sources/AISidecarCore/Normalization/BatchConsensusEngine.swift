@@ -129,7 +129,8 @@ public struct BatchConsensusEngine {
             batchCandidates: hierarchyAwareBatchCandidates(
                 support: DirectSupportIndex(decisions: decisions, vocabulary: vocabulary, eligibleAssetIDs: eligibleAssetIDs),
                 decisions: decisions,
-                eligibleAssetIDs: eligibleAssetIDs
+                eligibleAssetIDs: eligibleAssetIDs,
+                configuration: configuration
             ),
             localConsensus: localConsensus,
             decisions: decisions
@@ -170,10 +171,12 @@ public struct BatchConsensusEngine {
     private func hierarchyAwareBatchCandidates(
         support: DirectSupportIndex,
         decisions: [PerAssetNormalizationDecision],
-        eligibleAssetIDs: [String]
+        eligibleAssetIDs: [String],
+        configuration: ResolvedNormalizationConfiguration
     ) -> [BatchCandidateSummary] {
         var summaries: [BatchCandidateSummary] = []
         let eligibleCount = eligibleAssetIDs.count
+        let isObservedTags = configuration.vocabularyMode == .observedTags
         for canonicalPath in support.supportedCanonicalPaths.sorted() {
             guard let entry = vocabulary.index.entry(canonicalPath: canonicalPath) else {
                 continue
@@ -184,11 +187,11 @@ public struct BatchConsensusEngine {
                 .flatMap(\.observations)
             summaries.append(
                 BatchCandidateSummary(
-                    candidateKind: .canonicalVocabulary,
+                    candidateKind: isObservedTags ? .observedModelTag : .canonicalVocabulary,
                     canonicalPath: canonicalPath,
                     flatKeyword: entry.flatKeyword,
-                    hierarchicalKeyword: entry.canonicalPath,
-                    namespace: entry.namespace,
+                    hierarchicalKeyword: isObservedTags ? nil : entry.canonicalPath,
+                    namespace: isObservedTags ? nil : entry.namespace,
                     supportingAssetIDs: supporting,
                     directAssetSupportCount: supporting.count,
                     eligibleAssetCount: eligibleCount,
@@ -204,7 +207,7 @@ public struct BatchConsensusEngine {
         }
 
         let nonCanonical = decisions
-            .filter { $0.candidateKind != .canonicalVocabulary }
+            .filter { $0.candidateKind != .canonicalVocabulary && $0.candidateKind != .observedModelTag }
         summaries.append(contentsOf: Dictionary(grouping: nonCanonical) {
             "\($0.candidateKind.rawValue)|\($0.flatKeyword ?? "")|\($0.hierarchicalKeyword ?? "")"
         }.values.map { grouped in
@@ -471,6 +474,9 @@ public struct BatchConsensusEngine {
         profile: AssetAffinityProfile,
         configuration: ResolvedNormalizationConfiguration
     ) -> [PerAssetNormalizationDecision] {
+        guard configuration.vocabularyMode == .controlledVocabulary else {
+            return []
+        }
         let eligibleAssetIDs = input.sourceAssets.map(\.assetID).sorted()
         guard eligibleAssetIDs.count >= profile.globalMinEligibleAssets else {
             return []
@@ -527,16 +533,17 @@ public struct BatchConsensusEngine {
         let hierarchicalKeyword = configuration.writeHierarchicalKeywords && entry.exportHierarchicalKeyword
             ? entry.canonicalPath
             : nil
+        let isObservedTags = configuration.vocabularyMode == .observedTags
         return PerAssetNormalizationDecision(
             assetID: assetID,
             groupID: groupID,
             stage: stage,
             status: flatKeyword != nil || hierarchicalKeyword != nil ? .accepted : .withheld,
-            candidateKind: .canonicalVocabulary,
+            candidateKind: isObservedTags ? .observedModelTag : .canonicalVocabulary,
             canonicalPath: entry.canonicalPath,
             flatKeyword: flatKeyword,
             hierarchicalKeyword: hierarchicalKeyword,
-            namespace: entry.namespace,
+            namespace: isObservedTags ? nil : entry.namespace,
             directApplyPolicy: entry.directApplyPolicy,
             requiresReview: entry.requiresReview,
             exportFlatKeyword: flatKeyword != nil,

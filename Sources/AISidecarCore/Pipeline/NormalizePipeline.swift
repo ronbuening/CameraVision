@@ -99,18 +99,12 @@ public struct NormalizePipeline {
         includeXMPPlans: Bool = true,
         interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> NormalizePipelineResult {
-        let vocabulary = try loadVocabulary(configuration)
-        try CandidateCanonicalizer.preflightSessionContext(
-            configuration: configuration,
-            vocabulary: vocabulary
-        )
         return try runResolvedInput(
             input,
             configuration: configuration,
             timestamp: timestamp,
             sessionID: sessionID,
             includeXMPPlans: includeXMPPlans,
-            vocabulary: vocabulary,
             interruptionMonitor: interruptionMonitor
         )
     }
@@ -123,11 +117,6 @@ public struct NormalizePipeline {
         includeXMPPlans: Bool,
         interruptionMonitor: InterruptionMonitor?
     ) throws -> NormalizePipelineResult {
-        let vocabulary = try loadVocabulary(configuration)
-        try CandidateCanonicalizer.preflightSessionContext(
-            configuration: configuration,
-            vocabulary: vocabulary
-        )
         let input = try inputResolver.resolve(mode: mode, configuration: configuration)
         return try runResolvedInput(
             input,
@@ -135,7 +124,6 @@ public struct NormalizePipeline {
             timestamp: timestamp,
             sessionID: sessionID,
             includeXMPPlans: includeXMPPlans,
-            vocabulary: vocabulary,
             interruptionMonitor: interruptionMonitor
         )
     }
@@ -146,12 +134,16 @@ public struct NormalizePipeline {
         timestamp: Date,
         sessionID: String,
         includeXMPPlans: Bool,
-        vocabulary: LoadedVocabulary,
         interruptionMonitor: InterruptionMonitor?
     ) throws -> NormalizePipelineResult {
         let extractionResults = CandidateExtractor().extract(
             from: input.rawSidecarInputs,
             configuration: xmpExportConfiguration(from: configuration)
+        )
+        let vocabulary = try loadVocabulary(configuration, extractionResults: extractionResults)
+        try CandidateCanonicalizer.preflightSessionContext(
+            configuration: configuration,
+            vocabulary: vocabulary
         )
         let canonicalization = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
             extractionResults: extractionResults,
@@ -251,11 +243,22 @@ public struct NormalizePipeline {
         return NormalizePipelineResult(session: session, report: report, changePlan: normalizedPlans?.changePlan)
     }
 
-    private func loadVocabulary(_ configuration: ResolvedNormalizationConfiguration) throws -> LoadedVocabulary {
-        if let vocabularyPath = configuration.vocabularyPath {
-            return try VocabularyLoader.load(at: vocabularyPath)
+    private func loadVocabulary(
+        _ configuration: ResolvedNormalizationConfiguration,
+        extractionResults: [CandidateExtractionResult]
+    ) throws -> LoadedVocabulary {
+        switch configuration.vocabularyMode {
+        case .observedTags:
+            return try ObservedTagVocabulary.load(
+                extractionResults: extractionResults,
+                configuration: configuration
+            )
+        case .controlledVocabulary:
+            if let vocabularyPath = configuration.vocabularyPath {
+                return try VocabularyLoader.load(at: vocabularyPath)
+            }
+            return try DefaultVocabulary.load()
         }
-        return try DefaultVocabulary.load()
     }
 
     private func makeSession(

@@ -184,6 +184,7 @@ func phase3Configuration(
     affinityMode: NormalizationAffinityMode = .metadataWeighted
 ) -> ResolvedNormalizationConfiguration {
     var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+    configuration.vocabularyMode = .controlledVocabulary
     configuration.normalizationMode = normalizationMode
     configuration.affinityMode = affinityMode
     configuration.writeFlatKeywords = true

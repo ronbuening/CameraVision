@@ -46,6 +46,25 @@ public struct CandidateCanonicalizer {
             guard !folded.isEmpty else {
                 continue
             }
+            if configuration.vocabularyMode == .observedTags {
+                if configuration.unknownSessionContextPolicy == .reject {
+                    throw SidecarError(
+                        code: .validationFailed,
+                        stage: .normalize,
+                        message: "Session context requires controlled-vocabulary mode or unknown-session-context-policy write-unnormalized: \(context.value)",
+                        recoverable: false
+                    )
+                }
+                if context.value.contains("|") {
+                    throw SidecarError(
+                        code: .validationFailed,
+                        stage: .normalize,
+                        message: "Unnormalized session context cannot contain the hierarchy separator: \(context.value)",
+                        recoverable: false
+                    )
+                }
+                continue
+            }
             if vocabulary.index.entry(matching: context.value) == nil,
                configuration.unknownSessionContextPolicy == .reject {
                 throw SidecarError(
@@ -93,6 +112,15 @@ public struct CandidateCanonicalizer {
                 contextRecords: contextRecords
             )
         case .singleImage, .batchConservative:
+            if configuration.vocabularyMode == .observedTags {
+                return observedTagsResult(
+                    extractionResults: extractionResults,
+                    input: input,
+                    configuration: configuration,
+                    observationExtraction: observationExtraction,
+                    contextRecords: contextRecords
+                )
+            }
             return vocabularyResult(
                 extractionResults: extractionResults,
                 input: input,
@@ -101,6 +129,95 @@ public struct CandidateCanonicalizer {
                 contextRecords: contextRecords
             )
         }
+    }
+
+    private func observedTagsResult(
+        extractionResults: [CandidateExtractionResult],
+        input: NormalizationResolvedInputBatch,
+        configuration: ResolvedNormalizationConfiguration,
+        observationExtraction: CandidateObservationExtraction,
+        contextRecords: [NormalizationSessionContextRecord]
+    ) -> CandidateCanonicalizationResult {
+        let blockingReasons = fallbackBlockingReasonsByObservationKey(extractionResults)
+        var skips: [NormalizationCandidateSkip] = []
+        var accumulators: [DirectDecisionKey: DirectDecisionAccumulator] = [:]
+        var order: [DirectDecisionKey] = []
+
+        for result in extractionResults {
+            guard let assetID = observationExtraction.sourceAssetIDBySidecarPath[result.sourceSidecar] else {
+                continue
+            }
+
+            for candidate in result.extractedCandidates {
+                let key = CandidateObservationKey(candidate: candidate)
+                guard let observation = observationExtraction.observationByKey[key] else {
+                    continue
+                }
+
+                if candidate.normalizedTerm.isEmpty {
+                    appendSkip(&skips, reason: .emptyAfterNormalization, observation: observation)
+                    continue
+                }
+                if candidate.normalizedTerm.contains("|") {
+                    appendSkip(&skips, reason: .containsHierarchySeparator, observation: observation)
+                    continue
+                }
+                if candidate.confidence < configuration.minConfidence {
+                    appendSkip(&skips, reason: .belowConfidenceThreshold, observation: observation)
+                    continue
+                }
+                if let blockingReason = blockingReasons[key] {
+                    appendSkip(&skips, reason: blockingReason, observation: observation)
+                    continue
+                }
+                guard let entry = vocabulary.index.entry(matching: candidate.normalizedTerm) else {
+                    appendSkip(&skips, reason: .unmatchedVocabulary, observation: observation)
+                    continue
+                }
+
+                let decisionKey = DirectDecisionKey(assetID: assetID, canonicalPath: entry.canonicalPath)
+                if accumulators[decisionKey] == nil {
+                    accumulators[decisionKey] = DirectDecisionAccumulator(entry: entry, observations: [])
+                    order.append(decisionKey)
+                } else {
+                    appendSkip(
+                        &skips,
+                        reason: .duplicate,
+                        observation: observation,
+                        canonicalPath: entry.canonicalPath
+                    )
+                }
+                accumulators[decisionKey]?.observations.append(observation)
+            }
+        }
+
+        var decisions = order
+            .sorted()
+            .compactMap { key -> PerAssetNormalizationDecision? in
+                guard let accumulator = accumulators[key] else {
+                    return nil
+                }
+                return makeDirectDecision(
+                    key: key,
+                    groupID: observationExtraction.groupIDByAssetID[key.assetID],
+                    accumulator: accumulator,
+                    configuration: configuration
+                )
+            }
+        decisions.append(contentsOf: userContextFallbackDecisions(
+            records: contextRecords,
+            input: input,
+            groupIDByAssetID: observationExtraction.groupIDByAssetID
+        ))
+        assignDecisionIDs(&decisions)
+
+        return CandidateCanonicalizationResult(
+            sessionContext: contextRecords,
+            observations: observationExtraction.observations,
+            skips: skips,
+            batchCandidates: batchCandidates(from: decisions),
+            perAssetDecisions: decisions
+        )
     }
 
     private func vocabularyResult(
@@ -414,17 +531,18 @@ public struct CandidateCanonicalizer {
         }
 
         let status: NormalizationDecisionStatus = flatKeyword != nil || hierarchicalKeyword != nil ? .accepted : .withheld
+        let isObservedTag = configuration.vocabularyMode == .observedTags
         return PerAssetNormalizationDecision(
             assetID: key.assetID,
             groupID: groupID,
             stage: .directModelObservation,
             status: status,
-            candidateKind: .canonicalVocabulary,
+            candidateKind: isObservedTag ? .observedModelTag : .canonicalVocabulary,
             canonicalPath: entry.canonicalPath,
             flatKeyword: flatKeyword,
             hierarchicalKeyword: hierarchicalKeyword,
             sourceText: accumulator.observations.first?.normalizedTerm,
-            namespace: entry.namespace,
+            namespace: isObservedTag ? nil : entry.namespace,
             directApplyPolicy: entry.directApplyPolicy,
             requiresReview: entry.requiresReview,
             exportFlatKeyword: flatKeyword != nil,
@@ -445,6 +563,23 @@ public struct CandidateCanonicalizer {
             let normalized = KeywordTextNormalizer.normalize(context.value)
             guard !normalized.isEmpty else {
                 return nil
+            }
+            if configuration.vocabularyMode == .observedTags {
+                return NormalizationSessionContextRecord(
+                    contextType: context.type,
+                    originalText: context.value,
+                    foldedText: VocabularyTextFolder.fold(normalized),
+                    matchedCanonicalPath: nil,
+                    unknownPolicyResult: configuration.unknownSessionContextPolicy == .writeUnnormalized
+                        ? "write_unnormalized"
+                        : "rejected",
+                    directApplyPolicy: configuration.unknownSessionContextPolicy == .writeUnnormalized ? .flatOnly : nil,
+                    propagationAllowed: context.propagationAllowed,
+                    conflictCount: 0,
+                    exportResult: context.propagationAllowed && !input.sourceAssets.isEmpty
+                        ? "flat_only_unnormalized"
+                        : "propagation_not_allowed"
+                )
             }
             if let entry = vocabulary.index.entry(matching: normalized) {
                 return NormalizationSessionContextRecord(

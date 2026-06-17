@@ -18,6 +18,7 @@ public struct NormalizationSummaryWriter {
         lines.append("- Input: \(report.inputPath)")
         lines.append("- Workflow: \(report.workflow.rawValue)")
         lines.append("- Mode: \(report.configuration.normalizationMode.rawValue)")
+        lines.append("- Vocabulary mode: \(report.configuration.vocabularyMode.rawValue)")
         lines.append("- Vocabulary SHA-256: \(report.vocabulary.sha256)")
         lines.append("- XMP writer: \(report.xmpWriter.engineName) \(report.xmpWriter.engineVersion)")
         lines.append("- Writer recipe: \(report.xmpWriter.writerRecipeVersion)")

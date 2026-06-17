@@ -191,6 +191,68 @@ final class BatchConsensusEngineTests: XCTestCase {
         XCTAssertTrue(global.allSatisfy { $0.canonicalPath == "Scene|Outdoor" })
     }
 
+    func testObservedTagsModeAllowsLocalPropagationButSuppressesGlobalBackstop() throws {
+        let vocabulary = try observedVocabulary()
+        var configuration = batchConfiguration()
+        configuration.vocabularyMode = .observedTags
+        let localResult = BatchConsensusEngine(vocabulary: vocabulary).apply(
+            canonicalization: CandidateCanonicalizationResult(
+                sessionContext: [],
+                observations: [],
+                skips: [],
+                batchCandidates: [],
+                perAssetDecisions: [
+                    observedDirectDecision(assetID: "asset-000001", canonicalPath: "Great Blue Heron"),
+                    observedDirectDecision(assetID: "asset-000002", canonicalPath: "Great Blue Heron")
+                ]
+            ),
+            input: inputBatch([
+                "seq/IMG_0001.JPG",
+                "seq/IMG_0002.JPG",
+                "seq/IMG_0003.JPG"
+            ]),
+            configuration: configuration
+        )
+
+        let local = try XCTUnwrap(localResult.perAssetDecisions.first {
+            $0.assetID == "asset-000003"
+                && $0.stage == .localAffinityPropagation
+                && $0.canonicalPath == "Great Blue Heron"
+        })
+        XCTAssertEqual(local.candidateKind, .observedModelTag)
+        XCTAssertEqual(local.flatKeyword, "Great Blue Heron")
+        XCTAssertNil(local.hierarchicalKeyword)
+        XCTAssertNil(local.namespace)
+
+        let globalBackstopCandidate = [
+            observedDirectDecision(assetID: "asset-000001", canonicalPath: "Great Blue Heron"),
+            observedDirectDecision(assetID: "asset-000002", canonicalPath: "Great Blue Heron"),
+            observedDirectDecision(assetID: "asset-000001", canonicalPath: "Outdoor"),
+            observedDirectDecision(assetID: "asset-000002", canonicalPath: "Outdoor"),
+            observedDirectDecision(assetID: "asset-000003", canonicalPath: "Outdoor"),
+            observedDirectDecision(assetID: "asset-000004", canonicalPath: "Outdoor")
+        ]
+        let globalResult = BatchConsensusEngine(vocabulary: vocabulary).apply(
+            canonicalization: CandidateCanonicalizationResult(
+                sessionContext: [],
+                observations: [],
+                skips: [],
+                batchCandidates: [],
+                perAssetDecisions: globalBackstopCandidate
+            ),
+            input: inputBatch([
+                "seq/IMG_0001.JPG",
+                "seq/IMG_0002.JPG",
+                "seq/IMG_0003.JPG",
+                "seq/IMG_0004.JPG",
+                "seq/IMG_0005.JPG"
+            ]),
+            configuration: configuration
+        )
+
+        XCTAssertFalse(globalResult.perAssetDecisions.contains { $0.stage == .globalBackstopPropagation })
+    }
+
     private func loadedVocabulary() throws -> LoadedVocabulary {
         try VocabularyLoader.load(data: vocabularyData(entries: [
             VocabularyEntry(
@@ -282,8 +344,44 @@ final class BatchConsensusEngineTests: XCTestCase {
         ]), sourcePath: "memory://batch-consensus.json")
     }
 
+    private func observedVocabulary() throws -> LoadedVocabulary {
+        try VocabularyLoader.load(data: vocabularyData(entries: [
+            VocabularyEntry(
+                canonicalPath: "Great Blue Heron",
+                flatKeyword: "Great Blue Heron",
+                namespace: .workflow,
+                parentPath: nil,
+                synonyms: [],
+                requiresReview: false,
+                autoApplyAllowed: true,
+                directApplyPolicy: .flatOnly,
+                mutuallyExclusiveGroup: nil,
+                exportFlatKeyword: true,
+                exportHierarchicalKeyword: false,
+                propagationScope: .local,
+                specificity: .broad
+            ),
+            VocabularyEntry(
+                canonicalPath: "Outdoor",
+                flatKeyword: "Outdoor",
+                namespace: .workflow,
+                parentPath: nil,
+                synonyms: [],
+                requiresReview: false,
+                autoApplyAllowed: true,
+                directApplyPolicy: .flatOnly,
+                mutuallyExclusiveGroup: nil,
+                exportFlatKeyword: true,
+                exportHierarchicalKeyword: false,
+                propagationScope: .global,
+                specificity: .broad
+            )
+        ]), sourcePath: "memory://observed-tags.json")
+    }
+
     private func batchConfiguration() -> ResolvedNormalizationConfiguration {
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.normalizationMode = .batchConservative
         configuration.affinityMode = .metadataWeighted
         configuration.affinityProfile = .conservative
@@ -307,6 +405,27 @@ final class BatchConsensusEngineTests: XCTestCase {
             supportUnits: 1,
             supportingAssetIDs: [assetID],
             observationCount: 1
+        )
+    }
+
+    private func observedDirectDecision(assetID: String, canonicalPath: String) -> PerAssetNormalizationDecision {
+        PerAssetNormalizationDecision(
+            assetID: assetID,
+            stage: .directModelObservation,
+            status: .accepted,
+            candidateKind: .observedModelTag,
+            canonicalPath: canonicalPath,
+            flatKeyword: canonicalPath,
+            hierarchicalKeyword: nil,
+            namespace: nil,
+            directApplyPolicy: .flatOnly,
+            requiresReview: false,
+            exportFlatKeyword: true,
+            exportHierarchicalKeyword: false,
+            supportUnits: 1,
+            supportingAssetIDs: [assetID],
+            observationCount: 1,
+            skipReasons: [.directApplyFlatOnly]
         )
     }
 

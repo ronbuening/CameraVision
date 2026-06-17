@@ -210,6 +210,7 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         vocabularyPath: String
     ) -> ResolvedNormalizationConfiguration {
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.recursive = true
         configuration.outputDir = outputDir
         configuration.vocabularyPath = vocabularyPath

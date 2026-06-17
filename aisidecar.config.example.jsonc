@@ -122,8 +122,15 @@
   // Preserve raw .ai.json sidecars in analyze-and-write or analyze-and-normalize modes.
   "write_ai_json": true,
 
+  // Phase 3 vocabulary source. Options: "observed-tags", "controlled-vocabulary".
+  // The default "observed-tags" normalizes only model-generated tags from the
+  // current batch and does not load the bundled vocabulary.
+  "vocabulary_mode": "observed-tags",
+
   // Controlled vocabulary JSON file for Phase 3 normalization.
-  // Use null for the bundled default vocabulary.
+  // Supplying a path without vocabulary_mode infers "controlled-vocabulary".
+  // With vocabulary_mode "controlled-vocabulary", null loads the bundled default.
+  // With vocabulary_mode "observed-tags", this must be null.
   "vocabulary_path": null,
 
   // Phase 3 normalization strategy. Options: "off", "single-image", "batch-conservative".

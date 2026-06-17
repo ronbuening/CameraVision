@@ -7,6 +7,12 @@ public enum NormalizationMode: String, Codable, CaseIterable, Sendable {
     case batchConservative = "batch-conservative"
 }
 
+/// Source of terms used by Phase 3 normalization.
+public enum NormalizationVocabularyMode: String, Codable, CaseIterable, Sendable {
+    case observedTags = "observed-tags"
+    case controlledVocabulary = "controlled-vocabulary"
+}
+
 /// Batch-affinity strategy used before cross-image propagation.
 public enum NormalizationAffinityMode: String, Codable, CaseIterable, Sendable {
     case off
@@ -51,6 +57,7 @@ public struct NormalizationConfigurationOverrides: Sendable, Equatable {
     public var pairScope: XMPPairScope?
     public var writeAIJSON: Bool?
     public var vocabularyPath: String?
+    public var vocabularyMode: NormalizationVocabularyMode?
     public var normalizationMode: NormalizationMode?
     public var sessionSubject: String?
     public var sessionHabitat: String?
@@ -85,6 +92,7 @@ public struct NormalizationConfigurationOverrides: Sendable, Equatable {
         pairScope: XMPPairScope? = nil,
         writeAIJSON: Bool? = nil,
         vocabularyPath: String? = nil,
+        vocabularyMode: NormalizationVocabularyMode? = nil,
         normalizationMode: NormalizationMode? = nil,
         sessionSubject: String? = nil,
         sessionHabitat: String? = nil,
@@ -118,6 +126,7 @@ public struct NormalizationConfigurationOverrides: Sendable, Equatable {
         self.pairScope = pairScope
         self.writeAIJSON = writeAIJSON
         self.vocabularyPath = vocabularyPath
+        self.vocabularyMode = vocabularyMode
         self.normalizationMode = normalizationMode
         self.sessionSubject = sessionSubject
         self.sessionHabitat = sessionHabitat
@@ -154,6 +163,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
     public var pairScope: XMPPairScope
     public var writeAIJSON: Bool
     public var vocabularyPath: String?
+    public var vocabularyMode: NormalizationVocabularyMode
     public var normalizationMode: NormalizationMode
     public var sessionSubject: String?
     public var sessionHabitat: String?
@@ -187,6 +197,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         case pairScope = "pair_scope"
         case writeAIJSON = "write_ai_json"
         case vocabularyPath = "vocabulary_path"
+        case vocabularyMode = "vocabulary_mode"
         case normalizationMode = "normalization_mode"
         case sessionSubject = "session_subject"
         case sessionHabitat = "session_habitat"
@@ -221,6 +232,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         pairScope: XMPPairScope,
         writeAIJSON: Bool,
         vocabularyPath: String?,
+        vocabularyMode: NormalizationVocabularyMode,
         normalizationMode: NormalizationMode,
         sessionSubject: String?,
         sessionHabitat: String?,
@@ -253,6 +265,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         self.pairScope = pairScope
         self.writeAIJSON = writeAIJSON
         self.vocabularyPath = vocabularyPath
+        self.vocabularyMode = vocabularyMode
         self.normalizationMode = normalizationMode
         self.sessionSubject = sessionSubject
         self.sessionHabitat = sessionHabitat
@@ -287,6 +300,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         pairScope: .union,
         writeAIJSON: true,
         vocabularyPath: nil,
+        vocabularyMode: .observedTags,
         normalizationMode: .batchConservative,
         sessionSubject: nil,
         sessionHabitat: nil,

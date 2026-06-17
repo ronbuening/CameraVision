@@ -61,6 +61,12 @@ extension NormalizationMode: ExpressibleByArgument {
     }
 }
 
+extension NormalizationVocabularyMode: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
 extension NormalizationAffinityMode: ExpressibleByArgument {
     public init?(argument: String) {
         self.init(rawValue: argument)

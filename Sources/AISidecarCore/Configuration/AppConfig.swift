@@ -38,6 +38,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var pairScope: XMPPairScope?
     public var writeAIJSON: Bool?
     public var vocabularyPath: String?
+    public var vocabularyMode: NormalizationVocabularyMode?
     public var normalizationMode: NormalizationMode?
     public var sessionSubject: String?
     public var sessionHabitat: String?
@@ -88,6 +89,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case pairScope = "pair_scope"
         case writeAIJSON = "write_ai_json"
         case vocabularyPath = "vocabulary_path"
+        case vocabularyMode = "vocabulary_mode"
         case normalizationMode = "normalization_mode"
         case sessionSubject = "session_subject"
         case sessionHabitat = "session_habitat"
@@ -139,6 +141,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         pairScope: XMPPairScope? = nil,
         writeAIJSON: Bool? = nil,
         vocabularyPath: String? = nil,
+        vocabularyMode: NormalizationVocabularyMode? = nil,
         normalizationMode: NormalizationMode? = nil,
         sessionSubject: String? = nil,
         sessionHabitat: String? = nil,
@@ -188,6 +191,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.pairScope = pairScope
         self.writeAIJSON = writeAIJSON
         self.vocabularyPath = vocabularyPath
+        self.vocabularyMode = vocabularyMode
         self.normalizationMode = normalizationMode
         self.sessionSubject = sessionSubject
         self.sessionHabitat = sessionHabitat
@@ -272,6 +276,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.pairScope = try container.decodeIfPresent(XMPPairScope.self, forKey: .pairScope)
         self.writeAIJSON = try container.decodeIfPresent(Bool.self, forKey: .writeAIJSON)
         self.vocabularyPath = try container.decodeIfPresent(String.self, forKey: .vocabularyPath)
+        self.vocabularyMode = try container.decodeIfPresent(NormalizationVocabularyMode.self, forKey: .vocabularyMode)
         self.normalizationMode = try container.decodeIfPresent(NormalizationMode.self, forKey: .normalizationMode)
         self.sessionSubject = try container.decodeIfPresent(String.self, forKey: .sessionSubject)
         self.sessionHabitat = try container.decodeIfPresent(String.self, forKey: .sessionHabitat)
@@ -336,6 +341,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(pairScope, forKey: .pairScope)
         try container.encodeIfPresent(writeAIJSON, forKey: .writeAIJSON)
         try container.encodeIfPresent(vocabularyPath, forKey: .vocabularyPath)
+        try container.encodeIfPresent(vocabularyMode, forKey: .vocabularyMode)
         try container.encodeIfPresent(normalizationMode, forKey: .normalizationMode)
         try container.encodeIfPresent(sessionSubject, forKey: .sessionSubject)
         try container.encodeIfPresent(sessionHabitat, forKey: .sessionHabitat)

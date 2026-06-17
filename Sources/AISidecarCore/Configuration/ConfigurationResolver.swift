@@ -383,6 +383,11 @@ public enum ConfigurationResolver {
             pairScope: try enumValue(XMPPairScope.self, from: environment["AISIDECAR_PAIR_SCOPE"], key: "AISIDECAR_PAIR_SCOPE"),
             writeAIJSON: try boolValue(from: environment["AISIDECAR_WRITE_AI_JSON"], key: "AISIDECAR_WRITE_AI_JSON"),
             vocabularyPath: environment["AISIDECAR_VOCABULARY"],
+            vocabularyMode: try enumValue(
+                NormalizationVocabularyMode.self,
+                from: environment["AISIDECAR_VOCABULARY_MODE"],
+                key: "AISIDECAR_VOCABULARY_MODE"
+            ),
             normalizationMode: try enumValue(
                 NormalizationMode.self,
                 from: environment["AISIDECAR_NORMALIZATION_MODE"],
@@ -801,6 +806,7 @@ private struct XMPExportConfigurationBuilder {
 
 private struct NormalizationConfigurationBuilder {
     private var config: ResolvedNormalizationConfiguration
+    private var vocabularyModeWasSet = false
 
     init(defaults: ResolvedNormalizationConfiguration) {
         self.config = defaults
@@ -823,6 +829,10 @@ private struct NormalizationConfigurationBuilder {
         if let value = fileConfig.pairScope { config.pairScope = value }
         if let value = fileConfig.writeAIJSON { config.writeAIJSON = value }
         if let value = fileConfig.vocabularyPath { config.vocabularyPath = value }
+        if let value = fileConfig.vocabularyMode {
+            config.vocabularyMode = value
+            vocabularyModeWasSet = true
+        }
         if let value = fileConfig.normalizationMode { config.normalizationMode = value }
         if let value = fileConfig.sessionSubject { config.sessionSubject = value }
         if let value = fileConfig.sessionHabitat { config.sessionHabitat = value }
@@ -857,6 +867,10 @@ private struct NormalizationConfigurationBuilder {
         if let value = overrides.pairScope { config.pairScope = value }
         if let value = overrides.writeAIJSON { config.writeAIJSON = value }
         if let value = overrides.vocabularyPath { config.vocabularyPath = value }
+        if let value = overrides.vocabularyMode {
+            config.vocabularyMode = value
+            vocabularyModeWasSet = true
+        }
         if let value = overrides.normalizationMode { config.normalizationMode = value }
         if let value = overrides.sessionSubject { config.sessionSubject = value }
         if let value = overrides.sessionHabitat { config.sessionHabitat = value }
@@ -875,6 +889,15 @@ private struct NormalizationConfigurationBuilder {
     }
 
     func resolved() throws -> ResolvedNormalizationConfiguration {
+        var config = config
+        if !vocabularyModeWasSet, config.vocabularyPath != nil {
+            config.vocabularyMode = .controlledVocabulary
+        }
+        if config.vocabularyMode == .observedTags, config.vocabularyPath != nil {
+            throw SidecarError.configInvalid(
+                "vocabulary_path requires vocabulary_mode controlled-vocabulary"
+            )
+        }
         guard (0...1).contains(config.consensusThreshold), config.consensusThreshold.isFinite else {
             throw SidecarError.configInvalid("consensus_threshold must be a finite value between zero and one")
         }
@@ -1000,6 +1023,7 @@ private extension NormalizationConfigurationOverrides {
             pairScope: pairScope,
             writeAIJSON: writeAIJSON,
             vocabularyPath: vocabularyPath,
+            vocabularyMode: vocabularyMode,
             normalizationMode: normalizationMode,
             sessionSubject: sessionSubject,
             sessionHabitat: sessionHabitat,

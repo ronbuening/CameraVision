@@ -113,8 +113,11 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Flag(name: .customLong("no-write-ai-json"), help: "Do not write raw .ai.json sidecars in analyze-and-normalize mode.")
     var noWriteAIJSON = false
 
-    @Option(help: "Controlled vocabulary JSON file.")
+    @Option(help: "Controlled vocabulary JSON file. Supplying this without --vocabulary-mode selects controlled-vocabulary mode.")
     var vocabulary: String?
+
+    @Option(help: "Vocabulary source: observed-tags or controlled-vocabulary.")
+    var vocabularyMode: NormalizationVocabularyMode?
 
     @Option(help: "Normalization mode: off, single-image, or batch-conservative.")
     var normalizationMode: NormalizationMode?
@@ -270,6 +273,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             pairScope: pairScope,
             writeAIJSON: pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON),
             vocabularyPath: vocabulary,
+            vocabularyMode: vocabularyMode,
             normalizationMode: normalizationMode,
             sessionSubject: sessionSubject,
             sessionHabitat: sessionHabitat,

@@ -207,6 +207,7 @@ final class ApplySessionPipelineTests: XCTestCase {
         )
 
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.vocabularyMode = .controlledVocabulary
         configuration.recursive = true
         configuration.sourceRoot = sourceRoot.path
         configuration.outputDir = output.path
