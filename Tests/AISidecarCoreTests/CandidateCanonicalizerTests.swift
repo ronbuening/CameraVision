@@ -41,6 +41,43 @@ final class CandidateCanonicalizerTests: XCTestCase {
         XCTAssertEqual(result.batchCandidates.first?.confidenceBands, ["high": 1, "medium": 1])
     }
 
+    func testSeparatorInsensitiveVocabularyMatchCanonicalizesModelStyleTerms() throws {
+        let vocabulary = try loadedVocabulary(entries: [
+            subjectRoot(),
+            VocabularyEntry(
+                canonicalPath: "Subject|Still Life",
+                flatKeyword: "Still Life",
+                namespace: .subject,
+                parentPath: "Subject",
+                synonyms: ["bird photography"],
+                requiresReview: false,
+                directApplyPolicy: .allow
+            )
+        ])
+        let extraction = try extractionResult(responses: [
+            (.wholeImage, response([
+                .genreOrPhotographyType: .array([
+                    candidate("bird_photography", confidence: "high")
+                ]),
+                .proposedKeywords: .array([
+                    candidate("still-life", confidence: "high")
+                ])
+            ]))
+        ])
+
+        let result = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+            extractionResults: [extraction],
+            input: inputBatch(),
+            configuration: normalizationConfiguration()
+        )
+
+        let decision = try XCTUnwrap(result.perAssetDecisions.first)
+        XCTAssertEqual(decision.canonicalPath, "Subject|Still Life")
+        XCTAssertEqual(decision.flatKeyword, "Still Life")
+        XCTAssertEqual(decision.observations.map(\.term), ["bird_photography", "still-life"])
+        XCTAssertEqual(result.skips.map(\.reason), [.duplicate])
+    }
+
     func testConfidenceFilteringPipeRejectionGPSGuardAndUnmatchedVocabulary() throws {
         let vocabulary = try loadedVocabulary()
         let extraction = try extractionResult(responses: [

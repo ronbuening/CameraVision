@@ -43,7 +43,7 @@ Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemente
 
 The Phase 2 writer path is the implementation baseline for Phase 3. Phase 3 must not add another XMP writer, another metadata executable dependency, or another sidecar merge stack. Its normalized output must become a write plan consumed by the same `MetadataWriteEngine` and `OwnedXMPSidecarEngine` used by `aisidecar write-xmp`.
 
-Phase 3 Milestones 0-10 are implemented. The current implementation includes executable `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report/summary/progress artifacts, candidate observations, direct vocabulary canonicalization, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, `normalize --dry-run` change-plan output, detailed normalization reports, Markdown summaries, JSONL progress logs, normal normalized writes from existing inputs, analyze-and-normalize execution with default raw `.ai.json` preservation and `--no-write-ai-json`, partial-analysis failure reporting, model-prepare fail-fast behavior, apply-session schema validation, current source identity/staleness checks, target recomputation, dry-run previews, current-XMP merge/write execution through the Phase 2 owned writer, SIGINT/SIGTERM-aware normalized-write and apply-session interruption boundaries, and the Milestone 10 offline baseline test suite. Remaining Phase 3 release work is Milestone 11 compatibility smoke and release evidence.
+Phase 3 Milestones 0-10 are implemented. The current implementation includes executable `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report/summary/progress artifacts, candidate observations, direct vocabulary canonicalization with exact-first and ambiguity-guarded punctuation, possessive, ampersand, and final-token singular/plural fallback matching, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, `normalize --dry-run` change-plan output, detailed normalization reports, Markdown summaries, JSONL progress logs, normal normalized writes from existing inputs, analyze-and-normalize execution with default raw `.ai.json` preservation and `--no-write-ai-json`, partial-analysis failure reporting, model-prepare fail-fast behavior, apply-session schema validation, current source identity/staleness checks, target recomputation, dry-run previews, current-XMP merge/write execution through the Phase 2 owned writer, SIGINT/SIGTERM-aware normalized-write and apply-session interruption boundaries, and the Milestone 10 offline baseline test suite. Remaining Phase 3 release work is Milestone 11 compatibility smoke and release evidence.
 
 The Phase 1 release signoff is still separate. Phase 3 implementation may begin from the Phase 2 baseline, but Phase 3 release should either archive Phase 1 Milestone 9 calibration/quality evidence or explicitly defer it with the missing checks, reason, and residual risk.
 
@@ -110,7 +110,8 @@ Vocabulary:
   JSON only; Codable loader plus explicit integrity validation;
   schema id ai-sidecar-vocabulary/1.0;
   SHA-256 vocabulary identity through CryptoKit;
-  Unicode NFC, case folding, and whitespace folding for synonym lookup
+  Unicode NFC, case folding, and whitespace folding for primary synonym lookup;
+  ambiguity-guarded punctuation, possessive, ampersand, and final-token singular/plural fallback aliases
 
 Normalization:
   CandidateExtractor output from Phase 2 as the source observation layer;
@@ -162,8 +163,8 @@ CameraVision/
         DirectApplyPolicy.swift                     // M1 allow/withhold/flat_only/user_only direct decision policy
         VocabularyLoader.swift                    // M1 JSON load, schema id, hash
         VocabularyValidator.swift                 // M1 uniqueness/tree/collision checks
-        VocabularyIndex.swift                     // M1 synonym/canonical lookup index
-        VocabularyTextFolder.swift                // M1 NFC/case/whitespace folding
+        VocabularyIndex.swift                     // M1 synonym/canonical lookup index and guarded fallback aliases
+        VocabularyTextFolder.swift                // M1 NFC/case/whitespace folding plus punctuation and number fallback folding
         DefaultVocabulary.swift                   // M1 bundled vocabulary access
         StarterVocabularyFixtures.swift            // M1 Appendix A fixtures and required starter entries
         NormalizationSchemaIdentifiers.swift      // M0/M2 schema constants
@@ -307,9 +308,9 @@ Tasks:
 2. Add `Resources/Vocabularies/default-vocabulary.json` and load it when `--vocabulary` is omitted (FR3-001a/b, AC3-019).
 3. Compute SHA-256 over the canonical bytes read from the vocabulary file or bundled resource and record that hash as vocabulary identity (FR3-002b/028).
 4. Implement entry defaults: conservative `requires_review`, propagation-only `auto_apply_allowed`, `direct_apply_policy`, `propagation_scope`, and `specificity` handling for species/taxonomy, people, named places, rare species, exact-location implications, named events, broad ancestors, behavior/habitat entries, and global-backstop entries (FR3-005 through FR3-005d).
-5. Implement `VocabularyTextFolder`: Unicode NFC normalization, case folding, and whitespace collapse; do not fold diacritics and do not stem (FR3-003d).
+5. Implement `VocabularyTextFolder`: Unicode NFC normalization, case folding, and whitespace collapse; do not fold diacritics and do not stem. Add fallback folding for punctuation separators, compatibility quotes/dashes, apostrophe possessives, `&` as `and`, and simple final-token singular/plural variants only after primary matching fails (FR3-003d/003d-1).
 6. Validate uniqueness of canonical paths, synonym uniqueness, canonical-vs-synonym collisions, parent existence, tree acyclicity, non-empty hierarchy levels, and pipe-free flat keywords (FR3-003a-h).
-7. Build `VocabularyIndex` for canonical lookup, synonym lookup, ancestor traversal, descendant support, sibling lookup, namespace filtering, and mutually-exclusive-group lookup.
+7. Build `VocabularyIndex` for canonical lookup, synonym lookup, ambiguity-guarded fallback alias lookup, ancestor traversal, descendant support, sibling lookup, namespace filtering, and mutually-exclusive-group lookup.
 8. Add vocabulary defaults for `propagation_scope` and `specificity` so broad, mid-specific, direct-only, local, global, and review-required entries have deterministic policy even when optional fields are omitted (FR3-005a/b).
 9. Expose a library API that the future GUI can reuse without invoking CLI code (FR3-006).
 
@@ -398,13 +399,13 @@ Implemented notes:
 - Wired `NormalizePipeline.runSessionOnly` to extract Phase 2 candidates from resolved raw sidecars, persist observation provenance, apply vocabulary matching through `VocabularyIndex`, record direct-apply policy decisions, and add decision counts to normalization reports.
 - Implemented `--normalization-mode off` as Phase 2 fallback pass-through, and `single-image`/`batch-conservative` as direct per-asset vocabulary canonicalization without propagation.
 - Enforced confidence filtering before matching, unit same-asset support, raw model hierarchy-separator rejection, GPS/coordinate candidate guards, unmatched-vocabulary skips, duplicate provenance preservation, and default rejection of unknown session context with `write-unnormalized` flat-only user-context fallback.
-- Added `CandidateCanonicalizerTests` and expanded `NormalizationSessionTests` for synonym collapse, canonical casing, unmatched terms, Phase 2 pass-through, pipe-containing raw candidates, flat-only unnormalized session subject, direct-apply policy boundaries, confidence filtering, and whole-image/subject-isolated provenance.
+- Added `CandidateCanonicalizerTests` and expanded `NormalizationSessionTests` for synonym collapse, canonical casing, guarded fallback alias matching, unmatched terms, Phase 2 pass-through, pipe-containing raw candidates, flat-only unnormalized session subject, direct-apply policy boundaries, confidence filtering, and whole-image/subject-isolated provenance.
 
 Tasks:
 
 1. Convert Phase 2 `CandidateExtractionResult` records into `CandidateObservation` values without re-reading raw model JSON ad hoc (FR3-020 and inherited FR2-013 through FR2-019).
 2. Preserve source field, input role, confidence band, evidence string, source sidecar, source image, model-run index, skipped-candidate reasons, and source-verification warnings.
-3. Implement `CandidateCanonicalizer` using `VocabularyIndex`: exact canonical path/flat keyword/synonym matching after FR3-003d text folding; preserve canonical spelling and casing on output (FR3-003e, FR3-017).
+3. Implement `CandidateCanonicalizer` using `VocabularyIndex`: exact canonical path/flat keyword/synonym matching after FR3-003d text folding, then FR3-003d-1 ambiguity-guarded fallback aliases when exact matching fails; preserve canonical spelling and casing on output (FR3-003e, FR3-017).
 4. Apply `--min-confidence` before counting and enforce unit observation support: duplicate same-asset observations add provenance but do not increase support mass.
 5. Implement direct per-asset decisions using `direct_apply_policy` before any propagation.
 6. Implement `--allow-specific-tags` only for Phase 2-style fallback/off-mode behavior; it shall not override vocabulary policy.
@@ -414,7 +415,7 @@ Tasks:
 10. Enforce that raw model candidates containing `|` remain invalid for direct export; only valid vocabulary `canonical_path` values may introduce hierarchical separators (FR3-003g, AC3-013).
 11. Record unmatched vocabulary, below-threshold, direct-apply-withheld, requires-review, specific-tag-policy, disabled-flat, disabled-hierarchical, duplicate, and hierarchy-separator skip reasons.
 
-Exit criteria: fixture sidecars produce deterministic canonicalized per-asset decisions. Tests cover synonym collapse, canonical casing, unmatched terms, Phase 2 pass-through mode, single-image mode, pipe-containing raw candidates, flat-only unnormalized session subject, confidence filtering before matching, and preservation of whole-image versus subject-isolated provenance.
+Exit criteria: fixture sidecars produce deterministic canonicalized per-asset decisions. Tests cover synonym collapse, canonical casing, guarded punctuation and number fallback aliases, fallback ambiguity suppression, unmatched terms, Phase 2 pass-through mode, single-image mode, pipe-containing raw candidates, flat-only unnormalized session subject, confidence filtering before matching, and preservation of whole-image versus subject-isolated provenance.
 
 ## 8. Milestone 4 - Metadata Affinity Graph, Local Weighted Consensus, and Session Context
 
@@ -637,7 +638,7 @@ DirectApplyPolicyTests         allow, withhold, flat_only, user_only; auto_apply
 StarterVocabularyTests         Appendix minimum entries; synonym mapping; review leaf; broad/local/global entries; stable hash
 FileListInputResolverTests     UTF-8 parsing; comments/blank lines; relative paths; duplicates; unsupported source path; mutual exclusivity
 NormalizationSessionTests      ai-sidecar-normalization/1.0; resolved config; writer identity; privacy fields; artifact policy; source identity binding; schema evolution
-CandidateCanonicalizerTests    synonym mapping; canonical spelling; unmatched terms; raw pipe rejection; off mode; single-image mode; provenance retention; unit observation support
+CandidateCanonicalizerTests    synonym mapping; canonical spelling; guarded fallback aliases; unmatched terms; raw pipe rejection; off mode; single-image mode; provenance retention; unit observation support
 AssetAffinityInputTests        image-source, from-json, file-list metadata precedence; missing/degraded metadata reporting; apply-session non-recomputation
 AssetAffinityScorerTests       time/GPS/filename/list-adjacency decay; single-signal caps; gear boost; gear-only block; missing GPS neutral; distant GPS negative
 AffinityNeighborCandidateTests bounded time/GPS/filename/list/directory windows; all-pairs small-batch allowance; deterministic candidate generation
@@ -766,7 +767,7 @@ Exit criteria before Phase 3 release:
 ## 16. Risks and Mitigations
 
 Risk: vocabulary synonyms map sideways or downward to false specificity.
-Mitigation: require unique synonym ownership, explicit canonical paths, no stemming, no diacritic folding, conservative defaults, and tests proving upward mapping is allowed while unsafe sideways/downward inference is blocked unless explicit vocabulary or user session evidence supports it.
+Mitigation: require unique synonym ownership, explicit canonical paths, exact-first lookup, ambiguity-guarded fallback aliases, no stemming, no diacritic folding, conservative defaults, and tests proving upward mapping is allowed while unsafe sideways/downward inference is blocked unless explicit vocabulary or user session evidence supports it.
 
 Risk: flat batch consensus propagates a wrong tag across an unrelated part of a folder.
 Mitigation: default to metadata-affinity local consensus, not flat folder voting. Propagate only entries with `auto_apply_allowed = true`, never `requires_review` model evidence, apply minimum confidence before counting, require local weighted agreement/support-mass/supporting-neighbor thresholds, block direct target conflicts, and report all propagated tags with affinity basis and governing rule.
@@ -843,7 +844,7 @@ Phase 3 implementation is done when:
 6. `normalize --from-json` can build a valid normalization session without model runs.
 7. `normalize <image-file-or-folder>` can call `AnalyzePipeline`, preserve `.ai.json` by default, and normalize successful outputs.
 8. `--normalization-mode off`, `single-image`, and `batch-conservative` have distinct tested behavior.
-9. Synonyms map to canonical paths and canonical spelling/casing is preserved.
+9. Synonyms and guarded fallback aliases map to canonical paths and canonical spelling/casing is preserved.
 10. Hierarchy-aware counting supports ancestors from descendant observations.
 11. The metadata-affinity graph computes deterministic time/GPS/filename/list-adjacency primary scores and gear reinforcement scores under the named profile.
 12. Same-base-name RAW/JPEG groups become one normalization node and do not double-count support.

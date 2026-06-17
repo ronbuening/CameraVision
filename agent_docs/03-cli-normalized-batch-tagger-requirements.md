@@ -424,7 +424,9 @@ FR3-003b - A synonym shall map to exactly one canonical path. A synonym appearin
 
 FR3-003c - The hierarchy implied by `parent_path` shall be a strict tree: no cycles and no orphans. Every non-root `parent_path` must exist.
 
-FR3-003d - Text folding for synonym matching shall use Unicode NFC, case folding, and whitespace collapsing. Diacritics shall not be folded, and stemming shall not be performed.
+FR3-003d - Primary text folding for synonym matching shall use Unicode NFC, case folding, and whitespace collapsing. Diacritics shall not be folded, and stemming shall not be performed.
+
+FR3-003d-1 - After primary matching fails, vocabulary lookup may use ambiguity-guarded fallback keys that normalize punctuation separators, compatibility quotes/dashes, apostrophe possessives, and ampersands as `and`, and may try simple final-token singular/plural variants. Fallback matches must be ignored when a fallback key maps to more than one canonical path, must preserve canonical output spelling, and must not relax raw pipe rejection, diacritic policy, or stemming policy.
 
 FR3-003e - Matching preserves and outputs the canonical spelling and casing of the vocabulary entry.
 

@@ -4,6 +4,8 @@ import Foundation
 public struct VocabularyIndex: Sendable, Equatable {
     private var byCanonicalPath: [String: ResolvedVocabularyEntry]
     private var canonicalPathByFoldedTerm: [String: String]
+    private var canonicalPathBySeparatorFoldedTerm: [String: String]
+    private var ambiguousSeparatorFoldedTerms: Set<String>
     private var childrenByParentPath: [String: [String]]
     private var canonicalPathsByNamespace: [VocabularyNamespace: [String]]
     private var canonicalPathsByMutuallyExclusiveGroup: [String: [String]]
@@ -11,15 +13,20 @@ public struct VocabularyIndex: Sendable, Equatable {
     public init(entries: [ResolvedVocabularyEntry]) {
         self.byCanonicalPath = Dictionary(uniqueKeysWithValues: entries.map { ($0.canonicalPath, $0) })
         self.canonicalPathByFoldedTerm = [:]
+        self.canonicalPathBySeparatorFoldedTerm = [:]
+        self.ambiguousSeparatorFoldedTerms = []
         self.childrenByParentPath = [:]
         self.canonicalPathsByNamespace = [:]
         self.canonicalPathsByMutuallyExclusiveGroup = [:]
 
         for entry in entries.sorted(by: { $0.canonicalPath < $1.canonicalPath }) {
             insertLookup(entry.canonicalPath, canonicalPath: entry.canonicalPath)
+            insertSeparatorLookup(entry.canonicalPath, canonicalPath: entry.canonicalPath)
             insertLookup(entry.flatKeyword, canonicalPath: entry.canonicalPath)
+            insertSeparatorLookup(entry.flatKeyword, canonicalPath: entry.canonicalPath)
             for synonym in entry.synonyms {
                 insertLookup(synonym, canonicalPath: entry.canonicalPath)
+                insertSeparatorLookup(synonym, canonicalPath: entry.canonicalPath)
             }
             if let parentPath = entry.parentPath {
                 childrenByParentPath[parentPath, default: []].append(entry.canonicalPath)
@@ -47,10 +54,24 @@ public struct VocabularyIndex: Sendable, Equatable {
 
     public func entry(matching value: String) -> ResolvedVocabularyEntry? {
         let folded = VocabularyTextFolder.fold(value)
-        guard let canonicalPath = canonicalPathByFoldedTerm[folded] else {
-            return nil
+        if let canonicalPath = canonicalPathByFoldedTerm[folded] {
+            return byCanonicalPath[canonicalPath]
         }
-        return byCanonicalPath[canonicalPath]
+
+        // Exact FR3-003d folding stays authoritative. Fallback aliases are only
+        // used when punctuation/number differences collapse to one canonical path.
+        let separatorFolded = VocabularyTextFolder.separatorInsensitiveFold(value)
+        if let canonicalPath = entryCanonicalPath(separatorFolded: separatorFolded) {
+            return byCanonicalPath[canonicalPath]
+        }
+
+        for variantFolded in VocabularyTextFolder.finalTokenVariantSeparatorInsensitiveFolds(separatorFolded) {
+            if let canonicalPath = entryCanonicalPath(separatorFolded: variantFolded) {
+                return byCanonicalPath[canonicalPath]
+            }
+        }
+
+        return nil
     }
 
     public func ancestors(of canonicalPath: String) -> [ResolvedVocabularyEntry] {
@@ -101,5 +122,25 @@ public struct VocabularyIndex: Sendable, Equatable {
         if canonicalPathByFoldedTerm[folded] == nil {
             canonicalPathByFoldedTerm[folded] = canonicalPath
         }
+    }
+
+    private mutating func insertSeparatorLookup(_ value: String, canonicalPath: String) {
+        let folded = VocabularyTextFolder.separatorInsensitiveFold(value)
+        guard !folded.isEmpty, !ambiguousSeparatorFoldedTerms.contains(folded) else {
+            return
+        }
+        if let existing = canonicalPathBySeparatorFoldedTerm[folded], existing != canonicalPath {
+            canonicalPathBySeparatorFoldedTerm.removeValue(forKey: folded)
+            ambiguousSeparatorFoldedTerms.insert(folded)
+        } else {
+            canonicalPathBySeparatorFoldedTerm[folded] = canonicalPath
+        }
+    }
+
+    private func entryCanonicalPath(separatorFolded: String) -> String? {
+        guard !ambiguousSeparatorFoldedTerms.contains(separatorFolded) else {
+            return nil
+        }
+        return canonicalPathBySeparatorFoldedTerm[separatorFolded]
     }
 }
