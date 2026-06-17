@@ -1,0 +1,177 @@
+{
+  // Reference template for AISidecar configuration.
+  //
+  // The real config loader accepts strict JSON only, so this commented JSONC
+  // file is for reading and editing guidance. To use it as an actual config,
+  // remove comments and any keys you do not want to override, then save as:
+  // ~/Library/Application Support/aisidecar/config.json
+  //
+  // All keys are optional. Unknown keys are rejected so typos do not silently
+  // change future batch behavior.
+  //
+  // Precedence: CLI flag > AISIDECAR_* environment variable > JSON config >
+  // built-in default.
+
+  // Phase 1 analyze input role. Options: "whole", "subject", "both".
+  "mode": "both",
+
+  // Phase 1 raw .ai.json behavior when an output already exists.
+  // Options: "skip", "overwrite", "fail".
+  "existing": "skip",
+
+  // Scan folders recursively for commands that accept folder input.
+  "recursive": false,
+
+  // Redirect generated outputs while preserving the source-relative tree.
+  // Use null to write beside source inputs where the command supports that.
+  "output_dir": null,
+
+  // Ollama model tag used by analyze, analyze-and-write, and analyze-and-normalize.
+  "model": "gemma4:26b-a4b-it-qat",
+
+  // Ollama endpoint. Must be an http or https URL with a host.
+  "model_endpoint": "http://localhost:11434",
+
+  // Ollama keep_alive value. Environment-only equivalent: AISIDECAR_MODEL_KEEP_ALIVE.
+  // There is no current CLI flag for this key.
+  "model_keep_alive": "30m",
+
+  // Model input rendering profile. Options:
+  // "gemma4-26b-default", "gemma4-26b-benchmark-1024", "gemma4-26b-benchmark-1536".
+  "profile": "gemma4-26b-default",
+
+  // CLI log severity. Options: "error", "warn", "info", "debug".
+  "log_level": "info",
+
+  // CLI log encoding. Options: "text", "json".
+  "log_format": "text",
+
+  // Preview or plan writes where the command supports dry runs.
+  "dry_run": false,
+
+  // Copy rendered derivatives beside the source for inspection during analyze paths.
+  "debug_derivatives": false,
+
+  // Source identity calculation for scanned source images. Options: "sha256", "fast".
+  // There is no current CLI flag for this key.
+  "source_identity_policy": "sha256",
+
+  // Regenerable derivative cache location.
+  // Default: ~/Library/Caches/aisidecar/derivatives
+  "derivative_cache_dir": null,
+
+  // Derivative cache size cap in bytes. Must be greater than zero.
+  // Default: 21474836480 (20 GiB). There is no current CLI flag for this key.
+  "derivative_cache_size_bytes": 21474836480,
+
+  // Clear the derivative cache before analyze-style work begins.
+  "clear_derivative_cache_on_start": false,
+
+  // Clear the derivative cache after a successful analyze-style run.
+  "clear_derivative_cache_after_success": false,
+
+  // Subject crop padding as a fraction of detected subject bounds. Range: > 0 and <= 1.
+  // There is no current CLI flag for this key.
+  "subject_crop_margin_fraction": 0.08,
+
+  // Merge threshold for dominant subject masks. Range: > 0 and <= 1.
+  // There is no current CLI flag for this key.
+  "subject_merge_dominance_threshold": 0.8,
+
+  // Maximum concurrent render/isolation preparation workers. Must be greater than zero.
+  // Use null for the hardware-derived default.
+  "stage_concurrency": null,
+
+  // Schema-constrained repair attempts after invalid model JSON or schema failure.
+  // Must be zero or greater.
+  "model_response_repair_attempts": 1,
+
+  // EXIF GPS context policy for model prompts. Options: "off", "coarse", "exact".
+  // GPS context is prompt-only and must not become XMP keywords.
+  "gps_context": "coarse",
+
+  // Root used to resolve raw sidecar source.relative_path values for from-json/apply-session paths.
+  "source_root": null,
+
+  // Source identity policy for existing raw sidecars. Options: "fail", "warn", "skip".
+  "source_verification": "fail",
+
+  // Write accepted flat keywords to XMP-dc:Subject.
+  "write_flat_keywords": true,
+
+  // Write controlled/hierarchical keywords to XMP-lr:HierarchicalSubject.
+  "write_hierarchical_keywords": true,
+
+  // Back up existing XMP sidecars before modifying them.
+  "backup_sidecars": true,
+
+  // Existing-XMP handling. Options: "fail", "merge", "backup-and-merge".
+  // "backup-and-merge" requires backup_sidecars to be true.
+  "xmp_conflict_policy": "backup-and-merge",
+
+  // Minimum candidate confidence accepted for export/normalization.
+  // Options: "low", "medium", "high".
+  "min_confidence": "medium",
+
+  // Allow specific tags such as scientific names, named places, named events, or named people.
+  "allow_specific_tags": false,
+
+  // Same-base-name RAW/JPEG group policy. Options: "union", "raw-only", "jpeg-only".
+  "pair_scope": "union",
+
+  // Preserve raw .ai.json sidecars in analyze-and-write or analyze-and-normalize modes.
+  "write_ai_json": true,
+
+  // Controlled vocabulary JSON file for Phase 3 normalization.
+  // Use null for the bundled default vocabulary.
+  "vocabulary_path": null,
+
+  // Phase 3 normalization strategy. Options: "off", "single-image", "batch-conservative".
+  "normalization_mode": "batch-conservative",
+
+  // Optional user-supplied session context. Unknown values follow
+  // unknown_session_context_policy.
+  "session_subject": null,
+
+  // Optional user-supplied habitat context for the session.
+  "session_habitat": null,
+
+  // Optional user-supplied event context for the session.
+  "session_event": null,
+
+  // Global batch consensus threshold. Range: 0...1.
+  "consensus_threshold": 0.6,
+
+  // Metadata-affinity strategy for cross-image propagation.
+  // Options: "off", "metadata-weighted".
+  "affinity_mode": "metadata-weighted",
+
+  // Named metadata-affinity preset. Options: "conservative", "balanced", "aggressive".
+  "affinity_profile": "conservative",
+
+  // Minimum affinity edge score eligible for local consensus. Range: 0...1.
+  "min_affinity_for_consensus": 0.35,
+
+  // Write normalization session/report artifacts without writing XMP sidecars.
+  "session_only": false,
+
+  // Handling for session context that does not match the vocabulary.
+  // Options: "reject", "write-unnormalized".
+  "unknown_session_context_policy": "reject",
+
+  // Allow session subject context to propagate to non-conflicting assets.
+  "allow_session_subject_propagation": false,
+
+  // Allow session habitat context to propagate to non-conflicting assets.
+  "allow_session_habitat_propagation": false,
+
+  // Allow session event context to propagate to non-conflicting assets.
+  "allow_session_event_propagation": false,
+
+  // Persistence policy for sensitive affinity inputs such as exact GPS and serials.
+  // Options: "standard", "debug-exact". There is no current CLI flag for this key.
+  "affinity_privacy_mode": "standard",
+
+  // Explicit JSON report output path for normalize.
+  "write_report_path": null
+}
