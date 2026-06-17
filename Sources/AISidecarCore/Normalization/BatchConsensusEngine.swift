@@ -209,6 +209,7 @@ public struct BatchConsensusEngine {
             "\($0.candidateKind.rawValue)|\($0.flatKeyword ?? "")|\($0.hierarchicalKeyword ?? "")"
         }.values.map { grouped in
             let first = grouped[0]
+            let observations = grouped.flatMap(\.observations)
             return BatchCandidateSummary(
                 candidateKind: first.candidateKind,
                 flatKeyword: first.flatKeyword,
@@ -219,7 +220,10 @@ public struct BatchConsensusEngine {
                 agreementFrequency: eligibleCount > 0
                     ? AffinityScoreFormatter.rounded(Double(grouped.count) / Double(eligibleCount))
                     : nil,
-                observationCount: grouped.flatMap(\.observations).count
+                observationCount: observations.count,
+                confidenceBands: counts(observations.map { $0.confidence.rawValue }),
+                sourceFields: counts(observations.map { $0.provenance.sourceField.rawValue }),
+                inputRoles: counts(observations.map { $0.provenance.inputRole.rawValue })
             )
         })
 

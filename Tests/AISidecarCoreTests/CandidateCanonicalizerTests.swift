@@ -114,6 +114,82 @@ final class CandidateCanonicalizerTests: XCTestCase {
         ])
     }
 
+    func testUnmatchedSpeciesFallbackCollapsesAcrossBatchToFlatDirectModelDecisions() throws {
+        let vocabulary = try loadedVocabulary()
+        let first = try extractionResult(fileName: "HeronA.JPG", responses: [
+            (.wholeImage, response([
+                .species: .array([
+                    candidate("great blue herons", confidence: "high")
+                ])
+            ]))
+        ])
+        let second = try extractionResult(fileName: "HeronB.JPG", responses: [
+            (.subjectIsolated, response([
+                .species: .array([
+                    candidate("Great Blue Heron", confidence: "high")
+                ])
+            ]))
+        ])
+
+        let result = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+            extractionResults: [first, second],
+            input: inputBatch(fileNames: ["HeronA.JPG", "HeronB.JPG"]),
+            configuration: normalizationConfiguration()
+        )
+
+        XCTAssertTrue(result.skips.isEmpty)
+        XCTAssertEqual(result.perAssetDecisions.count, 2)
+        XCTAssertEqual(result.perAssetDecisions.map(\.candidateKind), [
+            .modelSpeciesFallback,
+            .modelSpeciesFallback
+        ])
+        XCTAssertEqual(result.perAssetDecisions.map(\.stage), [
+            .directModelObservation,
+            .directModelObservation
+        ])
+        XCTAssertEqual(result.perAssetDecisions.compactMap(\.canonicalPath), [])
+        XCTAssertEqual(result.perAssetDecisions.compactMap(\.flatKeyword), [
+            "Great Blue Heron",
+            "Great Blue Heron"
+        ])
+        XCTAssertEqual(result.perAssetDecisions.compactMap(\.hierarchicalKeyword), [])
+        XCTAssertEqual(result.perAssetDecisions.compactMap(\.directApplyPolicy), [.flatOnly, .flatOnly])
+        XCTAssertEqual(result.perAssetDecisions.map(\.skipReasons), [
+            [.directApplyFlatOnly],
+            [.directApplyFlatOnly]
+        ])
+
+        let summary = try XCTUnwrap(result.batchCandidates.first)
+        XCTAssertEqual(summary.candidateKind, .modelSpeciesFallback)
+        XCTAssertEqual(summary.flatKeyword, "Great Blue Heron")
+        XCTAssertNil(summary.hierarchicalKeyword)
+        XCTAssertEqual(summary.supportingAssetIDs, ["asset-000001", "asset-000002"])
+        XCTAssertEqual(summary.directAssetSupportCount, 2)
+        XCTAssertEqual(summary.observationCount, 2)
+        XCTAssertEqual(summary.sourceFields, ["species": 2])
+    }
+
+    func testUnmatchedSpeciesFallbackHonorsSpecificTagPolicy() throws {
+        let vocabulary = try loadedVocabulary()
+        let extraction = try extractionResult(allowSpecificTags: false, responses: [
+            (.wholeImage, response([
+                .species: .array([
+                    candidate("Ardea herodias", confidence: "high")
+                ])
+            ]))
+        ])
+
+        let result = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+            extractionResults: [extraction],
+            input: inputBatch(),
+            configuration: normalizationConfiguration()
+        )
+
+        XCTAssertTrue(result.perAssetDecisions.isEmpty)
+        XCTAssertEqual(result.skips.map(\.reason), [.specificTagPolicy])
+        XCTAssertEqual(result.skips.first?.sourceField, .species)
+    }
+
     func testOffModeUsesPhase2FallbackWithoutVocabularyMapping() throws {
         let vocabulary = try loadedVocabulary()
         let extraction = try extractionResult(responses: [
@@ -287,30 +363,34 @@ final class CandidateCanonicalizerTests: XCTestCase {
     }
 
     private func extractionResult(
+        fileName: String = "Bird.JPG",
+        allowSpecificTags: Bool = true,
         responses: [(ModelInputRole, JSONValue?)]
     ) throws -> CandidateExtractionResult {
         CandidateExtractor().extract(
-            from: try resolvedInput(responses: responses),
-            configuration: xmpConfiguration(minConfidence: .medium, allowSpecificTags: true)
+            from: try resolvedInput(fileName: fileName, responses: responses),
+            configuration: xmpConfiguration(minConfidence: .medium, allowSpecificTags: allowSpecificTags)
         )
     }
 
     private func resolvedInput(
+        fileName: String = "Bird.JPG",
         responses: [(ModelInputRole, JSONValue?)]
     ) throws -> ResolvedRawSidecarInput {
-        try ResolvedRawSidecarInput(
-            sidecarPath: URL(fileURLWithPath: "/sidecars/Bird.JPG.ai.json"),
-            document: RawJSONSidecarDocument(sidecar: sidecar(responses: responses)),
-            sourcePath: URL(fileURLWithPath: "/photos/Bird.JPG"),
+        let sidecarPath = "/sidecars/\(fileName).ai.json"
+        return try ResolvedRawSidecarInput(
+            sidecarPath: URL(fileURLWithPath: sidecarPath),
+            document: RawJSONSidecarDocument(sidecar: sidecar(fileName: fileName, responses: responses)),
+            sourcePath: URL(fileURLWithPath: "/photos/\(fileName)"),
             sourceIdentityStatus: .skipped,
-            relativePath: "Bird.JPG.ai.json",
+            relativePath: "\(fileName).ai.json",
             warnings: []
         )
     }
 
-    private func sidecar(responses: [(ModelInputRole, JSONValue?)]) -> RawJSONSidecar {
+    private func sidecar(fileName: String = "Bird.JPG", responses: [(ModelInputRole, JSONValue?)]) -> RawJSONSidecar {
         RawJSONSidecar(
-            source: makeSource(fileName: "Bird.JPG", relativePath: "Bird.JPG", path: "/photos/Bird.JPG"),
+            source: makeSource(fileName: fileName, relativePath: fileName, path: "/photos/\(fileName)"),
             runConfiguration: .builtInDefaults,
             modelRuns: responses.enumerated().map { index, item in
                 modelRun(role: item.0, response: item.1, index: index)
@@ -340,50 +420,62 @@ final class CandidateCanonicalizerTests: XCTestCase {
     }
 
     private func inputBatch() -> NormalizationResolvedInputBatch {
-        let source = makeSource(fileName: "Bird.JPG", relativePath: "Bird.JPG", path: "/photos/Bird.JPG")
-        var affinityInputs = AssetAffinityInputBuilder.make(assetID: "asset-000001", source: source)
-        affinityInputs.sameBaseNameGroupID = "group-000001"
+        inputBatch(fileNames: ["Bird.JPG"])
+    }
+
+    private func inputBatch(fileNames: [String]) -> NormalizationResolvedInputBatch {
+        let assets: [NormalizationSourceAsset] = fileNames.enumerated().map { index, fileName in
+            let assetID = String(format: "asset-%06d", index + 1)
+            let groupID = String(format: "group-%06d", index + 1)
+            let source = makeSource(fileName: fileName, relativePath: fileName, path: "/photos/\(fileName)")
+            var affinityInputs = AssetAffinityInputBuilder.make(assetID: assetID, source: source)
+            affinityInputs.sameBaseNameGroupID = groupID
+            return NormalizationSourceAsset(
+                assetID: assetID,
+                sourcePath: source.path,
+                sourceRelativePath: source.relativePath,
+                fileName: source.fileName,
+                sourceType: source.detectedType,
+                sourceIdentity: source.identity,
+                sourceSidecarPath: "/sidecars/\(fileName).ai.json",
+                sourceSidecarRelativePath: "\(fileName).ai.json",
+                sourceIdentityStatus: .skipped,
+                fileListIndex: nil,
+                affinityInputs: affinityInputs
+            )
+        }
+        let sidecars: [NormalizationSourceAISidecarRecord] = fileNames.enumerated().map { index, fileName in
+            NormalizationSourceAISidecarRecord(
+                sidecarPath: "/sidecars/\(fileName).ai.json",
+                relativePath: "\(fileName).ai.json",
+                sourceAssetID: String(format: "asset-%06d", index + 1),
+                schemaVersion: "ai-sidecar-json/1.3",
+                sourceIdentityStatus: .skipped,
+                warnings: []
+            )
+        }
+        let groups: [NormalizationSourceGroup] = fileNames.enumerated().map { index, fileName in
+            let assetID = String(format: "asset-%06d", index + 1)
+            let groupID = String(format: "group-%06d", index + 1)
+            let basename = URL(fileURLWithPath: fileName).deletingPathExtension().lastPathComponent
+            return NormalizationSourceGroup(
+                groupID: groupID,
+                groupDirectory: "",
+                groupBasename: basename,
+                targetRelativePath: "\(basename).xmp",
+                memberAssetIDs: [assetID],
+                selectedAssetIDs: [assetID],
+                skippedAssetIDs: []
+            )
+        }
         return NormalizationResolvedInputBatch(
             workflow: .fromJSON,
             inputPath: "/sidecars",
             inputBasePath: "/sidecars",
             scanRoot: "/sidecars",
-            sourceAssets: [
-                NormalizationSourceAsset(
-                    assetID: "asset-000001",
-                    sourcePath: source.path,
-                    sourceRelativePath: source.relativePath,
-                    fileName: source.fileName,
-                    sourceType: source.detectedType,
-                    sourceIdentity: source.identity,
-                    sourceSidecarPath: "/sidecars/Bird.JPG.ai.json",
-                    sourceSidecarRelativePath: "Bird.JPG.ai.json",
-                    sourceIdentityStatus: .skipped,
-                    fileListIndex: nil,
-                    affinityInputs: affinityInputs
-                )
-            ],
-            sourceAISidecars: [
-                NormalizationSourceAISidecarRecord(
-                    sidecarPath: "/sidecars/Bird.JPG.ai.json",
-                    relativePath: "Bird.JPG.ai.json",
-                    sourceAssetID: "asset-000001",
-                    schemaVersion: "ai-sidecar-json/1.3",
-                    sourceIdentityStatus: .skipped,
-                    warnings: []
-                )
-            ],
-            sameBaseNameGroups: [
-                NormalizationSourceGroup(
-                    groupID: "group-000001",
-                    groupDirectory: "",
-                    groupBasename: "Bird",
-                    targetRelativePath: "Bird.xmp",
-                    memberAssetIDs: ["asset-000001"],
-                    selectedAssetIDs: ["asset-000001"],
-                    skippedAssetIDs: []
-                )
-            ],
+            sourceAssets: assets,
+            sourceAISidecars: sidecars,
+            sameBaseNameGroups: groups,
             warnings: [],
             failures: []
         )

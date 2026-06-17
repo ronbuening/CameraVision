@@ -118,7 +118,8 @@ Phase 3 should treat these Phase 2 deviations and additions as settled foundatio
 5. Phase 2 candidate extraction includes conditional `species` candidates, ordinal confidence bands, evidence strings, input-role provenance, and model/prompt/schema/runtime provenance. Phase 3 normalization should operate on those records rather than re-reading model JSON ad hoc.
 6. Phase 2 added coordinate/GPS-only evidence guards after the GPS context milestone. Phase 3 vocabulary and propagation rules must not convert GPS context, coordinates, or location commonness into XMP keywords without user-supplied vocabulary/session evidence.
 7. Phase 2's heuristic specific-tag policy remains the write-xmp fallback. Phase 3 replaces that heuristic only where a controlled vocabulary entry, `requires_review`, and `auto_apply_allowed` policy make a more explicit decision.
-8. Analyze-and-write can preserve `.ai.json` by default or run with `--no-write-ai-json` while retaining report-ready provenance. Phase 3 may use the same pattern, but normalization sessions remain the durable Phase 3 audit artifact.
+8. Unmatched Phase 1 `species` common-name candidates may be normalized across the batch from model text alone as direct, flat-only model-species fallback decisions. This fallback shall not create controlled hierarchy, vocabulary support, or propagation eligibility.
+9. Analyze-and-write can preserve `.ai.json` by default or run with `--no-write-ai-json` while retaining report-ready provenance. Phase 3 may use the same pattern, but normalization sessions remain the durable Phase 3 audit artifact.
 
 ## 1. Purpose
 
@@ -355,7 +356,7 @@ FR3-ORD-001 - Phase 3 shall execute normalization decisions in this order. Tests
 7. normalize candidate text and reject pipe-bearing raw model terms;
 8. load and validate the vocabulary, including derived defaults;
 9. match candidates and user session context to vocabulary entries;
-10. create direct per-asset decisions under `direct_apply_policy`;
+10. create direct per-asset decisions under `direct_apply_policy`, plus flat-only model-species fallback decisions for unmatched eligible species common names;
 11. build affinity input records and the metadata-affinity graph when enabled;
 12. compute hierarchy-aware local weighted consensus;
 13. apply local propagation under affinity, support, conflict, and vocabulary gates;
@@ -499,6 +500,8 @@ FR3-011a - Confidence bands are ordinal filters, not numeric weights. After `--m
 
 FR3-011b - Direct model observations may be written only under the matched vocabulary entry's `direct_apply_policy` and export controls. A direct observation of a `withhold` entry shall be recorded in decisions and reports but omitted from XMP. A direct observation of a `flat_only` entry may write only `dc:subject`. A direct observation of a `user_only` entry shall be withheld unless the same entry is supplied as explicit user session context.
 
+FR3-011c - An unmatched model candidate from the Phase 1 `species` field may produce a `model_species_fallback` decision when it passes text, confidence, coordinate/GPS evidence, and Phase 2 specific-tag fallback filtering. The fallback shall normalize equivalent model species strings across the batch, write only a flat `dc:subject` keyword for images with direct model species evidence, record `direct_apply_policy = flat_only`, leave `canonical_path` and hierarchical output empty, and shall not participate in hierarchy-aware support or local/global propagation.
+
 FR3-012 - The session shall distinguish per-image tags from batch-level tags.
 
 FR3-013 - Broad tags with high agreement, such as `Bird`, `Wildlife`, `Outdoor`, `Wetland`, or `Portrait`, may be propagated conservatively through metadata-affinity local consensus. Whole-batch propagation is permitted only for entries whose vocabulary `propagation_scope = global`.
@@ -522,6 +525,8 @@ FR3-015 - When `--session-subject`, `--session-habitat`, or `--session-event` is
 FR3-016 - Any value propagated from session context shall record `source = user_session_context`, never `source = model`, and shall preserve its context role of `subject`, `habitat`, or `event`.
 
 FR3-017 - The normalizer shall collapse duplicate and synonymous candidates into a single canonical path.
+
+FR3-017a - The model-species fallback shall collapse direct species observations by folded model text, separator-insensitive punctuation variants, possessive variants, and final-token singular/plural variants. This collapse is only a flat keyword display normalization and shall not infer taxonomy or synonyms outside the observed model strings.
 
 FR3-018 - The normalizer shall remove redundant flat keywords that merely repeat canonical hierarchy nodes, according to each vocabulary entry's export rules.
 

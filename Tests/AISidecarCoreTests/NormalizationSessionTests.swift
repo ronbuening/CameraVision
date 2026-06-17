@@ -207,6 +207,58 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(progress[3].plannedHierarchicalKeywords, ["Subject|Wildlife|Birds"])
     }
 
+    func testNormalizeDryRunWritesUnmatchedModelSpeciesFallbackAsFlatKeywordOnly() throws {
+        let jsonRoot = try temporaryDirectory()
+        let sourceRoot = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        let vocabularyPath = try writeVocabulary()
+        let source = try writeTestImage("Heron.JPG", in: sourceRoot)
+        let sourceImage = try scannedSourceImage(source, relativePath: "Heron.JPG")
+        _ = try writeRawSidecar(
+            source: sourceImage,
+            named: "Heron.JPG.ai.json",
+            in: jsonRoot,
+            modelRuns: [
+                modelRun(role: .wholeImage, response: response([
+                    .species: .array([
+                        candidate("Great Blue Heron", confidence: "high")
+                    ])
+                ]), index: 0)
+            ]
+        )
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.recursive = true
+        configuration.sourceRoot = sourceRoot.path
+        configuration.outputDir = output.path
+        configuration.dryRun = true
+        configuration.normalizationMode = .singleImage
+        configuration.vocabularyPath = vocabularyPath
+
+        let result = try NormalizePipeline().runDryRun(
+            mode: .fromJSON(path: jsonRoot.path),
+            configuration: configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_250),
+            sessionID: "session-species-fallback"
+        )
+
+        let plan = try XCTUnwrap(result.changePlan?.targetPlans.first)
+        XCTAssertEqual(plan.flatKeywordsToAdd.map(\.term), ["Great Blue Heron"])
+        XCTAssertTrue(plan.hierarchicalKeywordsToAdd.isEmpty)
+
+        let decoded = try decodeSession(at: URL(fileURLWithPath: try XCTUnwrap(result.session.artifacts.sessionPath)))
+        let decision = try XCTUnwrap(decoded.perAssetDecisions.first)
+        XCTAssertEqual(decision.candidateKind, .modelSpeciesFallback)
+        XCTAssertNil(decision.canonicalPath)
+        XCTAssertEqual(decision.flatKeyword, "Great Blue Heron")
+        XCTAssertNil(decision.hierarchicalKeyword)
+        XCTAssertEqual(decision.directApplyPolicy, .flatOnly)
+        let writePlan = try XCTUnwrap(decoded.xmpWritePlans.first)
+        XCTAssertEqual(writePlan.flatKeywordProvenance.first?.candidateKinds, [.modelSpeciesFallback])
+        XCTAssertEqual(writePlan.flatKeywordProvenance.first?.canonicalPaths, [])
+        XCTAssertTrue(writePlan.hierarchicalKeywordProvenance.isEmpty)
+    }
+
     func testNormalizeDryRunWriteUnnormalizedSessionContextPlansFlatKeywordOnly() throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()

@@ -226,6 +226,7 @@ public struct NormalizationAffinityRecord: Codable, Sendable, Equatable {
 /// Normalized candidate category recorded in batch summaries.
 public enum NormalizedCandidateKind: String, Codable, Sendable, Equatable {
     case canonicalVocabulary = "canonical_vocabulary"
+    case modelSpeciesFallback = "model_species_fallback"
     case phase2Fallback = "phase2_fallback"
     case userContextUnnormalized = "user_context_unnormalized"
 }

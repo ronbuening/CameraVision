@@ -111,9 +111,12 @@ public struct CandidateCanonicalizer {
         contextRecords: [NormalizationSessionContextRecord]
     ) -> CandidateCanonicalizationResult {
         let blockingPhase2Reasons = blockingReasonsByObservationKey(extractionResults)
+        let fallbackBlockingReasons = fallbackBlockingReasonsByObservationKey(extractionResults)
         var skips: [NormalizationCandidateSkip] = []
         var accumulators: [DirectDecisionKey: DirectDecisionAccumulator] = [:]
         var order: [DirectDecisionKey] = []
+        var speciesFallbackAccumulators: [SpeciesFallbackDecisionKey: SpeciesFallbackDecisionAccumulator] = [:]
+        var speciesFallbackOrder: [SpeciesFallbackDecisionKey] = []
 
         for result in extractionResults {
             guard let assetID = observationExtraction.sourceAssetIDBySidecarPath[result.sourceSidecar] else {
@@ -159,6 +162,37 @@ public struct CandidateCanonicalizer {
                     continue
                 }
                 guard let entry = vocabulary.index.entry(matching: candidate.normalizedTerm) else {
+                    if candidate.provenance.sourceField == .species {
+                        // FR3-011c: unmatched species common names may normalize
+                        // across model text, but cannot become vocabulary-backed
+                        // hierarchy or propagation support.
+                        if let fallbackBlockingReason = fallbackBlockingReasons[key] {
+                            appendSkip(
+                                &skips,
+                                reason: fallbackBlockingReason,
+                                observation: observation
+                            )
+                            continue
+                        }
+                        let fallbackKey = SpeciesFallbackDecisionKey(
+                            assetID: assetID,
+                            speciesKey: speciesFallbackKey(for: candidate.normalizedTerm)
+                        )
+                        if speciesFallbackAccumulators[fallbackKey] == nil {
+                            speciesFallbackAccumulators[fallbackKey] = SpeciesFallbackDecisionAccumulator(
+                                observations: []
+                            )
+                            speciesFallbackOrder.append(fallbackKey)
+                        } else {
+                            appendSkip(
+                                &skips,
+                                reason: .duplicate,
+                                observation: observation
+                            )
+                        }
+                        speciesFallbackAccumulators[fallbackKey]?.observations.append(observation)
+                        continue
+                    }
                     appendSkip(
                         &skips,
                         reason: .unmatchedVocabulary,
@@ -183,6 +217,7 @@ public struct CandidateCanonicalizer {
             }
         }
 
+        let speciesDisplayTerms = speciesFallbackDisplayTerms(from: speciesFallbackAccumulators)
         var decisions = order
             .sorted()
             .compactMap { key -> PerAssetNormalizationDecision? in
@@ -196,6 +231,21 @@ public struct CandidateCanonicalizer {
                     configuration: configuration
                 )
             }
+        decisions.append(contentsOf: speciesFallbackOrder
+            .sorted()
+            .compactMap { key -> PerAssetNormalizationDecision? in
+                guard let accumulator = speciesFallbackAccumulators[key],
+                      let displayTerm = speciesDisplayTerms[key.speciesKey] else {
+                    return nil
+                }
+                return makeSpeciesFallbackDecision(
+                    key: key,
+                    groupID: observationExtraction.groupIDByAssetID[key.assetID],
+                    accumulator: accumulator,
+                    displayTerm: displayTerm,
+                    configuration: configuration
+                )
+            })
         decisions.append(contentsOf: userContextFallbackDecisions(
             records: contextRecords,
             input: input,
@@ -209,6 +259,39 @@ public struct CandidateCanonicalizer {
             skips: skips,
             batchCandidates: batchCandidates(from: decisions),
             perAssetDecisions: decisions
+        )
+    }
+
+    private func makeSpeciesFallbackDecision(
+        key: SpeciesFallbackDecisionKey,
+        groupID: String?,
+        accumulator: SpeciesFallbackDecisionAccumulator,
+        displayTerm: String,
+        configuration: ResolvedNormalizationConfiguration
+    ) -> PerAssetNormalizationDecision {
+        var skipReasons: [NormalizationCandidateSkipReason] = [.directApplyFlatOnly]
+        let flatKeyword = configuration.writeFlatKeywords ? displayTerm : nil
+        if flatKeyword == nil {
+            skipReasons.append(.disabledFlatExport)
+        }
+
+        return PerAssetNormalizationDecision(
+            assetID: key.assetID,
+            groupID: groupID,
+            stage: .directModelObservation,
+            status: flatKeyword != nil ? .accepted : .withheld,
+            candidateKind: .modelSpeciesFallback,
+            flatKeyword: flatKeyword,
+            sourceText: accumulator.observations.first?.normalizedTerm,
+            directApplyPolicy: .flatOnly,
+            exportFlatKeyword: flatKeyword != nil,
+            exportHierarchicalKeyword: false,
+            supportUnits: 1,
+            supportingAssetIDs: [key.assetID],
+            governingRule: "model_species_fallback_direct_flat_only",
+            observationCount: accumulator.observations.count,
+            skipReasons: stableUnique(skipReasons),
+            observations: accumulator.observations.sorted(by: compareObservations)
         )
     }
 
@@ -461,6 +544,22 @@ public struct CandidateCanonicalizer {
         return reasons
     }
 
+    private func fallbackBlockingReasonsByObservationKey(
+        _ extractionResults: [CandidateExtractionResult]
+    ) -> [CandidateObservationKey: NormalizationCandidateSkipReason] {
+        var reasons = blockingReasonsByObservationKey(extractionResults)
+        for result in extractionResults {
+            for skipped in result.skippedCandidates {
+                guard let candidate = skipped.candidate,
+                      skipped.reason == .specificTagPolicy else {
+                    continue
+                }
+                reasons[CandidateObservationKey(candidate: candidate)] = .specificTagPolicy
+            }
+        }
+        return reasons
+    }
+
     private func appendPhase2Skip(
         _ skips: inout [NormalizationCandidateSkip],
         skipped: SkippedCandidate,
@@ -583,6 +682,64 @@ public struct CandidateCanonicalizer {
         return result
     }
 
+    private func speciesFallbackKey(for normalizedTerm: String) -> String {
+        let separatorFolded = VocabularyTextFolder.separatorInsensitiveFold(normalizedTerm)
+        let variants = [separatorFolded] + VocabularyTextFolder
+            .finalTokenVariantSeparatorInsensitiveFolds(separatorFolded)
+        return variants
+            .filter { !$0.isEmpty }
+            .sorted()
+            .first ?? separatorFolded
+    }
+
+    private func speciesFallbackDisplayTerms(
+        from accumulators: [SpeciesFallbackDecisionKey: SpeciesFallbackDecisionAccumulator]
+    ) -> [String: String] {
+        let observationsBySpeciesKey = Dictionary(grouping: accumulators) { entry in
+            entry.key.speciesKey
+        }
+        return observationsBySpeciesKey.mapValues { entries in
+            preferredSpeciesFallbackDisplayTerm(
+                observations: entries.flatMap { $0.value.observations }
+            )
+        }
+    }
+
+    private func preferredSpeciesFallbackDisplayTerm(observations: [CandidateObservation]) -> String {
+        let terms = observations.map(\.normalizedTerm).filter { !$0.isEmpty }
+        let counts = counts(terms)
+        return terms.sorted { lhs, rhs in
+            let lhsCount = counts[lhs, default: 0]
+            let rhsCount = counts[rhs, default: 0]
+            if lhsCount != rhsCount {
+                return lhsCount > rhsCount
+            }
+            let lhsTitleScore = titleCaseWordCount(lhs)
+            let rhsTitleScore = titleCaseWordCount(rhs)
+            if lhsTitleScore != rhsTitleScore {
+                return lhsTitleScore > rhsTitleScore
+            }
+            if lhs.count != rhs.count {
+                return lhs.count < rhs.count
+            }
+            let lhsLowercased = lhs.lowercased()
+            let rhsLowercased = rhs.lowercased()
+            if lhsLowercased != rhsLowercased {
+                return lhsLowercased < rhsLowercased
+            }
+            return lhs < rhs
+        }.first ?? ""
+    }
+
+    private func titleCaseWordCount(_ value: String) -> Int {
+        value.split(whereSeparator: \.isWhitespace).filter { word in
+            guard let first = word.first, first.isUppercase else {
+                return false
+            }
+            return word.dropFirst().contains { $0.isLowercase }
+        }.count
+    }
+
     private static func convert(reason: SkippedCandidateReason) -> NormalizationCandidateSkipReason {
         switch reason {
         case .belowConfidenceThreshold:
@@ -694,6 +851,22 @@ private struct DirectDecisionKey: Hashable, Sendable, Comparable {
 
 private struct DirectDecisionAccumulator: Sendable, Equatable {
     var entry: ResolvedVocabularyEntry
+    var observations: [CandidateObservation]
+}
+
+private struct SpeciesFallbackDecisionKey: Hashable, Sendable, Comparable {
+    var assetID: String
+    var speciesKey: String
+
+    static func < (lhs: SpeciesFallbackDecisionKey, rhs: SpeciesFallbackDecisionKey) -> Bool {
+        if lhs.assetID == rhs.assetID {
+            return lhs.speciesKey < rhs.speciesKey
+        }
+        return lhs.assetID < rhs.assetID
+    }
+}
+
+private struct SpeciesFallbackDecisionAccumulator: Sendable, Equatable {
     var observations: [CandidateObservation]
 }
 
