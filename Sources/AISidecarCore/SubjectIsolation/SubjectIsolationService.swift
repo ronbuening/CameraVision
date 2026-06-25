@@ -158,25 +158,27 @@ public struct SubjectIsolationService {
             return cached
         }
 
-        let composited = try subjectComposite(
-            fullImage: prepared.fullImage,
-            fullDimensions: fullDimensions,
-            selectedMasks: selectedMasks,
-            cropBox: cropBox,
-            matteRGB: matteRGB
-        )
-        let recipe = RenderRecipe(profile: profile)
-        let finalImage = recipe.resized(composited, to: finalDimensions)
-        var record = try cache.store(
-            source: source,
-            recipeVersion: recipeVersion,
-            role: .subjectIsolated,
-            format: format,
-            dimensions: finalDimensions,
-            colorSpace: profile.colorSpace,
-            appliedOrientation: prepared.appliedOrientation
-        ) { destination in
-            try writeJPEG(image: finalImage, to: destination, quality: profile.jpegQuality)
+        var record = try autoreleasepool {
+            let composited = try subjectComposite(
+                fullImage: prepared.fullImage,
+                fullDimensions: fullDimensions,
+                selectedMasks: selectedMasks,
+                cropBox: cropBox,
+                matteRGB: matteRGB
+            )
+            let recipe = RenderRecipe(profile: profile)
+            let finalImage = recipe.resized(composited, to: finalDimensions)
+            return try cache.store(
+                source: source,
+                recipeVersion: recipeVersion,
+                role: .subjectIsolated,
+                format: format,
+                dimensions: finalDimensions,
+                colorSpace: profile.colorSpace,
+                appliedOrientation: prepared.appliedOrientation
+            ) { destination in
+                try writeJPEG(image: finalImage, to: destination, quality: profile.jpegQuality)
+            }
         }
 
         if debugDerivatives {
@@ -190,11 +192,11 @@ public struct SubjectIsolationService {
         configuration: ResolvedRunConfiguration,
         matteRGB: [Int]
     ) -> String {
-        // Subject crops depend on isolation policy as well as render recipe;
-        // including both prevents stale cache hits after margin/merge changes.
+        // Subject crops depend on isolation policy and geometry mapping as well
+        // as render recipe; include them to avoid stale cache hits.
         [
             renderRecipeVersion,
-            "subject-v2",
+            "subject-v3",
             "margin-\(stableDecimal(configuration.subjectCropMarginFraction))",
             "merge-\(stableDecimal(configuration.subjectMergeDominanceThreshold))",
             "matte-\(matteRGB.map(String.init).joined(separator: "-"))"

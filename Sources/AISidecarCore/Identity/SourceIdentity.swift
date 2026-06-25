@@ -56,10 +56,16 @@ public enum SourceIdentityCalculator {
 
         var hasher = SHA256()
         while true {
-            guard let chunk = try handle.read(upToCount: streamingChunkSize), !chunk.isEmpty else {
+            let shouldStop = try autoreleasepool {
+                guard let chunk = try handle.read(upToCount: streamingChunkSize), !chunk.isEmpty else {
+                    return true
+                }
+                hasher.update(data: chunk)
+                return false
+            }
+            if shouldStop {
                 break
             }
-            hasher.update(data: chunk)
         }
         return hexString(hasher.finalize())
     }

@@ -82,6 +82,32 @@ final class NoXMPRegressionTests: XCTestCase {
         try assertNoXMPFiles(in: [root, export, cache])
     }
 
+    func testNormalizeValidationAndPlanningHelpersRemainXMPSilent() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+        }
+        let xmp = root.appendingPathComponent("Existing.xmp")
+        let xmpData = Data("<xmp/>".utf8)
+        try xmpData.write(to: xmp)
+
+        _ = try NormalizationInvocationValidator.validate(
+            NormalizationInvocationRequest(inputPath: root.path)
+        )
+        _ = try ApplySessionInvocationValidator.validate(
+            ApplySessionInvocationRequest(sessionPath: root.appendingPathComponent("session.json").path)
+        )
+        _ = try DefaultVocabulary.load()
+        _ = NormalizationArtifactPlanner.planNormalize(
+            inputBasePath: root.path,
+            outputDir: nil,
+            writeReportPath: nil,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+
+        XCTAssertEqual(try Data(contentsOf: xmp), xmpData)
+    }
+
     private func config(
         outputDir: String?,
         cacheDir: String,

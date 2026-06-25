@@ -37,6 +37,23 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var allowSpecificTags: Bool?
     public var pairScope: XMPPairScope?
     public var writeAIJSON: Bool?
+    public var vocabularyPath: String?
+    public var vocabularyMode: NormalizationVocabularyMode?
+    public var normalizationMode: NormalizationMode?
+    public var sessionSubject: String?
+    public var sessionHabitat: String?
+    public var sessionEvent: String?
+    public var consensusThreshold: Double?
+    public var affinityMode: NormalizationAffinityMode?
+    public var affinityProfile: NormalizationAffinityProfile?
+    public var minAffinityForConsensus: Double?
+    public var sessionOnly: Bool?
+    public var unknownSessionContextPolicy: UnknownSessionContextPolicy?
+    public var allowSessionSubjectPropagation: Bool?
+    public var allowSessionHabitatPropagation: Bool?
+    public var allowSessionEventPropagation: Bool?
+    public var affinityPrivacyMode: AffinityPrivacyMode?
+    public var writeReportPath: String?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case mode
@@ -71,6 +88,23 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case allowSpecificTags = "allow_specific_tags"
         case pairScope = "pair_scope"
         case writeAIJSON = "write_ai_json"
+        case vocabularyPath = "vocabulary_path"
+        case vocabularyMode = "vocabulary_mode"
+        case normalizationMode = "normalization_mode"
+        case sessionSubject = "session_subject"
+        case sessionHabitat = "session_habitat"
+        case sessionEvent = "session_event"
+        case consensusThreshold = "consensus_threshold"
+        case affinityMode = "affinity_mode"
+        case affinityProfile = "affinity_profile"
+        case minAffinityForConsensus = "min_affinity_for_consensus"
+        case sessionOnly = "session_only"
+        case unknownSessionContextPolicy = "unknown_session_context_policy"
+        case allowSessionSubjectPropagation = "allow_session_subject_propagation"
+        case allowSessionHabitatPropagation = "allow_session_habitat_propagation"
+        case allowSessionEventPropagation = "allow_session_event_propagation"
+        case affinityPrivacyMode = "affinity_privacy_mode"
+        case writeReportPath = "write_report_path"
     }
 
     public init(
@@ -105,7 +139,24 @@ public struct AppConfig: Codable, Sendable, Equatable {
         minConfidence: XMPMinimumConfidence? = nil,
         allowSpecificTags: Bool? = nil,
         pairScope: XMPPairScope? = nil,
-        writeAIJSON: Bool? = nil
+        writeAIJSON: Bool? = nil,
+        vocabularyPath: String? = nil,
+        vocabularyMode: NormalizationVocabularyMode? = nil,
+        normalizationMode: NormalizationMode? = nil,
+        sessionSubject: String? = nil,
+        sessionHabitat: String? = nil,
+        sessionEvent: String? = nil,
+        consensusThreshold: Double? = nil,
+        affinityMode: NormalizationAffinityMode? = nil,
+        affinityProfile: NormalizationAffinityProfile? = nil,
+        minAffinityForConsensus: Double? = nil,
+        sessionOnly: Bool? = nil,
+        unknownSessionContextPolicy: UnknownSessionContextPolicy? = nil,
+        allowSessionSubjectPropagation: Bool? = nil,
+        allowSessionHabitatPropagation: Bool? = nil,
+        allowSessionEventPropagation: Bool? = nil,
+        affinityPrivacyMode: AffinityPrivacyMode? = nil,
+        writeReportPath: String? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -139,6 +190,23 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.allowSpecificTags = allowSpecificTags
         self.pairScope = pairScope
         self.writeAIJSON = writeAIJSON
+        self.vocabularyPath = vocabularyPath
+        self.vocabularyMode = vocabularyMode
+        self.normalizationMode = normalizationMode
+        self.sessionSubject = sessionSubject
+        self.sessionHabitat = sessionHabitat
+        self.sessionEvent = sessionEvent
+        self.consensusThreshold = consensusThreshold
+        self.affinityMode = affinityMode
+        self.affinityProfile = affinityProfile
+        self.minAffinityForConsensus = minAffinityForConsensus
+        self.sessionOnly = sessionOnly
+        self.unknownSessionContextPolicy = unknownSessionContextPolicy
+        self.allowSessionSubjectPropagation = allowSessionSubjectPropagation
+        self.allowSessionHabitatPropagation = allowSessionHabitatPropagation
+        self.allowSessionEventPropagation = allowSessionEventPropagation
+        self.affinityPrivacyMode = affinityPrivacyMode
+        self.writeReportPath = writeReportPath
     }
 
     public init(from decoder: Decoder) throws {
@@ -207,6 +275,35 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.allowSpecificTags = try container.decodeIfPresent(Bool.self, forKey: .allowSpecificTags)
         self.pairScope = try container.decodeIfPresent(XMPPairScope.self, forKey: .pairScope)
         self.writeAIJSON = try container.decodeIfPresent(Bool.self, forKey: .writeAIJSON)
+        self.vocabularyPath = try container.decodeIfPresent(String.self, forKey: .vocabularyPath)
+        self.vocabularyMode = try container.decodeIfPresent(NormalizationVocabularyMode.self, forKey: .vocabularyMode)
+        self.normalizationMode = try container.decodeIfPresent(NormalizationMode.self, forKey: .normalizationMode)
+        self.sessionSubject = try container.decodeIfPresent(String.self, forKey: .sessionSubject)
+        self.sessionHabitat = try container.decodeIfPresent(String.self, forKey: .sessionHabitat)
+        self.sessionEvent = try container.decodeIfPresent(String.self, forKey: .sessionEvent)
+        self.consensusThreshold = try container.decodeIfPresent(Double.self, forKey: .consensusThreshold)
+        self.affinityMode = try container.decodeIfPresent(NormalizationAffinityMode.self, forKey: .affinityMode)
+        self.affinityProfile = try container.decodeIfPresent(NormalizationAffinityProfile.self, forKey: .affinityProfile)
+        self.minAffinityForConsensus = try container.decodeIfPresent(Double.self, forKey: .minAffinityForConsensus)
+        self.sessionOnly = try container.decodeIfPresent(Bool.self, forKey: .sessionOnly)
+        self.unknownSessionContextPolicy = try container.decodeIfPresent(
+            UnknownSessionContextPolicy.self,
+            forKey: .unknownSessionContextPolicy
+        )
+        self.allowSessionSubjectPropagation = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .allowSessionSubjectPropagation
+        )
+        self.allowSessionHabitatPropagation = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .allowSessionHabitatPropagation
+        )
+        self.allowSessionEventPropagation = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .allowSessionEventPropagation
+        )
+        self.affinityPrivacyMode = try container.decodeIfPresent(AffinityPrivacyMode.self, forKey: .affinityPrivacyMode)
+        self.writeReportPath = try container.decodeIfPresent(String.self, forKey: .writeReportPath)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -243,6 +340,23 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(allowSpecificTags, forKey: .allowSpecificTags)
         try container.encodeIfPresent(pairScope, forKey: .pairScope)
         try container.encodeIfPresent(writeAIJSON, forKey: .writeAIJSON)
+        try container.encodeIfPresent(vocabularyPath, forKey: .vocabularyPath)
+        try container.encodeIfPresent(vocabularyMode, forKey: .vocabularyMode)
+        try container.encodeIfPresent(normalizationMode, forKey: .normalizationMode)
+        try container.encodeIfPresent(sessionSubject, forKey: .sessionSubject)
+        try container.encodeIfPresent(sessionHabitat, forKey: .sessionHabitat)
+        try container.encodeIfPresent(sessionEvent, forKey: .sessionEvent)
+        try container.encodeIfPresent(consensusThreshold, forKey: .consensusThreshold)
+        try container.encodeIfPresent(affinityMode, forKey: .affinityMode)
+        try container.encodeIfPresent(affinityProfile, forKey: .affinityProfile)
+        try container.encodeIfPresent(minAffinityForConsensus, forKey: .minAffinityForConsensus)
+        try container.encodeIfPresent(sessionOnly, forKey: .sessionOnly)
+        try container.encodeIfPresent(unknownSessionContextPolicy, forKey: .unknownSessionContextPolicy)
+        try container.encodeIfPresent(allowSessionSubjectPropagation, forKey: .allowSessionSubjectPropagation)
+        try container.encodeIfPresent(allowSessionHabitatPropagation, forKey: .allowSessionHabitatPropagation)
+        try container.encodeIfPresent(allowSessionEventPropagation, forKey: .allowSessionEventPropagation)
+        try container.encodeIfPresent(affinityPrivacyMode, forKey: .affinityPrivacyMode)
+        try container.encodeIfPresent(writeReportPath, forKey: .writeReportPath)
     }
 }
 

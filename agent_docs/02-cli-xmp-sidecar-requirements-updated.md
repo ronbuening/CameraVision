@@ -447,6 +447,8 @@ xmp-export-summary-<ISO-8601-timestamp>.md
 
 These files shall be written under `--output-dir` when supplied, otherwise beside the scan root or JSON scan root.
 
+`aisidecar cleanup` may remove these progress/report/summary artifacts from a selected folder, but it shall not remove XMP sidecars, backups, source images, or derivative cache artifacts.
+
 FR2-032a - The export report schema identifier shall be `ai-sidecar-xmp-export/1.0`.
 
 FR2-032b - The dry-run change-plan schema identifier shall be `ai-sidecar-xmp-change-plan/1.0`.

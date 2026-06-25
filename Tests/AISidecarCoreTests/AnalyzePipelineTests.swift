@@ -120,6 +120,41 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(maxInFlight, 1)
     }
 
+    func testStageConcurrencyOneDoesNotRenderAheadDuringModelCall() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        _ = try writeTestImage("A.JPG", width: 1600, height: 1200, in: root)
+        _ = try writeTestImage("B.JPG", width: 1600, height: 1200, in: root)
+        _ = try writeTestImage("C.JPG", width: 1600, height: 1200, in: root)
+        let cacheDir = output.appendingPathComponent("cache")
+        let probe = CacheSnapshotProbe(cacheDir: cacheDir)
+        let runner = RecordingVisionModelRunner(
+            onAnalyze: { _ in
+                await probe.captureFirstModelCallCacheState()
+            }
+        )
+
+        let result = try await pipeline(runner: runner).run(
+            inputPath: root.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: cacheDir.path,
+                stageConcurrency: 1
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written, .written, .written])
+        let capturedCount = await probe.firstWholeImageCount()
+        let countDuringFirstModelCall = try XCTUnwrap(capturedCount)
+        XCTAssertEqual(countDuringFirstModelCall, 1)
+    }
+
     func testGPSContextIsSentToBothModelRolesAndRecordedInSidecar() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -573,6 +608,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
     private let failures: [RoleFailure]
     private let repairs: [RoleRepair]
     private let delayNanoseconds: UInt64
+    private let onAnalyze: (@Sendable (ModelInputRole) async -> Void)?
     private var prepareCalls = 0
     private var calls: [CapturedModelCall] = []
     private var inFlight = 0
@@ -582,7 +618,8 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
         prepareError: SidecarError? = nil,
         failures: [RoleFailure] = [],
         repairs: [RoleRepair] = [],
-        delayNanoseconds: UInt64 = 0
+        delayNanoseconds: UInt64 = 0,
+        onAnalyze: (@Sendable (ModelInputRole) async -> Void)? = nil
     ) {
         self.context = ModelRuntimeContext(
             model: "test:model",
@@ -596,6 +633,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
         self.failures = failures
         self.repairs = repairs
         self.delayNanoseconds = delayNanoseconds
+        self.onAnalyze = onAnalyze
     }
 
     func prepare(configuration _: ResolvedRunConfiguration) async throws -> ModelRuntimeContext {
@@ -627,6 +665,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
                 thinkingEnabled: options.thinkingEnabled
             )
         )
+        await onAnalyze?(inputRole)
         if delayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: delayNanoseconds)
         }
@@ -778,5 +817,29 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
             error: repairIsValid ? nil : finalError,
             responseAttempts: attempts
         )
+    }
+}
+
+private actor CacheSnapshotProbe {
+    private let cacheDir: URL
+    private var capturedWholeImageCount: Int?
+
+    init(cacheDir: URL) {
+        self.cacheDir = cacheDir
+    }
+
+    func captureFirstModelCallCacheState() async {
+        guard capturedWholeImageCount == nil else {
+            return
+        }
+        // Give any incorrectly scheduled render-ahead work time to write its
+        // cache artifact while the current model call is still active.
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: cacheDir.path)) ?? []
+        capturedWholeImageCount = names.filter { $0.hasSuffix("-whole_image.jpg") }.count
+    }
+
+    func firstWholeImageCount() -> Int? {
+        capturedWholeImageCount
     }
 }

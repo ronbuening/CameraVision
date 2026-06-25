@@ -55,6 +55,36 @@ extension GPSContextMode: ExpressibleByArgument {
     }
 }
 
+extension NormalizationMode: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension NormalizationVocabularyMode: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension NormalizationAffinityMode: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension NormalizationAffinityProfile: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension UnknownSessionContextPolicy: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
 struct SharedOptions: ParsableArguments {
     @Option(help: "Analysis mode: whole, subject, or both.")
     var mode: AnalysisMode?
@@ -98,6 +128,9 @@ struct SharedOptions: ParsableArguments {
     @Flag(help: "Clear the derivative cache after a successful analyze invocation.")
     var clearDerivativeCacheAfterSuccess = false
 
+    @Option(help: "Maximum concurrent render/isolation preparation workers.")
+    var stageConcurrency: Int?
+
     @Option(help: "Schema-constrained repair attempts after invalid model JSON or schema failure.")
     var modelResponseRepairAttempts: Int?
 
@@ -120,6 +153,7 @@ struct SharedOptions: ParsableArguments {
             debugDerivatives: debugDerivatives ? true : nil,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart ? true : nil,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess ? true : nil,
+            stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext
         )

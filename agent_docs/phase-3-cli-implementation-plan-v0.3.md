@@ -43,7 +43,7 @@ Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemente
 
 The Phase 2 writer path is the implementation baseline for Phase 3. Phase 3 must not add another XMP writer, another metadata executable dependency, or another sidecar merge stack. Its normalized output must become a write plan consumed by the same `MetadataWriteEngine` and `OwnedXMPSidecarEngine` used by `aisidecar write-xmp`.
 
-Phase 3 itself is not implemented. The first implementation unit is CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, and core vocabulary/session model types. The v0.7 requirements add the ordered decision pipeline, direct-apply policy, full session-context handling, metadata-affinity graph construction, local weighted consensus, privacy/redaction, deterministic scoring, local conflict mass, global-backstop minimums, artifact truth-table behavior, starter vocabulary coverage, scalable graph construction, and traceability matrix requirements as part of the first production normalization path.
+Phase 3 Milestones 0-11 are implemented. The current implementation includes executable `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report/summary/progress artifacts, candidate observations, direct vocabulary canonicalization with exact-first and ambiguity-guarded punctuation, possessive, ampersand, and final-token singular/plural fallback matching, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, `normalize --dry-run` change-plan output, detailed normalization reports, Markdown summaries, JSONL progress logs, normal normalized writes from existing inputs, analyze-and-normalize execution with default raw `.ai.json` preservation and `--no-write-ai-json`, partial-analysis failure reporting, model-prepare fail-fast behavior, apply-session schema validation, current source identity/staleness checks, target recomputation, dry-run previews, current-XMP merge/write execution through the Phase 2 owned writer, SIGINT/SIGTERM-aware normalized-write and apply-session interruption boundaries, the Milestone 10 offline baseline test suite, and Milestone 11 compatibility smoke evidence recorded in `release-evidence/phase-3-milestone-11-compatibility-smoke.md`.
 
 The Phase 1 release signoff is still separate. Phase 3 implementation may begin from the Phase 2 baseline, but Phase 3 release should either archive Phase 1 Milestone 9 calibration/quality evidence or explicitly defer it with the missing checks, reason, and residual risk.
 
@@ -52,6 +52,17 @@ Latest inherited verification recorded in the Phase 2 plan:
 ```text
 swift test                                      223 tests, 1 skipped, 0 failures
 swift run aisidecar write-xmp --help            passed
+```
+
+Latest Phase 3 release-evidence verification recorded on 2026-06-25:
+
+```text
+swift test                                      330 tests, 1 skipped, 0 failures
+swift run aisidecar --help                      passed
+swift run aisidecar write-xmp --help            passed
+swift run aisidecar normalize --help            passed
+swift run aisidecar apply-session --help        passed
+swift run aisidecar benchmark --self-test       passed
 ```
 
 Before Phase 3 Milestone 0 is marked complete, record a new baseline that includes the new command help paths:
@@ -110,7 +121,8 @@ Vocabulary:
   JSON only; Codable loader plus explicit integrity validation;
   schema id ai-sidecar-vocabulary/1.0;
   SHA-256 vocabulary identity through CryptoKit;
-  Unicode NFC, case folding, and whitespace folding for synonym lookup
+  Unicode NFC, case folding, and whitespace folding for primary synonym lookup;
+  ambiguity-guarded punctuation, possessive, ampersand, and final-token singular/plural fallback aliases
 
 Normalization:
   CandidateExtractor output from Phase 2 as the source observation layer;
@@ -162,8 +174,8 @@ CameraVision/
         DirectApplyPolicy.swift                     // M1 allow/withhold/flat_only/user_only direct decision policy
         VocabularyLoader.swift                    // M1 JSON load, schema id, hash
         VocabularyValidator.swift                 // M1 uniqueness/tree/collision checks
-        VocabularyIndex.swift                     // M1 synonym/canonical lookup index
-        VocabularyTextFolder.swift                // M1 NFC/case/whitespace folding
+        VocabularyIndex.swift                     // M1 synonym/canonical lookup index and guarded fallback aliases
+        VocabularyTextFolder.swift                // M1 NFC/case/whitespace folding plus punctuation and number fallback folding
         DefaultVocabulary.swift                   // M1 bundled vocabulary access
         StarterVocabularyFixtures.swift            // M1 Appendix A fixtures and required starter entries
         NormalizationSchemaIdentifiers.swift      // M0/M2 schema constants
@@ -196,7 +208,9 @@ CameraVision/
         NormalizedXMPChangePlanner.swift          // M5 adapter to Phase 2 export plans
         SessionStalenessChecker.swift             // M7 apply-session identity checks
       Pipeline/
-        NormalizePipeline.swift                   // M2-M6 from-json/file/folder/session paths
+        NormalizePipeline.swift                   // M2-M8 from-json/file/folder/session/write-plan paths
+        NormalizeAndWritePipeline.swift           // M8 existing inputs -> normalized XMP writes
+        NormalizationXMPExecutionRecorder.swift   // M8 execution results into reports/progress
         ApplySessionPipeline.swift                // M7 session -> current XMP writes
         AnalyzeAndNormalizePipeline.swift         // M8 AnalyzePipeline -> NormalizePipeline
       Reporting/
@@ -211,7 +225,7 @@ CameraVision/
         Vocabularies/
           default-vocabulary.json                 // M1 conservative starter vocabulary
     AISidecarCLI/
-      NormalizeCommand.swift                      // M0 argument handling only
+      NormalizeCommand.swift                      // M0-M8 argument handling and command wiring
       ApplySessionCommand.swift                   // M0/M7 argument handling only
       AISidecarCommand.swift                      // M0 registers subcommands
   Tests/
@@ -241,6 +255,7 @@ CameraVision/
       NormalizationReportTests.swift              // M6 report/summary/progress artifacts
       ApplySessionPipelineTests.swift             // M7 stale/moved/current-XMP merge tests
       AnalyzeAndNormalizePipelineTests.swift      // M8 mocked analyze integration
+      NormalizeAndWritePipelineTests.swift        // M8 normal from-json normalized write
       NoXMPRegressionTests.swift                  // M0/M9 inherited command guard extension
       Fixtures/
         normalization/
@@ -269,7 +284,7 @@ These deltas are normative for the milestone sections that follow. They avoid sp
 
 ## 4. Milestone 0 - Command Scaffold, Configuration, and Regression Guard
 
-Status: planned.
+Status: implemented.
 
 Tasks:
 
@@ -296,7 +311,7 @@ No vocabulary decisions, session writing, model runs, XMP planning, or XMP writi
 
 ## 5. Milestone 1 - Vocabulary Schema, Loader, Integrity Checks, and Starter Vocabulary
 
-Status: planned.
+Status: implemented.
 
 Tasks:
 
@@ -304,9 +319,9 @@ Tasks:
 2. Add `Resources/Vocabularies/default-vocabulary.json` and load it when `--vocabulary` is omitted (FR3-001a/b, AC3-019).
 3. Compute SHA-256 over the canonical bytes read from the vocabulary file or bundled resource and record that hash as vocabulary identity (FR3-002b/028).
 4. Implement entry defaults: conservative `requires_review`, propagation-only `auto_apply_allowed`, `direct_apply_policy`, `propagation_scope`, and `specificity` handling for species/taxonomy, people, named places, rare species, exact-location implications, named events, broad ancestors, behavior/habitat entries, and global-backstop entries (FR3-005 through FR3-005d).
-5. Implement `VocabularyTextFolder`: Unicode NFC normalization, case folding, and whitespace collapse; do not fold diacritics and do not stem (FR3-003d).
+5. Implement `VocabularyTextFolder`: Unicode NFC normalization, case folding, and whitespace collapse; do not fold diacritics and do not stem. Add fallback folding for punctuation separators, compatibility quotes/dashes, apostrophe possessives, `&` as `and`, and simple final-token singular/plural variants only after primary matching fails (FR3-003d/003d-1).
 6. Validate uniqueness of canonical paths, synonym uniqueness, canonical-vs-synonym collisions, parent existence, tree acyclicity, non-empty hierarchy levels, and pipe-free flat keywords (FR3-003a-h).
-7. Build `VocabularyIndex` for canonical lookup, synonym lookup, ancestor traversal, descendant support, sibling lookup, namespace filtering, and mutually-exclusive-group lookup.
+7. Build `VocabularyIndex` for canonical lookup, synonym lookup, ambiguity-guarded fallback alias lookup, ancestor traversal, descendant support, sibling lookup, namespace filtering, and mutually-exclusive-group lookup.
 8. Add vocabulary defaults for `propagation_scope` and `specificity` so broad, mid-specific, direct-only, local, global, and review-required entries have deterministic policy even when optional fields are omitted (FR3-005a/b).
 9. Expose a library API that the future GUI can reuse without invoking CLI code (FR3-006).
 
@@ -340,7 +355,14 @@ Exit criteria: invalid vocabulary fixtures fail before any model run, session wr
 
 ## 6. Milestone 2 - Input Resolution and Normalization Session Schema
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Added `NormalizationInputResolver` for raw `.ai.json` sidecar collections, explicit UTF-8 file lists, and positional image scans.
+- Added `NormalizationSessionDocument`, source asset records, source sidecar records, same-base-name group skeletons, privacy defaults, deterministic policy metadata, and early filename/list affinity input records.
+- Added `NormalizePipeline.runSessionOnly` and wired `aisidecar normalize --session-only` to write session/report artifacts without creating, backing up, restoring, or validating `.xmp` sidecars.
+- Added the `ai-sidecar-normalization-1.0.schema.json` resource and focused tests for file-list parsing, duplicate collapse, same-base-name grouping, source identity binding, session privacy fields, invocation-only `--allow-stale`, and no-XMP session-only behavior.
 
 Tasks:
 
@@ -380,13 +402,21 @@ Exit criteria: `normalize --from-json <folder> --recursive --source-root <root> 
 
 ## 7. Milestone 3 - Candidate Observation Layer and Single-Image Canonicalization
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Added `CandidateObservation`, `NormalizationCandidateSkip`, `CandidateCanonicalizer`, concrete batch candidate summaries, and concrete per-asset decision records to the normalization session.
+- Wired `NormalizePipeline.runSessionOnly` to extract Phase 2 candidates from resolved raw sidecars, persist observation provenance, apply vocabulary matching through `VocabularyIndex`, record direct-apply policy decisions, and add decision counts to normalization reports.
+- Implemented `--normalization-mode off` as Phase 2 fallback pass-through, and `single-image`/`batch-conservative` as direct per-asset vocabulary canonicalization without propagation.
+- Enforced confidence filtering before matching, unit same-asset support, raw model hierarchy-separator rejection, GPS/coordinate candidate guards, unmatched-vocabulary skips, duplicate provenance preservation, and default rejection of unknown session context with `write-unnormalized` flat-only user-context fallback.
+- Added `CandidateCanonicalizerTests` and expanded `NormalizationSessionTests` for synonym collapse, canonical casing, guarded fallback alias matching, unmatched terms, Phase 2 pass-through, pipe-containing raw candidates, flat-only unnormalized session subject, direct-apply policy boundaries, confidence filtering, and whole-image/subject-isolated provenance.
 
 Tasks:
 
 1. Convert Phase 2 `CandidateExtractionResult` records into `CandidateObservation` values without re-reading raw model JSON ad hoc (FR3-020 and inherited FR2-013 through FR2-019).
 2. Preserve source field, input role, confidence band, evidence string, source sidecar, source image, model-run index, skipped-candidate reasons, and source-verification warnings.
-3. Implement `CandidateCanonicalizer` using `VocabularyIndex`: exact canonical path/flat keyword/synonym matching after FR3-003d text folding; preserve canonical spelling and casing on output (FR3-003e, FR3-017).
+3. Implement `CandidateCanonicalizer` using `VocabularyIndex`: exact canonical path/flat keyword/synonym matching after FR3-003d text folding, then FR3-003d-1 ambiguity-guarded fallback aliases when exact matching fails; preserve canonical spelling and casing on output (FR3-003e, FR3-017).
 4. Apply `--min-confidence` before counting and enforce unit observation support: duplicate same-asset observations add provenance but do not increase support mass.
 5. Implement direct per-asset decisions using `direct_apply_policy` before any propagation.
 6. Implement `--allow-specific-tags` only for Phase 2-style fallback/off-mode behavior; it shall not override vocabulary policy.
@@ -396,11 +426,20 @@ Tasks:
 10. Enforce that raw model candidates containing `|` remain invalid for direct export; only valid vocabulary `canonical_path` values may introduce hierarchical separators (FR3-003g, AC3-013).
 11. Record unmatched vocabulary, below-threshold, direct-apply-withheld, requires-review, specific-tag-policy, disabled-flat, disabled-hierarchical, duplicate, and hierarchy-separator skip reasons.
 
-Exit criteria: fixture sidecars produce deterministic canonicalized per-asset decisions. Tests cover synonym collapse, canonical casing, unmatched terms, Phase 2 pass-through mode, single-image mode, pipe-containing raw candidates, flat-only unnormalized session subject, confidence filtering before matching, and preservation of whole-image versus subject-isolated provenance.
+Exit criteria: fixture sidecars produce deterministic canonicalized per-asset decisions. Tests cover synonym collapse, canonical casing, guarded punctuation and number fallback aliases, fallback ambiguity suppression, unmatched terms, Phase 2 pass-through mode, single-image mode, pipe-containing raw candidates, flat-only unnormalized session subject, confidence filtering before matching, and preservation of whole-image versus subject-isolated provenance.
 
 ## 8. Milestone 4 - Metadata Affinity Graph, Local Weighted Consensus, and Session Context
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Added `AssetAffinityProfile`, deterministic decay/scoring helpers, `CandidateNeighborGenerator`, `AssetAffinityGraphBuilder`, typed affinity edge/component records, and explanatory cluster records.
+- Added `AssetAffinityInputExtractor` and wired session input resolution to persist metadata presence flags, normalized camera/lens classes, and hashed serials without storing exact GPS coordinates, exact timestamps, or raw serial values.
+- Added `BatchConsensusEngine` to enrich `NormalizePipeline` sessions with hierarchy-aware support counts, local weighted consensus records, local conflict-mass blocks, local propagation decisions, strict global backstop decisions, and matched session-context user-evidence decisions.
+- Implemented filename-sequence and explicit file-list adjacency as the active offline primary affinity signals, with capture-time/GPS/gear scorers available for deterministic tests and future metadata enrichment; gear-only affinity remains blocked from edge creation/propagation.
+- Added local propagation safeguards for `auto_apply_allowed`, `requires_review`, propagation scope, specificity thresholds, direct target conflicts, sibling/mutual-exclusion conflict mass, support mass, neighbor count, and maximum supporting affinity.
+- Added `AssetAffinityScorerTests` and `BatchConsensusEngineTests` covering score decay/bands, filename/list scoring, gear-only blocking, large-batch bounded neighbor generation, high-affinity propagation, low-affinity non-propagation, direct conflict suppression, review-required non-propagation, session-context gates, and global backstop minimum/threshold behavior.
 
 Tasks:
 
@@ -425,7 +464,15 @@ Exit criteria: batch fixtures demonstrate high-affinity broad ancestor propagati
 
 ## 9. Milestone 5 - Normalized XMP Plan Adapter and Dry-Run Output
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Added `NormalizedXMPChangePlanner` to convert accepted direct, local, global, fallback, and user-context decisions into Phase 2-compatible `XMPChangePlan` target plans without invoking the writer or preview/validation path.
+- Added normalized write-plan session records that wrap each Phase 2 plan with flat/hierarchical per-term decision provenance, including decision IDs, asset IDs, stages, candidate kinds, canonical paths, observation IDs, session context types, governing rules, and supporting assets.
+- Wired `NormalizePipeline.runDryRun` and `aisidecar normalize --dry-run` to write the normalization session/report and emit `ai-sidecar-xmp-change-plan/1.0` JSON while creating no `.xmp` files, backups, restores, or validation attempts.
+- Extended skip reason mapping so normalized policy blocks can appear in dry-run plan diagnostics, and ensured `write-unnormalized` session context remains flat-only.
+- Added `NormalizationSessionTests` coverage for normalized dry-run XMP plans, output-dir mirroring, no-XMP dry-run behavior, direct model provenance, report plan counts, and flat-only unknown session-context output.
 
 Tasks:
 
@@ -441,7 +488,15 @@ Exit criteria: dry-run output explains every normalized tag, every skipped tag, 
 
 ## 10. Milestone 6 - Reports, Summaries, Progress Logs, and Session-Only Finalization
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Expanded `NormalizationReport` to include source assets, same-base-name groups, affinity records, candidate skips, batch candidates, local consensus, per-asset decisions, normalized XMP write plans, writer identity, vocabulary identity, application instructions, and deterministic summary counts.
+- Added `NormalizationProgressLog` JSONL artifacts with stage records for input resolution, normalization, XMP planning, each planned XMP target, and artifact writes, flushing after each append.
+- Added `NormalizationSummaryWriter` Markdown output that summarizes counts, affinity profile/edges, per-stage decisions, skip/block reasons, XMP plans, warnings/errors, and Lightroom Classic/Capture One post-export instructions.
+- Wired `NormalizePipeline` to produce session/report/summary/progress artifacts for session-only and dry-run runs, respecting `--write-report` for the report path while keeping the other artifacts under the planned artifact directory.
+- Extended `NormalizationSessionTests` to decode progress JSONL records, assert report detail, assert summary creation, and preserve no-XMP behavior for session-only and dry-run fixture paths.
 
 Tasks:
 
@@ -458,14 +513,23 @@ normalization-summary-<ISO-8601-timestamp>.md
 normalization-progress-<ISO-8601-timestamp>.jsonl
 ```
 
-6. Implement `--write-report <path>` for explicit report output while keeping the default artifact locations under `--output-dir`, scan root, JSON scan root, or session-file directory.
-7. Finish `--session-only`: produce valid session/report/summary/progress artifacts and no `.xmp` sidecars, backups, restores, or validation attempts (AC3-017).
+6. `aisidecar cleanup` can remove normalization progress/report/summary artifacts while preserving normalization session JSON for later `apply-session` use.
+7. Implement `--write-report <path>` for explicit report output while keeping the default artifact locations under `--output-dir`, scan root, JSON scan root, or session-file directory.
+8. Finish `--session-only`: produce valid session/report/summary/progress artifacts and no `.xmp` sidecars, backups, restores, or validation attempts (AC3-017).
 
 Exit criteria: reports are deterministic for fixtures, contain vocabulary hash, owned XMP writer identity, normalized decisions, affinity profile, affinity edges, local weighted consensus records, per-asset provenance, skip reasons, group membership, and application instructions. `--session-only` is covered by no-XMP tests.
 
 ## 11. Milestone 7 - Apply-Session Pipeline
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Added `NormalizationSessionReader` with supported-major schema checks for `ai-sidecar-normalization/1.0` before apply-session execution.
+- Added `ApplySessionPipeline` to rebuild XMP plans from stored session decisions, resolve current sources via stored paths or `--source-root`, verify source identities, fail stale selected assets as `E_SESSION_STALE`, and record explicit `--allow-stale` overrides.
+- Added a reusable `XMPExportPipeline.runChangePlan` seam so apply-session feeds current plans into the existing Phase 2 preview/write/backup/restore/validation/source-hash path without candidate extraction or vocabulary/affinity recomputation.
+- Wired `aisidecar apply-session` to execute the core pipeline, emit dry-run change-plan JSON, and write apply report/summary/progress artifacts.
+- Added `ApplySessionPipelineTests` for model-free session-only application, stale rejection, stale override, moved `--source-root` resolution, output-dir target recomputation, dry-run no-XMP behavior, current-XMP merge, malformed XMP fail-closed behavior, validation-failure backup restore, and unsupported session schema rejection.
 
 Tasks:
 
@@ -482,7 +546,7 @@ Exit criteria: session fixture tests prove model-free execution, stale identity 
 
 ## 12. Milestone 8 - Analyze-and-Normalize Integration
 
-Status: planned.
+Status: implemented.
 
 Tasks:
 
@@ -495,9 +559,44 @@ Tasks:
 
 Exit criteria: mocked analyze-and-normalize tests cover successful folder run, partial analysis failure, `--no-write-ai-json`, model-prepare failure, GPS-context provenance not exported as coordinates/location tags, and reuse of the same normalization path as from-json.
 
+Implemented in Milestone 8:
+
+- Added `AnalyzeAndNormalizePipeline` as the Phase 1 to Phase 3 adapter. It runs `AnalyzePipeline`, resolves successful raw sidecars into `NormalizationResolvedInputBatch`, removes newly created raw sidecars only for `--no-write-ai-json`, runs the shared `NormalizePipeline`, executes normalized XMP plans through `XMPExportPipeline`, and defers derivative-cache success cleanup until both analysis and XMP export succeed.
+- Added `NormalizePipeline.runResolvedInputs` and `NormalizationInputResolver.resolve(rawSidecarBatch:)` so analyze-and-normalize can reuse the same normalization path as `--from-json` without rereading sidecars after `--no-write-ai-json` cleanup.
+- Added `NormalizePipeline.runWritePlan`, `NormalizeAndWritePipeline`, and `NormalizationXMPExecutionRecorder` so normal `normalize --from-json` / `--file-list` writes and analyze-and-normalize both update the normalization report, summary, and progress log with Phase 2 XMP execution results.
+- Wired `aisidecar normalize <image-or-folder>` to real analyze-and-normalize execution and `aisidecar normalize --from-json` / `--file-list` normal invocations to normalized XMP writes while preserving the existing session-only and dry-run no-XMP behavior.
+- Added `AnalyzeAndNormalizePipelineTests` for successful folder execution, partial analysis failure, `--no-write-ai-json`, model-prepare fail-fast behavior, and GPS/coordinate non-export behavior, plus `NormalizeAndWritePipelineTests` for normal from-json writes.
+
+M8 verification:
+
+```text
+swift test --filter AnalyzeAndNormalizePipelineTests   5 tests, 0 failures
+swift test --filter NormalizeAndWritePipelineTests     1 test, 0 failures
+swift test --filter NormalizationInvocationTests       9 tests, 0 failures
+swift test --filter NoXMPRegressionTests               5 tests, 0 failures
+swift test --filter NormalizationSessionTests          5 tests, 0 failures
+swift test --filter ApplySessionPipelineTests          6 tests, 0 failures
+swift test --filter XMPExportPipelineTests             6 tests, 0 failures
+swift test --filter AnalyzeAndXMPPipelineTests         4 tests, 0 failures
+swift test                                             287 tests, 1 skipped, 0 failures
+swift run aisidecar --help                             passed
+swift run aisidecar normalize --help                   passed
+swift run aisidecar apply-session --help               passed
+```
+
 ## 13. Milestone 9 - Interruption, Concurrency, and File-Safety Hardening
 
-Status: planned.
+Status: implemented.
+
+Implemented notes:
+
+- Wired `aisidecar normalize` to install the shared Phase 2 `InterruptionMonitor` for session-only, dry-run, existing-input normalized writes, and analyze-and-normalize runs.
+- Extended `NormalizePipeline` to check for an already requested interruption after vocabulary loading, input resolution, candidate extraction, consensus, and normalized plan construction, but before session/report/summary/progress artifact creation. This keeps interrupted session-only and dry-run runs free of `.xmp` sidecars, backups, restores, validation attempts, and partial normalization artifacts.
+- Preserved the batch ordering required by Phase 3: normalization aggregation and normalized change-plan construction complete before `NormalizeAndWritePipeline` or `AnalyzeAndNormalizePipeline` invokes the Phase 2 XMP export path.
+- Reused `XMPExportPipeline.runChangePlan` for normalized writes and apply-session, so per-target XMP execution keeps the inherited one-write-per-target rule, backup/restore behavior, validation failure restoration, and source hash rechecks.
+- Added interruption-boundary seams for tests immediately after normalization and after apply-session source resolution, without changing production ordering.
+- Mirrored Phase 2 export input failures, including interruption-before-target failures, into Phase 3 normalization/apply-session progress logs so the artifacts identify the stop stage even when no target write begins.
+- Added fixture tests for cancellation before session artifact write, after session write before XMP export, during XMP backup handling, validation-failure restoration via the inherited Phase 2 tests, and apply-session interruption after stale/source checks.
 
 Tasks:
 
@@ -511,9 +610,34 @@ Tasks:
 
 Exit criteria: interruption tests simulate cancellation before session write, after session write before XMP write, during XMP write with backup, during validation failure restore, and during apply-session stale checks. Source images and existing sidecars remain unchanged or restored.
 
+M9 verification:
+
+```text
+swift test --filter NormalizeAndWritePipelineTests      4 tests, 0 failures
+swift test --filter ApplySessionPipelineTests           7 tests, 0 failures
+swift test --filter NormalizationSessionTests           5 tests, 0 failures
+swift test --filter AnalyzeAndNormalizePipelineTests    5 tests, 0 failures
+swift test --filter NoXMPRegressionTests                5 tests, 0 failures
+swift test --filter XMPExportPipelineTests              6 tests, 0 failures
+swift test --filter NormalizationInvocationTests        9 tests, 0 failures
+swift test                                             291 tests, 1 skipped, 0 failures
+swift run aisidecar --help                              passed
+swift run aisidecar normalize --help                    passed
+swift run aisidecar apply-session --help                passed
+swift run aisidecar write-xmp --help                    passed
+```
+
 ## 14. Milestone 10 - Automated Tests, Fixtures, and Offline Baseline
 
-Status: planned.
+Status: implemented.
+
+Implementation notes:
+
+1. Added `Phase3NormalizationTestSupport.swift` as the shared synthetic fixture helper for vocabulary entries, input batches, source assets, observations, canonicalization results, direct decisions, and session context records.
+2. Expanded direct-apply coverage so model evidence cannot bypass `user_only`, `requires_review`, or vocabulary withholding through `--allow-specific-tags`.
+3. Added offline baseline tests for privacy-safe affinity inputs, deterministic neighbor candidates, same-base-name graph node collapse, thresholded edge storage, local weighted consensus, local conflict mass, global backstop minimums, session-context propagation flags, normalized XMP change plans, artifact placement, and report privacy.
+4. Kept the baseline deterministic and local: no Ollama, network access, Lightroom Classic/Capture One automation, proprietary images, or live metadata tooling is required.
+5. The persisted affinity-input tests cover GPS presence and capture/gear privacy boundaries; active propagation still relies on the implemented deterministic filename, file-list, and metadata-affinity scorer behavior.
 
 Automated tests:
 
@@ -525,7 +649,7 @@ DirectApplyPolicyTests         allow, withhold, flat_only, user_only; auto_apply
 StarterVocabularyTests         Appendix minimum entries; synonym mapping; review leaf; broad/local/global entries; stable hash
 FileListInputResolverTests     UTF-8 parsing; comments/blank lines; relative paths; duplicates; unsupported source path; mutual exclusivity
 NormalizationSessionTests      ai-sidecar-normalization/1.0; resolved config; writer identity; privacy fields; artifact policy; source identity binding; schema evolution
-CandidateCanonicalizerTests    synonym mapping; canonical spelling; unmatched terms; raw pipe rejection; off mode; single-image mode; provenance retention; unit observation support
+CandidateCanonicalizerTests    synonym mapping; canonical spelling; guarded fallback aliases; unmatched terms; raw pipe rejection; off mode; single-image mode; provenance retention; unit observation support
 AssetAffinityInputTests        image-source, from-json, file-list metadata precedence; missing/degraded metadata reporting; apply-session non-recomputation
 AssetAffinityScorerTests       time/GPS/filename/list-adjacency decay; single-signal caps; gear boost; gear-only block; missing GPS neutral; distant GPS negative
 AffinityNeighborCandidateTests bounded time/GPS/filename/list/directory windows; all-pairs small-batch allowance; deterministic candidate generation
@@ -539,6 +663,7 @@ OutputArtifactPolicyTests      normalize default; dry-run; session-only; session
 NormalizationReportTests       JSON report; Markdown summary; progress JSONL; skip reasons; privacy redaction; affinity explanations; Lightroom/Capture One instructions; engine/writer identity
 ApplySessionPipelineTests      model-free execution; stale identity fail; --allow-stale override; current sidecar merge; target recomputation; malformed XMP fail-closed; no affinity recomputation
 AnalyzeAndNormalizePipelineTests mocked analyze path; --no-write-ai-json; partial failures; model prepare fail-fast; GPS context not exported
+NormalizeAndWritePipelineTests normal from-json normalized write; report/summary/progress execution update
 NoXMPRegressionTests           analyze, benchmark, purge, export-model-inputs, normalize --session-only, dry-run paths, and apply-session --dry-run remain XMP-silent where required
 ```
 
@@ -549,6 +674,8 @@ Fixture policy:
 3. Commit recorded `.ai.json` fixtures covering whole-only, subject-only, both-mode, species candidates, habitat/scene candidates, malformed model runs, failed model runs, unknown additive fields, GPS-context evidence, coordinate/GPS-only evidence guards, capture-time/GPS/filename/gear metadata combinations, missing GPS, distant GPS, same-gear different-scene cases, and RAW+JPEG same-base-name groups.
 4. Commit XMP fixtures with existing flat keywords, hierarchical keywords, unknown namespaces, and representative Adobe/Capture One adjustment namespaces.
 5. Required CI shall not need ExifTool, a live Ollama instance, Lightroom Classic, Capture One, network access, or proprietary image samples.
+
+Milestone 10 uses in-memory synthetic fixtures for the new baseline cases rather than adding binary image fixtures. The committed fixture README documents that policy and points to the shared test helper.
 
 Exit criteria:
 
@@ -569,12 +696,55 @@ swift test --filter OutputArtifactPolicyTests
 swift test --filter NormalizedXMPChangePlanTests
 swift test --filter ApplySessionPipelineTests
 swift test --filter AnalyzeAndNormalizePipelineTests
+swift test --filter NormalizeAndWritePipelineTests
 swift test
+```
+
+Milestone 10 verification recorded after implementation:
+
+```text
+swift test --filter VocabularyLoaderTests              6 tests, 0 failures
+swift test --filter VocabularyValidatorTests           5 tests, 0 failures
+swift test --filter DirectApplyPolicyTests             3 tests, 0 failures
+swift test --filter StarterVocabularyTests             3 tests, 0 failures
+swift test --filter CandidateCanonicalizerTests        5 tests, 0 failures
+swift test --filter AssetAffinityInputTests            3 tests, 0 failures
+swift test --filter AssetAffinityScorerTests           4 tests, 0 failures
+swift test --filter AffinityNeighborCandidateTests     2 tests, 0 failures
+swift test --filter AssetAffinityGraphTests            2 tests, 0 failures
+swift test --filter LocalWeightedConsensusTests        2 tests, 0 failures
+swift test --filter LocalConflictMassTests             2 tests, 0 failures
+swift test --filter GlobalBackstopConsensusTests       3 tests, 0 failures
+swift test --filter SessionContextPolicyTests          3 tests, 0 failures
+swift test --filter OutputArtifactPolicyTests          3 tests, 0 failures
+swift test --filter NormalizationArtifactPlannerTests  2 tests, 0 failures
+swift test --filter NormalizedXMPChangePlanTests       3 tests, 0 failures
+swift test --filter NormalizationReportTests           2 tests, 0 failures
+swift test --filter NormalizationSessionTests          5 tests, 0 failures
+swift test --filter ApplySessionPipelineTests          7 tests, 0 failures
+swift test --filter AnalyzeAndNormalizePipelineTests   5 tests, 0 failures
+swift test --filter NormalizeAndWritePipelineTests     4 tests, 0 failures
+swift test --filter NoXMPRegressionTests              5 tests, 0 failures
+swift test --filter NormalizationInvocationTests       9 tests, 0 failures
+swift test                                           317 tests, 1 skipped, 0 failures
+swift run aisidecar --help                           passed
+swift run aisidecar normalize --help                 passed
+swift run aisidecar apply-session --help             passed
+swift run aisidecar write-xmp --help                 passed
 ```
 
 ## 15. Milestone 11 - Compatibility Smoke and Release Evidence
 
-Status: planned.
+Status: complete.
+
+Release evidence: `agent_docs/release-evidence/phase-3-milestone-11-compatibility-smoke.md`.
+
+Completion notes, 2026-06-25:
+
+- Project-owner manual checks confirmed working normalized XMP examples with Lightroom Classic and Capture One.
+- Project-owner flag checks passed for the exercised Phase 3 command paths.
+- Codex recorded passing `swift test`, command help checks, and benchmark self-test in the release-evidence note.
+- Phase 1 Milestone 9 calibration and final model-quality review remain separately deferred before overall release signoff.
 
 Manual or semi-manual checks:
 
@@ -617,7 +787,7 @@ Exit criteria before Phase 3 release:
 ## 16. Risks and Mitigations
 
 Risk: vocabulary synonyms map sideways or downward to false specificity.
-Mitigation: require unique synonym ownership, explicit canonical paths, no stemming, no diacritic folding, conservative defaults, and tests proving upward mapping is allowed while unsafe sideways/downward inference is blocked unless explicit vocabulary or user session evidence supports it.
+Mitigation: require unique synonym ownership, explicit canonical paths, exact-first lookup, ambiguity-guarded fallback aliases, no stemming, no diacritic folding, conservative defaults, and tests proving upward mapping is allowed while unsafe sideways/downward inference is blocked unless explicit vocabulary or user session evidence supports it.
 
 Risk: flat batch consensus propagates a wrong tag across an unrelated part of a folder.
 Mitigation: default to metadata-affinity local consensus, not flat folder voting. Propagate only entries with `auto_apply_allowed = true`, never `requires_review` model evidence, apply minimum confidence before counting, require local weighted agreement/support-mass/supporting-neighbor thresholds, block direct target conflicts, and report all propagated tags with affinity basis and governing rule.
@@ -694,7 +864,7 @@ Phase 3 implementation is done when:
 6. `normalize --from-json` can build a valid normalization session without model runs.
 7. `normalize <image-file-or-folder>` can call `AnalyzePipeline`, preserve `.ai.json` by default, and normalize successful outputs.
 8. `--normalization-mode off`, `single-image`, and `batch-conservative` have distinct tested behavior.
-9. Synonyms map to canonical paths and canonical spelling/casing is preserved.
+9. Synonyms and guarded fallback aliases map to canonical paths and canonical spelling/casing is preserved.
 10. Hierarchy-aware counting supports ancestors from descendant observations.
 11. The metadata-affinity graph computes deterministic time/GPS/filename/list-adjacency primary scores and gear reinforcement scores under the named profile.
 12. Same-base-name RAW/JPEG groups become one normalization node and do not double-count support.

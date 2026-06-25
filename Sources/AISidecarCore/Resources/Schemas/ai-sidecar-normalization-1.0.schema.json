@@ -1,0 +1,410 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai-sidecar-normalization-1.0.schema.json",
+  "title": "AI Sidecar Normalization Session 1.0",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "session",
+    "vocabulary",
+    "resolved_configuration",
+    "session_context",
+    "privacy",
+    "xmp_writer",
+    "source_ai_sidecars",
+    "source_assets",
+    "same_base_name_groups",
+    "affinity",
+    "candidate_observations",
+    "candidate_skips",
+    "batch_candidates",
+    "local_consensus",
+    "per_asset_decisions",
+    "xmp_write_plans",
+    "artifacts",
+    "deterministic_policy",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ai-sidecar-normalization/1.0"
+    },
+    "session": {
+      "type": "object",
+      "required": [
+        "session_id",
+        "created_at",
+        "workflow",
+        "input_path",
+        "normalization_mode"
+      ],
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "workflow": { "enum": ["analyze", "from-json", "file-list"] },
+        "input_path": { "type": "string", "minLength": 1 },
+        "normalization_mode": { "enum": ["off", "single-image", "batch-conservative"] },
+        "vocabulary_mode": { "enum": ["observed-tags", "controlled-vocabulary"] },
+        "scan_root": { "type": ["string", "null"] },
+        "source_root": { "type": ["string", "null"] },
+        "output_dir": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "vocabulary": {
+      "type": "object",
+      "required": ["path", "sha256", "schema_version"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "schema_version": { "const": "ai-sidecar-vocabulary/1.0" },
+        "mode": { "enum": ["observed-tags", "controlled-vocabulary"] },
+        "entry_count": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "privacy": {
+      "type": "object",
+      "required": [
+        "exact_affinity_inputs_persisted",
+        "camera_serials_hashed",
+        "gps_coordinates_persisted",
+        "capture_times_persisted",
+        "privacy_mode"
+      ],
+      "properties": {
+        "exact_affinity_inputs_persisted": { "type": "boolean" },
+        "camera_serials_hashed": { "type": "boolean" },
+        "gps_coordinates_persisted": { "type": "boolean" },
+        "capture_times_persisted": { "type": "boolean" },
+        "privacy_mode": { "enum": ["standard", "debug-exact"] }
+      },
+      "additionalProperties": true
+    },
+    "source_assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "asset_id",
+          "source_relative_path",
+          "file_name",
+          "source_type",
+          "source_identity",
+          "affinity_inputs"
+        ],
+        "properties": {
+          "asset_id": { "type": "string", "pattern": "^asset-[0-9]{6}$" },
+          "source_path": { "type": ["string", "null"] },
+          "source_relative_path": { "type": "string", "minLength": 1 },
+          "file_name": { "type": "string", "minLength": 1 },
+          "source_type": { "type": "string" },
+          "source_identity": { "type": "object" },
+          "affinity_inputs": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "same_base_name_groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "group_id",
+          "group_directory",
+          "group_basename",
+          "target_relative_path",
+          "member_asset_ids",
+          "selected_asset_ids",
+          "skipped_asset_ids"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "affinity": {
+      "type": "object",
+      "required": ["mode", "profile", "min_affinity_for_consensus", "nodes", "edges", "clusters"],
+      "properties": {
+        "mode": { "enum": ["off", "metadata-weighted"] },
+        "profile": { "enum": ["conservative", "balanced", "aggressive"] },
+        "min_affinity_for_consensus": { "type": "number", "minimum": 0, "maximum": 1 },
+        "nodes": { "type": "array", "items": { "type": "object" } },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from_node_id", "to_node_id", "affinity", "score_band", "components"],
+            "properties": {
+              "from_node_id": { "type": "string" },
+              "to_node_id": { "type": "string" },
+              "affinity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "score_band": {
+                "enum": ["very_strong", "strong", "moderate", "weak", "ignored"]
+              },
+              "components": { "type": "object" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "clusters": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
+    "candidate_observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "observation_id",
+          "asset_id",
+          "term",
+          "normalized_term",
+          "folded_term",
+          "confidence",
+          "provenance"
+        ],
+        "properties": {
+          "observation_id": { "type": "string", "pattern": "^obs-[0-9]{6}$" },
+          "asset_id": { "type": "string", "pattern": "^asset-[0-9]{6}$" },
+          "group_id": { "type": ["string", "null"] },
+          "term": { "type": "string" },
+          "normalized_term": { "type": "string" },
+          "folded_term": { "type": "string" },
+          "confidence": { "enum": ["low", "medium", "high"] },
+          "evidence": { "type": ["string", "null"] },
+          "provenance": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "candidate_skips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["skip_id", "reason"],
+        "properties": {
+          "skip_id": { "type": "string", "pattern": "^skip-[0-9]{6}$" },
+          "reason": {
+            "enum": [
+              "below_confidence_threshold",
+              "unmatched_vocabulary",
+              "direct_apply_withheld",
+              "direct_apply_flat_only",
+              "requires_review",
+              "specific_tag_policy",
+              "contains_hierarchy_separator",
+              "empty_after_normalization",
+              "duplicate",
+              "disabled_flat_export",
+              "disabled_hierarchical_export",
+              "coordinate_like_term",
+              "gps_only_evidence",
+              "unknown_session_context_rejected",
+              "unknown_session_context_flat_only",
+              "weak_local_agreement",
+              "low_support_mass",
+              "low_supporting_neighbor_count",
+              "low_max_supporting_affinity",
+              "blocked_direct_conflict",
+              "blocked_local_conflict_mass",
+              "gear_only_affinity",
+              "global_backstop_threshold",
+              "session_context_conflict"
+            ]
+          },
+          "asset_id": { "type": ["string", "null"] },
+          "group_id": { "type": ["string", "null"] },
+          "observation_id": { "type": ["string", "null"] },
+          "canonical_path": { "type": ["string", "null"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "batch_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_kind",
+          "supporting_asset_ids",
+          "direct_asset_support_count",
+          "observation_count"
+        ],
+        "properties": {
+          "candidate_kind": {
+            "enum": [
+              "canonical_vocabulary",
+              "observed_model_tag",
+              "model_species_fallback",
+              "phase2_fallback",
+              "user_context_unnormalized"
+            ]
+          },
+          "canonical_path": { "type": ["string", "null"] },
+          "flat_keyword": { "type": ["string", "null"] },
+          "hierarchical_keyword": { "type": ["string", "null"] },
+          "supporting_asset_ids": { "type": "array", "items": { "type": "string" } },
+          "direct_asset_support_count": { "type": "integer", "minimum": 0 },
+          "eligible_asset_count": { "type": "integer", "minimum": 0 },
+          "agreement_frequency": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "observation_count": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "local_consensus": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "target_asset_id",
+          "canonical_path",
+          "support_mass",
+          "eligible_mass",
+          "supporting_neighbor_count",
+          "max_supporting_affinity",
+          "decision_eligible",
+          "block_reasons",
+          "governing_rule"
+        ],
+        "properties": {
+          "target_asset_id": { "type": "string" },
+          "target_node_id": { "type": ["string", "null"] },
+          "canonical_path": { "type": "string" },
+          "local_weighted_agreement": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "support_mass": { "type": "number", "minimum": 0 },
+          "eligible_mass": { "type": "number", "minimum": 0 },
+          "supporting_neighbor_count": { "type": "integer", "minimum": 0 },
+          "max_supporting_affinity": { "type": "number", "minimum": 0, "maximum": 1 },
+          "conflict_support_mass": { "type": "number", "minimum": 0 },
+          "conflict_weighted_agreement": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "conflicting_canonical_paths": { "type": "array", "items": { "type": "string" } },
+          "decision_eligible": { "type": "boolean" },
+          "block_reasons": { "type": "array", "items": { "type": "string" } },
+          "governing_rule": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "per_asset_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "decision_id",
+          "asset_id",
+          "stage",
+          "status",
+          "candidate_kind",
+          "support_units",
+          "observation_count",
+          "skip_reasons",
+          "observations"
+        ],
+        "properties": {
+          "decision_id": { "type": "string", "pattern": "^decision-[0-9]{6}$" },
+          "asset_id": { "type": "string", "pattern": "^asset-[0-9]{6}$" },
+          "stage": {
+            "enum": [
+              "direct_model_observation",
+              "user_session_context",
+              "local_affinity_propagation",
+              "global_backstop_propagation",
+              "phase2_fallback"
+            ]
+          },
+          "status": { "enum": ["accepted", "withheld", "skipped"] },
+          "candidate_kind": {
+            "enum": [
+              "canonical_vocabulary",
+              "observed_model_tag",
+              "model_species_fallback",
+              "phase2_fallback",
+              "user_context_unnormalized"
+            ]
+          },
+          "canonical_path": { "type": ["string", "null"] },
+          "flat_keyword": { "type": ["string", "null"] },
+          "hierarchical_keyword": { "type": ["string", "null"] },
+          "context_type": { "type": ["string", "null"] },
+          "support_units": { "type": "integer", "minimum": 0 },
+          "supporting_asset_ids": { "type": "array", "items": { "type": "string" } },
+          "governing_rule": { "type": ["string", "null"] },
+          "observation_count": { "type": "integer", "minimum": 0 },
+          "skip_reasons": { "type": "array", "items": { "type": "string" } },
+          "local_consensus": { "type": ["object", "null"] },
+          "observations": { "type": "array", "items": { "type": "object" } }
+        },
+        "additionalProperties": true
+      }
+    },
+    "xmp_write_plans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "xmp_change_plan",
+          "flat_keyword_provenance",
+          "hierarchical_keyword_provenance",
+          "normalization_skips"
+        ],
+        "properties": {
+          "xmp_change_plan": { "type": "object" },
+          "flat_keyword_provenance": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/normalizedKeywordProvenance" }
+          },
+          "hierarchical_keyword_provenance": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/normalizedKeywordProvenance" }
+          },
+          "normalization_skips": {
+            "type": "array",
+            "items": { "type": "object" }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["session_path", "report_path", "summary_path", "progress_path"],
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "normalizedKeywordProvenance": {
+      "type": "object",
+      "required": [
+        "term",
+        "normalized_key",
+        "keyword_bag",
+        "decision_ids",
+        "asset_ids",
+        "stages",
+        "candidate_kinds",
+        "canonical_paths",
+        "observation_ids",
+        "supporting_asset_ids"
+      ],
+      "properties": {
+        "term": { "type": "string" },
+        "normalized_key": { "type": "string" },
+        "keyword_bag": { "enum": ["dc_subject", "lr_hierarchical_subject"] },
+        "decision_ids": { "type": "array", "items": { "type": "string" } },
+        "asset_ids": { "type": "array", "items": { "type": "string" } },
+        "stages": { "type": "array", "items": { "type": "string" } },
+        "candidate_kinds": { "type": "array", "items": { "type": "string" } },
+        "canonical_paths": { "type": "array", "items": { "type": "string" } },
+        "observation_ids": { "type": "array", "items": { "type": "string" } },
+        "source_texts": { "type": "array", "items": { "type": "string" } },
+        "context_types": { "type": "array", "items": { "type": "string" } },
+        "governing_rules": { "type": "array", "items": { "type": "string" } },
+        "supporting_asset_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

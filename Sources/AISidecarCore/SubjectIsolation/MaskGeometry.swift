@@ -32,9 +32,10 @@ enum MaskGeometry {
         var sumX = 0
         var sumY = 0
 
-        for y in 0..<dimensions.height {
+        for row in 0..<dimensions.height {
+            let y = dimensions.height - 1 - row
             for x in 0..<dimensions.width {
-                let value = pixels[y * dimensions.width + x]
+                let value = pixels[row * dimensions.width + x]
                 guard value > 0 else {
                     continue
                 }

@@ -83,11 +83,11 @@ public struct AnalyzePipeline {
         )
         let plan = SidecarNaming.plan(for: scanResult.images, outputDir: configuration.outputDir)
         let actions = entryActions(for: plan.entries, configuration: configuration)
-        let pendingWork = actions.enumerated().compactMap { index, action -> PendingWork? in
-            guard case .pending(let startedAt) = action else {
+        let pendingWork = actions.indices.compactMap { index -> PendingWork? in
+            guard case .pending = actions[index] else {
                 return nil
             }
-            return PendingWork(index: index, entry: plan.entries[index], startedAt: startedAt)
+            return PendingWork(index: index)
         }
 
         // FR1-030b fail-fast model verification must happen before progress,
@@ -238,6 +238,21 @@ public struct AnalyzePipeline {
         let maskProvider = maskProvider
         let now = now
 
+        if maxWorkers == 1 {
+            return try await processPendingWorkSequentially(
+                actions: actions,
+                entries: entries,
+                configuration: configuration,
+                profile: profile,
+                runtime: runtime,
+                interruptionMonitor: interruptionMonitor,
+                fileManagerBox: fileManagerBox,
+                maskProvider: maskProvider,
+                now: now,
+                emit: emit
+            )
+        }
+
         var preparedByIndex: [Int: PreparedAnalysis] = [:]
         var nextPendingToSchedule = 0
         var inFlight = 0
@@ -246,11 +261,12 @@ public struct AnalyzePipeline {
             func fillWorkers() {
                 while inFlight < maxWorkers, nextPendingToSchedule < pendingWork.count {
                     let work = pendingWork[nextPendingToSchedule]
+                    let entry = entries[work.index]
                     nextPendingToSchedule += 1
                     inFlight += 1
                     group.addTask {
                         let prepared = await Self.prepare(
-                            entry: work.entry,
+                            entry: entry,
                             configuration: configuration,
                             profile: profile,
                             fileManager: fileManagerBox.value,
@@ -316,6 +332,58 @@ public struct AnalyzePipeline {
         }
 
         return interrupted
+    }
+
+    private func processPendingWorkSequentially(
+        actions: [EntryAction],
+        entries: [SidecarPlanEntry],
+        configuration: ResolvedRunConfiguration,
+        profile: ModelInputProfile,
+        runtime: ModelRuntimeContext,
+        interruptionMonitor: InterruptionMonitor?,
+        fileManagerBox: SendableFileManager,
+        maskProvider: any ForegroundMaskProvider,
+        now: @escaping @Sendable () -> Date,
+        emit: (ProgressRecord) throws -> Void
+    ) async throws -> Bool {
+        for (index, action) in actions.enumerated() {
+            if interruptionMonitor?.isInterrupted == true {
+                return true
+            }
+
+            switch action {
+            case .dryRun, .existingSkip, .existingFailure:
+                if let record = nonPendingRecord(action: action, entry: entries[index]) {
+                    try emit(record)
+                }
+            case .pending(let startedAt):
+                // `stage_concurrency == 1` is the low-memory mode: do not
+                // render the next source while the current model request holds
+                // the encoded derivative in memory.
+                let prepared = await Self.prepare(
+                    entry: entries[index],
+                    configuration: configuration,
+                    profile: profile,
+                    fileManager: fileManagerBox.value,
+                    maskProvider: maskProvider,
+                    now: now
+                )
+                if interruptionMonitor?.isInterrupted == true {
+                    return true
+                }
+                let record = await finishPrepared(
+                    prepared,
+                    entry: entries[index],
+                    configuration: configuration,
+                    profile: profile,
+                    runtime: runtime,
+                    startedAt: startedAt
+                )
+                try emit(record)
+            }
+        }
+
+        return false
     }
 
     private func entryActions(
@@ -817,8 +885,6 @@ public struct AnalyzePipeline {
 
 private struct PendingWork: Sendable {
     var index: Int
-    var entry: SidecarPlanEntry
-    var startedAt: Date
 }
 
 private enum EntryAction: Sendable {

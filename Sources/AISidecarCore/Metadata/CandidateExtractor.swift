@@ -135,6 +135,10 @@ public struct ExportableKeyword: Codable, Sendable, Equatable {
 /// Machine-readable reason a candidate or accepted keyword is absent from an output set.
 public enum SkippedCandidateReason: String, Codable, Equatable, Sendable {
     case belowConfidenceThreshold = "below_confidence_threshold"
+    case unmatchedVocabulary = "unmatched_vocabulary"
+    case directApplyWithheld = "direct_apply_withheld"
+    case directApplyFlatOnly = "direct_apply_flat_only"
+    case requiresReview = "requires_review"
     case specificTagPolicy = "specific_tag_policy"
     case containsHierarchySeparator = "contains_hierarchy_separator"
     case emptyAfterNormalization = "empty_after_normalization"
@@ -145,6 +149,17 @@ public enum SkippedCandidateReason: String, Codable, Equatable, Sendable {
     case coordinateLikeTerm = "coordinate_like_term"
     /// The model cited GPS/location context as evidence instead of visible image evidence.
     case gpsOnlyEvidence = "gps_only_evidence"
+    case unknownSessionContextRejected = "unknown_session_context_rejected"
+    case unknownSessionContextFlatOnly = "unknown_session_context_flat_only"
+    case weakLocalAgreement = "weak_local_agreement"
+    case lowSupportMass = "low_support_mass"
+    case lowSupportingNeighborCount = "low_supporting_neighbor_count"
+    case lowMaxSupportingAffinity = "low_max_supporting_affinity"
+    case blockedDirectConflict = "blocked_direct_conflict"
+    case blockedLocalConflictMass = "blocked_local_conflict_mass"
+    case gearOnlyAffinity = "gear_only_affinity"
+    case globalBackstopThreshold = "global_backstop_threshold"
+    case sessionContextConflict = "session_context_conflict"
 }
 
 /// Diagnostic for a candidate or keyword that Milestone 2 did not export.

@@ -105,14 +105,16 @@ public struct ImageRenderer {
             return WholeImageRenderResult(wholeImage: wholeRecord)
         }
 
-        let prepared = try prepareSourceRender(source: source, profile: profile)
-        let wholeRecord = try renderWholeImageDerivative(
-            source: source,
-            prepared: prepared,
-            profile: profile,
-            debugDerivatives: debugDerivatives
-        )
-        return WholeImageRenderResult(wholeImage: wholeRecord)
+        return try autoreleasepool {
+            let prepared = try prepareSourceRender(source: source, profile: profile)
+            let wholeRecord = try renderWholeImageDerivative(
+                source: source,
+                prepared: prepared,
+                profile: profile,
+                debugDerivatives: debugDerivatives
+            )
+            return WholeImageRenderResult(wholeImage: wholeRecord)
+        }
     }
 
     /// Write or reuse the whole-image derivative from an already prepared source render.
@@ -135,16 +137,18 @@ public struct ImageRenderer {
             return cached
         }
 
-        var wholeRecord = try cache.store(
-            source: source,
-            recipeVersion: prepared.recipeVersion,
-            role: .wholeImage,
-            format: format,
-            dimensions: prepared.analysisDimensions,
-            colorSpace: profile.colorSpace,
-            appliedOrientation: prepared.appliedOrientation
-        ) { destination in
-            try writeJPEG(image: prepared.analysisImage, to: destination, quality: profile.jpegQuality)
+        var wholeRecord = try autoreleasepool {
+            try cache.store(
+                source: source,
+                recipeVersion: prepared.recipeVersion,
+                role: .wholeImage,
+                format: format,
+                dimensions: prepared.analysisDimensions,
+                colorSpace: profile.colorSpace,
+                appliedOrientation: prepared.appliedOrientation
+            ) { destination in
+                try writeJPEG(image: prepared.analysisImage, to: destination, quality: profile.jpegQuality)
+            }
         }
 
         if debugDerivatives {

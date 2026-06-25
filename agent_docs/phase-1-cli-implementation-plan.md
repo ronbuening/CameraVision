@@ -4,7 +4,7 @@ Version: 0.9
 Date: 2026-06-11
 Supersedes: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8
 Implements: Phase 1 Requirements v0.3 (`01-cli-raw-json-sidecar-requirements.md`)
-Binary: `aisidecar` (subcommands: `analyze`, `benchmark`, `purge`)
+Binary: `aisidecar` (subcommands: `analyze`, `benchmark`, `purge`, `cleanup`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15, Swift 6 strict concurrency
 Default model: `gemma4:26b-a4b-it-qat` (installed locally; verified at startup per FR1-030b)
@@ -14,18 +14,19 @@ Traceability in this plan points at the v0.3 requirement IDs (PW-xxx, FR1-xxx). 
 
 ## 0. Current Implementation Status
 
-Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, and the pre-Phase-3 GPS context milestone are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders whole-image model-input derivatives when requested, optionally reads EXIF GPS context for model prompts, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain using an in-memory native render, records model input profile, derivative provenance, subject-isolation provenance, resolved `gps_context`, and per-run `model_input_context.gps` when coordinates are sent, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution; it does not read or send GPS context. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command; new runs write at most `whole_image` and `subject_isolated` image artifacts per source, excluding the cache manifest. The Milestone 9a benchmark harness is available through `aisidecar benchmark`, with the legacy script retained as a compatibility wrapper. The `AISidecarCore/ModelRuntime` layer contains model input context records, the Ollama client, mock and recorded-fixture runners, response parsing, schema-constrained response repair, v1.4 prompt registry, and v1.4 response schemas with conditional `species` candidates for biological target genres and GPS-context usage rules. The `AISidecarCore/Sidecars` layer includes a schema-evolution document wrapper for preserving additive 1.x unknown fields on rewrite. New raw sidecar writes use `ai-sidecar-json/1.3`. The analyze pipeline does not write XMP.
+Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, and the pre-Phase-3 GPS context milestone are implemented. The current `aisidecar analyze` path scans files, computes source identities, resolves raw `.ai.json` sidecar destinations, renders whole-image model-input derivatives when requested, optionally reads EXIF GPS context for model prompts, isolates foreground subjects through the two-resolution Apple Vision/Core Image chain using an in-memory native render, records model input profile, derivative provenance, subject-isolation provenance, resolved `gps_context`, and per-run `model_input_context.gps` when coordinates are sent, applies `--existing`, verifies the configured model at startup, runs versioned prompts and response schemas through the injected `VisionModelRunner`, writes `model_runs`, writes folder-run JSONL progress logs and batch summaries, and handles interruption/resume through the full analyze pipeline. The diagnostic `--export-model-inputs` mode exports only the rendered model-input images into a requested folder with a manifest for visual validation before full pipeline model execution; it does not read or send GPS context. The derivative cache has configurable start/success clearing and an explicit `aisidecar purge` maintenance command; new runs write at most `whole_image` and `subject_isolated` image artifacts per source, excluding the cache manifest. The `aisidecar cleanup` maintenance command removes raw `.ai.json` sidecars and known run progress/report/summary artifacts while leaving source images, XMP sidecars, backups, diagnostic exports, debug derivatives, derivative cache files, and normalization sessions in place. The Milestone 9a benchmark harness is available through `aisidecar benchmark`, with the legacy script retained as a compatibility wrapper. The `AISidecarCore/ModelRuntime` layer contains model input context records, the Ollama client, mock and recorded-fixture runners, response parsing, schema-constrained response repair, v1.4 prompt registry, and v1.4 response schemas with conditional `species` candidates for biological target genres and GPS-context usage rules. The `AISidecarCore/Sidecars` layer includes a schema-evolution document wrapper for preserving additive 1.x unknown fields on rewrite. New raw sidecar writes use `ai-sidecar-json/1.3`. The analyze pipeline does not write XMP.
 
 Latest verification for this baseline:
 
 ```text
-swift test                                      223 tests, 1 skipped, 0 failures
+swift test                                      320 tests, 1 skipped, 0 failures
 swift run aisidecar --help                     passed
 swift run aisidecar analyze --help             passed
 swift run aisidecar write-xmp --help           passed
 swift run aisidecar benchmark --help           passed
 swift run aisidecar benchmark --self-test      passed
 swift run aisidecar purge --help               passed
+swift run aisidecar cleanup --help             passed
 ```
 
 The remaining Phase 1 implementation unit is completing Milestone 9 calibration and quality review. Before Phase 3 starts, archive this evidence or explicitly document any deferrals alongside the Phase 2 Milestone 10 compatibility smoke results.
@@ -37,7 +38,7 @@ The program is a Swift Package Manager project. The decisive reason is unchanged
 Two structural decisions, now mandated by the requirements rather than merely recommended:
 
 1. **Core library from the first commit** (PW-002). Every capability lives in `AISidecarCore`; the executable is argument handling and nothing else. Phase 4's shared-engine requirement is satisfied by construction because the engine never exists in any other shape.
-2. **One binary, subcommands per phase** (PW-001). Phase 1 ships `aisidecar analyze`, the Milestone 9 benchmark command `aisidecar benchmark`, and the derivative-cache maintenance command `aisidecar purge`; Phase 2 adds `write-xmp`; Phase 3 adds `normalize` and `apply-session`. Analyze shared flags are defined once (PW-004/005) in `SharedOptions`.
+2. **One binary, subcommands per phase** (PW-001). Phase 1 ships `aisidecar analyze`, the Milestone 9 benchmark command `aisidecar benchmark`, and maintenance commands `aisidecar purge` and `aisidecar cleanup`; Phase 2 adds `write-xmp`; Phase 3 adds `normalize` and `apply-session`. Analyze shared flags are defined once (PW-004/005) in `SharedOptions`.
 
 The model runtime stays behind the `VisionModelRunner` protocol (FR1-031), with mock and recorded-fixture runners implemented in the same milestone as the live runner so nothing downstream is ever blocked on, or untested without, a live Ollama instance.
 
@@ -98,6 +99,8 @@ CameraVision/
     AISidecarCore/
       Benchmarking/
         Milestone9BenchmarkRunner.swift // Milestone 9a matrix, aggregation, self-test
+      Cleanup/
+        ArtifactCleanup.swift           // scoped raw-sidecar/run-artifact cleanup
       Configuration/
         AppConfig.swift                 // PW-006/007 resolution + validation
         ConfigurationResolver.swift
@@ -396,7 +399,7 @@ Implemented notes:
 
 1. `AnalyzePipeline` is the normal CLI path and wires scanner → renderer → isolation → model runner → sidecar writer.
 2. `stage_concurrency` is resolved through JSON config and `AISIDECAR_STAGE_CONCURRENCY`, recorded in sidecar provenance, and defaults to physical performance cores with an active-processor fallback.
-3. Render/isolation preparation uses a bounded task group; model calls are serialized and role-ordered as `whole_image`, then `subject_isolated`.
+3. Render/isolation preparation uses a bounded task group; model calls are serialized and role-ordered as `whole_image`, then `subject_isolated`. When `stage_concurrency` is `1`, the pipeline uses a lower-memory serial path that avoids rendering the next source while the current model request is active.
 4. Model prepare failures fail fast before progress logs, summaries, sidecars, or derivative cache writes for pending model work.
 5. Offline `AnalyzePipelineTests` cover model-run sidecars, both-mode two-run output, both-mode no-foreground recovery through a whole-image run, model failure recording, prepare fail-fast behavior, existing-skip resume, cache clear-on-start and clear-after-success behavior, and single-flight model execution.
 
@@ -437,6 +440,8 @@ ConfigResolutionTests     flag > env > file > default precedence; cache-only
                           maintenance resolution; E_CONFIG_INVALID
 DerivativeCacheTests      content-addressed reuse, LRU eviction at cap,
                           debug-derivative copy semantics, purge/clear scoping
+ArtifactCleanupTests      dry-run and recursive cleanup, with protected
+                          source/XMP/cache/session artifacts left intact
 ImageRendererTests        generated JPEG/PNG/TIFF rendering, orientation
                           provenance, cache reuse, decode failure errors
 ```

@@ -41,8 +41,7 @@ public struct ImageScanner {
         identityPolicy: SourceIdentityPolicy
     ) throws -> ScanResult {
         let root = root.standardizedFileURL
-        let candidates = try candidateFiles(in: root, recursive: recursive)
-        let scanned = scanCandidates(candidates, root: root, identityPolicy: identityPolicy)
+        let scanned = try scanDirectoryContents(root, recursive: recursive, identityPolicy: identityPolicy)
         return ScanResult(
             inputPath: root.path,
             scanRoot: root.path,
@@ -73,7 +72,10 @@ public struct ImageScanner {
             )
         }
 
-        let scanned = scanCandidates([fileURL], root: root, identityPolicy: identityPolicy)
+        var images: [SourceImage] = []
+        var errors: [ScanErrorRecord] = []
+        scanCandidate(fileURL, root: root, identityPolicy: identityPolicy, images: &images, errors: &errors)
+        let scanned = sortedScan(images: images, errors: errors)
         return ScanResult(
             inputPath: fileURL.path,
             scanRoot: root.path,
@@ -84,7 +86,14 @@ public struct ImageScanner {
         )
     }
 
-    private func candidateFiles(in root: URL, recursive: Bool) throws -> [URL] {
+    private func scanDirectoryContents(
+        _ root: URL,
+        recursive: Bool,
+        identityPolicy: SourceIdentityPolicy
+    ) throws -> (images: [SourceImage], errors: [ScanErrorRecord]) {
+        var images: [SourceImage] = []
+        var errors: [ScanErrorRecord] = []
+
         if recursive {
             guard let enumerator = fileManager.enumerator(
                 at: root,
@@ -94,22 +103,22 @@ public struct ImageScanner {
                 throw validationError("Unable to enumerate input folder: \(root.path)")
             }
 
-            var urls: [URL] = []
             for case let url as URL in enumerator {
-                let url = url.standardizedFileURL
-                if shouldIgnore(url: url, root: root) {
-                    // Hidden directories are skipped as containers; otherwise
-                    // their children could reappear as unsupported-file errors.
-                    if isDirectory(url) {
-                        enumerator.skipDescendants()
-                    }
-                    continue
+                let shouldSkipDescendants = autoreleasepool {
+                    scanIfVisibleFile(
+                        url,
+                        root: root,
+                        identityPolicy: identityPolicy,
+                        images: &images,
+                        errors: &errors
+                    )
                 }
-                if isRegularFile(url) {
-                    urls.append(url)
+                if shouldSkipDescendants {
+                    enumerator.skipDescendants()
                 }
             }
-            return sorted(urls, root: root)
+
+            return sortedScan(images: images, errors: errors)
         }
 
         let urls = try fileManager.contentsOfDirectory(
@@ -117,81 +126,112 @@ public struct ImageScanner {
             includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
             options: [.skipsPackageDescendants]
         )
-        return sorted(
-            urls
-                .map(\.standardizedFileURL)
-                .filter { !shouldIgnore(url: $0, root: root) }
-                .filter { isRegularFile($0) },
-            root: root
-        )
-    }
 
-    private func scanCandidates(
-        _ candidates: [URL],
-        root: URL,
-        identityPolicy: SourceIdentityPolicy
-    ) -> (images: [SourceImage], errors: [ScanErrorRecord]) {
-        var images: [SourceImage] = []
-        var errors: [ScanErrorRecord] = []
-
-        for candidate in candidates {
-            let relativePath = relativePath(for: candidate, root: root)
-            guard let type = SupportedImageType(fileExtension: candidate.pathExtension) else {
-                // FR1-004 records unsupported visible files without aborting
-                // the rest of the scan.
-                errors.append(
-                    ScanErrorRecord(
-                        path: candidate.path,
-                        relativePath: relativePath,
-                        error: SidecarError(
-                            code: .unsupportedFormat,
-                            stage: .scan,
-                            message: "Unsupported image format: \(relativePath)",
-                            recoverable: true
-                        )
-                    )
-                )
-                continue
-            }
-
-            do {
-                let attributes = try fileManager.attributesOfItem(atPath: candidate.path)
-                let identity = try SourceIdentityCalculator.compute(
-                    for: candidate,
-                    policy: identityPolicy,
-                    fileManager: fileManager
-                )
-                images.append(
-                    SourceImage(
-                        path: candidate.path,
-                        relativePath: relativePath,
-                        fileName: candidate.lastPathComponent,
-                        fileExtension: candidate.pathExtension,
-                        fileSize: fileSize(from: attributes),
-                        modifiedAt: modificationDate(from: attributes),
-                        detectedType: type,
-                        identity: identity
-                    )
-                )
-            } catch {
-                // A readable folder may still contain a file whose metadata or
-                // identity cannot be read; keep the batch recoverable.
-                errors.append(
-                    ScanErrorRecord(
-                        path: candidate.path,
-                        relativePath: relativePath,
-                        error: SidecarError(
-                            code: .validationFailed,
-                            stage: .scan,
-                            message: "Unable to read source image metadata or identity for \(relativePath): \(error.localizedDescription)",
-                            recoverable: true
-                        )
-                    )
+        for url in urls {
+            _ = autoreleasepool {
+                scanIfVisibleFile(
+                    url,
+                    root: root,
+                    identityPolicy: identityPolicy,
+                    images: &images,
+                    errors: &errors
                 )
             }
         }
 
-        return (
+        return sortedScan(images: images, errors: errors)
+    }
+
+    private func scanIfVisibleFile(
+        _ candidate: URL,
+        root: URL,
+        identityPolicy: SourceIdentityPolicy,
+        images: inout [SourceImage],
+        errors: inout [ScanErrorRecord]
+    ) -> Bool {
+        let candidate = candidate.standardizedFileURL
+        if shouldIgnore(url: candidate, root: root) {
+            // Hidden directories are skipped as containers; otherwise their
+            // children could reappear as unsupported-file errors.
+            return isDirectory(candidate)
+        }
+
+        guard isRegularFile(candidate) else {
+            return false
+        }
+
+        scanCandidate(candidate, root: root, identityPolicy: identityPolicy, images: &images, errors: &errors)
+        return false
+    }
+
+    private func scanCandidate(
+        _ candidate: URL,
+        root: URL,
+        identityPolicy: SourceIdentityPolicy,
+        images: inout [SourceImage],
+        errors: inout [ScanErrorRecord]
+    ) {
+        let relativePath = relativePath(for: candidate, root: root)
+        guard let type = SupportedImageType(fileExtension: candidate.pathExtension) else {
+            // FR1-004 records unsupported visible files without aborting the
+            // rest of the scan.
+            errors.append(
+                ScanErrorRecord(
+                    path: candidate.path,
+                    relativePath: relativePath,
+                    error: SidecarError(
+                        code: .unsupportedFormat,
+                        stage: .scan,
+                        message: "Unsupported image format: \(relativePath)",
+                        recoverable: true
+                    )
+                )
+            )
+            return
+        }
+
+        do {
+            let attributes = try fileManager.attributesOfItem(atPath: candidate.path)
+            let identity = try SourceIdentityCalculator.compute(
+                for: candidate,
+                policy: identityPolicy,
+                fileManager: fileManager
+            )
+            images.append(
+                SourceImage(
+                    path: candidate.path,
+                    relativePath: relativePath,
+                    fileName: candidate.lastPathComponent,
+                    fileExtension: candidate.pathExtension,
+                    fileSize: fileSize(from: attributes),
+                    modifiedAt: modificationDate(from: attributes),
+                    detectedType: type,
+                    identity: identity
+                )
+            )
+        } catch {
+            // A readable folder may still contain a file whose metadata or
+            // identity cannot be read; keep the batch recoverable.
+            errors.append(
+                ScanErrorRecord(
+                    path: candidate.path,
+                    relativePath: relativePath,
+                    error: SidecarError(
+                        code: .validationFailed,
+                        stage: .scan,
+                        message: "Unable to read source image metadata or identity for \(relativePath): \(error.localizedDescription)",
+                        recoverable: true
+                    )
+                )
+            )
+        }
+    }
+
+    private func sortedScan(
+        images: [SourceImage],
+        errors: [ScanErrorRecord]
+    ) -> (images: [SourceImage], errors: [ScanErrorRecord]) {
+        (
             images: images.sorted { comparePaths($0.relativePath, $1.relativePath) },
             errors: errors.sorted { comparePaths($0.relativePath ?? $0.path, $1.relativePath ?? $1.path) }
         )
@@ -234,12 +274,6 @@ public struct ImageScanner {
 
     private func isDirectory(_ url: URL) -> Bool {
         (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
-    }
-
-    private func sorted(_ urls: [URL], root: URL) -> [URL] {
-        urls.sorted {
-            comparePaths(relativePath(for: $0, root: root), relativePath(for: $1, root: root))
-        }
     }
 
     private func relativePath(for url: URL, root: URL) -> String {

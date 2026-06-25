@@ -49,9 +49,23 @@ swift test                                      223 tests, 1 skipped, 0 failures
 swift run aisidecar write-xmp --help            passed
 ```
 
+Latest verification recorded during Phase 3 Milestone 9 hardening:
+
+```text
+swift test                                      291 tests, 1 skipped, 0 failures
+swift run aisidecar write-xmp --help            passed
+```
+
+Latest verification recorded during Phase 3 Milestone 10 offline baseline:
+
+```text
+swift test                                      317 tests, 1 skipped, 0 failures
+swift run aisidecar write-xmp --help            passed
+```
+
 Milestone 10 compatibility smoke and release evidence is complete for the Phase 2 XMP writer. Do not reopen Phase 1 rendering, isolation, model runtime, or prompt/schema design unless Phase 3 exposes a concrete interface defect.
 
-The next implementation unit is Phase 3 Milestone 0/1: `aisidecar normalize` / `aisidecar apply-session` scaffolding plus core vocabulary/session schema types. The Phase 2 portion of the Phase 3 gate is satisfied by `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`; Phase 1 Milestone 9 evidence or documented deferral remains a release-readiness requirement.
+Phase 3 Milestones 0-10 are implemented, and the next implementation unit is Phase 3 Milestone 11: compatibility smoke and release evidence. The Phase 2 portion of the Phase 3 gate is satisfied by `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`; Phase 1 Milestone 9 evidence or documented deferral remains a release-readiness requirement.
 
 ## 1. Implementation Position
 
@@ -366,8 +380,9 @@ Tasks:
 1. Implement `XMPExportPipeline` for `--from-json`: JSON scan -> source resolution -> source verification -> extraction -> grouping -> change planning -> optional dry-run -> engine write -> validation -> report.
 2. Folder runs write one progress record per XMP target, not per source member (FR2-032c).
 3. Folder runs produce `xmp-export-progress-<ISO>.jsonl`, `xmp-export-report-<ISO>.json`, and `xmp-export-summary-<ISO>.md` (FR2-032).
-4. Single-file runs print essential summary to stdout; dry-run emits the full change plan (FR2-034b).
-5. Reports include source verification status, owned XMP engine name/version, writer recipe version, group membership, tags added, tags skipped, backups, validation, errors, and application instructions (FR2-034/034a).
+4. `aisidecar cleanup` can remove generated XMP export progress/report/summary artifacts while leaving XMP sidecars, backups, source images, and derivative cache artifacts in place.
+5. Single-file runs print essential summary to stdout; dry-run emits the full change plan (FR2-034b).
+6. Reports include source verification status, owned XMP engine name/version, writer recipe version, group membership, tags added, tags skipped, backups, validation, errors, and application instructions (FR2-034/034a).
 
 Exit criteria:
 

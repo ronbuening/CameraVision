@@ -86,12 +86,57 @@ public struct XMPExportPipeline {
     ) throws -> XMPExportPipelineResult {
         let startedAt = now()
         let extractionResults = CandidateExtractor().extract(from: batch.inputs, configuration: configuration)
-        var changePlan = XMPChangePlanner().plan(
+        let changePlan = XMPChangePlanner().plan(
             inputBatch: batch,
             extractionResults: extractionResults,
             configuration: configuration
         )
 
+        let artifacts = writesBatchArtifacts
+            ? artifactPaths(inputPath: inputPath, outputDir: configuration.outputDir, startedAt: startedAt)
+            : nil
+        return try executeChangePlan(
+            changePlan,
+            inputPath: inputPath,
+            configuration: configuration,
+            artifacts: artifacts,
+            interruptionMonitor: interruptionMonitor,
+            reportDryRun: false
+        )
+    }
+
+    /// Run XMP write execution from a prebuilt change plan.
+    ///
+    /// Phase 3 `apply-session` uses this seam after rebuilding plans from
+    /// frozen normalization decisions. The writer still reads current XMP from
+    /// disk, applies the Phase 2 merge/backup/validation path, and performs no
+    /// model or candidate extraction work.
+    public func runChangePlan(
+        _ changePlan: XMPChangePlanDocument,
+        inputPath: String,
+        configuration: ResolvedXMPExportConfiguration,
+        interruptionMonitor: InterruptionMonitor? = nil
+    ) throws -> XMPExportPipelineResult {
+        try executeChangePlan(
+            changePlan,
+            inputPath: absolutePath(for: inputPath),
+            configuration: configuration,
+            artifacts: nil,
+            interruptionMonitor: interruptionMonitor,
+            reportDryRun: true
+        )
+    }
+
+    private func executeChangePlan(
+        _ originalChangePlan: XMPChangePlanDocument,
+        inputPath: String,
+        configuration: ResolvedXMPExportConfiguration,
+        artifacts: ExportArtifactPaths?,
+        interruptionMonitor: InterruptionMonitor?,
+        reportDryRun: Bool
+    ) throws -> XMPExportPipelineResult {
+        let startedAt = now()
+        var changePlan = originalChangePlan
         let context = try engine.prepare(configuration: configuration)
         defer {
             try? engine.shutdown()
@@ -99,9 +144,32 @@ public struct XMPExportPipeline {
 
         if configuration.dryRun {
             changePlan = previewedChangePlan(changePlan)
+            let report: XMPExportReport?
+            if reportDryRun {
+                report = XMPExportReport(
+                    createdAt: now(),
+                    inputPath: inputPath,
+                    reportDirectory: artifacts?.directory,
+                    dryRun: true,
+                    configuration: configuration,
+                    engine: context,
+                    targetReports: changePlan.targetPlans.map { plan in
+                        targetReport(
+                            plan: plan,
+                            status: plan.status == .planned && plan.failures.isEmpty ? .dryRun : .failed,
+                            preview: plan.preview,
+                            errors: plan.failures,
+                            startedAt: startedAt
+                        )
+                    },
+                    inputFailures: changePlan.inputFailures
+                )
+            } else {
+                report = nil
+            }
             return XMPExportPipelineResult(
                 changePlan: changePlan,
-                report: nil,
+                report: report,
                 progressLogPath: nil,
                 reportPath: nil,
                 summaryPath: nil,
@@ -109,9 +177,6 @@ public struct XMPExportPipeline {
             )
         }
 
-        let artifacts = writesBatchArtifacts
-            ? artifactPaths(inputPath: inputPath, outputDir: configuration.outputDir, startedAt: startedAt)
-            : nil
         let progressLog = try artifacts.map { try XMPExportProgressLog(path: $0.progressPath, fileManager: fileManager) }
         defer {
             try? progressLog?.close()

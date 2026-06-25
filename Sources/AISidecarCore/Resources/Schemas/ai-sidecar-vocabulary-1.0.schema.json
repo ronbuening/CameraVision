@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Sidecar Vocabulary 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "entries"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "ai-sidecar-vocabulary/1.0"
+      ]
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "canonical_path",
+          "flat_keyword",
+          "namespace",
+          "parent_path",
+          "synonyms"
+        ],
+        "properties": {
+          "canonical_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "flat_keyword": {
+            "type": "string",
+            "minLength": 1
+          },
+          "namespace": {
+            "type": "string",
+            "enum": [
+              "Subject",
+              "Species / Taxonomy",
+              "Habitat",
+              "Behavior",
+              "Scene",
+              "Location Type",
+              "Lighting",
+              "Composition",
+              "Technical Quality",
+              "Event",
+              "People",
+              "Objects",
+              "Text / Signage",
+              "Workflow"
+            ]
+          },
+          "parent_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "synonyms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requires_review": {
+            "type": "boolean"
+          },
+          "direct_apply_policy": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "withhold",
+              "flat_only",
+              "user_only"
+            ]
+          },
+          "auto_apply_allowed": {
+            "type": "boolean"
+          },
+          "propagation_scope": {
+            "type": "string",
+            "enum": [
+              "none",
+              "direct_only",
+              "local",
+              "global"
+            ]
+          },
+          "specificity": {
+            "type": "string",
+            "enum": [
+              "broad",
+              "mid",
+              "specific"
+            ]
+          },
+          "mutually_exclusive_group": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "export_flat_keyword": {
+            "type": "boolean"
+          },
+          "export_hierarchical_keyword": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
