@@ -43,7 +43,7 @@ Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemente
 
 The Phase 2 writer path is the implementation baseline for Phase 3. Phase 3 must not add another XMP writer, another metadata executable dependency, or another sidecar merge stack. Its normalized output must become a write plan consumed by the same `MetadataWriteEngine` and `OwnedXMPSidecarEngine` used by `aisidecar write-xmp`.
 
-Phase 3 Milestones 0-10 are implemented. The current implementation includes executable `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report/summary/progress artifacts, candidate observations, direct vocabulary canonicalization with exact-first and ambiguity-guarded punctuation, possessive, ampersand, and final-token singular/plural fallback matching, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, `normalize --dry-run` change-plan output, detailed normalization reports, Markdown summaries, JSONL progress logs, normal normalized writes from existing inputs, analyze-and-normalize execution with default raw `.ai.json` preservation and `--no-write-ai-json`, partial-analysis failure reporting, model-prepare fail-fast behavior, apply-session schema validation, current source identity/staleness checks, target recomputation, dry-run previews, current-XMP merge/write execution through the Phase 2 owned writer, SIGINT/SIGTERM-aware normalized-write and apply-session interruption boundaries, and the Milestone 10 offline baseline test suite. Remaining Phase 3 release work is Milestone 11 compatibility smoke and release evidence.
+Phase 3 Milestones 0-11 are implemented. The current implementation includes executable `aisidecar normalize` and `aisidecar apply-session`, configuration validation, schema identifiers, controlled-vocabulary loading/defaults, file-list/from-json input resolution, session/report/summary/progress artifacts, candidate observations, direct vocabulary canonicalization with exact-first and ambiguity-guarded punctuation, possessive, ampersand, and final-token singular/plural fallback matching, `off`, `single-image`, and `batch-conservative` normalization behavior, direct-apply decision records, metadata-affinity graph scoring, hierarchy-aware counts, local weighted consensus, local conflict mass, global backstop propagation, session-context propagation gates, normalized XMP change-plan adaptation, per-term decision provenance, `normalize --dry-run` change-plan output, detailed normalization reports, Markdown summaries, JSONL progress logs, normal normalized writes from existing inputs, analyze-and-normalize execution with default raw `.ai.json` preservation and `--no-write-ai-json`, partial-analysis failure reporting, model-prepare fail-fast behavior, apply-session schema validation, current source identity/staleness checks, target recomputation, dry-run previews, current-XMP merge/write execution through the Phase 2 owned writer, SIGINT/SIGTERM-aware normalized-write and apply-session interruption boundaries, the Milestone 10 offline baseline test suite, and Milestone 11 compatibility smoke evidence recorded in `release-evidence/phase-3-milestone-11-compatibility-smoke.md`.
 
 The Phase 1 release signoff is still separate. Phase 3 implementation may begin from the Phase 2 baseline, but Phase 3 release should either archive Phase 1 Milestone 9 calibration/quality evidence or explicitly defer it with the missing checks, reason, and residual risk.
 
@@ -52,6 +52,17 @@ Latest inherited verification recorded in the Phase 2 plan:
 ```text
 swift test                                      223 tests, 1 skipped, 0 failures
 swift run aisidecar write-xmp --help            passed
+```
+
+Latest Phase 3 release-evidence verification recorded on 2026-06-25:
+
+```text
+swift test                                      330 tests, 1 skipped, 0 failures
+swift run aisidecar --help                      passed
+swift run aisidecar write-xmp --help            passed
+swift run aisidecar normalize --help            passed
+swift run aisidecar apply-session --help        passed
+swift run aisidecar benchmark --self-test       passed
 ```
 
 Before Phase 3 Milestone 0 is marked complete, record a new baseline that includes the new command help paths:
@@ -724,7 +735,16 @@ swift run aisidecar write-xmp --help                 passed
 
 ## 15. Milestone 11 - Compatibility Smoke and Release Evidence
 
-Status: planned.
+Status: complete.
+
+Release evidence: `agent_docs/release-evidence/phase-3-milestone-11-compatibility-smoke.md`.
+
+Completion notes, 2026-06-25:
+
+- Project-owner manual checks confirmed working normalized XMP examples with Lightroom Classic and Capture One.
+- Project-owner flag checks passed for the exercised Phase 3 command paths.
+- Codex recorded passing `swift test`, command help checks, and benchmark self-test in the release-evidence note.
+- Phase 1 Milestone 9 calibration and final model-quality review remain separately deferred before overall release signoff.
 
 Manual or semi-manual checks:
 
