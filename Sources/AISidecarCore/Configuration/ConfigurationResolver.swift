@@ -569,6 +569,23 @@ private struct DerivativeCacheFileConfig: Decodable {
     }
 }
 
+/// Overlay an optional candidate onto a required builder field, leaving it unchanged when the
+/// candidate is nil. Centralizes the config/override precedence step so each field is one explicit
+/// `merge` instead of a repeated `if let value = source.field { field = value }` block.
+private func merge<Value>(_ destination: inout Value, _ candidate: Value?) {
+    if let candidate {
+        destination = candidate
+    }
+}
+
+/// Overlay onto an optional destination field, preserving the same "skip when the candidate is
+/// absent" semantics (a nil candidate never clears an existing value).
+private func merge<Value>(_ destination: inout Value?, _ candidate: Value?) {
+    if let candidate {
+        destination = candidate
+    }
+}
+
 private struct ConfigurationBuilder {
     private var mode: AnalysisMode
     private var existing: ExistingPolicy
@@ -619,53 +636,53 @@ private struct ConfigurationBuilder {
     }
 
     mutating func apply(config: AppConfig) {
-        if let value = config.mode { mode = value }
-        if let value = config.existing { existing = value }
-        if let value = config.recursive { recursive = value }
-        if let value = config.outputDir { outputDir = value }
-        if let value = config.model { model = value }
-        if let value = config.modelEndpoint { modelEndpoint = value }
-        if let value = config.modelKeepAlive { modelKeepAlive = value }
-        if let value = config.profile { profile = value }
-        if let value = config.logLevel { logLevel = value }
-        if let value = config.logFormat { logFormat = value }
-        if let value = config.dryRun { dryRun = value }
-        if let value = config.debugDerivatives { debugDerivatives = value }
-        if let value = config.sourceIdentityPolicy { sourceIdentityPolicy = value }
-        if let value = config.derivativeCacheDir { derivativeCacheDir = value }
-        if let value = config.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
-        if let value = config.clearDerivativeCacheOnStart { clearDerivativeCacheOnStart = value }
-        if let value = config.clearDerivativeCacheAfterSuccess { clearDerivativeCacheAfterSuccess = value }
-        if let value = config.subjectCropMarginFraction { subjectCropMarginFraction = value }
-        if let value = config.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
-        if let value = config.stageConcurrency { stageConcurrency = value }
-        if let value = config.modelResponseRepairAttempts { modelResponseRepairAttempts = value }
-        if let value = config.gpsContext { gpsContext = value }
+        merge(&mode, config.mode)
+        merge(&existing, config.existing)
+        merge(&recursive, config.recursive)
+        merge(&outputDir, config.outputDir)
+        merge(&model, config.model)
+        merge(&modelEndpoint, config.modelEndpoint)
+        merge(&modelKeepAlive, config.modelKeepAlive)
+        merge(&profile, config.profile)
+        merge(&logLevel, config.logLevel)
+        merge(&logFormat, config.logFormat)
+        merge(&dryRun, config.dryRun)
+        merge(&debugDerivatives, config.debugDerivatives)
+        merge(&sourceIdentityPolicy, config.sourceIdentityPolicy)
+        merge(&derivativeCacheDir, config.derivativeCacheDir)
+        merge(&derivativeCacheSizeBytes, config.derivativeCacheSizeBytes)
+        merge(&clearDerivativeCacheOnStart, config.clearDerivativeCacheOnStart)
+        merge(&clearDerivativeCacheAfterSuccess, config.clearDerivativeCacheAfterSuccess)
+        merge(&subjectCropMarginFraction, config.subjectCropMarginFraction)
+        merge(&subjectMergeDominanceThreshold, config.subjectMergeDominanceThreshold)
+        merge(&stageConcurrency, config.stageConcurrency)
+        merge(&modelResponseRepairAttempts, config.modelResponseRepairAttempts)
+        merge(&gpsContext, config.gpsContext)
     }
 
     mutating func apply(overrides: RunConfigurationOverrides) {
-        if let value = overrides.mode { mode = value }
-        if let value = overrides.existing { existing = value }
-        if let value = overrides.recursive { recursive = value }
-        if let value = overrides.outputDir { outputDir = value }
-        if let value = overrides.model { model = value }
-        if let value = overrides.modelEndpoint { modelEndpoint = value }
-        if let value = overrides.modelKeepAlive { modelKeepAlive = value }
-        if let value = overrides.profile { profile = value }
-        if let value = overrides.logLevel { logLevel = value }
-        if let value = overrides.logFormat { logFormat = value }
-        if let value = overrides.dryRun { dryRun = value }
-        if let value = overrides.debugDerivatives { debugDerivatives = value }
-        if let value = overrides.sourceIdentityPolicy { sourceIdentityPolicy = value }
-        if let value = overrides.derivativeCacheDir { derivativeCacheDir = value }
-        if let value = overrides.derivativeCacheSizeBytes { derivativeCacheSizeBytes = value }
-        if let value = overrides.clearDerivativeCacheOnStart { clearDerivativeCacheOnStart = value }
-        if let value = overrides.clearDerivativeCacheAfterSuccess { clearDerivativeCacheAfterSuccess = value }
-        if let value = overrides.subjectCropMarginFraction { subjectCropMarginFraction = value }
-        if let value = overrides.subjectMergeDominanceThreshold { subjectMergeDominanceThreshold = value }
-        if let value = overrides.stageConcurrency { stageConcurrency = value }
-        if let value = overrides.modelResponseRepairAttempts { modelResponseRepairAttempts = value }
-        if let value = overrides.gpsContext { gpsContext = value }
+        merge(&mode, overrides.mode)
+        merge(&existing, overrides.existing)
+        merge(&recursive, overrides.recursive)
+        merge(&outputDir, overrides.outputDir)
+        merge(&model, overrides.model)
+        merge(&modelEndpoint, overrides.modelEndpoint)
+        merge(&modelKeepAlive, overrides.modelKeepAlive)
+        merge(&profile, overrides.profile)
+        merge(&logLevel, overrides.logLevel)
+        merge(&logFormat, overrides.logFormat)
+        merge(&dryRun, overrides.dryRun)
+        merge(&debugDerivatives, overrides.debugDerivatives)
+        merge(&sourceIdentityPolicy, overrides.sourceIdentityPolicy)
+        merge(&derivativeCacheDir, overrides.derivativeCacheDir)
+        merge(&derivativeCacheSizeBytes, overrides.derivativeCacheSizeBytes)
+        merge(&clearDerivativeCacheOnStart, overrides.clearDerivativeCacheOnStart)
+        merge(&clearDerivativeCacheAfterSuccess, overrides.clearDerivativeCacheAfterSuccess)
+        merge(&subjectCropMarginFraction, overrides.subjectCropMarginFraction)
+        merge(&subjectMergeDominanceThreshold, overrides.subjectMergeDominanceThreshold)
+        merge(&stageConcurrency, overrides.stageConcurrency)
+        merge(&modelResponseRepairAttempts, overrides.modelResponseRepairAttempts)
+        merge(&gpsContext, overrides.gpsContext)
     }
 
     func resolved() throws -> ResolvedRunConfiguration {
@@ -762,39 +779,39 @@ private struct XMPExportConfigurationBuilder {
     }
 
     mutating func apply(config: AppConfig) {
-        if let value = config.recursive { recursive = value }
-        if let value = config.outputDir { outputDir = value }
-        if let value = config.logLevel { logLevel = value }
-        if let value = config.logFormat { logFormat = value }
-        if let value = config.dryRun { dryRun = value }
-        if let value = config.sourceRoot { sourceRoot = value }
-        if let value = config.sourceVerification { sourceVerification = value }
-        if let value = config.writeFlatKeywords { writeFlatKeywords = value }
-        if let value = config.writeHierarchicalKeywords { writeHierarchicalKeywords = value }
-        if let value = config.backupSidecars { backupSidecars = value }
-        if let value = config.xmpConflictPolicy { xmpConflictPolicy = value }
-        if let value = config.minConfidence { minConfidence = value }
-        if let value = config.allowSpecificTags { allowSpecificTags = value }
-        if let value = config.pairScope { pairScope = value }
-        if let value = config.writeAIJSON { writeAIJSON = value }
+        merge(&recursive, config.recursive)
+        merge(&outputDir, config.outputDir)
+        merge(&logLevel, config.logLevel)
+        merge(&logFormat, config.logFormat)
+        merge(&dryRun, config.dryRun)
+        merge(&sourceRoot, config.sourceRoot)
+        merge(&sourceVerification, config.sourceVerification)
+        merge(&writeFlatKeywords, config.writeFlatKeywords)
+        merge(&writeHierarchicalKeywords, config.writeHierarchicalKeywords)
+        merge(&backupSidecars, config.backupSidecars)
+        merge(&xmpConflictPolicy, config.xmpConflictPolicy)
+        merge(&minConfidence, config.minConfidence)
+        merge(&allowSpecificTags, config.allowSpecificTags)
+        merge(&pairScope, config.pairScope)
+        merge(&writeAIJSON, config.writeAIJSON)
     }
 
     mutating func apply(overrides: XMPExportConfigurationOverrides) {
-        if let value = overrides.recursive { recursive = value }
-        if let value = overrides.outputDir { outputDir = value }
-        if let value = overrides.logLevel { logLevel = value }
-        if let value = overrides.logFormat { logFormat = value }
-        if let value = overrides.dryRun { dryRun = value }
-        if let value = overrides.sourceRoot { sourceRoot = value }
-        if let value = overrides.sourceVerification { sourceVerification = value }
-        if let value = overrides.writeFlatKeywords { writeFlatKeywords = value }
-        if let value = overrides.writeHierarchicalKeywords { writeHierarchicalKeywords = value }
-        if let value = overrides.backupSidecars { backupSidecars = value }
-        if let value = overrides.xmpConflictPolicy { xmpConflictPolicy = value }
-        if let value = overrides.minConfidence { minConfidence = value }
-        if let value = overrides.allowSpecificTags { allowSpecificTags = value }
-        if let value = overrides.pairScope { pairScope = value }
-        if let value = overrides.writeAIJSON { writeAIJSON = value }
+        merge(&recursive, overrides.recursive)
+        merge(&outputDir, overrides.outputDir)
+        merge(&logLevel, overrides.logLevel)
+        merge(&logFormat, overrides.logFormat)
+        merge(&dryRun, overrides.dryRun)
+        merge(&sourceRoot, overrides.sourceRoot)
+        merge(&sourceVerification, overrides.sourceVerification)
+        merge(&writeFlatKeywords, overrides.writeFlatKeywords)
+        merge(&writeHierarchicalKeywords, overrides.writeHierarchicalKeywords)
+        merge(&backupSidecars, overrides.backupSidecars)
+        merge(&xmpConflictPolicy, overrides.xmpConflictPolicy)
+        merge(&minConfidence, overrides.minConfidence)
+        merge(&allowSpecificTags, overrides.allowSpecificTags)
+        merge(&pairScope, overrides.pairScope)
+        merge(&writeAIJSON, overrides.writeAIJSON)
     }
 
     func resolved() throws -> ResolvedXMPExportConfiguration {
@@ -831,79 +848,79 @@ private struct NormalizationConfigurationBuilder {
     }
 
     mutating func apply(config fileConfig: AppConfig) {
-        if let value = fileConfig.recursive { config.recursive = value }
-        if let value = fileConfig.outputDir { config.outputDir = value }
-        if let value = fileConfig.logLevel { config.logLevel = value }
-        if let value = fileConfig.logFormat { config.logFormat = value }
-        if let value = fileConfig.dryRun { config.dryRun = value }
-        if let value = fileConfig.sourceRoot { config.sourceRoot = value }
-        if let value = fileConfig.sourceVerification { config.sourceVerification = value }
-        if let value = fileConfig.writeFlatKeywords { config.writeFlatKeywords = value }
-        if let value = fileConfig.writeHierarchicalKeywords { config.writeHierarchicalKeywords = value }
-        if let value = fileConfig.backupSidecars { config.backupSidecars = value }
-        if let value = fileConfig.xmpConflictPolicy { config.xmpConflictPolicy = value }
-        if let value = fileConfig.minConfidence { config.minConfidence = value }
-        if let value = fileConfig.allowSpecificTags { config.allowSpecificTags = value }
-        if let value = fileConfig.pairScope { config.pairScope = value }
-        if let value = fileConfig.writeAIJSON { config.writeAIJSON = value }
-        if let value = fileConfig.vocabularyPath { config.vocabularyPath = value }
+        merge(&config.recursive, fileConfig.recursive)
+        merge(&config.outputDir, fileConfig.outputDir)
+        merge(&config.logLevel, fileConfig.logLevel)
+        merge(&config.logFormat, fileConfig.logFormat)
+        merge(&config.dryRun, fileConfig.dryRun)
+        merge(&config.sourceRoot, fileConfig.sourceRoot)
+        merge(&config.sourceVerification, fileConfig.sourceVerification)
+        merge(&config.writeFlatKeywords, fileConfig.writeFlatKeywords)
+        merge(&config.writeHierarchicalKeywords, fileConfig.writeHierarchicalKeywords)
+        merge(&config.backupSidecars, fileConfig.backupSidecars)
+        merge(&config.xmpConflictPolicy, fileConfig.xmpConflictPolicy)
+        merge(&config.minConfidence, fileConfig.minConfidence)
+        merge(&config.allowSpecificTags, fileConfig.allowSpecificTags)
+        merge(&config.pairScope, fileConfig.pairScope)
+        merge(&config.writeAIJSON, fileConfig.writeAIJSON)
+        merge(&config.vocabularyPath, fileConfig.vocabularyPath)
         if let value = fileConfig.vocabularyMode {
             config.vocabularyMode = value
             vocabularyModeWasSet = true
         }
-        if let value = fileConfig.normalizationMode { config.normalizationMode = value }
-        if let value = fileConfig.sessionSubject { config.sessionSubject = value }
-        if let value = fileConfig.sessionHabitat { config.sessionHabitat = value }
-        if let value = fileConfig.sessionEvent { config.sessionEvent = value }
-        if let value = fileConfig.consensusThreshold { config.consensusThreshold = value }
-        if let value = fileConfig.affinityMode { config.affinityMode = value }
-        if let value = fileConfig.affinityProfile { config.affinityProfile = value }
-        if let value = fileConfig.minAffinityForConsensus { config.minAffinityForConsensus = value }
-        if let value = fileConfig.sessionOnly { config.sessionOnly = value }
-        if let value = fileConfig.unknownSessionContextPolicy { config.unknownSessionContextPolicy = value }
-        if let value = fileConfig.allowSessionSubjectPropagation { config.allowSessionSubjectPropagation = value }
-        if let value = fileConfig.allowSessionHabitatPropagation { config.allowSessionHabitatPropagation = value }
-        if let value = fileConfig.allowSessionEventPropagation { config.allowSessionEventPropagation = value }
-        if let value = fileConfig.affinityPrivacyMode { config.affinityPrivacyMode = value }
-        if let value = fileConfig.writeReportPath { config.writeReportPath = value }
+        merge(&config.normalizationMode, fileConfig.normalizationMode)
+        merge(&config.sessionSubject, fileConfig.sessionSubject)
+        merge(&config.sessionHabitat, fileConfig.sessionHabitat)
+        merge(&config.sessionEvent, fileConfig.sessionEvent)
+        merge(&config.consensusThreshold, fileConfig.consensusThreshold)
+        merge(&config.affinityMode, fileConfig.affinityMode)
+        merge(&config.affinityProfile, fileConfig.affinityProfile)
+        merge(&config.minAffinityForConsensus, fileConfig.minAffinityForConsensus)
+        merge(&config.sessionOnly, fileConfig.sessionOnly)
+        merge(&config.unknownSessionContextPolicy, fileConfig.unknownSessionContextPolicy)
+        merge(&config.allowSessionSubjectPropagation, fileConfig.allowSessionSubjectPropagation)
+        merge(&config.allowSessionHabitatPropagation, fileConfig.allowSessionHabitatPropagation)
+        merge(&config.allowSessionEventPropagation, fileConfig.allowSessionEventPropagation)
+        merge(&config.affinityPrivacyMode, fileConfig.affinityPrivacyMode)
+        merge(&config.writeReportPath, fileConfig.writeReportPath)
     }
 
     mutating func apply(overrides: NormalizationConfigurationOverrides) {
-        if let value = overrides.recursive { config.recursive = value }
-        if let value = overrides.outputDir { config.outputDir = value }
-        if let value = overrides.logLevel { config.logLevel = value }
-        if let value = overrides.logFormat { config.logFormat = value }
-        if let value = overrides.dryRun { config.dryRun = value }
-        if let value = overrides.sourceRoot { config.sourceRoot = value }
-        if let value = overrides.sourceVerification { config.sourceVerification = value }
-        if let value = overrides.writeFlatKeywords { config.writeFlatKeywords = value }
-        if let value = overrides.writeHierarchicalKeywords { config.writeHierarchicalKeywords = value }
-        if let value = overrides.backupSidecars { config.backupSidecars = value }
-        if let value = overrides.xmpConflictPolicy { config.xmpConflictPolicy = value }
-        if let value = overrides.minConfidence { config.minConfidence = value }
-        if let value = overrides.allowSpecificTags { config.allowSpecificTags = value }
-        if let value = overrides.pairScope { config.pairScope = value }
-        if let value = overrides.writeAIJSON { config.writeAIJSON = value }
-        if let value = overrides.vocabularyPath { config.vocabularyPath = value }
+        merge(&config.recursive, overrides.recursive)
+        merge(&config.outputDir, overrides.outputDir)
+        merge(&config.logLevel, overrides.logLevel)
+        merge(&config.logFormat, overrides.logFormat)
+        merge(&config.dryRun, overrides.dryRun)
+        merge(&config.sourceRoot, overrides.sourceRoot)
+        merge(&config.sourceVerification, overrides.sourceVerification)
+        merge(&config.writeFlatKeywords, overrides.writeFlatKeywords)
+        merge(&config.writeHierarchicalKeywords, overrides.writeHierarchicalKeywords)
+        merge(&config.backupSidecars, overrides.backupSidecars)
+        merge(&config.xmpConflictPolicy, overrides.xmpConflictPolicy)
+        merge(&config.minConfidence, overrides.minConfidence)
+        merge(&config.allowSpecificTags, overrides.allowSpecificTags)
+        merge(&config.pairScope, overrides.pairScope)
+        merge(&config.writeAIJSON, overrides.writeAIJSON)
+        merge(&config.vocabularyPath, overrides.vocabularyPath)
         if let value = overrides.vocabularyMode {
             config.vocabularyMode = value
             vocabularyModeWasSet = true
         }
-        if let value = overrides.normalizationMode { config.normalizationMode = value }
-        if let value = overrides.sessionSubject { config.sessionSubject = value }
-        if let value = overrides.sessionHabitat { config.sessionHabitat = value }
-        if let value = overrides.sessionEvent { config.sessionEvent = value }
-        if let value = overrides.consensusThreshold { config.consensusThreshold = value }
-        if let value = overrides.affinityMode { config.affinityMode = value }
-        if let value = overrides.affinityProfile { config.affinityProfile = value }
-        if let value = overrides.minAffinityForConsensus { config.minAffinityForConsensus = value }
-        if let value = overrides.sessionOnly { config.sessionOnly = value }
-        if let value = overrides.unknownSessionContextPolicy { config.unknownSessionContextPolicy = value }
-        if let value = overrides.allowSessionSubjectPropagation { config.allowSessionSubjectPropagation = value }
-        if let value = overrides.allowSessionHabitatPropagation { config.allowSessionHabitatPropagation = value }
-        if let value = overrides.allowSessionEventPropagation { config.allowSessionEventPropagation = value }
-        if let value = overrides.affinityPrivacyMode { config.affinityPrivacyMode = value }
-        if let value = overrides.writeReportPath { config.writeReportPath = value }
+        merge(&config.normalizationMode, overrides.normalizationMode)
+        merge(&config.sessionSubject, overrides.sessionSubject)
+        merge(&config.sessionHabitat, overrides.sessionHabitat)
+        merge(&config.sessionEvent, overrides.sessionEvent)
+        merge(&config.consensusThreshold, overrides.consensusThreshold)
+        merge(&config.affinityMode, overrides.affinityMode)
+        merge(&config.affinityProfile, overrides.affinityProfile)
+        merge(&config.minAffinityForConsensus, overrides.minAffinityForConsensus)
+        merge(&config.sessionOnly, overrides.sessionOnly)
+        merge(&config.unknownSessionContextPolicy, overrides.unknownSessionContextPolicy)
+        merge(&config.allowSessionSubjectPropagation, overrides.allowSessionSubjectPropagation)
+        merge(&config.allowSessionHabitatPropagation, overrides.allowSessionHabitatPropagation)
+        merge(&config.allowSessionEventPropagation, overrides.allowSessionEventPropagation)
+        merge(&config.affinityPrivacyMode, overrides.affinityPrivacyMode)
+        merge(&config.writeReportPath, overrides.writeReportPath)
     }
 
     func resolved() throws -> ResolvedNormalizationConfiguration {
@@ -937,26 +954,26 @@ private struct ApplySessionConfigurationBuilder {
     }
 
     mutating func apply(config fileConfig: AppConfig) {
-        if let value = fileConfig.outputDir { config.outputDir = value }
-        if let value = fileConfig.logLevel { config.logLevel = value }
-        if let value = fileConfig.logFormat { config.logFormat = value }
-        if let value = fileConfig.dryRun { config.dryRun = value }
-        if let value = fileConfig.sourceRoot { config.sourceRoot = value }
-        if let value = fileConfig.sourceVerification { config.sourceVerification = value }
-        if let value = fileConfig.backupSidecars { config.backupSidecars = value }
-        if let value = fileConfig.xmpConflictPolicy { config.xmpConflictPolicy = value }
+        merge(&config.outputDir, fileConfig.outputDir)
+        merge(&config.logLevel, fileConfig.logLevel)
+        merge(&config.logFormat, fileConfig.logFormat)
+        merge(&config.dryRun, fileConfig.dryRun)
+        merge(&config.sourceRoot, fileConfig.sourceRoot)
+        merge(&config.sourceVerification, fileConfig.sourceVerification)
+        merge(&config.backupSidecars, fileConfig.backupSidecars)
+        merge(&config.xmpConflictPolicy, fileConfig.xmpConflictPolicy)
     }
 
     mutating func apply(overrides: ApplySessionConfigurationOverrides) {
-        if let value = overrides.outputDir { config.outputDir = value }
-        if let value = overrides.logLevel { config.logLevel = value }
-        if let value = overrides.logFormat { config.logFormat = value }
-        if let value = overrides.dryRun { config.dryRun = value }
-        if let value = overrides.sourceRoot { config.sourceRoot = value }
-        if let value = overrides.sourceVerification { config.sourceVerification = value }
-        if let value = overrides.backupSidecars { config.backupSidecars = value }
-        if let value = overrides.xmpConflictPolicy { config.xmpConflictPolicy = value }
-        if let value = overrides.allowStale { config.allowStale = value }
+        merge(&config.outputDir, overrides.outputDir)
+        merge(&config.logLevel, overrides.logLevel)
+        merge(&config.logFormat, overrides.logFormat)
+        merge(&config.dryRun, overrides.dryRun)
+        merge(&config.sourceRoot, overrides.sourceRoot)
+        merge(&config.sourceVerification, overrides.sourceVerification)
+        merge(&config.backupSidecars, overrides.backupSidecars)
+        merge(&config.xmpConflictPolicy, overrides.xmpConflictPolicy)
+        merge(&config.allowStale, overrides.allowStale)
     }
 
     func resolved() throws -> ResolvedApplySessionConfiguration {
