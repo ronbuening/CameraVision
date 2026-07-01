@@ -8,6 +8,24 @@ public enum ConfigurationResolver {
         return "\(home)/Library/Application Support/aisidecar/config.json"
     }
 
+    /// Resolve which config file to load and whether it was explicitly requested.
+    ///
+    /// Path precedence is CLI `--config` > `AISIDECAR_CONFIG` > caller-injected default >
+    /// built-in default. `explicit` is true when the path came from the CLI flag or the environment
+    /// variable, so a missing file can be treated as an error only when the user named it directly.
+    private static func selectConfigPath(
+        cliConfigPath: String?,
+        environment: [String: String],
+        defaultConfigPath: String?
+    ) -> (selected: String, explicit: Bool) {
+        let selected = cliConfigPath
+            ?? environment["AISIDECAR_CONFIG"]
+            ?? defaultConfigPath
+            ?? Self.defaultConfigPath(environment: environment)
+        let explicit = cliConfigPath != nil || environment["AISIDECAR_CONFIG"] != nil
+        return (selected, explicit)
+    }
+
     /// Build a provenance-ready configuration snapshot.
     ///
     /// Precedence is CLI flag > `AISIDECAR_*` environment > JSON config file >
@@ -19,11 +37,11 @@ public enum ConfigurationResolver {
         defaultConfigPath: String? = nil,
         fileManager: FileManager = .default
     ) throws -> ResolvedRunConfiguration {
-        let selectedConfigPath = cli.configPath
-            ?? environment["AISIDECAR_CONFIG"]
-            ?? defaultConfigPath
-            ?? Self.defaultConfigPath(environment: environment)
-        let explicitConfigPath = cli.configPath != nil || environment["AISIDECAR_CONFIG"] != nil
+        let (selectedConfigPath, explicitConfigPath) = selectConfigPath(
+            cliConfigPath: cli.configPath,
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        )
 
         let fileConfig = try loadConfig(
             path: selectedConfigPath,
@@ -49,11 +67,11 @@ public enum ConfigurationResolver {
         defaultConfigPath: String? = nil,
         fileManager: FileManager = .default
     ) throws -> ResolvedXMPExportConfiguration {
-        let selectedConfigPath = cli.configPath
-            ?? environment["AISIDECAR_CONFIG"]
-            ?? defaultConfigPath
-            ?? Self.defaultConfigPath(environment: environment)
-        let explicitConfigPath = cli.configPath != nil || environment["AISIDECAR_CONFIG"] != nil
+        let (selectedConfigPath, explicitConfigPath) = selectConfigPath(
+            cliConfigPath: cli.configPath,
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        )
 
         let fileConfig = try loadConfig(
             path: selectedConfigPath,
@@ -76,11 +94,11 @@ public enum ConfigurationResolver {
         defaultConfigPath: String? = nil,
         fileManager: FileManager = .default
     ) throws -> ResolvedNormalizationConfiguration {
-        let selectedConfigPath = cli.configPath
-            ?? environment["AISIDECAR_CONFIG"]
-            ?? defaultConfigPath
-            ?? Self.defaultConfigPath(environment: environment)
-        let explicitConfigPath = cli.configPath != nil || environment["AISIDECAR_CONFIG"] != nil
+        let (selectedConfigPath, explicitConfigPath) = selectConfigPath(
+            cliConfigPath: cli.configPath,
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        )
 
         let fileConfig = try loadConfig(
             path: selectedConfigPath,
@@ -106,11 +124,11 @@ public enum ConfigurationResolver {
         defaultConfigPath: String? = nil,
         fileManager: FileManager = .default
     ) throws -> ResolvedApplySessionConfiguration {
-        let selectedConfigPath = cli.configPath
-            ?? environment["AISIDECAR_CONFIG"]
-            ?? defaultConfigPath
-            ?? Self.defaultConfigPath(environment: environment)
-        let explicitConfigPath = cli.configPath != nil || environment["AISIDECAR_CONFIG"] != nil
+        let (selectedConfigPath, explicitConfigPath) = selectConfigPath(
+            cliConfigPath: cli.configPath,
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        )
 
         let fileConfig = try loadConfig(
             path: selectedConfigPath,
@@ -136,11 +154,11 @@ public enum ConfigurationResolver {
         defaultConfigPath: String? = nil,
         fileManager: FileManager = .default
     ) throws -> ResolvedDerivativeCacheConfiguration {
-        let selectedConfigPath = cli.configPath
-            ?? environment["AISIDECAR_CONFIG"]
-            ?? defaultConfigPath
-            ?? Self.defaultConfigPath(environment: environment)
-        let explicitConfigPath = cli.configPath != nil || environment["AISIDECAR_CONFIG"] != nil
+        let (selectedConfigPath, explicitConfigPath) = selectConfigPath(
+            cliConfigPath: cli.configPath,
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        )
 
         let fileConfig = try loadDerivativeCacheConfig(
             path: selectedConfigPath,

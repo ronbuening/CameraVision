@@ -86,9 +86,7 @@ public struct Logger: Sendable {
         case .text:
             return renderText(record)
         case .json:
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            let encoder = JSONCoding.jsonlEncoder()
             let data = try encoder.encode(record)
             return String(decoding: data, as: UTF8.self)
         }

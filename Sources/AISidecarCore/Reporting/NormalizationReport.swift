@@ -192,9 +192,7 @@ public struct NormalizationReportWriter {
     /// Create a report writer that uses stable JSON formatting for fixture diffs.
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
-        self.encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        self.encoder = JSONCoding.documentEncoder()
     }
 
     /// Atomically write one machine-readable normalization report.

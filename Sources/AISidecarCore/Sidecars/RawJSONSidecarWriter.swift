@@ -27,9 +27,7 @@ public struct RawJSONSidecarWriter {
 
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
-        self.encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        self.encoder = JSONCoding.documentEncoder()
     }
 
     /// Write a raw sidecar or return a structured existing-file outcome.

@@ -547,9 +547,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
     }
 
     private static func encoder() -> JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return encoder
+        JSONCoding.jsonlEncoder(iso8601Dates: false)
     }
 
     private static func decoder() -> JSONDecoder {

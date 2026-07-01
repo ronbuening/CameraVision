@@ -78,61 +78,22 @@ public struct NormalizationProgressRecord: Codable, Sendable, Equatable {
 
 /// Append-only JSONL writer for normalization progress records.
 public final class NormalizationProgressLog {
-    public let path: String
+    private let writer: JSONLWriter<NormalizationProgressRecord>
 
-    private let fileHandle: FileHandle
-    private let encoder: JSONEncoder
+    public var path: String { writer.path }
 
     /// Create or reopen the JSONL progress file at its final artifact path.
     public init(path: String, fileManager: FileManager = .default) throws {
-        let url = URL(fileURLWithPath: path).standardizedFileURL
-        self.path = url.path
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
-        self.encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-
-        try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if !fileManager.fileExists(atPath: url.path) {
-            _ = fileManager.createFile(atPath: url.path, contents: nil)
-        }
-        self.fileHandle = try FileHandle(forWritingTo: url)
-        try self.fileHandle.seekToEnd()
-    }
-
-    deinit {
-        try? fileHandle.close()
+        self.writer = try JSONLWriter(path: path, label: "normalization progress log", fileManager: fileManager)
     }
 
     /// Append and flush one progress record before the next stage advances.
     public func append(_ record: NormalizationProgressRecord) throws {
-        do {
-            let data = try encoder.encode(record)
-            fileHandle.write(data)
-            fileHandle.write(Data("\n".utf8))
-            try fileHandle.synchronize()
-        } catch let error as SidecarError {
-            throw error
-        } catch {
-            throw SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Unable to append normalization progress log \(path): \(error.localizedDescription)",
-                recoverable: true
-            )
-        }
+        try writer.append(record)
     }
 
     /// Close the underlying file handle, surfacing close failures as write errors.
     public func close() throws {
-        do {
-            try fileHandle.close()
-        } catch {
-            throw SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Unable to close normalization progress log \(path): \(error.localizedDescription)",
-                recoverable: true
-            )
-        }
+        try writer.close()
     }
 }
