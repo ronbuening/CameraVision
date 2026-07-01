@@ -156,37 +156,37 @@ public struct ArtifactCleanup {
         if lowercased.hasSuffix(".ai.json") {
             return .rawAISidecar
         }
-        if lowercased.hasPrefix("batch-progress-"), lowercased.hasSuffix(".jsonl") {
+        if lowercased.hasPrefix(ArtifactNames.batchProgressPrefix), lowercased.hasSuffix(".jsonl") {
             return .analyzeProgressLog
         }
-        if lowercased.hasPrefix("batch-summary-"), lowercased.hasSuffix(".json") {
+        if lowercased.hasPrefix(ArtifactNames.batchSummaryPrefix), lowercased.hasSuffix(".json") {
             return .analyzeBatchSummary
         }
-        if lowercased.hasPrefix("xmp-export-progress-"), lowercased.hasSuffix(".jsonl") {
+        if lowercased.hasPrefix(ArtifactNames.xmpExportProgressPrefix), lowercased.hasSuffix(".jsonl") {
             return .xmpExportProgressLog
         }
-        if lowercased.hasPrefix("xmp-export-report-"), lowercased.hasSuffix(".json") {
+        if lowercased.hasPrefix(ArtifactNames.xmpExportReportPrefix), lowercased.hasSuffix(".json") {
             return .xmpExportReport
         }
-        if lowercased.hasPrefix("xmp-export-summary-"), lowercased.hasSuffix(".md") {
+        if lowercased.hasPrefix(ArtifactNames.xmpExportSummaryPrefix), lowercased.hasSuffix(".md") {
             return .xmpExportSummary
         }
-        if lowercased.hasPrefix("normalization-progress-"), lowercased.hasSuffix(".jsonl") {
+        if lowercased.hasPrefix(ArtifactNames.normalizationProgressPrefix), lowercased.hasSuffix(".jsonl") {
             return .normalizationProgressLog
         }
-        if lowercased.hasPrefix("normalization-report-"), lowercased.hasSuffix(".json") {
+        if lowercased.hasPrefix(ArtifactNames.normalizationReportPrefix), lowercased.hasSuffix(".json") {
             return .normalizationReport
         }
-        if lowercased.hasPrefix("normalization-summary-"), lowercased.hasSuffix(".md") {
+        if lowercased.hasPrefix(ArtifactNames.normalizationSummaryPrefix), lowercased.hasSuffix(".md") {
             return .normalizationSummary
         }
-        if lowercased.hasPrefix("normalization-apply-progress-"), lowercased.hasSuffix(".jsonl") {
+        if lowercased.hasPrefix(ArtifactNames.normalizationApplyProgressPrefix), lowercased.hasSuffix(".jsonl") {
             return .normalizationApplyProgressLog
         }
-        if lowercased.hasPrefix("normalization-apply-report-"), lowercased.hasSuffix(".json") {
+        if lowercased.hasPrefix(ArtifactNames.normalizationApplyReportPrefix), lowercased.hasSuffix(".json") {
             return .normalizationApplyReport
         }
-        if lowercased.hasPrefix("normalization-apply-summary-"), lowercased.hasSuffix(".md") {
+        if lowercased.hasPrefix(ArtifactNames.normalizationApplySummaryPrefix), lowercased.hasSuffix(".md") {
             return .normalizationApplySummary
         }
         return nil

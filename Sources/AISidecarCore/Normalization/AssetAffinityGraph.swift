@@ -172,7 +172,7 @@ public struct AssetAffinityGraphBuilder {
 
         let assetByID = Dictionary(uniqueKeysWithValues: input.sourceAssets.map { ($0.assetID, $0) })
         let scoringNodes = nodes.compactMap { node -> ScoringNode? in
-            guard let representativeID = node.memberAssetIDs.sorted().first,
+            guard let representativeID = node.memberAssetIDs.min(),
                   let asset = assetByID[representativeID] else {
                 return nil
             }
@@ -251,11 +251,17 @@ public struct AssetAffinityGraphBuilder {
         edges: [AssetAffinityEdgeRecord],
         maxNeighborsPerNode: Int
     ) -> [AssetAffinityEdgeRecord] {
+        // Index edges by each incident node once (O(edges)) instead of re-filtering the whole edge
+        // list per node (O(nodes x edges)). The retained set is identical; the caller re-sorts the
+        // pruned edges, so the unordered return order is unchanged in effect.
+        var incidentEdges: [String: [AssetAffinityEdgeRecord]] = [:]
+        for edge in edges {
+            incidentEdges[edge.fromNodeID, default: []].append(edge)
+            incidentEdges[edge.toNodeID, default: []].append(edge)
+        }
         var keep = Set<AssetAffinityEdgeRecord>()
-        let nodeIDs = Set(edges.flatMap { [$0.fromNodeID, $0.toNodeID] })
-        for nodeID in nodeIDs {
-            let retained = edges
-                .filter { $0.fromNodeID == nodeID || $0.toNodeID == nodeID }
+        for (nodeID, incident) in incidentEdges {
+            let retained = incident
                 .sorted { lhs, rhs in
                     if lhs.affinity == rhs.affinity {
                         return otherNodeID(lhs, nodeID: nodeID) < otherNodeID(rhs, nodeID: nodeID)
@@ -307,9 +313,13 @@ public struct CandidateNeighborGenerator {
                 }
             }
         }
+        // Index nodes by ID so pair reconstruction is O(1) per pair instead of a linear scan of
+        // `sorted`. The emitted order is unchanged: pairs are still returned in `ScoringPair` sort
+        // order.
+        let nodesByID = Dictionary(uniqueKeysWithValues: sorted.map { ($0.node.nodeID, $0) })
         return pairs.sorted().compactMap { pair in
-            guard let lhs = sorted.first(where: { $0.node.nodeID == pair.lhsNodeID }),
-                  let rhs = sorted.first(where: { $0.node.nodeID == pair.rhsNodeID }) else {
+            guard let lhs = nodesByID[pair.lhsNodeID],
+                  let rhs = nodesByID[pair.rhsNodeID] else {
                 return nil
             }
             return (lhs, rhs)

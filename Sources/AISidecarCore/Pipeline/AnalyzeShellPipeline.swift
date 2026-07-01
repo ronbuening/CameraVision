@@ -94,10 +94,10 @@ public struct AnalyzeShellPipeline {
         // FR1-012 defines progress and summary artifacts for folder runs; a
         // single file writes only its sidecar and CLI status.
         let progressPath = isBatch && !configuration.dryRun
-            ? "\(reportDirectory)/batch-progress-\(timestamp).jsonl"
+            ? "\(reportDirectory)/\(ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
             : nil
         let summaryPath = isBatch && !configuration.dryRun
-            ? "\(reportDirectory)/batch-summary-\(timestamp).json"
+            ? "\(reportDirectory)/\(ArtifactNames.batchSummaryPrefix)\(timestamp).json"
             : nil
         let progressLog = try progressPath.map { try ProgressLog(path: $0, fileManager: fileManager) }
         defer {

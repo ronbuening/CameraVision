@@ -596,9 +596,9 @@ public struct XMPExportPipeline {
         let timestamp = timestampString(for: startedAt)
         return ExportArtifactPaths(
             directory: directory,
-            progressPath: "\(directory)/xmp-export-progress-\(timestamp).jsonl",
-            reportPath: "\(directory)/xmp-export-report-\(timestamp).json",
-            summaryPath: "\(directory)/xmp-export-summary-\(timestamp).md"
+            progressPath: "\(directory)/\(ArtifactNames.xmpExportProgressPrefix)\(timestamp).jsonl",
+            reportPath: "\(directory)/\(ArtifactNames.xmpExportReportPrefix)\(timestamp).json",
+            summaryPath: "\(directory)/\(ArtifactNames.xmpExportSummaryPrefix)\(timestamp).md"
         )
     }
 

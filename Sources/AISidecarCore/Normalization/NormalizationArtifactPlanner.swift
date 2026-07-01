@@ -41,14 +41,14 @@ public enum NormalizationArtifactPlanner {
     ) -> NormalizationArtifactPlan {
         let root = URL(fileURLWithPath: outputDir ?? inputBasePath).standardizedFileURL
         let stamp = timestampString(timestamp)
-        let sessionPath = root.appendingPathComponent("normalization-session-\(stamp).json").path
+        let sessionPath = root.appendingPathComponent("\(ArtifactNames.normalizationSessionPrefix)\(stamp).json").path
         let reportPath = writeReportPath
-            ?? root.appendingPathComponent("normalization-report-\(stamp).json").path
+            ?? root.appendingPathComponent("\(ArtifactNames.normalizationReportPrefix)\(stamp).json").path
         return NormalizationArtifactPlan(
             sessionPath: sessionPath,
             reportPath: reportPath,
-            summaryPath: root.appendingPathComponent("normalization-summary-\(stamp).md").path,
-            progressPath: root.appendingPathComponent("normalization-progress-\(stamp).jsonl").path,
+            summaryPath: root.appendingPathComponent("\(ArtifactNames.normalizationSummaryPrefix)\(stamp).md").path,
+            progressPath: root.appendingPathComponent("\(ArtifactNames.normalizationProgressPrefix)\(stamp).jsonl").path,
             xmpTargetRoot: outputDir
         )
     }
@@ -63,12 +63,12 @@ public enum NormalizationArtifactPlanner {
         let root = URL(fileURLWithPath: outputDir ?? sessionURL.deletingLastPathComponent().path).standardizedFileURL
         let stamp = timestampString(timestamp)
         let reportPath = writeReportPath
-            ?? root.appendingPathComponent("normalization-apply-report-\(stamp).json").path
+            ?? root.appendingPathComponent("\(ArtifactNames.normalizationApplyReportPrefix)\(stamp).json").path
         return NormalizationArtifactPlan(
             sessionPath: sessionURL.path,
             reportPath: reportPath,
-            summaryPath: root.appendingPathComponent("normalization-apply-summary-\(stamp).md").path,
-            progressPath: root.appendingPathComponent("normalization-apply-progress-\(stamp).jsonl").path,
+            summaryPath: root.appendingPathComponent("\(ArtifactNames.normalizationApplySummaryPrefix)\(stamp).md").path,
+            progressPath: root.appendingPathComponent("\(ArtifactNames.normalizationApplyProgressPrefix)\(stamp).jsonl").path,
             xmpTargetRoot: outputDir
         )
     }
