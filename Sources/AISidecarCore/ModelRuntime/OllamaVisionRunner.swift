@@ -252,29 +252,19 @@ public struct OllamaVisionRunner: VisionModelRunner {
     }
 
     private func installedVisionTags(from tags: OllamaTagsResponse, endpoint: URL) async -> [String] {
-        // Probe each model's capabilities concurrently rather than serially: the preflight otherwise
-        // pays one `/api/show` round-trip per installed model before analysis can start. Results are
-        // sorted, so the output stays deterministic regardless of completion order.
-        await withTaskGroup(of: String?.self) { group in
-            for model in tags.models {
-                let name = model.name
-                group.addTask {
-                    guard let show = try? await self.showModel(name, endpoint: endpoint),
-                          show.capabilities.contains("vision")
-                    else {
-                        return nil
-                    }
-                    return name
-                }
+        // Probe capabilities serially so the `/api/show` request sequence stays deterministic. The
+        // preflight runs once per invocation; concurrent probing saved only marginal latency and made
+        // the external-call order nondeterministic.
+        var visionTags: [String] = []
+        for model in tags.models {
+            guard let show = try? await showModel(model.name, endpoint: endpoint),
+                  show.capabilities.contains("vision")
+            else {
+                continue
             }
-            var visionTags: [String] = []
-            for await tag in group {
-                if let tag {
-                    visionTags.append(tag)
-                }
-            }
-            return visionTags.sorted()
+            visionTags.append(model.name)
         }
+        return visionTags.sorted()
     }
 
     private func requestJSON<T: Decodable>(
