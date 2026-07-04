@@ -39,9 +39,7 @@ struct AnalyzeCommand: AsyncParsableCommand {
                 recursive: resolved.recursive,
                 identityPolicy: resolved.sourceIdentityPolicy
             )
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            let encoder = JSONCoding.jsonlEncoder()
             let data = try encoder.encode(result)
             FileHandle.standardOutput.write(data)
             FileHandle.standardOutput.write(Data("\n".utf8))

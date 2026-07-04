@@ -596,9 +596,9 @@ public struct XMPExportPipeline {
         let timestamp = timestampString(for: startedAt)
         return ExportArtifactPaths(
             directory: directory,
-            progressPath: "\(directory)/xmp-export-progress-\(timestamp).jsonl",
-            reportPath: "\(directory)/xmp-export-report-\(timestamp).json",
-            summaryPath: "\(directory)/xmp-export-summary-\(timestamp).md"
+            progressPath: "\(directory)/\(ArtifactNames.xmpExportProgressPrefix)\(timestamp).jsonl",
+            reportPath: "\(directory)/\(ArtifactNames.xmpExportReportPrefix)\(timestamp).json",
+            summaryPath: "\(directory)/\(ArtifactNames.xmpExportSummaryPrefix)\(timestamp).md"
         )
     }
 
@@ -619,9 +619,7 @@ public struct XMPExportPipeline {
     }
 
     private func timestampString(for date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.string(from: date)
+        Timestamp.internetDateTime(date)
     }
 
     private func durationMs(from start: Date, to end: Date) -> Int {

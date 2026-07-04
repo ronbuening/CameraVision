@@ -35,11 +35,8 @@ public struct DerivativeCache {
         self.sizeCapBytes = sizeCapBytes
         self.fileManager = fileManager
         self.now = now
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
-        self.encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
+        self.encoder = JSONCoding.documentEncoder()
+        self.decoder = JSONCoding.decoder()
     }
 
     /// Default application cache location for regenerable derivative artifacts.

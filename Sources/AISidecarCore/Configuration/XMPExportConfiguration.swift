@@ -281,8 +281,8 @@ public enum XMPExportInvocationValidator {
     public static func validate(_ request: XMPExportInvocationRequest) throws -> XMPExportInvocationMode {
         try rejectConflictingBooleanPairs(request)
 
-        let inputPath = normalizedPath(request.inputPath)
-        let fromJSONPath = normalizedPath(request.fromJSONPath)
+        let inputPath = InvocationRules.normalizedPath(request.inputPath)
+        let fromJSONPath = InvocationRules.normalizedPath(request.fromJSONPath)
         switch (inputPath, fromJSONPath) {
         case let (.some(inputPath), .none):
             try validateAnalyzeAndWriteOnlyOptions(request)
@@ -298,20 +298,20 @@ public enum XMPExportInvocationValidator {
     }
 
     private static func rejectConflictingBooleanPairs(_ request: XMPExportInvocationRequest) throws {
-        if request.writeFlatKeywords, request.noWriteFlatKeywords {
-            throw SidecarError.configInvalid("--write-flat-keywords and --no-write-flat-keywords cannot be combined.")
-        }
-        if request.writeHierarchicalKeywords, request.noWriteHierarchicalKeywords {
-            throw SidecarError.configInvalid(
-                "--write-hierarchical-keywords and --no-write-hierarchical-keywords cannot be combined."
-            )
-        }
-        if request.backupSidecars, request.noBackupSidecars {
-            throw SidecarError.configInvalid("--backup-sidecars and --no-backup-sidecars cannot be combined.")
-        }
-        if request.writeAIJSON, request.noWriteAIJSON {
-            throw SidecarError.configInvalid("--write-ai-json and --no-write-ai-json cannot be combined.")
-        }
+        try InvocationRules.rejectConflictingFlag(
+            "write-flat-keywords", enabled: request.writeFlatKeywords, disabled: request.noWriteFlatKeywords
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-hierarchical-keywords",
+            enabled: request.writeHierarchicalKeywords,
+            disabled: request.noWriteHierarchicalKeywords
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "backup-sidecars", enabled: request.backupSidecars, disabled: request.noBackupSidecars
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-ai-json", enabled: request.writeAIJSON, disabled: request.noWriteAIJSON
+        )
     }
 
     private static func validateAnalyzeAndWriteOnlyOptions(_ request: XMPExportInvocationRequest) throws {
@@ -324,49 +324,21 @@ public enum XMPExportInvocationValidator {
     }
 
     private static func validateFromJSONOnlyOptions(_ request: XMPExportInvocationRequest) throws {
-        if request.mode != nil {
-            throw SidecarError.configInvalid("--mode is invalid with --from-json.")
-        }
-        if request.existing != nil {
-            throw SidecarError.configInvalid("--existing is invalid with --from-json.")
-        }
-        if request.model != nil {
-            throw SidecarError.configInvalid("--model is invalid with --from-json.")
-        }
-        if request.modelEndpoint != nil {
-            throw SidecarError.configInvalid("--model-endpoint is invalid with --from-json.")
-        }
-        if request.profile != nil {
-            throw SidecarError.configInvalid("--profile is invalid with --from-json.")
-        }
-        if request.debugDerivatives {
-            throw SidecarError.configInvalid("--debug-derivatives is invalid with --from-json.")
-        }
-        if request.clearDerivativeCacheOnStart {
-            throw SidecarError.configInvalid("--clear-derivative-cache-on-start is invalid with --from-json.")
-        }
-        if request.clearDerivativeCacheAfterSuccess {
-            throw SidecarError.configInvalid("--clear-derivative-cache-after-success is invalid with --from-json.")
-        }
-        if request.stageConcurrency != nil {
-            throw SidecarError.configInvalid("--stage-concurrency is invalid with --from-json.")
-        }
-        if request.modelResponseRepairAttempts != nil {
-            throw SidecarError.configInvalid("--model-response-repair-attempts is invalid with --from-json.")
-        }
-        if request.gpsContext != nil {
-            throw SidecarError.configInvalid("--gps-context is invalid with --from-json.")
-        }
+        try InvocationRules.rejectFromJSONIncompatible([
+            ("mode", request.mode != nil),
+            ("existing", request.existing != nil),
+            ("model", request.model != nil),
+            ("model-endpoint", request.modelEndpoint != nil),
+            ("profile", request.profile != nil),
+            ("debug-derivatives", request.debugDerivatives),
+            ("clear-derivative-cache-on-start", request.clearDerivativeCacheOnStart),
+            ("clear-derivative-cache-after-success", request.clearDerivativeCacheAfterSuccess),
+            ("stage-concurrency", request.stageConcurrency != nil),
+            ("model-response-repair-attempts", request.modelResponseRepairAttempts != nil),
+            ("gps-context", request.gpsContext != nil)
+        ])
         if request.writeAIJSON || request.noWriteAIJSON {
             throw SidecarError.configInvalid("--write-ai-json is valid only with analyze-and-write mode.")
         }
-    }
-
-    private static func normalizedPath(_ value: String?) -> String? {
-        guard let value else {
-            return nil
-        }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : value
     }
 }

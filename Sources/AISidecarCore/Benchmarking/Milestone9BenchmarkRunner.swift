@@ -723,8 +723,7 @@ public struct Milestone9BenchmarkRunner {
     }
 
     private func writeJSON(_ document: BenchmarkDocument, to url: URL) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        let encoder = JSONCoding.documentEncoder(iso8601Dates: false)
         try encoder.encode(document).write(to: url)
     }
 

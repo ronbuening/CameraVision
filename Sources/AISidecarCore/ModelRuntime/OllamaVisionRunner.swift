@@ -252,6 +252,9 @@ public struct OllamaVisionRunner: VisionModelRunner {
     }
 
     private func installedVisionTags(from tags: OllamaTagsResponse, endpoint: URL) async -> [String] {
+        // Probe capabilities serially so the `/api/show` request sequence stays deterministic. The
+        // preflight runs once per invocation; concurrent probing saved only marginal latency and made
+        // the external-call order nondeterministic.
         var visionTags: [String] = []
         for model in tags.models {
             guard let show = try? await showModel(model.name, endpoint: endpoint),
@@ -547,9 +550,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
     }
 
     private static func encoder() -> JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return encoder
+        JSONCoding.jsonlEncoder(iso8601Dates: false)
     }
 
     private static func decoder() -> JSONDecoder {

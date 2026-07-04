@@ -679,9 +679,7 @@ public struct ModelInputExportPipeline {
 
     private func writeManifest(_ manifest: ModelInputExportManifest, to path: String) throws {
         do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+            let encoder = JSONCoding.documentEncoder()
             let data = try encoder.encode(manifest)
             try AtomicFileWriter.write(data, to: URL(fileURLWithPath: path), fileManager: fileManager)
         } catch let error as SidecarError {
@@ -697,9 +695,7 @@ public struct ModelInputExportPipeline {
     }
 
     private func timestampString(for date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.string(from: date)
+        Timestamp.internetDateTime(date)
     }
 
     private func durationMs(from start: Date, to end: Date) -> Int {

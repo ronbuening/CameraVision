@@ -8,29 +8,8 @@ enum AtomicFileWriter {
         to destination: URL,
         fileManager: FileManager = .default
     ) throws {
-        let destination = destination.standardizedFileURL
-        let directory = destination.deletingLastPathComponent()
-        let temporary = temporaryURL(for: destination, in: directory)
-
-        do {
-            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try atomicallyReplace(destination, fileManager: fileManager) { temporary in
             try data.write(to: temporary)
-            // FR1-012d requires the temporary file to live in the destination
-            // directory so rename is atomic on the target filesystem.
-            guard rename(temporary.path, destination.path) == 0 else {
-                throw POSIXWriteError(message: String(cString: strerror(errno)))
-            }
-        } catch let error as SidecarError {
-            try? fileManager.removeItem(at: temporary)
-            throw error
-        } catch {
-            try? fileManager.removeItem(at: temporary)
-            throw SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Unable to write \(destination.path): \(error.localizedDescription)",
-                recoverable: true
-            )
         }
     }
 
@@ -39,15 +18,28 @@ enum AtomicFileWriter {
         fileManager: FileManager = .default,
         writer: (URL) throws -> Void
     ) throws {
+        // Image encoders write directly to URLs; routing through the shared core preserves the same
+        // sibling-temp rename contract used for JSON artifacts.
+        try atomicallyReplace(destination, fileManager: fileManager, produce: writer)
+    }
+
+    /// Shared temp-write + atomic-rename core used by both entry points.
+    ///
+    /// The temporary file lives in the destination directory (FR1-012d) so the rename is atomic on
+    /// the target filesystem. Any failure removes the temporary file and surfaces a recoverable
+    /// `.writeFailed` error unless a `SidecarError` was already produced by `produce`.
+    private static func atomicallyReplace(
+        _ destination: URL,
+        fileManager: FileManager,
+        produce: (URL) throws -> Void
+    ) throws {
         let destination = destination.standardizedFileURL
         let directory = destination.deletingLastPathComponent()
         let temporary = temporaryURL(for: destination, in: directory)
 
         do {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-            try writer(temporary)
-            // Image encoders write directly to URLs, so this preserves the same
-            // sibling-temp rename contract used for JSON artifacts.
+            try produce(temporary)
             guard rename(temporary.path, destination.path) == 0 else {
                 throw POSIXWriteError(message: String(cString: strerror(errno)))
             }

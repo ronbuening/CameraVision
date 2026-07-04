@@ -37,8 +37,7 @@ public struct RawJSONSidecarDocument: Sendable, Equatable {
         }
         try Self.validateSchemaVersion(schemaVersion)
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = JSONCoding.decoder()
         self.sidecar = try decoder.decode(RawJSONSidecar.self, from: data)
         self.originalJSON = json
     }
@@ -47,8 +46,7 @@ public struct RawJSONSidecarDocument: Sendable, Equatable {
     public func encodedData() throws -> Data {
         let replacement = try Self.jsonValue(for: sidecar)
         let merged = Self.mergePreservingUnknowns(original: originalJSON, replacement: replacement)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        let encoder = JSONCoding.documentEncoder(iso8601Dates: false)
         return try encoder.encode(merged)
     }
 
@@ -86,9 +84,7 @@ public struct RawJSONSidecarDocument: Sendable, Equatable {
     }
 
     private static func jsonValue(for sidecar: RawJSONSidecar) throws -> JSONValue {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let encoder = JSONCoding.jsonlEncoder()
         let data = try encoder.encode(sidecar)
         return try JSONDecoder().decode(JSONValue.self, from: data)
     }

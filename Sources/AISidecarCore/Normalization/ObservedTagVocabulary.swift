@@ -173,8 +173,7 @@ public enum ObservedTagVocabulary {
     }
 
     private static func canonicalData(for document: VocabularyDocument) throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let encoder = JSONCoding.jsonlEncoder(iso8601Dates: false)
         return try encoder.encode(document)
     }
 

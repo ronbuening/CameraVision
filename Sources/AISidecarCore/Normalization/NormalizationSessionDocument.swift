@@ -679,9 +679,7 @@ public struct NormalizationSessionWriter {
 
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
-        self.encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        self.encoder = JSONCoding.documentEncoder()
     }
 
     public func write(_ session: NormalizationSessionDocument, to path: String) throws {
@@ -734,8 +732,7 @@ public struct NormalizationSessionReader {
             }
             try Self.validateSchemaVersion(schemaVersion)
 
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
+            let decoder = JSONCoding.decoder()
             return try decoder.decode(NormalizationSessionDocument.self, from: data)
         } catch let error as SidecarError {
             throw error

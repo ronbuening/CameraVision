@@ -98,10 +98,10 @@ public struct AnalyzePipeline {
         let timestamp = timestampString(for: runStartedAt)
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
         let progressPath = isBatch && !configuration.dryRun
-            ? "\(reportDirectory)/batch-progress-\(timestamp).jsonl"
+            ? "\(reportDirectory)/\(ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
             : nil
         let summaryPath = isBatch && !configuration.dryRun
-            ? "\(reportDirectory)/batch-summary-\(timestamp).json"
+            ? "\(reportDirectory)/\(ArtifactNames.batchSummaryPrefix)\(timestamp).json"
             : nil
         let progressLog = try progressPath.map { try ProgressLog(path: $0, fileManager: fileManager) }
         defer {
@@ -776,9 +776,7 @@ public struct AnalyzePipeline {
     }
 
     private func timestampString(for date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.string(from: date)
+        Timestamp.internetDateTime(date)
     }
 
     private func durationMs(from start: Date, to end: Date) -> Int {

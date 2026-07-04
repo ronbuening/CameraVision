@@ -324,8 +324,7 @@ struct NormalizeCommand: AsyncParsableCommand {
     }
 
     private func writeChangePlan(_ changePlan: XMPChangePlanDocument) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        let encoder = JSONCoding.documentEncoder(iso8601Dates: false)
         let data = try encoder.encode(changePlan)
         FileHandle.standardOutput.write(data)
         FileHandle.standardOutput.write(Data("\n".utf8))

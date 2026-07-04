@@ -63,63 +63,21 @@ public struct ProgressRecord: Codable, Sendable, Equatable {
 /// Each append is flushed before the batch advances so interruption recovery can
 /// derive completed work directly from the log.
 public final class ProgressLog {
-    public let path: String
+    private let writer: JSONLWriter<ProgressRecord>
 
-    private let fileHandle: FileHandle
-    private let encoder: JSONEncoder
+    public var path: String { writer.path }
 
     public init(path: String, fileManager: FileManager = .default) throws {
-        let url = URL(fileURLWithPath: path).standardizedFileURL
-        self.path = url.path
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
-        self.encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-
-        try fileManager.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        if !fileManager.fileExists(atPath: url.path) {
-            _ = fileManager.createFile(atPath: url.path, contents: nil)
-        }
-        self.fileHandle = try FileHandle(forWritingTo: url)
-        try self.fileHandle.seekToEnd()
-    }
-
-    deinit {
-        try? fileHandle.close()
+        self.writer = try JSONLWriter(path: path, label: "progress log", fileManager: fileManager)
     }
 
     /// Append and flush one completed-file record before the batch advances.
     public func append(_ record: ProgressRecord) throws {
-        do {
-            let data = try encoder.encode(record)
-            fileHandle.write(data)
-            fileHandle.write(Data("\n".utf8))
-            try fileHandle.synchronize()
-        } catch let error as SidecarError {
-            throw error
-        } catch {
-            throw SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Unable to append progress log \(path): \(error.localizedDescription)",
-                recoverable: true
-            )
-        }
+        try writer.append(record)
     }
 
     /// Close the underlying file handle, surfacing close failures as write errors.
     public func close() throws {
-        do {
-            try fileHandle.close()
-        } catch {
-            throw SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Unable to close progress log \(path): \(error.localizedDescription)",
-                recoverable: true
-            )
-        }
+        try writer.close()
     }
 }

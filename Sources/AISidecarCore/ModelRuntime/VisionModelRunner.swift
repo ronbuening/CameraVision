@@ -62,8 +62,7 @@ public struct RecordedFixtureRunner: VisionModelRunner {
     }
 
     public init(fixtureURL: URL) throws {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = JSONCoding.decoder()
         self.fixture = try decoder.decode(RecordedModelFixture.self, from: Data(contentsOf: fixtureURL))
     }
 
