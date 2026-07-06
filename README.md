@@ -330,4 +330,10 @@ swift run aisidecar benchmark --self-test
 - `agent_docs/03-cli-normalized-batch-tagger-requirements.md`: Phase 3 normalization requirements.
 - `agent_docs/phase-3-cli-implementation-plan-v0.3.md`: Phase 3 implementation plan and traceability matrix.
 - `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md`: Future GUI requirements.
+- `agent_docs/phase-4-gui-implementation-plan.md`: GUI implementation plan.
+- `agent_docs/05-efficiency-improvement-plan.md`: Refactoring and performance work items.
+- `agent_docs/06-packaging-single-app-plan.md`: Single-app packaging and distribution plan.
+- `agent_docs/architecture-map.md`: Module map, key types, and pipeline entry points.
+- `agent_docs/invariants.md`: Binding project rules for any change.
+- `agent_docs/testing-and-verification.md`: Build, test, and smoke-check procedures.
 - `agent_docs/release-evidence/`: compatibility smoke notes and release evidence.
