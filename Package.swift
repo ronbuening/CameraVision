@@ -57,6 +57,9 @@ let package = Package(
         .testTarget(
             name: "CupricAspectAppTests",
             dependencies: ["CupricAspectApp"],
+            resources: [
+                .process("Fixtures")
+            ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")
             ]

@@ -9,6 +9,14 @@ struct Step1PhotosView: View {
 
     @State private var pickingSource = false
     @State private var pickingOutput = false
+    @State private var displayMode: QueueDisplay = .grid
+    @State private var previewRecord: AssetRecord?
+    @State private var thumbnails = ThumbnailStore()
+
+    enum QueueDisplay: CaseIterable {
+        case grid
+        case list
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -46,6 +54,9 @@ struct Step1PhotosView: View {
         }
         .fileImporter(isPresented: $pickingOutput, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { model.chooseOutput(url) }
+        }
+        .sheet(item: $previewRecord) { record in
+            AssetPreviewSheet(record: record, outputDir: model.outputFolder?.path)
         }
     }
 
@@ -167,9 +178,27 @@ struct Step1PhotosView: View {
                         .foregroundStyle(theme.danger)
                 }
                 Rectangle().fill(theme.border).frame(height: 1)
+                CVSegmentedControl(
+                    options: QueueDisplay.allCases,
+                    selection: $displayMode,
+                    label: { $0 == .grid ? "Grid" : "List" }
+                )
             }
 
-            Table(model.filteredAssets) {
+            switch displayMode {
+            case .grid:
+                AssetGridView(records: model.filteredAssets, thumbnails: thumbnails) { record in
+                    previewRecord = record
+                }
+                .frame(minHeight: 220, maxHeight: 380)
+            case .list:
+                queueTable
+            }
+        }
+    }
+
+    private var queueTable: some View {
+        Table(model.filteredAssets) {
                 TableColumn("State") { record in
                     stateBadge(record.state)
                 }
@@ -194,7 +223,6 @@ struct Step1PhotosView: View {
             .frame(minHeight: 220, maxHeight: 340)
             .clipShape(RoundedRectangle(cornerRadius: 11))
             .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(theme.border))
-        }
     }
 
     private func stateBadge(_ state: AssetQueueState) -> some View {

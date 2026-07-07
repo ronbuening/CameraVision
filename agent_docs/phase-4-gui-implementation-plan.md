@@ -99,12 +99,14 @@ Per-milestone **Not in this milestone** lines are binding scope limits — when 
 
 *Status: implemented — `Features/Run/` (`AnalysisRunModel` engine + options, Wizard Steps 2–4 views, Step 5 run summary as the M4 stand-in). Options resolve through `ConfigurationResolver` (CLI-equivalent overrides over config.json). Verified end-to-end against live Ollama: real analyze run over generated JPEGs, per-asset progress advancing the queue, structured error codes surfaced on the summary (`E_MODEL_SCHEMA_VIOLATION` from a schema-violating substitute model), sidecars with full provenance on disk. Cancel returns to Step 3 per design; run failures banner on Step 3 with Ollama guidance (FR4-051).*
 
-### M3 — Thumbnails and previews (FR4-013, FR4-014, FR4-039 groundwork)
+### M3 — Thumbnails and previews ✅ (completed 2026-07-07; FR4-013, FR4-014, FR4-039 groundwork)
 
 - Reuse the derivative cache (`DerivativeCache`, `ImageRenderer`) for preview derivatives; keep an in-memory thumbnail index over the shared cache (no DB).
 - Grid view virtualization (LazyVGrid or NSCollectionView interop) with lazy full-preview loading.
 - Subject-isolated derivative display when available, with instance count and selected-instance indication (FR4-014).
 - **Done when:** a 5,000-asset synthetic folder (script fabricates tiny images + `.ai.json` sidecars) scrolls and filters without perceptible stalls (AC4-014 groundwork; final verification in M11).
+
+*Status: implemented — `Features/Preview/` (`ThumbnailStore`: ImageIO embedded-thumbnail decode, byte-capped NSCache, in-flight dedup; `AssetPreviewDetails`: off-main sidecar decode preferring cached pipeline derivatives; `AssetPreviewSheet`: whole image + subject derivative with instance count/selection per FR4-014) and `Features/Import/AssetGridView` (LazyVGrid, async cells, state dots), with a Grid/List toggle in Step 1. `Scripts/generate-synthetic-fixture.swift` fabricates the synthetic folder; verified with 5,000 assets: scan+derive populated the queue in seconds, grid renders lazily, process idle ~110 MB RSS. Interactive scroll-feel check on real RAW libraries remains a manual step (M11). Preview decode covered by tests against an unmodified pipeline-written sidecar fixture.*
 
 ### M4 — Candidate review UI and session durability (FR4-013–FR4-020, NFR4-008, AC4-003, AC4-004)
 
