@@ -6,6 +6,7 @@ enum PreferenceKeys {
     static let nonlinear = "cupricaspect.nonlinear"
     static let theme = "cupricaspect.theme"
     static let accent = "cupricaspect.accent"
+    static let logSizeCapMB = "cupricaspect.logSizeCapMB"
 }
 
 /// Root of the window: applies the theme override, resolves design tokens for

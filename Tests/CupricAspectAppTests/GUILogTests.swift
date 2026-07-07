@@ -52,6 +52,35 @@ final class GUILogTests: XCTestCase {
         XCTAssertTrue(contents.contains("line 19"))
     }
 
+    func testUpdateSizeCapAppliesFromTheNextWrite() throws {
+        let sink = FileLogSink(directory: directory, sizeCapBytes: 1_000_000)
+        for index in 0..<10 {
+            sink.write("pre-cap-change line \(index)")
+        }
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: sink.previousLogURL.path),
+            "nothing rotates under the generous initial cap"
+        )
+        sink.updateSizeCap(bytes: 100_000)
+        // The oversized-current check is per write: pad past the new cap.
+        let padding = String(repeating: "x", count: 100_000)
+        sink.write(padding)
+        sink.write("post-rotation line")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sink.previousLogURL.path))
+        let contents = try String(contentsOf: sink.logURL, encoding: .utf8)
+        XCTAssertTrue(contents.contains("post-rotation line"))
+        XCTAssertFalse(contents.contains("pre-cap-change line 0"), "old lines rotated out")
+    }
+
+    func testStoredSizeCapReadsPreferenceWithDefaultFallback() throws {
+        let suiteName = "guilog-cap-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        XCTAssertEqual(GUILog.storedSizeCapMB(defaults: defaults), GUILog.defaultSizeCapMB)
+        defaults.set(25, forKey: PreferenceKeys.logSizeCapMB)
+        XCTAssertEqual(GUILog.storedSizeCapMB(defaults: defaults), 25)
+    }
+
     func testMinimumLevelFiltersBelowThreshold() throws {
         let sink = FileLogSink(directory: directory)
         let logger = sink.makeLogger(minimumLevel: .warn)

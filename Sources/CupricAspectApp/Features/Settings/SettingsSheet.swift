@@ -9,6 +9,7 @@ struct SettingsSheet: View {
     @State private var settings = SettingsModel()
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @AppStorage(PreferenceKeys.accent) private var accentChoice: AccentChoice = .copper
+    @AppStorage(PreferenceKeys.logSizeCapMB) private var logSizeCapMB = GUILog.defaultSizeCapMB
 
     @Environment(\.cvTheme) private var theme
     @Environment(\.dismiss) private var dismiss
@@ -394,8 +395,40 @@ struct SettingsSheet: View {
                             .foregroundStyle(theme.textFaint)
                             .lineLimit(1)
                             .truncationMode(.middle)
+                        Text("One previous generation is kept, so disk use stays under twice this size.")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(theme.textFaint)
                     }
                     Spacer()
+                    Menu {
+                        ForEach(GUILog.sizeCapChoicesMB, id: \.self) { capMB in
+                            Button {
+                                logSizeCapMB = capMB
+                                GUILog.shared.updateSizeCap(bytes: capMB * 1_000_000)
+                            } label: {
+                                if capMB == logSizeCapMB {
+                                    Label("\(capMB) MB", systemImage: "checkmark")
+                                } else {
+                                    Text("\(capMB) MB")
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("\(logSizeCapMB) MB")
+                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            Text("▾").font(.system(size: 9))
+                        }
+                        .foregroundStyle(theme.text)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 11)
+                        .background(theme.panel2)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(theme.border))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help("Log file size cap; rotation applies on the next write")
                     Button("Reveal") {
                         NSWorkspace.shared.activateFileViewerSelecting([GUILog.shared.logURL])
                     }
