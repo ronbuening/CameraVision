@@ -1,3 +1,4 @@
+import AISidecarCore
 import SwiftUI
 
 /// Wizard shell (design doc Section 6): 46px title bar, step rail, content
@@ -10,6 +11,10 @@ struct WizardShellView: View {
     @State private var runModel = AnalysisRunModel()
     @State private var reviewModel = ReviewModel()
     @State private var normalizationModel = NormalizationModel()
+    @State private var exportModel = ExportModel()
+    @State private var applySession: NormalizationSessionDocument?
+    @State private var applySessionPath: String?
+    @State private var showPlanSheet = false
     @State private var selectedAction: WizardAction?
     @State private var step = 1
     @State private var showAbout = false
@@ -110,6 +115,20 @@ struct WizardShellView: View {
                 break
             }
         }
+        .onChange(of: exportModel.phase) { _, phase in
+            switch phase {
+            case .planReady:
+                showPlanSheet = true
+            case .written:
+                step = 5
+                Task { await importModel.rescan() }
+            default:
+                break
+            }
+        }
+        .sheet(isPresented: $showPlanSheet) {
+            ChangePlanSheet(export: exportModel)
+        }
     }
 
     // MARK: - Chrome
@@ -204,13 +223,20 @@ struct WizardShellView: View {
                 if case .failed(let message) = runModel.phase {
                     failureBanner(message)
                 }
-                Step3OptionsView(
-                    action: selectedAction ?? .analyze,
-                    options: options,
-                    runModel: runModel,
-                    importModel: importModel,
-                    normalizationModel: normalizationModel
-                )
+                if case .failed(let message) = exportModel.phase {
+                    failureBanner(message)
+                }
+                if selectedAction == .apply {
+                    Step3ApplyView(session: $applySession, sessionPath: $applySessionPath)
+                } else {
+                    Step3OptionsView(
+                        action: selectedAction ?? .analyze,
+                        options: options,
+                        runModel: runModel,
+                        importModel: importModel,
+                        normalizationModel: normalizationModel
+                    )
+                }
             }
         case 4:
             Step4WorkingView(action: selectedAction ?? .analyze, runModel: runModel)
@@ -219,22 +245,45 @@ struct WizardShellView: View {
                 if case .finished(let outcome) = runModel.phase, outcome.failed > 0 {
                     Step5SummaryView(outcome: outcome)
                 }
-                if selectedAction == .normalize {
-                    if case .written(let targets, _) = normalizationModel.phase {
-                        writtenBanner(targets: targets)
+                if case .failed(let message) = exportModel.phase {
+                    failureBanner(message)
+                }
+                if exportModel.phase == .written {
+                    writtenBanner(targets: exportModel.exportReport?.targetReports.count ?? 0)
+                    if let report = exportModel.exportReport {
+                        ExportReportView(report: report)
+                            .padding(EdgeInsets(top: 12, leading: 34, bottom: 0, trailing: 34))
                     }
+                }
+                switch selectedAction {
+                case .normalize:
                     NormalizationInspectorView(model: normalizationModel) {
-                        guard let source = importModel.sourceFolder else { return }
-                        normalizationModel.writeNormalizedXMP(
-                            sourceRoot: source.path,
-                            outputDir: importModel.outputFolder?.path
-                        )
+                        startExport()
                     }
-                } else {
+                case .apply:
+                    EmptyView()
+                default:
                     Step5ReviewView(review: reviewModel, runOutcome: finishedOutcome)
                 }
             }
         }
+    }
+
+    /// Route every write through the FR4-029 dry-run gate (M7): the plan
+    /// sheet opens when the dry run completes.
+    private func startExport() {
+        guard let source = importModel.sourceFolder else { return }
+        let session: NormalizationSessionDocument? = switch selectedAction {
+        case .normalize: normalizationModel.session
+        case .apply: applySession
+        default: reviewModel.reviewedSession
+        }
+        guard let session else { return }
+        exportModel.plan(
+            session: session,
+            sourceRoot: source.path,
+            outputDir: importModel.outputFolder?.path
+        )
     }
 
     private func writtenBanner(targets: Int) -> some View {
@@ -289,16 +338,31 @@ struct WizardShellView: View {
         switch step {
         case 1: importModel.sourceFolder != nil
         case 2: selectedAction != nil
+        case 3 where selectedAction == .apply: applySession != nil && exportModel.phase != .planning
         case 3: importModel.sourceFolder != nil && !runModel.isRunning
         case 4: false
+        case 5 where step5WriteAvailable: exportModel.phase != .planning && exportModel.phase != .writing
         default: true
+        }
+    }
+
+    /// True when Step 5's primary should be a write, not Done (M7).
+    private var step5WriteAvailable: Bool {
+        guard exportModel.phase != .written else { return false }
+        switch selectedAction {
+        case .write: return reviewModel.session != nil
+        case .normalize: return normalizationModel.session != nil
+        default: return false
         }
     }
 
     private var primaryLabel: String {
         switch step {
+        case 3 where selectedAction == .apply: "Apply session"
         case 3: "Start"
         case 4: "Working…"
+        case 5 where step5WriteAvailable:
+            selectedAction == .normalize ? "Write normalized XMP" : "Write XMP"
         case 5: "Done"
         default: "Continue"
         }
@@ -326,6 +390,8 @@ struct WizardShellView: View {
         switch step {
         case 1, 2:
             step += 1
+        case 3 where selectedAction == .apply:
+            startExport()
         case 3:
             guard let source = importModel.sourceFolder else { return }
             runModel.start(
@@ -336,9 +402,14 @@ struct WizardShellView: View {
                 expectedTotal: importModel.assets.count
             )
             step = 4
+        case 5 where step5WriteAvailable:
+            startExport()
         case 5:
             reviewModel.completeCleanly()
             normalizationModel.reset()
+            exportModel.reset()
+            applySession = nil
+            applySessionPath = nil
             runModel.reset()
             selectedAction = nil
             step = 1

@@ -170,4 +170,45 @@ final class SessionReviewTests: XCTestCase {
         XCTAssertTrue(xmpText.contains("tree"), "approved keyword is written")
         XCTAssertFalse(xmpText.contains("bird"), "review-rejected keyword is never written (AC4-013)")
     }
+
+    // MARK: - CORE-4: xmp_export stamp (FR4-049, AC4-028)
+
+    func testSuccessfulExportStampsContributingRawSidecars() throws {
+        let (session, root, sourceRoot) = try makeSession(terms: ["bird"])
+        let sessionPath = root.appendingPathComponent("session.json").path
+        try NormalizationSessionWriter().write(session, to: sessionPath)
+        let rawSidecarPath = root.appendingPathComponent("json").appendingPathComponent("A.JPG.ai.json").path
+
+        var applyConfiguration = ResolvedApplySessionConfiguration.builtInDefaults
+        applyConfiguration.sourceRoot = sourceRoot.path
+        applyConfiguration.outputDir = root.appendingPathComponent("xmp-out").path
+
+        // Dry run first: no stamp may appear.
+        applyConfiguration.dryRun = true
+        _ = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        ).run(sessionPath: sessionPath, configuration: applyConfiguration)
+        XCTAssertFalse(RawSidecarExportStamp.isStamped(sidecarPath: rawSidecarPath), "dry run never stamps")
+
+        // Real write: the contributing raw sidecar gains the block.
+        applyConfiguration.dryRun = false
+        _ = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        ).run(sessionPath: sessionPath, configuration: applyConfiguration)
+        XCTAssertTrue(RawSidecarExportStamp.isStamped(sidecarPath: rawSidecarPath))
+
+        let data = try Data(contentsOf: URL(fileURLWithPath: rawSidecarPath))
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let block = try XCTUnwrap(object["xmp_export"] as? [String: Any])
+        let targetPath = try XCTUnwrap(block["target_xmp_path"] as? String)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: targetPath))
+        XCTAssertEqual(block["writer_recipe_version"] as? String, OwnedXMPSidecarEngine.writerRecipeVersion)
+        XCTAssertNotNil(block["xmp_sha256"] as? String)
+        XCTAssertNotNil(block["exported_at"] as? String)
+
+        // The stamped sidecar still decodes as a raw sidecar (additive, PW-011).
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        XCTAssertNoThrow(try decoder.decode(RawJSONSidecar.self, from: data))
+    }
 }

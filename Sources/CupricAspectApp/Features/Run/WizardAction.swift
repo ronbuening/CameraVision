@@ -28,12 +28,7 @@ enum WizardAction: String, CaseIterable, Sendable {
     }
 
     /// Milestone gating; a disabled card shows "arrives with <milestone>".
-    var availableMilestone: String? {
-        switch self {
-        case .analyze, .normalize: nil
-        case .write, .apply: "M7"
-        }
-    }
+    var availableMilestone: String? { nil }
 
     var isAvailable: Bool { availableMilestone == nil }
 
@@ -75,9 +70,10 @@ struct Step2ActionView: View {
                 Text("Already have a saved plan?")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(theme.textFaint)
-                Text("Apply a normalization session → arrives with M7")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(theme.textFaint.opacity(0.7))
+                Button("Apply a normalization session →") { selection = .apply }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(theme.accent.accent)
                 Spacer()
             }
             .padding(.top, 16)
