@@ -56,7 +56,8 @@ Small Core additions the GUI needs. Each follows AGENTS.md rules (reusable behav
 - Store Core's `Codable` documents as JSON blobs in the columns above rather than exploding every field into columns; index only what the UI filters on (asset path, state, error code, session id).
 - Migration policy per NFR4-007: forward migrations automatic, newer-schema refusal with clear message, destructive migration only after a completed file-level backup of the DB.
 - Every asset state change is one transaction (NFR4-004).
-- **Done when:** unit tests cover round-tripping each stored Core type, migration forward from an empty v0 file, and newer-version refusal (AC4-015).
+- Retention mechanics (FR4-004a–c): cascading forget-folder delete as one transaction (foreign keys with `ON DELETE CASCADE` where safe, explicit deletes elsewhere); age-based prune of the five history tables that exempts, per asset, the latest sidecar snapshot, latest export action, and all records change-detection still needs; `VACUUM` (or incremental auto-vacuum) after large deletions, off the main actor. The UI for these arrives in M2/M11 — M1 ships the data-layer operations and their tests.
+- **Done when:** unit tests cover round-tripping each stored Core type, migration forward from an empty v0 file, newer-version refusal (AC4-015), and forget/prune/compaction including AC4-024's exemptions.
 
 ### M2 — Folder import and asset queue (FR4-007, FR4-011, AC4-001)
 
@@ -64,7 +65,8 @@ Small Core additions the GUI needs. Each follows AGENTS.md rules (reusable behav
 - Scan via `ImageScanner`, create asset rows, compute `SourceIdentity` off the main actor, honor same-base-name grouping metadata for later export.
 - Implement the FR4-011 state machine exactly (the 13 listed states) as a DB-backed enum; failed states carry `SidecarError` code + message and are filterable by code.
 - Queue list UI: virtualized table with state, filename, error-code filter.
-- **Done when:** importing a mixed RAW/JPEG folder produces asset rows in `discovered` → `source verified` states with progress shown, and re-import is idempotent.
+- "Forget folder…" action on imported roots (FR4-004a), gated on a completed session export or an explicit confirmation that names the lost review history and anti-resurrection memory; calls the M1 forget + compaction operations.
+- **Done when:** importing a mixed RAW/JPEG folder produces asset rows in `discovered` → `source verified` states with progress shown, re-import is idempotent, and AC4-023 passes.
 
 ### M3 — Thumbnails and previews (FR4-013, FR4-014, FR4-039 groundwork)
 
@@ -129,6 +131,7 @@ Small Core additions the GUI needs. Each follows AGENTS.md rules (reusable behav
 ### M11 — Scale, polish, release evidence (FR4-039, AC4-014, remaining NFRs)
 
 - Real 5,000-image session benchmark: scrolling, filtering, selection latency; batched DB writes; profiling pass with Instruments.
+- Retention at scale: Settings exposes the history retention window (FR4-004b, default 180 days); prune + vacuum measured on the 5,000-image session (no main-actor stalls); AC4-024 verified against a session with events aged past the window.
 - Provenance completeness audit (NFR4-005); conservative-defaults review (NFR4-006); privacy audit — nothing uploads (NFR4-001/002).
 - Record release evidence following the `agent_docs/release-evidence/` pattern.
 - **Done when:** every AC4-001…AC4-020 has a recorded pass or an explicit deferral note.

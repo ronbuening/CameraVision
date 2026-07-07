@@ -21,6 +21,7 @@ This revision adopts the CupricAspect visual design (Claude Design handoff bundl
 2. New interface-shell and appearance requirements FR4-040 through FR4-045 (Section 13): dual Wizard/Studio shells, theme and accent system, the aperture brand/progress component, and reduce-motion behavior.
 3. Where the design prototypes and this document diverge, the resolutions in design doc Section 8.2 are binding — notably the existing-sidecar control is Skip/Overwrite/Fail (Core `ExistingPolicy`) in both shells, and every prototype count, rate, filename, and thumbnail is sample data to be replaced by real pipeline state.
 4. The design prototypes cover the primary happy-path surfaces only. All other surfaces required by this document (asset queue and state machine, vocabulary editor, external-change and malformed-XMP states, dry-run change plans, compatibility reports) remain required and shall be built with the same design tokens (design doc Section 8.3).
+5. Data-retention requirements FR4-004a–c and AC4-023/024 (added in this revision): per-folder forget, age-based pruning of the append-only history tables with change-detection records exempt, and post-deletion compaction. The working database is intentionally append-heavy — provenance-driven reprocessing (FR4-012) and external-change memory (FR4-020a, FR4-030a–e) require history — so growth is bounded by explicit policy rather than left unbounded.
 
 ## 0.0 Changes from v0.2 (retained)
 
@@ -89,6 +90,12 @@ FR4-002 - All processing shall be performed by `AISidecarCore`; the GUI target c
 FR4-003 - The GUI shall use a local SQLite database as working state, accessed through a thin data layer owned by the project. No heavyweight ORM shall be used in the MVP.
 
 FR4-004 - The database shall store assets, source identity hashes, source-resolution state, sidecar target paths, sidecar content hashes, sidecar mtimes, `XMPMetadataSnapshot` records, `XMPUnmanagedContentFingerprint` records, derivative records, model runs, tag candidates, approved tags, rejected tags, deferred tags, vocabulary entries, normalization sessions, export actions, review actions, external-change events, backup paths, validation results, engine versions, and writer recipe versions.
+
+FR4-004a - The user shall be able to "forget" an imported root folder: delete its assets and all dependent rows (snapshots, candidates, reviews, model runs, events, export actions, validation results) in one transaction. Forgetting shall require either a completed session export in the NFR4-008 format or an explicit confirmation that names what is lost — review history and the external-change memory that prevents keyword resurrection (FR4-020a) for that folder. Forgetting shall never modify or delete image files, sidecars, or sidecar backups on disk.
+
+FR4-004b - The append-only history tables (`model_runs`, `review_actions`, `export_actions`, `external_change_events`, `validation_results`) shall be prunable by age with a user-configurable retention window (default 180 days). Pruning shall always retain, per asset and regardless of age: the most recent sidecar snapshot, the most recent export action, and every record still required for external-change detection (FR4-030a–e) and non-resurrection (FR4-020a). Current review decisions, tag candidates for not-yet-exported work, normalization sessions, and vocabulary entries are never auto-pruned.
+
+FR4-004c - After a forget or prune deletes a substantial number of rows, the data layer shall compact the database (SQLite `VACUUM` or incremental auto-vacuum) off the main actor, so on-disk size tracks live data.
 
 FR4-005 - The GUI shall treat XMP sidecars as export artifacts, not as the only working memory. The database is the working truth between sessions; the current sidecar on disk is the interchange truth; reconciling the two is required before export.
 
@@ -293,6 +300,10 @@ AC4-018 - Exporting a same-base-name RAW+JPEG group produces exactly one sidecar
 AC4-019 - The shipped GUI can export sidecars without ExifTool installed.
 
 AC4-020 - Manual metadata refresh detects changed, added, deleted, malformed, and missing sidecars without running image analysis.
+
+AC4-023 - Forgetting a folder removes its rows in one transaction, leaves every other folder's state and all on-disk image/sidecar files untouched, shrinks the database file after compaction, and a subsequent re-import of that folder behaves as a first import. The forget action is blocked until a session export completes or the user explicitly confirms the described loss. (AC4-021/022 are in Section 13.)
+
+AC4-024 - After pruning history older than the retention window, AC4-009 external-change detection and keyword non-resurrection still pass for an asset whose relevant events predate the window.
 
 ## 12. Future Groundwork Beyond the GUI MVP
 
