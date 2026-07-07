@@ -12,15 +12,27 @@ enum AppInfo {
 /// and working appearance/shell controls. Feature milestones (M1+) replace
 /// this as the shells' real content arrives.
 struct AboutView: View {
-    @AppStorage(PreferenceKeys.nonlinear) private var nonlinear = false
+    var showsCloseButton = false
+
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @AppStorage(PreferenceKeys.accent) private var accentChoice: AccentChoice = .copper
     @Environment(\.cvTheme) private var theme
+    @Environment(\.dismiss) private var dismiss
 
     @State private var apertureRunning = false
 
     var body: some View {
         VStack(spacing: 0) {
+            if showsCloseButton {
+                HStack {
+                    Spacer()
+                    Button("Close") { dismiss() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(theme.textDim)
+                }
+                .padding(EdgeInsets(top: 14, leading: 16, bottom: 0, trailing: 16))
+            }
             Spacer()
 
             ApertureView(size: 96, running: apertureRunning, spin: true)
@@ -120,15 +132,17 @@ struct AboutView: View {
                     Text("Nonlinear UI")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(theme.text)
-                    Text(nonlinear ? "Studio — jump freely between commands." : "Wizard — guided step-by-step.")
+                    Text("Studio layout — coming soon.")
                         .font(.system(size: 11))
                         .foregroundStyle(theme.textFaint)
                 }
                 Spacer()
-                Toggle("", isOn: $nonlinear)
+                // Studio ships in milestone M9 (FR4-040 v0.6 MVP scoping);
+                // until then the preference is inert and the switch disabled.
+                Toggle("", isOn: .constant(false))
                     .toggleStyle(.switch)
                     .labelsHidden()
-                    .tint(theme.accent.accent)
+                    .disabled(true)
             }
         }
         .padding(16)

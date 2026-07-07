@@ -55,6 +55,13 @@ let package = Package(
             ]
         ),
         .testTarget(
+            name: "CupricAspectAppTests",
+            dependencies: ["CupricAspectApp"],
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency")
+            ]
+        ),
+        .testTarget(
             name: "AISidecarCoreTests",
             dependencies: ["AISidecarCore"],
             resources: [

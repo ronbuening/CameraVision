@@ -40,6 +40,9 @@ Small Core additions the GUI needs. Each follows AGENTS.md rules (reusable behav
 **CORE-4 — `xmp_export` block in `.ai.json` (FR4-049).** The Phase 2/3 export pipelines, on each successful per-asset XMP write, update that asset's `.ai.json` with an additive optional `xmp_export` block: target path, written-XMP content hash, writer recipe version, engine version, timestamp. Additive per PW-011/012 (older readers unaffected); written atomically with the pipelines' existing temp-file/rename discipline; analyze paths never write it. Applies identically to CLI and GUI exports.
 *Acceptance:* unit tests prove the block appears after export and round-trips through the raw-sidecar reader; pre-CORE-4 `.ai.json` files still parse; analyze runs never produce the block; `swift test` passes.
 
+**CORE-5 — Discovery-only scan ✅ (completed 2026-07-06).** `ImageScanner.inventory(inputPath:recursive:)` returns `ScanInventory` entries (path, relative path, name, extension, size, mtime, detected type) plus the usual recoverable errors, sharing the same visibility/ignore/supported-type rules as `scan` but computing no `SourceIdentity` — the M1 lazy-identity policy needs listing without hashing. `scan` is now built on the same discovery pass, so the two cannot disagree.
+*Acceptance (met):* inventory/scan parity, non-recursive exclusion, single-file input, and unsupported-file error tests in `ImageScannerInventoryTests`; full suite unchanged.
+
 **CORE-3 — Pause/resume clarification (no Core change expected).** FR4-010 requires pause/resume. `InterruptionMonitor` supports graceful *stop*; "pause" is a GUI-level job-queue concern: run work in bounded slices (e.g., N assets per pipeline invocation) and simply not schedule the next slice while paused. Verify slicing works: an `AnalyzePipeline.run` over an explicit file list of N assets must be resumable by calling again with the remaining list (`--existing skip` semantics already support this). Document the pattern in the GUI job engine.
 *Acceptance:* a written design note in the GUI target plus an integration test running two slices back-to-back with identical results to one full run.
 
@@ -60,7 +63,7 @@ Milestones M1–M8 are **sidecar-only** (FR4-046) and **Wizard-only** (FR4-040 M
 
 Per-milestone **Not in this milestone** lines are binding scope limits — when tempted to build beyond them, stop.
 
-### M1 — Folder import and asset queue, sidecar-derived (FR4-007, FR4-011 in-memory form, FR4-049 read side, FR4-050, AC4-001, AC4-028)
+### M1 — Folder import and asset queue, sidecar-derived ✅ (completed 2026-07-06; FR4-007, FR4-011 in-memory form, FR4-049 read side, FR4-050, AC4-001, AC4-028)
 
 - Folder picker (multi-select) plus drop target per design doc §6 Step 1; security-scoped access if sandboxed later; always pass absolute paths into Core.
 - Scan via `ImageScanner`; honor same-base-name grouping metadata for later export.
@@ -80,6 +83,8 @@ Per-milestone **Not in this milestone** lines are binding scope limits — when 
 - Code changes from review decisions land here: single window (FR4-050 — `Window` scene, not `WindowGroup`) and the disabled "coming soon" Studio toggle (FR4-040).
 - **Not in this milestone:** no analysis runs, no thumbnails, no `SourceIdentity` eager hashing, no persistence of any kind.
 - **Done when:** importing a mixed RAW/JPEG folder shows scan progress and a populated queue; re-import is idempotent; relaunching rebuilds the same queue from disk; a pre-existing XMP renders "XMP present (external)" (AC4-028 read side); no database file exists (AC4-025 groundwork).
+
+*Status: implemented — `Features/Import/` (`AssetQueue.swift` derivation + `FolderImportModel` + `Step1PhotosView`), Wizard step rail/footer in `Shells/WizardShellView.swift`, derivation tests in `Tests/CupricAspectAppTests`. Verified against a fixture folder exercising every derived state, including the AC4-028 external-XMP case. A `CUPRIC_IMPORT_PATH` environment hook auto-imports a folder for dev/UI-test launches.*
 
 ### M2 — Analysis job engine (FR4-008, FR4-009, FR4-010, AC4-002)
 

@@ -6,7 +6,9 @@ struct CupricAspectApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        WindowGroup {
+        // Single-window app (FR4-050): `Window`, not `WindowGroup`, so ⌘N
+        // cannot open a second window with divergent in-memory review state.
+        Window("CupricAspect", id: "main") {
             RootShellView()
         }
         .windowStyle(.hiddenTitleBar)

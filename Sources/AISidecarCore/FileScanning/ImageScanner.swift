@@ -5,6 +5,11 @@ import Foundation
 /// The scanner implements FR1-001 through FR1-006b. It treats unsupported
 /// visible files as recoverable scan errors so a folder batch can continue, but
 /// missing input roots fail because there is no batch to recover.
+///
+/// Two entry points share one discovery pass: `scan` computes each image's
+/// `SourceIdentity` (the Phase 1 contract), while `inventory` stops at file
+/// metadata so interactive consumers can list large folders without hashing
+/// (CORE-5; identity is computed later, only when a pipeline needs it).
 public struct ImageScanner {
     private let fileManager: FileManager
 
@@ -22,6 +27,73 @@ public struct ImageScanner {
         recursive: Bool,
         identityPolicy: SourceIdentityPolicy
     ) throws -> ScanResult {
+        let discovered = try discover(inputPath: inputPath, recursive: recursive)
+
+        var images: [SourceImage] = []
+        var errors = discovered.errors
+        for entry in discovered.entries {
+            autoreleasepool {
+                do {
+                    let identity = try SourceIdentityCalculator.compute(
+                        for: URL(fileURLWithPath: entry.path),
+                        policy: identityPolicy,
+                        fileManager: fileManager
+                    )
+                    images.append(
+                        SourceImage(
+                            path: entry.path,
+                            relativePath: entry.relativePath,
+                            fileName: entry.fileName,
+                            fileExtension: entry.fileExtension,
+                            fileSize: entry.fileSize,
+                            modifiedAt: entry.modifiedAt,
+                            detectedType: entry.detectedType,
+                            identity: identity
+                        )
+                    )
+                } catch {
+                    errors.append(metadataOrIdentityError(path: entry.path, relativePath: entry.relativePath, error: error))
+                }
+            }
+        }
+
+        let sorted = sortedScan(images: images, errors: errors)
+        return ScanResult(
+            inputPath: discovered.inputPath,
+            scanRoot: discovered.scanRoot,
+            recursive: recursive,
+            identityPolicy: identityPolicy,
+            images: sorted.images,
+            errors: sorted.errors
+        )
+    }
+
+    /// Discovery-only variant of `scan`: same visibility, ignore, and
+    /// supported-type rules, no identity computation (CORE-5).
+    public func inventory(
+        inputPath: String,
+        recursive: Bool
+    ) throws -> ScanInventory {
+        let discovered = try discover(inputPath: inputPath, recursive: recursive)
+        return ScanInventory(
+            inputPath: discovered.inputPath,
+            scanRoot: discovered.scanRoot,
+            recursive: recursive,
+            entries: discovered.entries,
+            errors: discovered.errors
+        )
+    }
+
+    // MARK: - Shared discovery pass
+
+    private struct Discovery {
+        var inputPath: String
+        var scanRoot: String
+        var entries: [ScanInventoryEntry]
+        var errors: [ScanErrorRecord]
+    }
+
+    private func discover(inputPath: String, recursive: Bool) throws -> Discovery {
         let inputURL = absoluteURL(for: inputPath)
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: inputURL.path, isDirectory: &isDirectory) else {
@@ -29,69 +101,32 @@ public struct ImageScanner {
         }
 
         if isDirectory.boolValue {
-            return try scanDirectory(inputURL, recursive: recursive, identityPolicy: identityPolicy)
+            let root = inputURL.standardizedFileURL
+            let collected = try discoverDirectoryContents(root, recursive: recursive)
+            let sorted = sortedDiscovery(entries: collected.entries, errors: collected.errors)
+            return Discovery(inputPath: root.path, scanRoot: root.path, entries: sorted.entries, errors: sorted.errors)
         }
 
-        return try scanFileInput(inputURL, recursive: recursive, identityPolicy: identityPolicy)
-    }
-
-    private func scanDirectory(
-        _ root: URL,
-        recursive: Bool,
-        identityPolicy: SourceIdentityPolicy
-    ) throws -> ScanResult {
-        let root = root.standardizedFileURL
-        let scanned = try scanDirectoryContents(root, recursive: recursive, identityPolicy: identityPolicy)
-        return ScanResult(
-            inputPath: root.path,
-            scanRoot: root.path,
-            recursive: recursive,
-            identityPolicy: identityPolicy,
-            images: scanned.images,
-            errors: scanned.errors
-        )
-    }
-
-    private func scanFileInput(
-        _ fileURL: URL,
-        recursive: Bool,
-        identityPolicy: SourceIdentityPolicy
-    ) throws -> ScanResult {
-        let fileURL = fileURL.standardizedFileURL
+        let fileURL = inputURL.standardizedFileURL
         let root = fileURL.deletingLastPathComponent()
         // Direct hidden or sidecar inputs follow the same FR1-005 ignore rule
         // as folder contents: they are not images and are not batch failures.
         guard !shouldIgnore(url: fileURL, root: root) else {
-            return ScanResult(
-                inputPath: fileURL.path,
-                scanRoot: root.path,
-                recursive: recursive,
-                identityPolicy: identityPolicy,
-                images: [],
-                errors: []
-            )
+            return Discovery(inputPath: fileURL.path, scanRoot: root.path, entries: [], errors: [])
         }
 
-        var images: [SourceImage] = []
+        var entries: [ScanInventoryEntry] = []
         var errors: [ScanErrorRecord] = []
-        scanCandidate(fileURL, root: root, identityPolicy: identityPolicy, images: &images, errors: &errors)
-        let scanned = sortedScan(images: images, errors: errors)
-        return ScanResult(
-            inputPath: fileURL.path,
-            scanRoot: root.path,
-            recursive: recursive,
-            identityPolicy: identityPolicy,
-            images: scanned.images,
-            errors: scanned.errors
-        )
+        discoverCandidate(fileURL, root: root, entries: &entries, errors: &errors)
+        let sorted = sortedDiscovery(entries: entries, errors: errors)
+        return Discovery(inputPath: fileURL.path, scanRoot: root.path, entries: sorted.entries, errors: sorted.errors)
     }
 
-    private func scanDirectoryContents(
+    private func discoverDirectoryContents(
         _ root: URL,
-        recursive: Bool,
-        identityPolicy: SourceIdentityPolicy
-    ) throws -> (images: [SourceImage], errors: [ScanErrorRecord]) {
-        var images: [SourceImage] = []
+        recursive: Bool
+    ) throws -> (entries: [ScanInventoryEntry], errors: [ScanErrorRecord]) {
+        var entries: [ScanInventoryEntry] = []
         var errors: [ScanErrorRecord] = []
 
         if recursive {
@@ -105,20 +140,14 @@ public struct ImageScanner {
 
             for case let url as URL in enumerator {
                 let shouldSkipDescendants = autoreleasepool {
-                    scanIfVisibleFile(
-                        url,
-                        root: root,
-                        identityPolicy: identityPolicy,
-                        images: &images,
-                        errors: &errors
-                    )
+                    discoverIfVisibleFile(url, root: root, entries: &entries, errors: &errors)
                 }
                 if shouldSkipDescendants {
                     enumerator.skipDescendants()
                 }
             }
 
-            return sortedScan(images: images, errors: errors)
+            return (entries, errors)
         }
 
         let urls = try fileManager.contentsOfDirectory(
@@ -129,24 +158,17 @@ public struct ImageScanner {
 
         for url in urls {
             _ = autoreleasepool {
-                scanIfVisibleFile(
-                    url,
-                    root: root,
-                    identityPolicy: identityPolicy,
-                    images: &images,
-                    errors: &errors
-                )
+                discoverIfVisibleFile(url, root: root, entries: &entries, errors: &errors)
             }
         }
 
-        return sortedScan(images: images, errors: errors)
+        return (entries, errors)
     }
 
-    private func scanIfVisibleFile(
+    private func discoverIfVisibleFile(
         _ candidate: URL,
         root: URL,
-        identityPolicy: SourceIdentityPolicy,
-        images: inout [SourceImage],
+        entries: inout [ScanInventoryEntry],
         errors: inout [ScanErrorRecord]
     ) -> Bool {
         let candidate = candidate.standardizedFileURL
@@ -160,15 +182,14 @@ public struct ImageScanner {
             return false
         }
 
-        scanCandidate(candidate, root: root, identityPolicy: identityPolicy, images: &images, errors: &errors)
+        discoverCandidate(candidate, root: root, entries: &entries, errors: &errors)
         return false
     }
 
-    private func scanCandidate(
+    private func discoverCandidate(
         _ candidate: URL,
         root: URL,
-        identityPolicy: SourceIdentityPolicy,
-        images: inout [SourceImage],
+        entries: inout [ScanInventoryEntry],
         errors: inout [ScanErrorRecord]
     ) {
         let relativePath = relativePath(for: candidate, root: root)
@@ -192,40 +213,39 @@ public struct ImageScanner {
 
         do {
             let attributes = try fileManager.attributesOfItem(atPath: candidate.path)
-            let identity = try SourceIdentityCalculator.compute(
-                for: candidate,
-                policy: identityPolicy,
-                fileManager: fileManager
-            )
-            images.append(
-                SourceImage(
+            entries.append(
+                ScanInventoryEntry(
                     path: candidate.path,
                     relativePath: relativePath,
                     fileName: candidate.lastPathComponent,
                     fileExtension: candidate.pathExtension,
                     fileSize: fileSize(from: attributes),
                     modifiedAt: modificationDate(from: attributes),
-                    detectedType: type,
-                    identity: identity
+                    detectedType: type
                 )
             )
         } catch {
-            // A readable folder may still contain a file whose metadata or
-            // identity cannot be read; keep the batch recoverable.
-            errors.append(
-                ScanErrorRecord(
-                    path: candidate.path,
-                    relativePath: relativePath,
-                    error: SidecarError(
-                        code: .validationFailed,
-                        stage: .scan,
-                        message: "Unable to read source image metadata or identity for \(relativePath): \(error.localizedDescription)",
-                        recoverable: true
-                    )
-                )
-            )
+            // A readable folder may still contain a file whose metadata cannot
+            // be read; keep the batch recoverable. Message matches the scan
+            // path's combined wording so `scan` output is unchanged.
+            errors.append(metadataOrIdentityError(path: candidate.path, relativePath: relativePath, error: error))
         }
     }
+
+    private func metadataOrIdentityError(path: String, relativePath: String, error: Error) -> ScanErrorRecord {
+        ScanErrorRecord(
+            path: path,
+            relativePath: relativePath,
+            error: SidecarError(
+                code: .validationFailed,
+                stage: .scan,
+                message: "Unable to read source image metadata or identity for \(relativePath): \(error.localizedDescription)",
+                recoverable: true
+            )
+        )
+    }
+
+    // MARK: - Sorting and path helpers
 
     private func sortedScan(
         images: [SourceImage],
@@ -233,6 +253,16 @@ public struct ImageScanner {
     ) -> (images: [SourceImage], errors: [ScanErrorRecord]) {
         (
             images: images.sorted { comparePaths($0.relativePath, $1.relativePath) },
+            errors: errors.sorted { comparePaths($0.relativePath ?? $0.path, $1.relativePath ?? $1.path) }
+        )
+    }
+
+    private func sortedDiscovery(
+        entries: [ScanInventoryEntry],
+        errors: [ScanErrorRecord]
+    ) -> (entries: [ScanInventoryEntry], errors: [ScanErrorRecord]) {
+        (
+            entries: entries.sorted { comparePaths($0.relativePath, $1.relativePath) },
             errors: errors.sorted { comparePaths($0.relativePath ?? $0.path, $1.relativePath ?? $1.path) }
         )
     }
