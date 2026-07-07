@@ -45,17 +45,48 @@ struct ApertureView: View {
     /// Breathing cycle length in seconds.
     private static let cycle: Double = 3.8
 
-    /// Outer→inner gradient stops per blade, from Aperture.jsx COLORS.
-    private static let bladeColors: [(outer: Color, inner: Color)] = [
-        (Color(hex: 0xF0AA40), Color(hex: 0x9C5018)),
-        (Color(hex: 0xB87A26), Color(hex: 0x4E3220)),
-        (Color(hex: 0xA86C1E), Color(hex: 0x42281A)),
-        (Color(hex: 0xBA7620), Color(hex: 0x503018)),
-        (Color(hex: 0xD08830), Color(hex: 0x743610)),
-        (Color(hex: 0xFFD060), Color(hex: 0xB05E20)),
-        (Color(hex: 0xF8BC50), Color(hex: 0xA85820)),
-        (Color(hex: 0xECA034), Color(hex: 0x8A4414)),
+    /// Outer→inner gradient stops by *world* position, from Aperture.jsx
+    /// COLORS. The palette encodes a fixed light source (brightest entries
+    /// around the upper-left, matching the specular highlight): blades sample
+    /// it by their current world angle, so the lighting stays put while the
+    /// blades rotate underneath it.
+    private static let bladeColors: [(outer: UInt32, inner: UInt32)] = [
+        (0xF0AA40, 0x9C5018),
+        (0xB87A26, 0x4E3220),
+        (0xA86C1E, 0x42281A),
+        (0xBA7620, 0x503018),
+        (0xD08830, 0x743610),
+        (0xFFD060, 0xB05E20),
+        (0xF8BC50, 0xA85820),
+        (0xECA034, 0x8A4414),
     ]
+
+    /// Palette colors for a blade whose world angle is `degrees`, blending
+    /// adjacent slots so rotation never pops between palette entries.
+    private static func litColors(worldAngleDegrees degrees: CGFloat) -> (outer: Color, inner: Color) {
+        let slots = CGFloat(bladeColors.count)
+        var position = (degrees / spacing).truncatingRemainder(dividingBy: slots)
+        if position < 0 { position += slots }
+        let lower = Int(position) % bladeColors.count
+        let upper = (lower + 1) % bladeColors.count
+        let fraction = Double(position - position.rounded(.down))
+        return (
+            outer: lerp(bladeColors[lower].outer, bladeColors[upper].outer, fraction),
+            inner: lerp(bladeColors[lower].inner, bladeColors[upper].inner, fraction)
+        )
+    }
+
+    private static func lerp(_ from: UInt32, _ to: UInt32, _ t: Double) -> Color {
+        func channel(_ value: UInt32, _ shift: UInt32) -> Double {
+            Double((value >> shift) & 0xFF)
+        }
+        return Color(
+            .sRGB,
+            red: (channel(from, 16) + (channel(to, 16) - channel(from, 16)) * t) / 255.0,
+            green: (channel(from, 8) + (channel(to, 8) - channel(from, 8)) * t) / 255.0,
+            blue: (channel(from, 0) + (channel(to, 0) - channel(from, 0)) * t) / 255.0
+        )
+    }
 
     /// Blade closure over one breathing cycle: hold open, ease-in close,
     /// hold closed, ease-out reopen. Phase boundaries from Aperture.jsx.
@@ -182,7 +213,9 @@ struct ApertureView: View {
                 blade.addLine(to: point(radius: innerRadius, degrees: theta - 3))
                 blade.closeSubpath()
 
-                let colors = bladeColors[index]
+                // The layer is rotated by `twist`, so this blade's world
+                // angle is theta + twist: sample the fixed-light palette there.
+                let colors = litColors(worldAngleDegrees: theta + CGFloat(twist))
                 layer.fill(
                     blade,
                     with: .linearGradient(

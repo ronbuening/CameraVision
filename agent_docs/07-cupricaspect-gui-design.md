@@ -139,7 +139,7 @@ Geometry (in a 160×160 design space, center 80,80 — scale to `size`):
 
 - Dark disc r=74, radial background `#2A1408 → #0A0500`, 1.5 stroke `#1E0C04` at 85% opacity.
 - Behind the blades, an **eye**: iris ellipse rx=43 ry=34 with a green radial gradient (`#C8F0A0` 0% → `#68CE64` 14% → `#389050` 32% → `#256040` 56% → `#184A2C` 77% → `#2E3C1C` 90% → `#060A04` 100%, focal offset toward 42%,37%), a limbus vignette (transparent to 94% black at the rim), pupil circle r=16 (`#1A1A1A → #010101`), and a white specular highlight ellipse rx=5.5 ry=3.8 at (73.5,73.5) rotated −40°, 88% opacity.
-- 8 aperture blades. Blade i sits at θ=i·45°: outer arc on r=72 from θ−22.5° to θ+22.5°, then to inner radius at θ+42°, then inner radius at θ−3°, closed. Each blade has its own copper linear gradient (outer→inner): `#F0AA40→#9C5018`, `#B87A26→#4E3220`, `#A86C1E→#42281A`, `#BA7620→#503018`, `#D08830→#743610`, `#FFD060→#B05E20`, `#F8BC50→#A85820`, `#ECA034→#8A4414`; 0.7 stroke `#1A0A04`. A faint octagon outline (`#D89030`, 0.8 stroke, 35% opacity) traces the inner opening.
+- 8 aperture blades. Blade i sits at θ=i·45°: outer arc on r=72 from θ−22.5° to θ+22.5°, then to inner radius at θ+42°, then inner radius at θ−3°, closed. Copper linear gradients (outer→inner) form a fixed-light palette by world position: `#F0AA40→#9C5018`, `#B87A26→#4E3220`, `#A86C1E→#42281A`, `#BA7620→#503018`, `#D08830→#743610`, `#FFD060→#B05E20` (brightest, upper-left — matching the specular highlight), `#F8BC50→#A85820`, `#ECA034→#8A4414`; 0.7 stroke `#1A0A04`. **Lighting is world-fixed (amended 2026-07-07, supersedes the prototype):** a blade samples the palette by its *current world angle* (interpolating adjacent entries), so the light source stays put while the blades rotate underneath it — the prototype rotated the gradients with the blades, which reads as the light spinning. A faint octagon outline (`#D89030`, 0.8 stroke, 35% opacity) traces the inner opening.
 - Inner radius: open = 46, fully closed = 2.5.
 
 Animation:
@@ -186,7 +186,7 @@ Footer (always visible): "‹ Back" bordered button (hidden-ish at 35% opacity a
 
 - Centered column: 196px aperture (running, spinning), title per action ("Analyzing images…", "Analyzing & preparing XMP…", "Analyzing & normalizing…", "Applying session…"), current filename in mono.
 - Progress bar (width ~460px): label row "{done} / {total}" and "{pct}%" in accent; 9px bar, accent gradient with a 34px barber-pole scroll (0.7s loop; static under reduce-motion).
-- Stat row (11.5, faint): "Elapsed {t}" · rate (e.g. "2.4 img/s") · model tag.
+- Stat row (11.5, faint): "Elapsed {t}" · rate in seconds per image (e.g. "3.5 s/img"; amended 2026-07-07 from the prototype's img/s) · model tag.
 - "Cancel" bordered button (danger border/text on hover). Cancel returns to step 3. Back is disabled during this step; primary shows disabled "Working…".
 - Data source: Core progress hooks (plan CORE-1); done/total/current file/elapsed/rate come from real pipeline progress records.
 
@@ -299,7 +299,7 @@ Same sections as Wizard Settings — including the ADVANCED section above — pl
 4. **Thumbnails**: prototypes fake them with gradients. Use real derivatives from the derivative cache (plan M3).
 5. **"staging copy" caption** (Studio Analyze output card) overstates: analyze writes `.ai.json` sidecars to the output tree; it never modifies originals. Keep the reassurance, fix the wording: "Sidecars are written to the output folder — your originals are never modified."
 6. **Traffic-light window buttons** in the prototypes are decorative. Use native macOS window chrome; keep the 46px toolbar styling.
-7. **Rate figure** ("2.4 img/s") is hardcoded in the prototype stat rows; compute a smoothed real rate.
+7. **Rate figure** ("2.4 img/s") is hardcoded in the prototype stat rows; compute a smoothed real rate, displayed as **seconds per image** (amended 2026-07-07).
 8. **Progress totals** in Studio's log well and progress row must reflect the actual pipeline stage (scan/render/model/write), fed by CORE-1 progress hooks.
 9. **Status dots poll nothing.** The "connected"/"verified"/"ready" indicators reflect the most recent explicit check — at launch, before each run, or on manual refresh (FR4-051). No timer-based background polling; a stale check renders as stale, not as failure or success.
 10. **The normalize decision table is void (v0.3, binding).** The prototypes' KEYWORD/FREQUENCY/DECISION table with Keep / Merge → / Rename → / Drop dropdowns implies per-keyword human decisions the Phase 3 engine does not have — normalization is fully automatic and deterministic, and `apply-session` rejects decision-affecting flags. Build the **Normalization Inspector + session context panel** specified in Sections 6/7 instead (requirements FR4-026, FR4-052–055). "Merge/rename" is in reality a vocabulary edit (deferred to Section 12); "drop" is vocabulary policy. The prototypes' Step 2 card copy "merge, rename, drop" becomes "reconcile keywords batch-wide under your vocabulary and consensus rules".

@@ -112,7 +112,7 @@ struct Step4WorkingView: View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
             HStack(spacing: 26) {
                 stat("Elapsed", elapsedText)
-                stat("Rate", runModel.rate > 0 ? String(format: "%.1f img/s", runModel.rate) : "—")
+                stat("Rate", runModel.secondsPerImage > 0 ? String(format: "%.1f s/img", runModel.secondsPerImage) : "—")
                 stat("Model", modelText)
             }
         }

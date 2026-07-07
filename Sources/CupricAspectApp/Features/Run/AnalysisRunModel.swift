@@ -98,11 +98,11 @@ final class AnalysisRunModel {
 
     var isRunning: Bool { phase == .running || phase == .cancelling }
 
-    /// Smoothed images/second over the run so far.
-    var rate: Double {
+    /// Smoothed seconds per image over the run so far.
+    var secondsPerImage: Double {
         guard let startedAt, writtenCount > 0 else { return 0 }
         let elapsed = Date().timeIntervalSince(startedAt)
-        return elapsed > 0.5 ? Double(writtenCount) / elapsed : 0
+        return elapsed > 0.5 ? elapsed / Double(writtenCount) : 0
     }
 
     func checkPreflight(options: AnalysisOptions, recursive: Bool, outputDir: String?) {

@@ -7,8 +7,16 @@ struct Step1PhotosView: View {
     @Bindable var model: FolderImportModel
     @Environment(\.cvTheme) private var theme
 
-    @State private var pickingSource = false
-    @State private var pickingOutput = false
+    /// One fileImporter per view branch: SwiftUI silently drops all but one
+    /// `.fileImporter` attached to the same view, so both pickers share a
+    /// single presentation keyed by target.
+    enum PickTarget: Identifiable {
+        case source
+        case output
+        var id: Self { self }
+    }
+
+    @State private var pickTarget: PickTarget?
     @State private var displayMode: QueueDisplay = .grid
     @State private var previewRecord: AssetRecord?
     @State private var thumbnails = ThumbnailStore()
@@ -49,11 +57,20 @@ struct Step1PhotosView: View {
             }
         }
         .padding(EdgeInsets(top: 26, leading: 34, bottom: 40, trailing: 34))
-        .fileImporter(isPresented: $pickingSource, allowedContentTypes: [.folder]) { result in
-            if case .success(let url) = result { model.chooseSource(url) }
-        }
-        .fileImporter(isPresented: $pickingOutput, allowedContentTypes: [.folder]) { result in
-            if case .success(let url) = result { model.chooseOutput(url) }
+        .fileImporter(
+            isPresented: Binding(
+                get: { pickTarget != nil },
+                set: { if !$0 { pickTarget = nil } }
+            ),
+            allowedContentTypes: [.folder]
+        ) { result in
+            defer { pickTarget = nil }
+            guard case .success(let url) = result else { return }
+            switch pickTarget {
+            case .source: model.chooseSource(url)
+            case .output: model.chooseOutput(url)
+            case nil: break
+            }
         }
         .sheet(item: $previewRecord) { record in
             AssetPreviewSheet(record: record, outputDir: model.outputFolder?.path)
@@ -64,7 +81,7 @@ struct Step1PhotosView: View {
 
     private var dropZone: some View {
         Button {
-            pickingSource = true
+            pickTarget = .source
         } label: {
             VStack(spacing: 0) {
                 ApertureView(size: 64, running: model.scanning, spin: true)
@@ -117,7 +134,7 @@ struct Step1PhotosView: View {
                 if model.outputFolder != nil {
                     smallButton("Same as input") { model.chooseOutput(nil) }
                 }
-                smallButton("Choose…", filled: true) { pickingOutput = true }
+                smallButton("Choose…", filled: true) { pickTarget = .output }
             }
         }
         .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
