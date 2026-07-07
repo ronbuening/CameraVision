@@ -1,10 +1,11 @@
 # Phase 4 Requirements - GUI Sidecar Tagger MVP
 
-Version: 0.3
-Date: 2026-06-12
-Supersedes: 0.2
+Version: 0.4
+Date: 2026-07-06
+Supersedes: 0.3
 Builds on: Phase 1 Requirements v0.4, Phase 2 Requirements v0.5, Phase 3 Requirements v0.4
-Working name: `SidecarTagger.app`
+App name: `CupricAspect.app` (resolves the former working name `SidecarTagger.app`)
+Visual design basis: `agent_docs/07-cupricaspect-gui-design.md`
 Core library: `AISidecarCore` (shared with the `aisidecar` CLI by construction, per PW-002)
 Minimum deployment target: macOS 15
 Default vision model: `gemma4:26b-a4b-it-qat`
@@ -12,7 +13,16 @@ Primary output artifact: reviewed XMP sidecar files, with a local working databa
 
 This document inherits the Project-Wide Conventions of the Phase 1 requirements and the owned-XMP export/normalization behavior of Phases 2 and 3. They are not restated except where Phase 4 narrows or clarifies their GUI use.
 
-## 0. Changes from v0.2
+## 0. Changes from v0.3
+
+This revision adopts the CupricAspect visual design (Claude Design handoff bundle at `agent_docs/gui-wrapper-for-cameravision/`, extracted into `agent_docs/07-cupricaspect-gui-design.md`).
+
+1. The application is named **CupricAspect**. Wherever this document or the packaging plan says `SidecarTagger.app`, read `CupricAspect.app`. The GUI-only state directory becomes `~/Library/Application Support/CupricAspect/`. Shared `aisidecar` config and derivative-cache paths are unchanged.
+2. New interface-shell and appearance requirements FR4-040 through FR4-045 (Section 13): dual Wizard/Studio shells, theme and accent system, the aperture brand/progress component, and reduce-motion behavior.
+3. Where the design prototypes and this document diverge, the resolutions in design doc Section 8.2 are binding — notably the existing-sidecar control is Skip/Overwrite/Fail (Core `ExistingPolicy`) in both shells, and every prototype count, rate, filename, and thumbnail is sample data to be replaced by real pipeline state.
+4. The design prototypes cover the primary happy-path surfaces only. All other surfaces required by this document (asset queue and state machine, vocabulary editor, external-change and malformed-XMP states, dry-run change plans, compatibility reports) remain required and shall be built with the same design tokens (design doc Section 8.3).
+
+## 0.0 Changes from v0.2 (retained)
 
 This revision updates Phase 4 for the Phase 2/3 decision to use a project-owned XMP sidecar engine instead of ExifTool.
 
@@ -299,6 +309,26 @@ The GUI phase should leave room for:
 - broader XMP namespace editing only when each namespace and field is explicitly scoped;
 - optional external-tool comparison as developer diagnostics, not as shipped runtime behavior;
 - direct plug-in integrations, if later justified.
+
+## 13. Interface Shell and Appearance Requirements (v0.4)
+
+These requirements bind the GUI to the CupricAspect design. Exact tokens, layouts, and per-screen specs live in `agent_docs/07-cupricaspect-gui-design.md`; this section states only the testable behavior.
+
+FR4-040 - The application shall provide two interface shells over the same feature state: a linear **Wizard** (five steps: Photos, What to do, Options, Working, Review) and a nonlinear **Studio** (sidebar navigation: Analyze, Normalize, Write XMP, Apply Prior Session, Settings). Wizard is the first-launch default.
+
+FR4-041 - The shell choice shall be a Settings toggle ("Nonlinear UI"), persisted across launches (`UserDefaults` key `cupricaspect.nonlinear`). Switching shells shall not discard in-flight state: selected folders, chosen action, options, and unexported results survive the switch.
+
+FR4-042 - The application shall support Light, Dark, and Auto themes and three accent palettes (copper — default, amber/"Brass", patina), persisted across launches. Auto shall follow the macOS system appearance and update live when it changes.
+
+FR4-043 - The animated aperture component (design doc Section 5) is the brand mark and the working indicator: idle-open when no job runs; breathing/spinning while a job runs. When the system reduce-motion setting is on, it shall render statically and entrance/progress animations shall be disabled.
+
+FR4-044 - Option controls shall map one-to-one onto existing Core enums (`AnalysisMode`, `ExistingPolicy`, `GPSContextMode`, `XMPPairScope`, `stage_concurrency`); the GUI shall not invent option values that Core does not accept. The existing-sidecar control offers Skip / Overwrite / Fail in both shells.
+
+FR4-045 - Every count, rate, filename, thumbnail, and progress figure shown in the shells shall come from real pipeline, database, or filesystem state; prototype sample data shall not ship.
+
+AC4-021 - Switching Nonlinear UI off→on→off with a folder selected and un-exported review results present loses no state, and the chosen shell is restored after relaunch.
+
+AC4-022 - With macOS reduce-motion enabled, the working screen shows a static aperture and a non-animated progress fill while a batch runs to completion successfully.
 
 ## Reference Basis
 

@@ -5,7 +5,9 @@ Date: 2026-07-06
 Depends on: `agent_docs/phase-4-gui-implementation-plan.md` (app target exists after its M0)
 Audience: junior engineer or Sonnet-level coding agent.
 
-Goal: ship **one artifact** — `SidecarTagger.app` — that contains the GUI, the `aisidecar` CLI, and all resources (prompts, schemas, the 5.8 MB default vocabulary), signed and notarized, delivered as a DMG. Ollama remains an external dependency handled by a first-run experience, not by bundling.
+Goal: ship **one artifact** — `CupricAspect.app` — that contains the GUI, the `aisidecar` CLI, and all resources (prompts, schemas, the 5.8 MB default vocabulary), signed and notarized, delivered as a DMG. Ollama remains an external dependency handled by a first-run experience, not by bundling.
+
+> **Naming and build-system update (2026-07-06, requirements v0.4 / phase-4 plan v0.2):** the app is named **CupricAspect** — read every `SidecarTagger` below as `CupricAspect` (bundle id `com.ronbuening.cupricaspect`, GUI state dir `~/Library/Application Support/CupricAspect/`, WI-4 category unchanged). The GUI is a SwiftPM executable target, not an Xcode project, so WI-1 step 2 becomes: `swift build -c release --product CupricAspect`, then script-assemble the `.app` bundle (`Contents/MacOS/CupricAspect`, `Info.plist`, icon, resource bundles) before the existing codesign/notarize steps. WI-2's resource-bundle relocation test now covers the GUI executable too. This plan gets a full-text revision when packaging work starts.
 
 ## 1. Decisions (with rationale)
 

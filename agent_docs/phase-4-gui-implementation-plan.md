@@ -1,15 +1,18 @@
-# Phase 4 Implementation Plan — GUI Sidecar Tagger MVP
+# Phase 4 Implementation Plan — CupricAspect GUI MVP
 
-Version: 0.1
+Version: 0.2
 Date: 2026-07-06
-Requirements basis: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.3)
+Requirements basis: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.4)
+Visual design basis: `agent_docs/07-cupricaspect-gui-design.md` (v0.1) — read it before building any screen
 Audience: junior engineer or Sonnet-level coding agent, one milestone at a time.
+
+**v0.2 changes:** app renamed `CupricAspect` (design decision, requirements v0.4); the GUI target is a SwiftPM executable target in `Package.swift`, not a separate Xcode project (rationale in Section 1); M0 rewritten and completed — it now includes the design-token theme, the aperture component, and the dual-shell skeleton; feature milestones must render with the design system from doc 07.
 
 This plan turns the Phase 4 requirements into ordered milestones. Requirement IDs (FR4-*, NFR4-*, AC4-*) refer to the requirements doc; read the sections cited by each milestone before implementing it. Do not implement ahead of the milestone order.
 
 ## 1. Approach Summary
 
-- **App:** `SidecarTagger.app`, native SwiftUI, macOS 15 minimum (FR4-001). Working name kept until release naming is decided.
+- **App:** `CupricAspect.app`, native SwiftUI, macOS 15 minimum (FR4-001). Two interface shells over one feature state — linear Wizard (default) and nonlinear Studio — per FR4-040/041 and design doc Sections 2, 6, 7.
 - **All processing stays in `AISidecarCore`** (FR4-002). The GUI target contains presentation, state orchestration, and user interaction only — the same rule AGENTS.md applies to `AISidecarCLI`.
 - **Working state lives in SQLite** (FR4-003/004), accessed through a thin project-owned data layer (no ORM). XMP sidecars are export artifacts; the database is working truth; reconcile before export (FR4-005).
 - **Core readiness (verified 2026-07-06):** the library is already embeddable. All pipeline results and callbacks are `Sendable`; there is no `@MainActor` coupling and no direct printing in Core (the `Logger` sink is injectable, default stderr); cancellation exists via `InterruptionMonitor.requestInterruption()` with between-asset checks; pipelines accept absolute paths so the `currentDirectoryPath` fallbacks never fire. Key entry points:
@@ -18,7 +21,7 @@ This plan turns the Phase 4 requirements into ordered milestones. Requirement ID
   - `XMPExportPipeline.runFromJSON/runResolvedInputs(...) throws -> XMPExportPipelineResult` (supports `writesBatchArtifacts: false`)
   - `ApplySessionPipeline.run(...) throws -> ApplySessionPipelineResult`
   - `OllamaVisionRunner.prepare()` for endpoint/model preflight
-- **Target structure:** a new Xcode app project `SidecarTagger/` at the repo root that depends on the existing local SwiftPM package for `AISidecarCore`. `Package.swift` remains the source of truth for the library and CLI; the Xcode project owns only the app target, assets, and entitlements. (Packaging, signing, and distribution are covered by `agent_docs/06-packaging-single-app-plan.md`.)
+- **Target structure:** a SwiftPM executable target `CupricAspectApp` (product `CupricAspect`) in the existing `Package.swift`, depending on `AISidecarCore`. One build system for library, CLI, and app: `swift build`/`swift test` cover everything from a clean checkout, and no `.xcodeproj` needs generating or maintaining (xcodegen is not part of the toolchain). During development the app runs via `swift run CupricAspect`; the `.app` bundle (Info.plist, icon, entitlements, hardened runtime) is assembled by the packaging build script — `agent_docs/06-packaging-single-app-plan.md` WI-1 changes from `xcodebuild archive` to a script-assembled bundle around the SwiftPM release binary, which its codesign/notarize steps already accommodate.
 
 ## 2. Core Library Prerequisites (do these first, in the SwiftPM package)
 
@@ -35,12 +38,16 @@ Small Core additions the GUI needs. Each follows AGENTS.md rules (reusable behav
 
 ## 3. Milestones
 
-### M0 — App scaffold and decision records
+### M0 — App scaffold, design tokens, aperture, shell skeleton ✅ (completed 2026-07-06)
 
-- Create the Xcode project with the SwiftUI app target (macOS 15), local package dependency on `AISidecarCore`, and hardened-runtime build settings. No sandbox in the MVP development builds (final decision in the packaging plan).
-- App launches to an empty main window with an About box showing the app version and the `AISidecarCore` engine/writer versions (pull from the same constants the CLI uses).
-- Add a `SidecarTagger/AGENTS.md` stub pointing agents at this plan and the requirements doc.
-- **Done when:** app builds and runs from a clean checkout with `xcodebuild -scheme SidecarTagger build`; `swift test` still passes for the package.
+- Add the `CupricAspectApp` executable target (product `CupricAspect`) to `Package.swift`, macOS 15, depending on `AISidecarCore`. No sandbox in MVP development builds (final decision in the packaging plan).
+- Implement the design-token theme from design doc Section 3 (`Theme.swift`): light/dark palettes, the three accent palettes with per-theme variants, resolved theme/accent published to the environment; theme (`light`/`dark`/`auto`) and accent persisted via `@AppStorage`; Auto follows the system appearance live.
+- Implement `ApertureView` per design doc Section 5 (`TimelineView` + `Canvas`): idle-open, running breathing cycle + spin, static under reduce-motion.
+- Root shell switcher per FR4-040/041: `@AppStorage("cupricaspect.nonlinear")` selects Wizard or Studio placeholder shells; both render the 46px title-bar styling, branding, and an About surface showing the app version and Core engine/writer versions (`OwnedXMPSidecarEngine.engineVersion`, `.writerRecipeVersion`).
+- Add a `Sources/CupricAspectApp/AGENTS.md` stub pointing agents at this plan, the requirements doc, and design doc 07.
+- **Done when:** `swift build --product CupricAspect` and `swift run CupricAspect` work from a clean checkout (window shows branding, theme/accent/shell toggles function); `swift test` still passes for the package.
+
+*Status: implemented — see `Sources/CupricAspectApp/`. Subsequent milestones replace the placeholder shell content with real features, styled per design doc 07.*
 
 ### M1 — SQLite data layer and schema v1 (FR4-003, FR4-004, NFR4-004, NFR4-007)
 
@@ -126,31 +133,36 @@ Small Core additions the GUI needs. Each follows AGENTS.md rules (reusable behav
 - Record release evidence following the `agent_docs/release-evidence/` pattern.
 - **Done when:** every AC4-001…AC4-020 has a recorded pass or an explicit deferral note.
 
-## 4. Suggested GUI Target Structure
+## 4. GUI Target Structure
 
 ```
-SidecarTagger/
-├── App/                 SidecarTaggerApp.swift, AppDelegate glue, DI container
+Sources/CupricAspectApp/
+├── App/                 CupricAspectApp.swift (@main), root shell switcher, DI container
+├── DesignSystem/        Theme.swift (tokens, doc 07 §3), ApertureView.swift (§5),
+│                        shared styled controls (segmented, chips, cards) as they emerge
+├── Shells/
+│   ├── Wizard/          step rail, footer nav, the five step screens (doc 07 §6)
+│   └── Studio/          sidebar, run bars, the seven views (doc 07 §7)
 ├── Data/                SQLite wrapper, migrations, repositories (one per table group)
 ├── Jobs/                Job queue actor, pipeline slicing, InterruptionMonitor wiring, progress bridge
-├── Features/
+├── Features/            shell-agnostic feature views/state both shells embed
 │   ├── Import/          folder picker, scan, queue list
 │   ├── Review/          review screen, candidate actions, batch corrections
 │   ├── Vocabulary/      editor, validation surface
 │   ├── Normalization/   session run + decision inspection
 │   ├── Export/          change-plan view, export runner, compatibility reports
-│   └── Settings/        model/endpoint config, cache locations
+│   └── Settings/        model/endpoint config, cache locations, appearance, shell toggle
 └── Support/             formatting, error-code presentation, preview fixtures
 ```
 
-Rules mirror AGENTS.md: anything two features share and any non-presentation logic goes to `AISidecarCore`, not `Support/`.
+Shells are thin: layout, navigation, and chrome only. Feature views and their observable state live in `Features/` and are embedded by both shells (FR4-041 state survival falls out of this). Rules mirror AGENTS.md: anything two features share and any non-presentation logic goes to `AISidecarCore`, not `Support/`.
 
 ## 5. Testing Strategy
 
-- Data layer and job engine: XCTest in the app target, offline, deterministic — same bar as `AISidecarCoreTests`.
+- Data layer and job engine: XCTest in a `CupricAspectAppTests` SwiftPM test target, offline, deterministic — same bar as `AISidecarCoreTests`; runs under plain `swift test`.
 - Pipeline integration: use Core's existing mock runners (`MockVisionModelRunner`, recorded-fixture replay) so GUI tests never need Ollama.
-- UI: XCUITest smoke for the M2/M5/M9 golden paths only; don't chase pixel coverage.
-- Every milestone ends with `swift test` (package) + app test plan green.
+- UI: XCUITest smoke for the M2/M5/M9 golden paths only; don't chase pixel coverage. (XCUITest needs an app bundle — defer wiring it until the packaging script exists; manual golden-path walkthroughs are the interim bar.)
+- Every milestone ends with `swift test` green and `swift build --product CupricAspect` succeeding.
 
 ## 6. Out of Scope (MVP)
 
