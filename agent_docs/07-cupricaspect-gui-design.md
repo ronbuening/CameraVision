@@ -205,7 +205,7 @@ Footer (always visible): "‹ Back" bordered button (hidden-ish at 35% opacity a
 
 Full-window overlay (fades in over the content area) with "‹ Back" + "Settings" header. Sections (cards of rows separated by hairlines):
 
-- **MODEL**: "Vision model tag" (mono well + green "verified" dot), "Ollama endpoint" (mono well + green "connected" dot with halo).
+- **MODEL** (amended v0.8, FR4-057): "Vision model tag" is a **picker** over installed vision-capable Ollama tags (menu in a mono well + refresh button; unavailable configured model flagged in danger text), "Ollama endpoint" is an editable mono field with Apply and a connectivity badge (green "connected" / danger "unreachable"; checked per FR4-051, never polled).
 - **CONFIGURATION** ("— defaults saved to config.json"): Active config file (path + "Load…" + "Reveal"), Default render mode / Default GPS context / Existing sidecars segmented controls, "Derivative cache" row with a "Purge…" button (danger on hover).
 - **APPEARANCE**: Theme (Light/Dark/Auto — "Auto follows your macOS appearance."), Accent color swatches ("Pulled from the CupricAspect palette.").
 - **INTERFACE**: "Nonlinear UI" toggle (Section 2).

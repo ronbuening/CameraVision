@@ -38,8 +38,7 @@ struct WizardShellView: View {
         }
         .background(theme.winBg)
         .sheet(isPresented: $showAbout) {
-            AboutView(showsCloseButton: true)
-                .frame(width: 440, height: 620)
+            SettingsSheet()
         }
         .task {
             runModel.onRecord = { [weak importModel] record in
@@ -54,6 +53,9 @@ struct WizardShellView: View {
             if let rawStep = env["CUPRIC_DEBUG_STEP"], let debugStep = Int(rawStep), (1...5).contains(debugStep) {
                 selectedAction = .analyze
                 step = debugStep
+            }
+            if env["CUPRIC_DEBUG_SETTINGS"] == "1" {
+                showAbout = true
             }
             // FR4-046a: offer recovery of an interrupted review on launch.
             if reviewModel.recoveryAvailable {
