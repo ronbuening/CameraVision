@@ -1,10 +1,12 @@
 # Phase 4 Implementation Plan — CupricAspect GUI MVP
 
-Version: 0.5
+Version: 0.6
 Date: 2026-07-07
-Requirements basis: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.7)
+Requirements basis: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.9)
 Visual design basis: `agent_docs/07-cupricaspect-gui-design.md` (v0.1) — read it before building any screen
 Audience: junior engineer or Sonnet-level coding agent, one milestone at a time.
+
+**v0.6 changes (requirements v0.9):** milestone **B0 — Beta readiness** inserted before M9 as the next step (packaging, single-source version, first-run guidance, file logging, release evidence, sharp edges); the first beta ships from B0, Wizard-only, with M9–M11 post-beta. FR4-007 amended to single-root import (nested folders via recursive scan) — the M1 "multi-select" wording is superseded.
 
 **v0.5 changes (requirements v0.7):** normalization reality — the Phase 3 engine is fully automatic, so M6 is rewritten as the **Normalization Inspector** (inspection + explanation + session-context input + model-free re-run; FR4-026 amended, FR4-052–055), and the prototypes' keep/merge/rename/drop table is void. **All vocabulary tooling is deferred** (M5 vacated to a stub; FR4-021–025/AC4-005 → Section 12; no milestone may depend on vocabulary editing). New prerequisites: CORE-6 (shared decision explainer) and CLI-1 (`aisidecar explain-session`).
 
@@ -72,7 +74,7 @@ Per-milestone **Not in this milestone** lines are binding scope limits — when 
 
 ### M1 — Folder import and asset queue, sidecar-derived ✅ (completed 2026-07-06; FR4-007, FR4-011 in-memory form, FR4-049 read side, FR4-050, AC4-001, AC4-028)
 
-- Folder picker (multi-select) plus drop target per design doc §6 Step 1; security-scoped access if sandboxed later; always pass absolute paths into Core.
+- Folder picker plus drop target per design doc §6 Step 1; security-scoped access if sandboxed later; always pass absolute paths into Core. (v0.9: single root folder by requirement — FR4-007 amended; nested folders via the recursive toggle. The original "multi-select" wording is superseded.)
 - Scan via `ImageScanner`; honor same-base-name grouping metadata for later export.
 - **Lazy identity policy:** the queue displays on path + size + mtime alone. Full `SourceIdentity` hashing is deferred until a pipeline actually needs it (analyze/export), then computed off the main actor; an optional background backfill may run at utility QoS. Never hash the whole folder just to show the queue.
 - In-memory asset queue observable. Between-launch states derive from files only, per this table (FR4-049; do not invent states):
@@ -169,6 +171,34 @@ All vocabulary tooling moved to requirements Section 12 (v0.7): it is not curren
 - **CORE-9:** `ConfigFileEditor.merge` — read-modify-write over the shared `config.json` preserving unknown keys, atomic, creates file/directory when missing; tested including CLI-resolve parity.
 - **GUI:** `Features/Settings/` — `SettingsModel` (resolves through the standard chain, writes through CORE-9, discloses active `AISIDECAR_*` overrides, rejects invalid endpoints without writing) and `SettingsSheet` (vision model picker with refresh + unavailable-model flag, editable endpoint with connectivity badge, render/GPS/existing defaults, config Reveal, derivative-cache Purge with confirmation, appearance, about card). Replaces the M0 About sheet; Studio adopts it in M9.
 - Verified live: connected badge and picker against a running Ollama; write-through, unknown-key preservation, env-disclosure, and vision filtering covered by tests.
+
+### B0 — Beta readiness ⬅ NEXT (requirements v0.9; the first beta ships from here, Wizard-only)
+
+The MVP feature flow is complete (M0–M8a). B0 turns it into something that can be handed to a beta tester. Work the items in this order; each is independently committable. M9–M11 are post-beta.
+
+**B0-1 — Packaging (the blocker).** Execute `agent_docs/06-packaging-single-app-plan.md` WI-2 → WI-1 → WI-4 → WI-6 for the GUI: resource-bundle relocation test first (the plan's own "most likely bug"), then the release build script that assembles `CupricAspect.app` around the SwiftPM release binary (Contents/MacOS, Info.plist per WI-4, embedded CLI per D3 optional for beta — GUI-only bundle is acceptable for B0), `.icns` generated from the design bundle's `cupricaspect_icon-3.svg`, Developer ID signing + notarization + stapling, DMG.
+*Done when:* the DMG installs and launches on a Mac that has never had Xcode, `spctl --assess` passes.
+
+**B0-2 — Single-source version (packaging plan D5).** One version constant feeds the app About card, `CFBundleShortVersionString`, and `aisidecar --version` (currently "0.0.0"). Tag the beta `v0.1.0-beta.1`.
+*Done when:* all three surfaces show the same non-placeholder version from one source.
+
+**B0-3 — First-run / missing-runtime guidance (FR4-058, AC4-034; packaging plan WI-5).** Launch-time Ollama check with install/start guidance; empty vision-model list explains itself and names a starter model with its `ollama pull` command (do not silently assume the 26B default model exists).
+*Done when:* AC4-034 passes on a clean user account without Ollama, and again with Ollama but no vision model.
+
+**B0-4 — Diagnostic file logging (FR4-059, AC4-035).** Replace the discarded `Logger(sink: { _ in })` with a shared file sink: size-bounded log under the state directory, path shown in Settings → About. Fix the silent `try?` on "Save session only" / session import — errors surface in the UI.
+*Done when:* AC4-035 passes; a deliberately failed run's structured errors are readable in the log file.
+
+**B0-5 — Release evidence (manual).** The Lightroom Classic / Capture One round trip per `agent_docs/release-evidence/` (write real XMP from the GUI, import in LR/C1, record results), plus the outstanding Phase 1 M9 calibration evidence or an explicit deferral note (AGENTS release-signoff requirement).
+*Done when:* evidence files exist under `agent_docs/release-evidence/` for the current writer recipe.
+
+**B0-6 — Sharp edges.**
+- Single-folder import is now the requirement (FR4-007 amended v0.9) — no code change needed; verify the Step 1 copy doesn't promise otherwise.
+- Pause story (FR4-010): either a Pause button implemented as cancel-plus-resume (skip semantics already make this safe — CORE-3), or explicit UI copy on Cancel: "progress is kept; Start resumes where you left off."
+- Review-screen scale sanity: load the M4 review list from a 1,000–2,000 image synthetic session (`Scripts/generate-synthetic-fixture.swift`) and fix any stalls (the 5,000 target formally lands in M11).
+- Reopen-last-folder convenience on launch (remember the last source/output folders in UserDefaults; offer, don't auto-import).
+*Done when:* each edge verified with a note here.
+
+**Not in B0:** Studio (M9), the database (M10), vocabulary tooling, embedded-CLI install action (WI-3), Sparkle/auto-update, CI. Beta distribution is a signed DMG handed out directly.
 
 ### M9 — Studio shell (FR4-040, FR4-041, AC4-021)
 
