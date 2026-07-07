@@ -71,7 +71,7 @@ Bundle id (e.g. `com.ronbuening.sidecartagger`), category `public.app-category.p
 Keep the existing shared paths so CLI and GUI see the same world:
 - Config: `~/Library/Application Support/aisidecar/config.json` (existing precedence chain unchanged).
 - Derivative cache: `~/Library/Caches/aisidecar/derivatives` (shared with CLI — cache hits carry over).
-- GUI-only state (SQLite DB, window state): `~/Library/Application Support/SidecarTagger/`.
+- GUI-only state (window state; the SQLite DB when the experimental database mode is enabled — requirements FR4-046/047): `~/Library/Application Support/SidecarTagger/` (read: `CupricAspect/`). Nothing is ever written inside the app bundle — it is read-only and code-signed.
 Document this in the README and in the app's settings screen.
 
 **WI-7 — Release checklist doc (`agent_docs/release-checklist.md`).**

@@ -206,6 +206,7 @@ Full-window overlay (fades in over the content area) with "‹ Back" + "Settings
 - **CONFIGURATION** ("— defaults saved to config.json"): Active config file (path + "Load…" + "Reveal"), Default render mode / Default GPS context / Existing sidecars segmented controls, "Derivative cache" row with a "Purge…" button (danger on hover).
 - **APPEARANCE**: Theme (Light/Dark/Auto — "Auto follows your macOS appearance."), Accent color swatches ("Pulled from the CupricAspect palette.").
 - **INTERFACE**: "Nonlinear UI" toggle (Section 2).
+- **ADVANCED** (not drawn in the prototypes; same card-of-rows anatomy): "Working database (experimental)" toggle, off by default (FR4-046/047). Caption copy: "Keeps review state between sessions and detects sidecar edits made by other apps. Off: CupricAspect works purely from sidecar and session files, like the CLI." When on, a "History retention" row (default "180 days") appears beneath it (FR4-004b).
 
 ## 7. Screen Specs — Studio
 
@@ -270,7 +271,7 @@ writing .ai.json ▍        ← blinking caret (cvblink 1s), accent color
 
 ### Settings (Studio)
 
-Same sections as Wizard Settings, plus a **FILES** section showing the derivative cache path (`~/Library/Caches/aisidecar/derivatives`) with "Purge…". EXISTING SIDECARS here is Skip/Overwrite/Fail.
+Same sections as Wizard Settings — including the ADVANCED section above — plus a **FILES** section showing the derivative cache path (`~/Library/Caches/aisidecar/derivatives`) with "Purge…". EXISTING SIDECARS here is Skip/Overwrite/Fail.
 
 ## 8. Mapping to Core, and Prototype→Product Resolutions
 
@@ -300,7 +301,7 @@ Same sections as Wizard Settings, plus a **FILES** section showing the derivativ
 
 ### 8.3 Relationship to the Phase 4 requirements screens
 
-The prototypes cover the primary happy-path surfaces: folder intake, action choice, options, progress, candidate review, normalization decisions, write/apply, settings. The Phase 4 requirements demand more surfaces that the prototypes do not draw — asset queue with the 13-state machine and error-code filtering (FR4-011), vocabulary editor (FR4-021–025), external-change/malformed-XMP states (FR4-030x, `E_XMP_PARSE_FAILED`), dry-run change-plan view (FR4-029), compatibility reports (FR4-038a), data-retention controls (a "Forget folder…" action in the queue UI and a "History retention" row in Settings → FILES, FR4-004a–c). **These are still required.** Build them with the same tokens: cards on `panel`, section labels, segmented controls, mono for paths/codes, accent/green/danger semantics. Error-code chips: mono, danger-tinted for failures. The design system here is the vocabulary; the requirements doc remains the feature list.
+The prototypes cover the primary happy-path surfaces: folder intake, action choice, options, progress, candidate review, normalization decisions, write/apply, settings. The Phase 4 requirements demand more surfaces that the prototypes do not draw — asset queue with the 13-state machine and error-code filtering (FR4-011), vocabulary editor (FR4-021–025), external-change/malformed-XMP states (FR4-030x, `E_XMP_PARSE_FAILED`), dry-run change-plan view (FR4-029), compatibility reports (FR4-038a), data-retention controls (a "Forget folder…" action in the queue UI and the "History retention" row, FR4-004a–c — shown only when the experimental database mode is enabled). **These are still required** (the database-backed ones only in database mode, FR4-048). Build them with the same tokens: cards on `panel`, section labels, segmented controls, mono for paths/codes, accent/green/danger semantics. Error-code chips: mono, danger-tinted for failures. The design system here is the vocabulary; the requirements doc remains the feature list.
 
 ## 9. Accessibility
 

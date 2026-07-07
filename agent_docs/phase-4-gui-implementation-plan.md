@@ -1,10 +1,12 @@
 # Phase 4 Implementation Plan — CupricAspect GUI MVP
 
-Version: 0.2
+Version: 0.3
 Date: 2026-07-06
-Requirements basis: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.4)
+Requirements basis: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.5)
 Visual design basis: `agent_docs/07-cupricaspect-gui-design.md` (v0.1) — read it before building any screen
 Audience: junior engineer or Sonnet-level coding agent, one milestone at a time.
+
+**v0.3 changes:** storage modes (requirements v0.5, FR4-046–048) — sidecar-only is the default; the SQLite working database is an experimental opt-in. Milestones reordered accordingly: the feature flow (import → analyze → review → normalize → export) ships first entirely on files the CLI understands, and the whole database layer (schema, snapshots, external-change detection, retention) is now one late milestone, M9, behind the Settings → Advanced toggle.
 
 **v0.2 changes:** app renamed `CupricAspect` (design decision, requirements v0.4); the GUI target is a SwiftPM executable target in `Package.swift`, not a separate Xcode project (rationale in Section 1); M0 rewritten and completed — it now includes the design-token theme, the aperture component, and the dual-shell skeleton; feature milestones must render with the design system from doc 07.
 
@@ -14,7 +16,7 @@ This plan turns the Phase 4 requirements into ordered milestones. Requirement ID
 
 - **App:** `CupricAspect.app`, native SwiftUI, macOS 15 minimum (FR4-001). Two interface shells over one feature state — linear Wizard (default) and nonlinear Studio — per FR4-040/041 and design doc Sections 2, 6, 7.
 - **All processing stays in `AISidecarCore`** (FR4-002). The GUI target contains presentation, state orchestration, and user interaction only — the same rule AGENTS.md applies to `AISidecarCLI`.
-- **Working state lives in SQLite** (FR4-003/004), accessed through a thin project-owned data layer (no ORM). XMP sidecars are export artifacts; the database is working truth; reconcile before export (FR4-005).
+- **Working state is sidecar-only by default** (FR4-046): durable state lives in `.ai.json` sidecars, XMP sidecars, Phase 3 vocabulary/session files, and `config.json`; queue state is derived by rescanning; in-session review state is memory + session export ("Save session only" / "Apply Prior Session" in the design). The **SQLite database is an experimental opt-in** (FR4-047/048, milestone M9) that adds persisted review state, cross-session external-change detection, and granular resumability — accessed through a thin project-owned data layer (no ORM) when enabled.
 - **Core readiness (verified 2026-07-06):** the library is already embeddable. All pipeline results and callbacks are `Sendable`; there is no `@MainActor` coupling and no direct printing in Core (the `Logger` sink is injectable, default stderr); cancellation exists via `InterruptionMonitor.requestInterruption()` with between-asset checks; pipelines accept absolute paths so the `currentDirectoryPath` fallbacks never fire. Key entry points:
   - `AnalyzePipeline.run(inputPath:configuration:interruptionMonitor:) async throws -> AnalyzeResult`
   - `NormalizePipeline.runSessionOnly/runDryRun/runWritePlan(...) throws -> NormalizePipelineResult`
@@ -49,92 +51,88 @@ Small Core additions the GUI needs. Each follows AGENTS.md rules (reusable behav
 
 *Status: implemented — see `Sources/CupricAspectApp/`. Subsequent milestones replace the placeholder shell content with real features, styled per design doc 07.*
 
-### M1 — SQLite data layer and schema v1 (FR4-003, FR4-004, NFR4-004, NFR4-007)
+Milestones M1–M8 are **sidecar-only** (FR4-046): they must not create or read a database. M9 adds the experimental database mode behind the Settings → Advanced toggle. M10 closes out scale and release evidence for both modes.
 
-- Thin wrapper over the system SQLite3 C API (no third-party ORM): connection actor, typed statement helpers, migration runner.
-- Schema v1 tables (from FR4-004): `assets`, `source_identities`, `sidecar_snapshots` (content hash, mtime, parse state, `XMPMetadataSnapshot` blob, `XMPUnmanagedContentFingerprint` blob, engine/recipe versions — Section 0 item 4), `derivatives`, `model_runs`, `tag_candidates`, `tag_reviews` (approved/rejected/deferred), `vocabulary_entries`, `normalization_sessions`, `export_actions`, `review_actions`, `external_change_events`, `backups`, `validation_results`, and `schema_meta` (version).
-- Store Core's `Codable` documents as JSON blobs in the columns above rather than exploding every field into columns; index only what the UI filters on (asset path, state, error code, session id).
-- Migration policy per NFR4-007: forward migrations automatic, newer-schema refusal with clear message, destructive migration only after a completed file-level backup of the DB.
-- Every asset state change is one transaction (NFR4-004).
-- Retention mechanics (FR4-004a–c): cascading forget-folder delete as one transaction (foreign keys with `ON DELETE CASCADE` where safe, explicit deletes elsewhere); age-based prune of the five history tables that exempts, per asset, the latest sidecar snapshot, latest export action, and all records change-detection still needs; `VACUUM` (or incremental auto-vacuum) after large deletions, off the main actor. The UI for these arrives in M2/M11 — M1 ships the data-layer operations and their tests.
-- **Done when:** unit tests cover round-tripping each stored Core type, migration forward from an empty v0 file, newer-version refusal (AC4-015), and forget/prune/compaction including AC4-024's exemptions.
-
-### M2 — Folder import and asset queue (FR4-007, FR4-011, AC4-001)
+### M1 — Folder import and asset queue, sidecar-derived (FR4-007, FR4-011 in-memory form, AC4-001)
 
 - Folder picker (multi-select), security-scoped access if sandboxed later; always pass absolute paths into Core.
-- Scan via `ImageScanner`, create asset rows, compute `SourceIdentity` off the main actor, honor same-base-name grouping metadata for later export.
-- Implement the FR4-011 state machine exactly (the 13 listed states) as a DB-backed enum; failed states carry `SidecarError` code + message and are filterable by code.
+- Scan via `ImageScanner`, compute `SourceIdentity` off the main actor, honor same-base-name grouping metadata for later export.
+- In-memory asset queue observable. Between-launch states are derived from files on disk: `discovered` (image present), `analyzed` (`.ai.json` present), `exported` (target `.xmp` present); the remaining FR4-011 states are transient in-run states held in memory while a job runs. Failed states carry `SidecarError` code + message and are filterable by code for the current session.
 - Queue list UI: virtualized table with state, filename, error-code filter.
-- "Forget folder…" action on imported roots (FR4-004a), gated on a completed session export or an explicit confirmation that names the lost review history and anti-resurrection memory; calls the M1 forget + compaction operations.
-- **Done when:** importing a mixed RAW/JPEG folder produces asset rows in `discovered` → `source verified` states with progress shown, re-import is idempotent, and AC4-023 passes.
+- **Done when:** importing a mixed RAW/JPEG folder shows scan progress and a populated queue; re-import is idempotent; relaunching rebuilds the same queue from disk; no database file exists (AC4-025 groundwork).
+
+### M2 — Analysis job engine (FR4-008, FR4-009, FR4-010, AC4-002)
+
+- Preflight: endpoint + model tag selection defaulting to the project default, validated through `OllamaVisionRunner.prepare()`; record model digest (FR4-009). Show actionable guidance when Ollama is unreachable (mirror README troubleshooting).
+- Job engine: a single serialized job queue actor that runs pipeline slices in background tasks; start/pause/resume/cancel (FR4-010) via slicing (CORE-3) + `InterruptionMonitor`.
+- Wire CORE-1 progress hooks to in-memory queue state and UI updates (the Working screens' progress, current file, rate); keep XMP-parse/hash work off the main actor (FR4-006c, NFR4-003).
+- Mode selection: whole image / subject isolated / both (FR4-008).
+- Interrupted runs resume naturally on the next run via `--existing skip` semantics over the files already written.
+- **Done when:** the user can run analysis on an imported folder, watch per-asset state advance, cancel mid-batch, relaunch, re-run, and end with the same set of `.ai.json` files a single uninterrupted run produces.
 
 ### M3 — Thumbnails and previews (FR4-013, FR4-014, FR4-039 groundwork)
 
-- Reuse the derivative cache (`DerivativeCache`, `ImageRenderer`) for preview derivatives; persist thumbnail references in the DB.
+- Reuse the derivative cache (`DerivativeCache`, `ImageRenderer`) for preview derivatives; keep an in-memory thumbnail index over the shared cache (no DB).
 - Grid view virtualization (LazyVGrid or NSCollectionView interop) with lazy full-preview loading.
 - Subject-isolated derivative display when available, with instance count and selected-instance indication (FR4-014).
-- **Done when:** a 5,000-asset synthetic session (script to fabricate DB rows + tiny thumbnails) scrolls and filters without perceptible stalls (AC4-014 groundwork; final verification in M11).
+- **Done when:** a 5,000-asset synthetic folder (script fabricates tiny images + `.ai.json` sidecars) scrolls and filters without perceptible stalls (AC4-014 groundwork; final verification in M10).
 
-### M4 — Analysis job engine (FR4-008, FR4-009, FR4-010, AC4-002)
-
-- Preflight screen: endpoint + model tag selection defaulting to the project default, validated through `OllamaVisionRunner.prepare()`; record model digest (FR4-009). Show actionable guidance when Ollama is unreachable (mirror README troubleshooting).
-- Job engine: a single serialized job queue actor that runs pipeline slices in background tasks; start/pause/resume/cancel (FR4-010) via slicing (CORE-3) + `InterruptionMonitor`.
-- Wire CORE-1 progress hooks to DB state transitions and UI updates; keep XMP-parse/hash work off the main actor (FR4-006c, NFR4-003).
-- Mode selection: whole image / subject isolated / both (FR4-008).
-- **Done when:** the user can run analysis on an imported folder, watch per-asset state advance, cancel mid-batch, relaunch the app, and see consistent state (AC4-012 groundwork).
-
-### M5 — Candidate review UI (FR4-013–FR4-020a, AC4-003, AC4-004)
+### M4 — Candidate review UI and session durability (FR4-013–FR4-020, NFR4-008, AC4-003, AC4-004)
 
 - Review screen: full image + isolated derivative, candidate list showing flat keyword, hierarchical keyword, confidence band, evidence, alternatives, vocabulary match, normalization rule, review requirement, provenance, and producing source (FR4-015/016).
-- Approve / reject / edit / defer per candidate; batch approve/reject (FR4-017/018); all writes as DB transactions.
+- Approve / reject / edit / defer per candidate; batch approve/reject (FR4-017/018) — all in-memory review state.
+- "Save session only" exports the review state in the Phase 3 session-file format (NFR4-008); "Apply Prior Session" / session import resumes it (FR4-012b). `apply-session` parity: a GUI-exported session applies cleanly via `swift run aisidecar apply-session` (AC4-013 cross-check).
 - Scoped batch correction with explicit confirmation, limited to computable scopes only (FR4-019 — no "visually similar").
-- `requires_review` vocabulary policy surfaced, not reimplemented (FR4-020).
-- Externally-removed keywords render as such and need explicit confirmation to re-add (FR4-020a; detection arrives in M8 — model the state now).
-- **Done when:** AC4-004 walkthrough passes on a real analyzed folder.
+- `requires_review` vocabulary policy surfaced, not reimplemented (FR4-020). (FR4-020a external-removal rendering is database-mode — arrives in M9.)
+- **Done when:** AC4-004 walkthrough passes on a real analyzed folder, and an export → quit → relaunch → import round trip restores the review exactly.
 
-### M6 — Vocabulary editor (FR4-021–FR4-025, AC4-005)
+### M5 — Vocabulary editor (FR4-021–FR4-025, AC4-005)
 
 - Editor over the Phase 3 vocabulary JSON format using Core's `VocabularyLoader`/`VocabularyValidator`; integrity violations shown inline at edit time, not only on save (FR4-021).
 - Add/edit/delete/import/export; export writes a valid Phase 3 vocabulary file with fresh content hash (FR4-022). Synonym collision detection live (FR4-023). `requires_review` and auto-approval eligibility toggles (FR4-024/025).
 - **Done when:** AC4-005 passes, including a deliberately invalid edit being caught inline.
 
-### M7 — Normalization review (FR4-026, FR4-027, FR4-027a/b, AC4-006, AC4-016)
+### M6 — Normalization review (FR4-026, FR4-027, FR4-027a/b, AC4-006, AC4-016)
 
-- Run `NormalizePipeline.runSessionOnly`/`runDryRun` against reviewed candidates; persist the session document; render per-decision governing rule and provenance (FR4-026).
+- Run `NormalizePipeline.runSessionOnly`/`runDryRun` against reviewed candidates; persist the session document as a file; render per-decision governing rule and provenance (FR4-026).
 - Conflict view: conflicting observations and why a tag did or didn't propagate (FR4-027); visually distinguish raw vs canonicalized vs propagated vs user-context tags (FR4-027a); hierarchical display only from `canonical_path` (FR4-027b).
 - Import an existing normalization session file and continue review (FR4-012b, AC4-016).
 - **Done when:** AC4-006 and AC4-016 pass.
 
-### M8 — Sidecar snapshots and external-change detection (FR4-012a, FR4-030a–e, AC4-009, AC4-020)
-
-- Snapshot job: for each asset's target sidecar, record content hash, mtime, parse status, managed keyword snapshot, unmanaged fingerprint, writer recipe + engine versions into `sidecar_snapshots` (FR4-030a).
-- Manual "Refresh Metadata" action re-snapshots without analysis or export and highlights changed/added/deleted/malformed/missing sidecars (FR4-012a, FR4-030e, AC4-020).
-- Freshness check before export: hash mismatch → re-read, rebuild snapshot/fingerprint, re-merge, mark "changed outside the app" (FR4-030b); merging against a stale snapshot is impossible by construction (FR4-030c); external deletions are never resurrected silently (FR4-030d).
-- Malformed/unsupported XMP as first-class UI states with `E_XMP_PARSE_FAILED` / `E_XMP_UNSUPPORTED_RDF`, export disabled until resolved or excluded (FR4-035a).
-- **Done when:** AC4-009 and AC4-020 pass using a sidecar edited by hand between sessions.
-
-### M9 — Export, validation, and compatibility (FR4-028–FR4-038b, AC4-007, AC4-008, AC4-010, AC4-011, AC4-017, AC4-018, AC4-019)
+### M7 — Export, validation, and compatibility (FR4-028–FR4-038b, AC4-007, AC4-008, AC4-010, AC4-011, AC4-017, AC4-018, AC4-019)
 
 - Dry-run first: render the change plan visually before any write (FR4-029); same-base-name groups shown with pair-scope selection (FR4-034, AC4-018).
-- Export through `XMPExportPipeline` with the owned engine unchanged (FR4-028); backups, restore-on-validation-failure, and post-write validation surfaced in the export report UI (FR4-035, FR4-035b/c).
+- Export through `XMPExportPipeline` with the owned engine unchanged (FR4-028); backups, restore-on-validation-failure, and post-write validation surfaced in the export report UI (FR4-035, FR4-035b/c). Export always re-reads and semantically merges against current sidecar content (Phase 2 behavior), so out-of-band edits are honored even without change *detection*; the FR4-048 limitation disclosure appears here.
+- Malformed/unsupported XMP as first-class UI states with `E_XMP_PARSE_FAILED` / `E_XMP_UNSUPPORTED_RDF`, export disabled until resolved or excluded (FR4-035a).
 - Lightroom Classic and Capture One compatibility profiles and post-export instructions (FR4-036–FR4-038); compatibility-report view (FR4-038a).
 - No external tool invocation anywhere (FR4-028a, AC4-019).
-- **Done when:** the listed ACs pass, including a full round trip verified in Lightroom Classic or Capture One (release evidence pattern from `agent_docs/release-evidence/`).
+- **Done when:** the listed ACs pass, including a full round trip verified in Lightroom Classic or Capture One (release evidence pattern from `agent_docs/release-evidence/`), plus AC4-025 end-to-end (still no database file).
 
-### M10 — Crash resumability and session export (NFR4-004, NFR4-008, AC4-012)
+### M8 — Sidecar-only hardening (AC4-025, crash behavior)
 
-- Relaunch reconstruction from DB + durable artifacts; kill-mid-batch test leaves no ambiguous asset (AC4-012).
-- Export approved-tag state in the Phase 3 session-file format so the DB is never the only copy (NFR4-008).
-- `apply-session` parity: an exported session must be applicable by the CLI against the same folder (AC4-013 cross-check).
-- **Done when:** scripted kill/relaunch test passes repeatedly, and a GUI-exported session applies cleanly via `swift run aisidecar apply-session`.
+- Kill-mid-batch testing: scripted kill/relaunch during analyze and export leaves no ambiguous file state (partial writes are the pipelines' existing temp-file/rename discipline; verify from the GUI paths).
+- Relaunch reconstruction review: every screen's state either rebuilds from disk or is explicitly session-scoped and marked as such.
+- **Done when:** AC4-025 passes end-to-end repeatedly, including kill/relaunch variants.
 
-### M11 — Scale, polish, release evidence (FR4-039, AC4-014, remaining NFRs)
+### M9 — Experimental database mode (FR4-003–FR4-005, FR4-004a–c, FR4-011 persisted, FR4-012, FR4-012a, FR4-020a, FR4-030a–e, NFR4-004, NFR4-007, AC4-009, AC4-012, AC4-015, AC4-020, AC4-023, AC4-024, AC4-026)
 
-- Real 5,000-image session benchmark: scrolling, filtering, selection latency; batched DB writes; profiling pass with Instruments.
-- Retention at scale: Settings exposes the history retention window (FR4-004b, default 180 days); prune + vacuum measured on the 5,000-image session (no main-actor stalls); AC4-024 verified against a session with events aged past the window.
+Everything database-backed lands here, behind Settings → Advanced → "Working database (experimental)" (FR4-047; design doc Settings spec):
+
+- Thin wrapper over the system SQLite3 C API (no third-party ORM): connection actor, typed statement helpers, migration runner. Database file under `~/Library/Application Support/CupricAspect/` — never in the app bundle.
+- Schema v1 tables (from FR4-004): `assets`, `source_identities`, `sidecar_snapshots` (content hash, mtime, parse state, `XMPMetadataSnapshot` blob, `XMPUnmanagedContentFingerprint` blob, engine/recipe versions), `derivatives`, `model_runs`, `tag_candidates`, `tag_reviews`, `vocabulary_entries`, `normalization_sessions`, `export_actions`, `review_actions`, `external_change_events`, `backups`, `validation_results`, `schema_meta`. Core `Codable` documents stored as JSON blobs; index only what the UI filters on.
+- Migration policy per NFR4-007; every asset state change one transaction (NFR4-004); persisted FR4-011 state machine replaces the in-memory derivation when enabled.
+- Sidecar snapshots + external-change detection (FR4-030a–e): snapshot job, manual "Refresh Metadata" (FR4-012a, AC4-020), pre-export freshness check, non-resurrection (FR4-020a) — the M4 review UI gains the externally-removed rendering.
+- Retention (FR4-004a–c): forget-folder (one transaction, export-or-confirm gate, "Forget folder…" in the queue UI), age-based prune with change-detection exemptions, post-delete `VACUUM` off the main actor; Settings exposes the retention window (default 180 days).
+- Enable/disable flows per FR4-047 and AC4-026, including the keep-or-delete offer on disable.
+- **Done when:** the listed ACs pass with the toggle on, AC4-025 still passes with it off, and switching modes never touches sidecar/session/vocabulary files.
+
+### M10 — Scale, polish, release evidence (FR4-039, AC4-014, remaining NFRs)
+
+- Real 5,000-image session benchmark in **both modes**: scrolling, filtering, selection latency; batched DB writes when enabled; profiling pass with Instruments.
+- Retention at scale (database mode): prune + vacuum measured on the 5,000-image session with no main-actor stalls; AC4-024 verified against a session with events aged past the window.
 - Provenance completeness audit (NFR4-005); conservative-defaults review (NFR4-006); privacy audit — nothing uploads (NFR4-001/002).
 - Record release evidence following the `agent_docs/release-evidence/` pattern.
-- **Done when:** every AC4-001…AC4-020 has a recorded pass or an explicit deferral note.
+- **Done when:** every AC4-001…AC4-026 has a recorded pass or an explicit deferral note (database-mode ACs recorded with the toggle on).
 
 ## 4. GUI Target Structure
 

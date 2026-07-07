@@ -1,8 +1,8 @@
 # Phase 4 Requirements - GUI Sidecar Tagger MVP
 
-Version: 0.4
+Version: 0.5
 Date: 2026-07-06
-Supersedes: 0.3
+Supersedes: 0.4
 Builds on: Phase 1 Requirements v0.4, Phase 2 Requirements v0.5, Phase 3 Requirements v0.4
 App name: `CupricAspect.app` (resolves the former working name `SidecarTagger.app`)
 Visual design basis: `agent_docs/07-cupricaspect-gui-design.md`
@@ -13,7 +13,16 @@ Primary output artifact: reviewed XMP sidecar files, with a local working databa
 
 This document inherits the Project-Wide Conventions of the Phase 1 requirements and the owned-XMP export/normalization behavior of Phases 2 and 3. They are not restated except where Phase 4 narrows or clarifies their GUI use.
 
-## 0. Changes from v0.3
+## 0. Changes from v0.4 — storage modes
+
+This revision makes **sidecar-only** the default storage mode and demotes the SQLite working database to an experimental opt-in.
+
+1. FR4-046: by default the GUI keeps all durable state in files the CLI already understands — `.ai.json` raw sidecars, XMP sidecars, Phase 3 vocabulary and normalization-session files, and `config.json`. Review state is in-memory for the session; durability comes from session export/import (NFR4-008, the design's "Save session only" and "Apply Prior Session"). No database file is created or opened.
+2. FR4-047: the SQLite working database becomes an experimental option at Settings → Advanced → "Working database (experimental)", stored under `~/Library/Application Support/CupricAspect/` — never inside the app bundle.
+3. FR4-048 scopes existing requirements by mode: the database-backed guarantees (persisted queue state, cross-session external-change detection and non-resurrection, provenance-driven reprocessing across sessions, transactional crash resumability, retention policy) apply only when database mode is enabled, and the sidecar-only limitations must be disclosed in the UI where they matter.
+4. Rationale: the file-based methodology is the proven, transparent core of the project — every artifact is inspectable and CLI-interoperable, and the GUI defaults to it. The database earns its way in as an enhancement once its value is demonstrated, rather than being a structural prerequisite.
+
+## 0.1 Changes from v0.3 — design adoption (retained)
 
 This revision adopts the CupricAspect visual design (Claude Design handoff bundle at `agent_docs/gui-wrapper-for-cameravision/`, extracted into `agent_docs/07-cupricaspect-gui-design.md`).
 
@@ -23,7 +32,7 @@ This revision adopts the CupricAspect visual design (Claude Design handoff bundl
 4. The design prototypes cover the primary happy-path surfaces only. All other surfaces required by this document (asset queue and state machine, vocabulary editor, external-change and malformed-XMP states, dry-run change plans, compatibility reports) remain required and shall be built with the same design tokens (design doc Section 8.3).
 5. Data-retention requirements FR4-004a–c and AC4-023/024 (added in this revision): per-folder forget, age-based pruning of the append-only history tables with change-detection records exempt, and post-deletion compaction. The working database is intentionally append-heavy — provenance-driven reprocessing (FR4-012) and external-change memory (FR4-020a, FR4-030a–e) require history — so growth is bounded by explicit policy rather than left unbounded.
 
-## 0.0 Changes from v0.2 (retained)
+## 0.2 Changes from v0.2 (retained)
 
 This revision updates Phase 4 for the Phase 2/3 decision to use a project-owned XMP sidecar engine instead of ExifTool.
 
@@ -38,7 +47,7 @@ This revision updates Phase 4 for the Phase 2/3 decision to use a project-owned 
 
 For continuity, all substantive v0.2 changes remain active: out-of-band sidecar edit detection, versioned SQLite schema, scoped batch correction, 5,000-image responsiveness target, crash-resumability through transactions and pipeline artifacts, direct surfacing of structured error codes, SwiftUI on macOS 15, and a thin owned SQLite data layer.
 
-## 0.1 Current Dependency Status
+## 0.3 Current Dependency Status
 
 Phase 4 is not the next implementation target. The repository is ready through Phase 2 Milestone 10 plus the pre-Phase-3 GPS context milestone; Phase 1 Milestone 9 release evidence or explicit deferral remains before release signoff. Phase 4 work should wait until Phase 3 provides vocabulary files, normalization sessions, normalized export plans, and `normalize` / `apply-session` command behavior in `AISidecarCore`.
 
@@ -87,7 +96,13 @@ FR4-001 - The GUI shall be a native macOS application built with SwiftUI, target
 
 FR4-002 - All processing shall be performed by `AISidecarCore`; the GUI target contains presentation, state orchestration, and user interaction only.
 
-FR4-003 - The GUI shall use a local SQLite database as working state, accessed through a thin data layer owned by the project. No heavyweight ORM shall be used in the MVP.
+FR4-046 - **Sidecar-only mode (default).** By default the GUI shall keep all durable state in the file formats the CLI already reads and writes: `.ai.json` raw sidecars, XMP sidecars, Phase 3 vocabulary files, Phase 3 normalization-session files, and the shared `config.json`. Between-session queue state is derived by rescanning the selected folders and inspecting those files. In-session review state is held in memory and made durable by session export (NFR4-008); an unfinished review is resumed by importing the session file (FR4-012b). In this mode the GUI shall not create, open, or require any database file.
+
+FR4-047 - **Database mode (experimental opt-in).** The SQLite working database shall be offered as an experimental option under Settings → Advanced ("Working database (experimental)"), off by default. Enabling it creates the database under `~/Library/Application Support/CupricAspect/` — never inside the app bundle, which is read-only and code-signed. Disabling it returns the GUI to sidecar-only behavior without loss of any sidecar, session, or vocabulary file, and offers to keep or delete the database file. The toggle's UI copy shall state, in plain language, what the database adds (persisted review state without manual session export, cross-session external-change detection, keyword non-resurrection memory, granular crash resumability) and that the feature is experimental.
+
+FR4-048 - **Mode scoping.** The following apply only in database mode: FR4-003, FR4-004, FR4-004a–c, FR4-005, the persisted form of the FR4-011 state machine, FR4-012 reprocessing across sessions, FR4-020a cross-session non-resurrection, FR4-030a–e external-change detection, NFR4-004 transactional state changes, NFR4-007 migrations, and AC4-009, AC4-012 (cross-session part), AC4-015, AC4-020, AC4-023, AC4-024. In sidecar-only mode the GUI shall disclose the relevant limitation at the point of use (for example, before export: "External edits since your last export are merged, but cannot be flagged — enable the working database for change detection"). Requirements not listed here apply in both modes.
+
+FR4-003 - (Database mode.) The GUI shall use a local SQLite database as working state, accessed through a thin data layer owned by the project. No heavyweight ORM shall be used in the MVP.
 
 FR4-004 - The database shall store assets, source identity hashes, source-resolution state, sidecar target paths, sidecar content hashes, sidecar mtimes, `XMPMetadataSnapshot` records, `XMPUnmanagedContentFingerprint` records, derivative records, model runs, tag candidates, approved tags, rejected tags, deferred tags, vocabulary entries, normalization sessions, export actions, review actions, external-change events, backup paths, validation results, engine versions, and writer recipe versions.
 
@@ -97,7 +112,7 @@ FR4-004b - The append-only history tables (`model_runs`, `review_actions`, `expo
 
 FR4-004c - After a forget or prune deletes a substantial number of rows, the data layer shall compact the database (SQLite `VACUUM` or incremental auto-vacuum) off the main actor, so on-disk size tracks live data.
 
-FR4-005 - The GUI shall treat XMP sidecars as export artifacts, not as the only working memory. The database is the working truth between sessions; the current sidecar on disk is the interchange truth; reconciling the two is required before export.
+FR4-005 - (Database mode.) The GUI shall treat XMP sidecars as export artifacts, not as the only working memory. The database is the working truth between sessions; the current sidecar on disk is the interchange truth; reconciling the two is required before export. (In sidecar-only mode the files on disk are the only truth; export always merges against current sidecar content via the Phase 2 semantic-merge path.)
 
 FR4-006 - The GUI shall import existing Phase 1 `.ai.json`, Phase 2 XMP sidecars, Phase 2 export reports/change plans, Phase 3 vocabulary files, and Phase 3 normalization session files, honoring PW-011/PW-012 schema evolution.
 
@@ -304,6 +319,10 @@ AC4-020 - Manual metadata refresh detects changed, added, deleted, malformed, an
 AC4-023 - Forgetting a folder removes its rows in one transaction, leaves every other folder's state and all on-disk image/sidecar files untouched, shrinks the database file after compaction, and a subsequent re-import of that folder behaves as a first import. The forget action is blocked until a session export completes or the user explicitly confirms the described loss. (AC4-021/022 are in Section 13.)
 
 AC4-024 - After pruning history older than the retention window, AC4-009 external-change detection and keyword non-resurrection still pass for an asset whose relevant events predate the window.
+
+AC4-025 - On a fresh install with defaults, a complete analyze → review → export → relaunch → re-review cycle succeeds with no database file created anywhere on disk; after relaunch the queue is rebuilt from the folder's files, and an exported session file restores the in-progress review via import.
+
+AC4-026 - Enabling the experimental working database creates it under `~/Library/Application Support/CupricAspect/`; disabling it returns to sidecar-only behavior with all sidecar, session, and vocabulary files intact, and the user is offered the choice to keep or delete the database file. The app bundle's contents are unchanged by either action.
 
 ## 12. Future Groundwork Beyond the GUI MVP
 
