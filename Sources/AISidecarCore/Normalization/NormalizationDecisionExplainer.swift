@@ -49,6 +49,10 @@ public struct KeywordDecisionSummary: Sendable, Equatable {
     public var conflictingCanonicalPaths: [String]
     public var assetDetails: [AssetDetail]
 
+    /// Number of assets carrying this keyword (distinct from
+    /// `supportingAssetCount`, which counts affinity supporters).
+    public var assetCount: Int { assetDetails.count }
+
     public var unmatchedVocabulary: Bool {
         canonicalPath == nil || skipReasonCounts[.unmatchedVocabulary] != nil
     }
@@ -272,7 +276,7 @@ public enum NormalizationDecisionExplainer {
         }
         lines.append(header)
         lines.append("  outcome: \(summary.acceptedCount) accepted · \(summary.withheldCount) withheld · \(summary.skippedCount) skipped")
-        lines.append("  support: \(summary.supportingAssetCount) assets · \(summary.totalSupportUnits) units")
+        lines.append("  support: \(summary.assetCount) assets · \(summary.totalSupportUnits) units")
         lines.append("  origin:  " + summary.stages.map(text(for:)).joined(separator: "; "))
         if !summary.governingRules.isEmpty {
             lines.append("  rules:   " + summary.governingRules.joined(separator: ", "))

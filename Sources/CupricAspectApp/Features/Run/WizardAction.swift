@@ -30,9 +30,8 @@ enum WizardAction: String, CaseIterable, Sendable {
     /// Milestone gating; a disabled card shows "arrives with <milestone>".
     var availableMilestone: String? {
         switch self {
-        case .analyze: nil
+        case .analyze, .normalize: nil
         case .write, .apply: "M7"
-        case .normalize: "M6"
         }
     }
 

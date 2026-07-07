@@ -131,7 +131,7 @@ Per-milestone **Not in this milestone** lines are binding scope limits — when 
 
 All vocabulary tooling moved to requirements Section 12 (v0.7): it is not currently an enabled part of the product, and no milestone depends on it. The MVP's only vocabulary touchpoints are the vocabulary-file picker in the normalize options (M6) and read-only display of engine-reported vocabulary facts. The milestone number is kept so cross-references stay stable; there is no M5 work item.
 
-### M6 — Normalization Inspector (FR4-026 amended, FR4-027, FR4-027a/b, FR4-052–055, AC4-006, AC4-016, AC4-029, AC4-030; prerequisites CORE-6, CLI-1)
+### M6 — Normalization Inspector ✅ (completed 2026-07-07; FR4-026 amended, FR4-027, FR4-027a/b, FR4-052–055, AC4-006, AC4-016, AC4-029, AC4-030; prerequisites CORE-6 ✅, CLI-1 ✅)
 
 - **Session context panel** (FR4-052, AC4-029): Subject/Habitat/Event fields with vocabulary-match feedback, per-field propagation toggles (off by default), unknown-context policy; plus the vocabulary-file picker (bundled starter vocabulary default).
 - Run `NormalizePipeline.runSessionOnly`/`runDryRun` over the existing `.ai.json` set (`fromJSON` mode, no model calls); persist the session document as a file.
@@ -140,6 +140,8 @@ All vocabulary tooling moved to requirements Section 12 (v0.7): it is not curren
 - **Export surface** (FR4-053): "Write normalized XMP" (accepted set only, exclusions labeled) and "Save session only"; import an existing session and continue (FR4-012b, AC4-016).
 - **Not in this milestone:** no per-keyword decision controls of any kind (the engine has none — FR4-026); no vocabulary editing (point at the file path + re-run loop instead); the XMP write itself reuses M7's export path if M7 lands first, otherwise `runWritePlan` + Phase 2 writer as the engine already wires it.
 - **Done when:** AC4-006, AC4-016, AC4-029, and AC4-030 pass against a real analyzed folder, with CLI-1's `explain-session` showing identical facts for a spot-checked keyword (AC4-031).
+
+*Status: implemented — `Features/Normalize/` (`NormalizationModel`: context→config mapping, model-free `fromJSON` run, CORE-6 summaries, outcome/stage/needs-attention filters, SHA-256 stale-vocabulary indicator, save/import, accepted-only write via `ApplySessionPipeline` + `XMPExportPipeline`; `SessionContextPanel` per FR4-052 with per-field propagation gates off by default and the vocabulary-file picker; `NormalizationInspectorView` with support bars, outcome chips, explainer why-lines, expandable per-asset detail with conflicts, and post-run session-context results). Wizard normalize action enabled end-to-end: analyze → normalize → Inspector → write, verified live against real model output (10 keywords, 27 accepted decisions, correct explanations). The normalize write currently writes directly with the Phase 2 backup/validation chain; the M7 dry-run change-plan view will front it.*
 
 ### M7 — Export, validation, and compatibility (FR4-028–FR4-038b, AC4-007, AC4-008, AC4-010, AC4-011, AC4-017, AC4-018, AC4-019)
 

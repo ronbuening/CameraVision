@@ -9,6 +9,7 @@ struct WizardShellView: View {
     @State private var options = AnalysisOptions()
     @State private var runModel = AnalysisRunModel()
     @State private var reviewModel = ReviewModel()
+    @State private var normalizationModel = NormalizationModel()
     @State private var selectedAction: WizardAction?
     @State private var step = 1
     @State private var showAbout = false
@@ -55,7 +56,7 @@ struct WizardShellView: View {
                 step = 5
             }
             if env["CUPRIC_DEBUG_AUTORUN"] == "1" {
-                selectedAction = .analyze
+                selectedAction = env["CUPRIC_DEBUG_ACTION"].flatMap(WizardAction.init(rawValue:)) ?? .analyze
                 while importModel.scanning || importModel.assets.isEmpty {
                     try? await Task.sleep(for: .milliseconds(200))
                 }
@@ -71,6 +72,15 @@ struct WizardShellView: View {
                     // Design §6 Step 4: cancel returns to the options step.
                     runModel.reset()
                     step = 3
+                } else if selectedAction == .normalize {
+                    // Stay on the working step; the model-free normalization
+                    // run advances to the Inspector when ready.
+                    if let source = importModel.sourceFolder {
+                        normalizationModel.run(
+                            jsonRoot: importModel.outputFolder?.path ?? source.path,
+                            sourceRoot: source.path
+                        )
+                    }
                 } else {
                     step = 5
                     if let source = importModel.sourceFolder {
@@ -83,6 +93,18 @@ struct WizardShellView: View {
                 Task { await importModel.rescan() }
             case .failed:
                 // Surface the failure on the options screen (banner there).
+                step = 3
+            default:
+                break
+            }
+        }
+        .onChange(of: normalizationModel.phase) { _, phase in
+            switch phase {
+            case .ready where step == 4:
+                step = 5
+            case .written:
+                Task { await importModel.rescan() }
+            case .failed where step == 4:
                 step = 3
             default:
                 break
@@ -186,7 +208,8 @@ struct WizardShellView: View {
                     action: selectedAction ?? .analyze,
                     options: options,
                     runModel: runModel,
-                    importModel: importModel
+                    importModel: importModel,
+                    normalizationModel: normalizationModel
                 )
             }
         case 4:
@@ -196,9 +219,41 @@ struct WizardShellView: View {
                 if case .finished(let outcome) = runModel.phase, outcome.failed > 0 {
                     Step5SummaryView(outcome: outcome)
                 }
-                Step5ReviewView(review: reviewModel, runOutcome: finishedOutcome)
+                if selectedAction == .normalize {
+                    if case .written(let targets, _) = normalizationModel.phase {
+                        writtenBanner(targets: targets)
+                    }
+                    NormalizationInspectorView(model: normalizationModel) {
+                        guard let source = importModel.sourceFolder else { return }
+                        normalizationModel.writeNormalizedXMP(
+                            sourceRoot: source.path,
+                            outputDir: importModel.outputFolder?.path
+                        )
+                    }
+                } else {
+                    Step5ReviewView(review: reviewModel, runOutcome: finishedOutcome)
+                }
             }
         }
+    }
+
+    private func writtenBanner(targets: Int) -> some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(theme.green)
+                Text("✓").font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+            }
+            .frame(width: 22, height: 22)
+            Text("\(targets) XMP sidecar\(targets == 1 ? "" : "s") written · backups saved · validated — ready to import in Lightroom / Capture One")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(theme.text)
+            Spacer()
+        }
+        .padding(EdgeInsets(top: 12, leading: 15, bottom: 12, trailing: 15))
+        .background(theme.greenSoft)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(theme.green.opacity(0.5)))
+        .padding(EdgeInsets(top: 20, leading: 34, bottom: 0, trailing: 34))
     }
 
     private var finishedOutcome: RunOutcome? {
@@ -260,6 +315,9 @@ struct WizardShellView: View {
         case 4:
             return "Processing locally"
         default:
+            if selectedAction == .normalize {
+                return "\(normalizationModel.acceptedTotal) accepted · Done clears the session"
+            }
             return "\(reviewModel.approvedCount) approved · Done clears the review"
         }
     }
@@ -280,6 +338,7 @@ struct WizardShellView: View {
             step = 4
         case 5:
             reviewModel.completeCleanly()
+            normalizationModel.reset()
             runModel.reset()
             selectedAction = nil
             step = 1

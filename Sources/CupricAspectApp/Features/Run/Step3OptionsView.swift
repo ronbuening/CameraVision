@@ -8,6 +8,7 @@ struct Step3OptionsView: View {
     @Bindable var options: AnalysisOptions
     @Bindable var runModel: AnalysisRunModel
     var importModel: FolderImportModel
+    var normalizationModel: NormalizationModel?
 
     @Environment(\.cvTheme) private var theme
 
@@ -33,6 +34,11 @@ struct Step3OptionsView: View {
 
             advancedCard
                 .padding(.top, 14)
+
+            if action == .normalize, let normalizationModel {
+                SessionContextPanel(model: normalizationModel)
+                    .padding(.top, 14)
+            }
         }
         .padding(EdgeInsets(top: 26, leading: 34, bottom: 40, trailing: 34))
         .onAppear {
