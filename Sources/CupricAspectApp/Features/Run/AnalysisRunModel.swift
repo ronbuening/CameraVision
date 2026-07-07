@@ -214,7 +214,7 @@ final class AnalysisRunModel {
         }
         switch sidecarError.code {
         case .modelEndpointUnreachable:
-            return "Ollama isn't reachable. Start it with `ollama serve` (or open the Ollama app), then retry."
+            return "Ollama isn't reachable. If it's installed, open the Ollama app (or run `ollama serve`); if not, download it from \(RuntimeGuidanceModel.downloadURL). Then retry."
         case .modelTagNotFound:
             return sidecarError.message + " Pull it with `ollama pull <tag>` or pick an installed vision model."
         default:

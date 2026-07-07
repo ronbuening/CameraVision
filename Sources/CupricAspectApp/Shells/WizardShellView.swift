@@ -9,6 +9,7 @@ struct WizardShellView: View {
     @State private var importModel = FolderImportModel()
     @State private var options = AnalysisOptions()
     @State private var runModel = AnalysisRunModel()
+    @State private var runtimeGuidance = RuntimeGuidanceModel()
     @State private var reviewModel = ReviewModel()
     @State private var normalizationModel = NormalizationModel()
     @State private var exportModel = ExportModel()
@@ -28,6 +29,7 @@ struct WizardShellView: View {
             titleBar
             Divider().overlay(theme.border)
             stepRail
+            RuntimeGuidanceBanner(guidance: runtimeGuidance)
             ScrollView {
                 content
             }
@@ -41,6 +43,8 @@ struct WizardShellView: View {
             SettingsSheet()
         }
         .task {
+            // FR4-058: one launch-time runtime check (no polling — FR4-051).
+            runtimeGuidance.check()
             runModel.onRecord = { [weak importModel] record in
                 importModel?.apply(record)
             }

@@ -97,11 +97,12 @@ struct SettingsSheet: View {
                     Spacer()
                     modelPicker
                 }
-                if settings.configuredModelUnavailable {
+                if settings.configuredModelUnavailable, !settings.visionTags.isEmpty {
                     Text("The configured model isn't installed (or isn't vision-capable) at this endpoint — pick another or `ollama pull` it.")
                         .font(.system(size: 11))
                         .foregroundStyle(theme.danger)
                 }
+                emptyModelGuidance
                 Divider().overlay(theme.border)
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -127,6 +128,41 @@ struct SettingsSheet: View {
                         .foregroundStyle(theme.accent.accent)
                     connectionBadge
                 }
+            }
+        }
+    }
+
+    /// FR4-058/AC4-034: an empty vision-model list explains itself and names
+    /// a starter model with its pull command instead of a bare empty picker.
+    @ViewBuilder
+    private var emptyModelGuidance: some View {
+        if settings.visionTagState == .loaded, settings.visionTags.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("No installed model supports vision — analysis needs one.")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(theme.danger)
+                HStack(spacing: 8) {
+                    Text("ollama pull \(settings.model)")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(theme.text)
+                        .padding(.vertical, 3)
+                        .padding(.horizontal, 8)
+                        .background(theme.panel2)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString("ollama pull \(settings.model)", forType: .string)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 11))
+                            .foregroundStyle(theme.textDim)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy pull command")
+                }
+                Text("Run it in Terminal, then refresh the list.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(theme.textFaint)
             }
         }
     }
