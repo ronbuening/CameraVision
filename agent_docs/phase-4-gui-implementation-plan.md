@@ -31,11 +31,11 @@ This plan turns the Phase 4 requirements into ordered milestones. Requirement ID
 
 Small Core additions the GUI needs. Each follows AGENTS.md rules (reusable behavior in Core, tests with each change).
 
-**CORE-1 — In-process progress callback.** Pipelines currently report per-asset progress only via the JSONL log file and logger records. Tailing a file from the GUI is fragile. Add an optional `@Sendable (ProgressRecord) -> Void` progress hook to `AnalyzePipeline` (and the normalization/export pipelines' per-target loops), invoked after each asset completes, alongside — not replacing — the existing log writes. Default `nil` keeps CLI behavior identical.
-*Acceptance:* new unit test proves the hook fires once per asset with the same record appended to the log; `swift test` passes; CLI output unchanged.
+**CORE-1 — In-process progress callback ✅ (analyze pipeline, completed 2026-07-07).** `AnalyzePipeline.run` takes an optional `progressHandler: (@Sendable (ProgressRecord) -> Void)?`, invoked once per emitted record inside `emit`, alongside — not replacing — the JSONL and logger writes. Default `nil` keeps CLI behavior identical. The equivalent hooks for the normalization/export per-target loops land with the milestones that first consume them (M6/M7).
+*Acceptance (met for analyze):* `testProgressHandlerReceivesEveryEmittedRecordAlongsideLogWrites`.
 
-**CORE-2 — Artifact-write audit for GUI mode.** `XMPExportPipeline.runResolvedInputs` already accepts `writesBatchArtifacts: Bool`. Audit `AnalyzePipeline` and `NormalizePipeline` for an equivalent switch so the GUI can keep progress/report state in its database without scattering `*-progress-*.jsonl` files into user folders. If missing, add the same opt-out, defaulting to current behavior.
-*Acceptance:* GUI-mode run writes `.ai.json` sidecars but no batch artifacts; CLI defaults unchanged; regression tests for both settings.
+**CORE-2 — Artifact-write opt-out ✅ (analyze pipeline, completed 2026-07-07).** `AnalyzePipeline.run(writesBatchArtifacts: false)` writes `.ai.json` sidecars but no batch progress/summary files, matching `XMPExportPipeline.runResolvedInputs`. Default `true` keeps CLI behavior identical. Audit `NormalizePipeline` when M6 consumes it.
+*Acceptance (met for analyze):* `testWritesBatchArtifactsFalseWritesSidecarsButNoReports`.
 
 **CORE-4 — `xmp_export` block in `.ai.json` (FR4-049).** The Phase 2/3 export pipelines, on each successful per-asset XMP write, update that asset's `.ai.json` with an additive optional `xmp_export` block: target path, written-XMP content hash, writer recipe version, engine version, timestamp. Additive per PW-011/012 (older readers unaffected); written atomically with the pipelines' existing temp-file/rename discipline; analyze paths never write it. Applies identically to CLI and GUI exports.
 *Acceptance:* unit tests prove the block appears after export and round-trips through the raw-sidecar reader; pre-CORE-4 `.ai.json` files still parse; analyze runs never produce the block; `swift test` passes.
@@ -43,8 +43,8 @@ Small Core additions the GUI needs. Each follows AGENTS.md rules (reusable behav
 **CORE-5 — Discovery-only scan ✅ (completed 2026-07-06).** `ImageScanner.inventory(inputPath:recursive:)` returns `ScanInventory` entries (path, relative path, name, extension, size, mtime, detected type) plus the usual recoverable errors, sharing the same visibility/ignore/supported-type rules as `scan` but computing no `SourceIdentity` — the M1 lazy-identity policy needs listing without hashing. `scan` is now built on the same discovery pass, so the two cannot disagree.
 *Acceptance (met):* inventory/scan parity, non-recursive exclusion, single-file input, and unsupported-file error tests in `ImageScannerInventoryTests`; full suite unchanged.
 
-**CORE-3 — Pause/resume clarification (no Core change expected).** FR4-010 requires pause/resume. `InterruptionMonitor` supports graceful *stop*; "pause" is a GUI-level job-queue concern: run work in bounded slices (e.g., N assets per pipeline invocation) and simply not schedule the next slice while paused. Verify slicing works: an `AnalyzePipeline.run` over an explicit file list of N assets must be resumable by calling again with the remaining list (`--existing skip` semantics already support this). Document the pattern in the GUI job engine.
-*Acceptance:* a written design note in the GUI target plus an integration test running two slices back-to-back with identical results to one full run.
+**CORE-3 — Pause/resume clarification ✅ (verified 2026-07-07, no Core change).** FR4-010 requires pause/resume. `InterruptionMonitor` supports graceful *stop*; "pause" is a GUI-level job-queue concern: run work in bounded slices and simply not schedule the next slice while paused; `--existing skip` semantics make re-runs additive.
+*Acceptance (met):* `testTwoSliceRunMatchesSingleFullRun` proves a single-file slice + skip-folder slice produces sidecars identical to one uninterrupted run.
 
 ## 3. Milestones
 
@@ -86,7 +86,7 @@ Per-milestone **Not in this milestone** lines are binding scope limits — when 
 
 *Status: implemented — `Features/Import/` (`AssetQueue.swift` derivation + `FolderImportModel` + `Step1PhotosView`), Wizard step rail/footer in `Shells/WizardShellView.swift`, derivation tests in `Tests/CupricAspectAppTests`. Verified against a fixture folder exercising every derived state, including the AC4-028 external-XMP case. A `CUPRIC_IMPORT_PATH` environment hook auto-imports a folder for dev/UI-test launches.*
 
-### M2 — Analysis job engine (FR4-008, FR4-009, FR4-010, AC4-002)
+### M2 — Analysis job engine ✅ (completed 2026-07-07; FR4-008, FR4-009, FR4-010, FR4-051, AC4-002)
 
 - Preflight: endpoint + model tag selection defaulting to the project default, validated through `OllamaVisionRunner.prepare()`; record model digest (FR4-009). Show actionable guidance when Ollama is unreachable (mirror README troubleshooting).
 - Job engine: a single serialized job queue actor that runs pipeline slices in background tasks; start/pause/resume/cancel (FR4-010) via slicing (CORE-3) + `InterruptionMonitor`.
@@ -96,6 +96,8 @@ Per-milestone **Not in this milestone** lines are binding scope limits — when 
 - Interrupted runs resume naturally on the next run via `--existing skip` semantics over the files already written.
 - **Not in this milestone:** no review UI, no XMP anything, no autosave (that's M4's review state).
 - **Done when:** the user can run analysis on an imported folder, watch per-asset state advance, cancel mid-batch, relaunch, re-run, and end with the same set of `.ai.json` files a single uninterrupted run produces.
+
+*Status: implemented — `Features/Run/` (`AnalysisRunModel` engine + options, Wizard Steps 2–4 views, Step 5 run summary as the M4 stand-in). Options resolve through `ConfigurationResolver` (CLI-equivalent overrides over config.json). Verified end-to-end against live Ollama: real analyze run over generated JPEGs, per-asset progress advancing the queue, structured error codes surfaced on the summary (`E_MODEL_SCHEMA_VIOLATION` from a schema-violating substitute model), sidecars with full provenance on disk. Cancel returns to Step 3 per design; run failures banner on Step 3 with Ollama guidance (FR4-051).*
 
 ### M3 — Thumbnails and previews (FR4-013, FR4-014, FR4-039 groundwork)
 

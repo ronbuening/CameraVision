@@ -52,6 +52,28 @@ final class FolderImportModel {
         Task { await rescan() }
     }
 
+    /// Advance one asset's transient in-run state from a pipeline progress
+    /// record (M2). Between launches the same information is re-derived from
+    /// disk, so this is display state only — never persisted.
+    func apply(_ record: ProgressRecord) {
+        guard let path = record.sourcePath,
+              let index = assets.firstIndex(where: { $0.path == path }) else {
+            return
+        }
+        switch record.status {
+        case .written, .skippedExisting:
+            assets[index].stateKind = .analyzed
+            assets[index].failureCode = nil
+            assets[index].failureMessage = nil
+        case .failed:
+            assets[index].stateKind = .failed
+            assets[index].failureCode = record.errors.first?.code.rawValue
+            assets[index].failureMessage = record.errors.first?.message
+        case .dryRun:
+            break
+        }
+    }
+
     /// Scan (or idempotently re-scan) the selected folder and derive queue
     /// states from disk. Replaces the queue keyed by path, so re-import of
     /// the same folder yields the same rows.

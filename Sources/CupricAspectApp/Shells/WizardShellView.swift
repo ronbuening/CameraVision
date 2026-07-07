@@ -6,6 +6,9 @@ import SwiftUI
 struct WizardShellView: View {
     @Environment(\.cvTheme) private var theme
     @State private var importModel = FolderImportModel()
+    @State private var options = AnalysisOptions()
+    @State private var runModel = AnalysisRunModel()
+    @State private var selectedAction: WizardAction?
     @State private var step = 1
     @State private var showAbout = false
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
@@ -32,10 +35,45 @@ struct WizardShellView: View {
                 .frame(width: 440, height: 620)
         }
         .task {
-            // Dev/UI-test hook: auto-import a folder passed via environment.
-            // No effect in normal launches; not a shipped preference.
-            if let path = ProcessInfo.processInfo.environment["CUPRIC_IMPORT_PATH"] {
+            runModel.onRecord = { [weak importModel] record in
+                importModel?.apply(record)
+            }
+            // Dev/UI-test hooks: auto-import a folder / jump to a step via
+            // environment. No effect in normal launches; not preferences.
+            let env = ProcessInfo.processInfo.environment
+            if let path = env["CUPRIC_IMPORT_PATH"] {
                 importModel.chooseSource(URL(fileURLWithPath: path, isDirectory: true))
+            }
+            if let rawStep = env["CUPRIC_DEBUG_STEP"], let debugStep = Int(rawStep), (1...5).contains(debugStep) {
+                selectedAction = .analyze
+                step = debugStep
+            }
+            if env["CUPRIC_DEBUG_AUTORUN"] == "1" {
+                selectedAction = .analyze
+                while importModel.scanning || importModel.assets.isEmpty {
+                    try? await Task.sleep(for: .milliseconds(200))
+                }
+                step = 3
+                try? await Task.sleep(for: .seconds(2))
+                primaryAction()
+            }
+        }
+        .onChange(of: runModel.phase) { _, phase in
+            switch phase {
+            case .finished(let outcome):
+                if outcome.interrupted {
+                    // Design §6 Step 4: cancel returns to the options step.
+                    runModel.reset()
+                    step = 3
+                } else {
+                    step = 5
+                }
+                Task { await importModel.rescan() }
+            case .failed:
+                // Surface the failure on the options screen (banner there).
+                step = 3
+            default:
+                break
             }
         }
     }
@@ -44,7 +82,7 @@ struct WizardShellView: View {
 
     private var titleBar: some View {
         HStack(spacing: 9) {
-            ApertureView(size: 20, running: importModel.scanning, spin: true)
+            ApertureView(size: 20, running: importModel.scanning || runModel.isRunning, spin: true)
             Text("CupricAspect")
                 .font(.system(size: 13, weight: .bold))
                 .kerning(-0.1)
@@ -125,36 +163,120 @@ struct WizardShellView: View {
         switch step {
         case 1:
             Step1PhotosView(model: importModel)
+        case 2:
+            Step2ActionView(selection: $selectedAction)
+        case 3:
+            VStack(spacing: 0) {
+                if case .failed(let message) = runModel.phase {
+                    failureBanner(message)
+                }
+                Step3OptionsView(
+                    action: selectedAction ?? .analyze,
+                    options: options,
+                    runModel: runModel,
+                    importModel: importModel
+                )
+            }
+        case 4:
+            Step4WorkingView(action: selectedAction ?? .analyze, runModel: runModel)
         default:
-            placeholder(for: step)
+            if case .finished(let outcome) = runModel.phase {
+                Step5SummaryView(outcome: outcome)
+            } else {
+                VStack(spacing: 14) {
+                    ApertureView(size: 64)
+                    Text("Review")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(theme.text)
+                    Text("Candidate review arrives with milestone M4.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(theme.textDim)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 120)
+            }
         }
     }
 
-    private func placeholder(for step: Int) -> some View {
-        let milestone = ["", "", "M2", "M2", "M2", "M4"][step]
-        return VStack(spacing: 14) {
-            ApertureView(size: 64)
-            Text(Self.stepLabels[step - 1])
-                .font(.system(size: 20, weight: .bold))
+    private func failureBanner(_ message: String) -> some View {
+        HStack(spacing: 10) {
+            Text("!")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 20, height: 20)
+                .background(theme.danger)
+                .clipShape(Circle())
+            Text(message)
+                .font(.system(size: 12.5, weight: .medium))
                 .foregroundStyle(theme.text)
-            Text("This step arrives with milestone \(milestone).")
-                .font(.system(size: 13))
-                .foregroundStyle(theme.textDim)
+            Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 120)
+        .padding(EdgeInsets(top: 12, leading: 15, bottom: 12, trailing: 15))
+        .background(theme.danger.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(theme.danger.opacity(0.5)))
+        .padding(EdgeInsets(top: 20, leading: 34, bottom: 0, trailing: 34))
     }
 
     // MARK: - Footer
 
     private var backEnabled: Bool { step > 1 && step != 4 }
-    private var primaryEnabled: Bool { step == 1 && importModel.sourceFolder != nil }
+
+    private var primaryEnabled: Bool {
+        switch step {
+        case 1: importModel.sourceFolder != nil
+        case 2: selectedAction != nil
+        case 3: importModel.sourceFolder != nil && !runModel.isRunning
+        case 4: false
+        default: true
+        }
+    }
+
+    private var primaryLabel: String {
+        switch step {
+        case 3: "Start"
+        case 4: "Working…"
+        case 5: "Done"
+        default: "Continue"
+        }
+    }
 
     private var footerHint: String {
-        if step == 1 {
+        switch step {
+        case 1:
             return importModel.sourceFolder == nil ? "Choose a folder to continue" : importModel.summary
+        case 2:
+            return selectedAction.map { "\($0.title) selected" } ?? "Pick an action"
+        case 3:
+            return "\(selectedAction?.title ?? "") · \(importModel.assets.count) images"
+        case 4:
+            return "Processing locally"
+        default:
+            return "Sidecars written — review arrives with M4"
         }
-        return "This step arrives with a later milestone."
+    }
+
+    private func primaryAction() {
+        switch step {
+        case 1, 2:
+            step += 1
+        case 3:
+            guard let source = importModel.sourceFolder else { return }
+            runModel.start(
+                options: options,
+                inputPath: source.path,
+                recursive: importModel.recursive,
+                outputDir: importModel.outputFolder?.path,
+                expectedTotal: importModel.assets.count
+            )
+            step = 4
+        case 5:
+            runModel.reset()
+            selectedAction = nil
+            step = 1
+        default:
+            break
+        }
     }
 
     private var footerBar: some View {
@@ -179,10 +301,8 @@ struct WizardShellView: View {
 
             Spacer()
 
-            Button {
-                if primaryEnabled { step = min(5, step + 1) }
-            } label: {
-                Text("Continue")
+            Button(action: primaryAction) {
+                Text(primaryLabel)
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.vertical, 10)
