@@ -77,6 +77,10 @@ public enum NormalizationCandidateSkipReason: String, Codable, CaseIterable, Sen
     case gearOnlyAffinity = "gear_only_affinity"
     case globalBackstopThreshold = "global_backstop_threshold"
     case sessionContextConflict = "session_context_conflict"
+    // Additive (Phase 4 review, invariant 7): human review verdicts recorded
+    // by the GUI/SessionReview. Older sessions never contain these values.
+    case userReviewRejected = "user_review_rejected"
+    case userReviewDeferred = "user_review_deferred"
 }
 
 /// One candidate-level skip or decision-policy block recorded in the session.

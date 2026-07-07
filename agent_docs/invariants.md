@@ -23,7 +23,7 @@ Binding rules for any change, by any agent, at any level. If a task appears to r
 11. **macOS 15 minimum, Swift 6 strict concurrency, macOS-only.** No cross-platform availability annotations or platform docs unless a requirement broadens support.
 12. **Tests are deterministic and offline.** Unit tests must not require Ollama, model downloads, real images, or network. Use the mock runners and recorded fixtures in `ModelRuntime` and `Tests/AISidecarCoreTests/Fixtures/`.
 13. **Core/CLI split.** Reusable behavior goes in `Sources/AISidecarCore`; `Sources/AISidecarCLI` is argument parsing, command wiring, and presentation only. A future GUI target follows the same rule.
-14. **Single executable shape.** One `aisidecar` binary with phase-specific subcommands.
+14. **Two executables, fixed shapes.** The CLI is one `aisidecar` binary with phase-specific subcommands — never split it into multiple CLI tools. The GUI is the separate `CupricAspect` executable (Phase 4, added at its M0). Do not add further executable products without an explicit requirement.
 15. **Ollama capability preflight stays serial.** A parallel version was deliberately reverted (commit `a1366b6`). Do not re-parallelize it.
 16. **Behavior changes ship with tests.** Prefer focused unit tests in `AISidecarCoreTests`. Follow `agent_docs/commenting_guide.md` for any substantive comments or public API docs.
 17. **One milestone / one work item at a time** unless the user explicitly expands scope. Phase 1 Milestones 0-9a, Phase 2 Milestones 0-10, and Phase 3 Milestones 0-11 are complete — do not reopen released milestone work without new acceptance criteria.

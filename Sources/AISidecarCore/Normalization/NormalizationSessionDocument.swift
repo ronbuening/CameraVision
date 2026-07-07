@@ -230,6 +230,9 @@ public enum NormalizedCandidateKind: String, Codable, Sendable, Equatable {
     case modelSpeciesFallback = "model_species_fallback"
     case phase2Fallback = "phase2_fallback"
     case userContextUnnormalized = "user_context_unnormalized"
+    // Additive (Phase 4 review, invariant 7): the user replaced the keyword
+    // text during review; `source_text` preserves the original term.
+    case userEdited = "user_edited"
 }
 
 /// Summary of direct support for one normalized or fallback candidate.

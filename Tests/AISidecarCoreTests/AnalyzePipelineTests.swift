@@ -575,6 +575,155 @@ final class AnalyzePipelineTests: XCTestCase {
     private func fixedDateProvider(_ date: Date) -> @Sendable () -> Date {
         { date }
     }
+
+    // MARK: - CORE-1: in-process progress handler
+
+    func testProgressHandlerReceivesEveryEmittedRecordAlongsideLogWrites() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        _ = try writeTestImage("A.JPG", in: root)
+        _ = try writeTestImage("B.JPG", in: root)
+        let captured = RecordBox()
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path
+            ),
+            progressHandler: { captured.append($0) }
+        )
+
+        XCTAssertEqual(captured.records, result.records, "handler sees exactly the emitted records, in order")
+        let progressLogPath = try XCTUnwrap(result.progressLogPath)
+        let logLines = try String(contentsOfFile: progressLogPath, encoding: .utf8)
+            .split(separator: "\n").count
+        XCTAssertEqual(logLines, result.records.count, "hook is additive — the JSONL log is unchanged")
+    }
+
+    // MARK: - CORE-2: batch-artifact opt-out
+
+    func testWritesBatchArtifactsFalseWritesSidecarsButNoReports() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        _ = try writeTestImage("A.JPG", in: root)
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path
+            ),
+            writesBatchArtifacts: false
+        )
+
+        XCTAssertNil(result.progressLogPath)
+        XCTAssertNil(result.summaryPath)
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.appendingPathComponent("A.JPG.ai.json").path))
+        let reportFiles = try FileManager.default.contentsOfDirectory(atPath: output.path)
+            .filter { $0.hasPrefix("batch-") }
+        XCTAssertTrue(reportFiles.isEmpty, "no batch-progress/batch-summary artifacts in GUI mode")
+    }
+
+    // MARK: - CORE-3: sliced runs equal one full run
+
+    func testTwoSliceRunMatchesSingleFullRun() async throws {
+        let root = try temporaryDirectory()
+        let slicedOutput = try temporaryDirectory()
+        let fullOutput = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: slicedOutput)
+            try? FileManager.default.removeItem(at: fullOutput)
+        }
+        let first = try writeTestImage("A.JPG", in: root)
+        _ = try writeTestImage("B.JPG", in: root)
+        _ = try writeTestImage("C.JPG", in: root)
+        let names = ["A.JPG.ai.json", "B.JPG.ai.json", "C.JPG.ai.json"]
+
+        func sliceConfig(outputDir: String) -> ResolvedRunConfiguration {
+            // `.skip` in every run: the GUI pause/resume pattern re-invokes the
+            // pipeline and relies on skip semantics to make re-runs additive.
+            config(
+                recursive: false,
+                outputDir: outputDir,
+                existing: .skip,
+                mode: .whole,
+                cacheDir: outputDir + "/cache"
+            )
+        }
+
+        // Slice 1: just the first file. Slice 2: the whole folder, skipping it.
+        let slice1 = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: first.path,
+            configuration: sliceConfig(outputDir: slicedOutput.path)
+        )
+        XCTAssertEqual(slice1.records.map(\.status), [.written])
+        let slice2 = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: sliceConfig(outputDir: slicedOutput.path),
+            writesBatchArtifacts: false
+        )
+        XCTAssertEqual(
+            slice2.records.map(\.status).sorted { "\($0)" < "\($1)" },
+            [.skippedExisting, .written, .written].sorted { "\($0)" < "\($1)" }
+        )
+
+        let full = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: sliceConfig(outputDir: fullOutput.path),
+            writesBatchArtifacts: false
+        )
+        XCTAssertEqual(full.records.map(\.status), [.written, .written, .written])
+
+        for name in names {
+            let sliced = try Data(contentsOf: slicedOutput.appendingPathComponent(name))
+            let fullData = try Data(contentsOf: fullOutput.appendingPathComponent(name))
+            XCTAssertEqual(
+                normalizedSidecarJSON(sliced, strippingOutputDir: slicedOutput.path),
+                normalizedSidecarJSON(fullData, strippingOutputDir: fullOutput.path),
+                "\(name): sliced result must match the uninterrupted run"
+            )
+        }
+    }
+
+    /// Sidecars embed the output directory in recorded paths; normalize it so
+    /// the sliced and full runs (different output dirs) compare equal.
+    private func normalizedSidecarJSON(_ data: Data, strippingOutputDir dir: String) -> String {
+        String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: dir, with: "<out>")
+    }
+}
+
+/// Thread-safe capture box for the @Sendable progress handler.
+private final class RecordBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [ProgressRecord] = []
+
+    func append(_ record: ProgressRecord) {
+        lock.lock()
+        defer { lock.unlock() }
+        storage.append(record)
+    }
+
+    var records: [ProgressRecord] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
 }
 
 private struct CapturedModelCall: Sendable, Equatable {

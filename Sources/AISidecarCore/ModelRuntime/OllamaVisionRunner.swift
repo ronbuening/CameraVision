@@ -226,6 +226,14 @@ public struct OllamaVisionRunner: VisionModelRunner {
         }
     }
 
+    /// List installed vision-capable model tags (CORE-8, Phase 4 Settings):
+    /// the same `/api/tags` + `/api/show` probing `prepare` performs, without
+    /// requiring any particular tag to exist. Serial per invariant 15.
+    public func listInstalledVisionTags(endpoint: URL) async throws -> [String] {
+        let tags = try await getTags(endpoint: endpoint)
+        return await installedVisionTags(from: tags, endpoint: endpoint)
+    }
+
     private func getTags(endpoint: URL) async throws -> OllamaTagsResponse {
         try await requestJSON(
             OllamaTagsResponse.self,

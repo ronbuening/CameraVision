@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Result of a Phase 2 XMP export pipeline invocation.
@@ -192,6 +193,7 @@ public struct XMPExportPipeline {
 
             let targetReport = executeTarget(plan, interruptionMonitor: interruptionMonitor)
             targetReports.append(targetReport)
+            stampSourceSidecars(for: targetReport, context: context)
             try progressLog?.append(progressRecord(for: targetReport))
             try logger.log(logRecord(for: targetReport))
 
@@ -570,6 +572,35 @@ public struct XMPExportPipeline {
             return "Planned XMP sidecar."
         case .interrupted:
             return "XMP export interrupted."
+        }
+    }
+
+    /// CORE-4 (FR4-049): after a successful XMP write, stamp every selected
+    /// contributing raw sidecar with the additive `xmp_export` block. Best
+    /// effort — a stamp failure must never fail an export whose XMP write
+    /// and validation already succeeded; the next successful export retries.
+    private func stampSourceSidecars(for report: XMPExportTargetReport, context: MetadataWriteEngineContext) {
+        guard report.status == .written || report.status == .created else {
+            return
+        }
+        let targetPath = report.plan.targetXMPPath
+        guard let xmpData = fileManager.contents(atPath: targetPath) else {
+            return
+        }
+        let xmpSHA256 = SHA256.hash(data: xmpData).map { String(format: "%02x", $0) }.joined()
+        let contents = RawSidecarExportStamp.Contents(
+            targetXMPPath: targetPath,
+            xmpSHA256: xmpSHA256,
+            writerRecipeVersion: context.writerRecipeVersion,
+            engineVersion: context.engineVersion,
+            exportedAt: now()
+        )
+        for member in report.plan.sourceMembers where member.selected {
+            try? RawSidecarExportStamp.stamp(
+                sidecarPath: member.sourceSidecarPath,
+                contents: contents,
+                fileManager: fileManager
+            )
         }
     }
 

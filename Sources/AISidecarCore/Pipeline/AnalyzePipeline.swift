@@ -65,10 +65,18 @@ public struct AnalyzePipeline {
     ///
     /// Folder runs create progress and summary artifacts after model preflight
     /// succeeds; single-file runs write only the raw sidecar and console status.
+    ///
+    /// `writesBatchArtifacts: false` (CORE-2) keeps `.ai.json` sidecar writes
+    /// but suppresses the batch progress JSONL and summary files, for hosts
+    /// (the GUI) that hold run state in-process instead of in report files.
+    /// `progressHandler` (CORE-1) is invoked once per emitted record, serially,
+    /// in addition to — never instead of — the existing log writes.
     public func run(
         inputPath: String,
         configuration: ResolvedRunConfiguration,
-        interruptionMonitor: InterruptionMonitor? = nil
+        interruptionMonitor: InterruptionMonitor? = nil,
+        writesBatchArtifacts: Bool = true,
+        progressHandler: (@Sendable (ProgressRecord) -> Void)? = nil
     ) async throws -> AnalyzeResult {
         let runStartedAt = now()
         let profile = try ModelInputProfileRegistry.resolve(name: configuration.profile)
@@ -97,10 +105,10 @@ public struct AnalyzePipeline {
         let isBatch = scanResult.inputPath == scanResult.scanRoot
         let timestamp = timestampString(for: runStartedAt)
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
-        let progressPath = isBatch && !configuration.dryRun
+        let progressPath = isBatch && !configuration.dryRun && writesBatchArtifacts
             ? "\(reportDirectory)/\(ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
             : nil
-        let summaryPath = isBatch && !configuration.dryRun
+        let summaryPath = isBatch && !configuration.dryRun && writesBatchArtifacts
             ? "\(reportDirectory)/\(ArtifactNames.batchSummaryPrefix)\(timestamp).json"
             : nil
         let progressLog = try progressPath.map { try ProgressLog(path: $0, fileManager: fileManager) }
@@ -117,6 +125,7 @@ public struct AnalyzePipeline {
                 try progressLog?.append(record)
             }
             try logger.log(logRecord(for: record))
+            progressHandler?(record)
         }
 
         for scanError in scanResult.errors {

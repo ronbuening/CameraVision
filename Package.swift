@@ -15,6 +15,10 @@ let package = Package(
         .executable(
             name: "aisidecar",
             targets: ["AISidecarCLI"]
+        ),
+        .executable(
+            name: "CupricAspect",
+            targets: ["CupricAspectApp"]
         )
     ],
     dependencies: [
@@ -35,6 +39,26 @@ let package = Package(
             dependencies: [
                 "AISidecarCore",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ],
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency")
+            ]
+        ),
+        .executableTarget(
+            name: "CupricAspectApp",
+            dependencies: [
+                "AISidecarCore"
+            ],
+            exclude: ["AGENTS.md"],
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency")
+            ]
+        ),
+        .testTarget(
+            name: "CupricAspectAppTests",
+            dependencies: ["CupricAspectApp"],
+            resources: [
+                .process("Fixtures")
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")

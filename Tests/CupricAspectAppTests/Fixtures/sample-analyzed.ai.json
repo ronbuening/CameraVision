@@ -1,0 +1,649 @@
+{
+  "created_at" : "2026-07-07T11:28:31Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/deed41f1fdef8e2bd25993dc5ad34117291d0080732c8a0df4d92bdbd8377705-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 200,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "c01bf54fcaba7a844de37108fde558f052100444c825ec064d4b3c62c885bce8",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "deed41f1fdef8e2bd25993dc5ad34117291d0080732c8a0df4d92bdbd8377705"
+      },
+      "width" : 320
+    },
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/deed41f1fdef8e2bd25993dc5ad34117291d0080732c8a0df4d92bdbd8377705-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 142,
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "role" : "subject_isolated",
+      "sha256" : "3a4193e2d712118da6f525462b6d10fe7f5522abcbd3d7103ec10f13aa3baf64",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "deed41f1fdef8e2bd25993dc5ad34117291d0080732c8a0df4d92bdbd8377705"
+      },
+      "width" : 142
+    }
+  ],
+  "errors" : [
+    {
+      "code" : "E_MODEL_SCHEMA_VIOLATION",
+      "message" : "Model response violated schema urn:aisidecar:response:whole-image:1.4.0: $: Value must not match forbidden schema.",
+      "recoverable" : true,
+      "stage" : "model"
+    },
+    {
+      "code" : "E_MODEL_SCHEMA_VIOLATION",
+      "message" : "Model response violated schema urn:aisidecar:response:subject-isolated:1.4.0: $: Value must not match forbidden schema.",
+      "recoverable" : true,
+      "stage" : "model"
+    }
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 24822,
+      "error" : {
+        "code" : "E_MODEL_SCHEMA_VIOLATION",
+        "message" : "Model response violated schema urn:aisidecar:response:whole-image:1.4.0: $: Value must not match forbidden schema.",
+        "recoverable" : true,
+        "stage" : "model"
+      },
+      "input_derivative_sha256" : "c01bf54fcaba7a844de37108fde558f052100444c825ec064d4b3c62c885bce8",
+      "input_role" : "whole_image",
+      "json_valid" : false,
+      "model" : "qwen2.5vl:7b",
+      "model_digest" : "sha256:5ced39dfa4bac325dc183dd1e4febaa1c46b3ea28bce48896c8e69c1e79611cc",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "abstract",
+            "term" : "still_life"
+          }
+        ],
+        "habitat_or_setting" : [
+
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "yellow circle on blue background",
+            "term" : "circle"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "blue background with yellow circle",
+            "term" : "abstract art"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "yellow circle on blue background",
+            "term" : "circle"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "blue background with yellow circle",
+            "term" : "abstract art"
+          }
+        ],
+        "scene_context" : [
+
+        ],
+        "secondary_subjects" : [
+
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A simple abstract image featuring a yellow circle on a blue background.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "3d86ce6000df9a9c4d2fcd5ec743536ef5762ec2929bd370787db977d41e93cb",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.4.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"abstract\",\n      \"term\": \"still_life\"\n    }\n  ],\n  \"habitat_or_setting\": [],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"yellow circle on blue background\",\n      \"term\": \"circle\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"blue background with yellow circle\",\n      \"term\": \"abstract art\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"yellow circle on blue background\",\n      \"term\": \"circle\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"blue background with yellow circle\",\n      \"term\": \"abstract art\"\n    }\n  ],\n  \"scene_context\": [],\n  \"secondary_subjects\": [],\n  \"summary\": \"A simple abstract image featuring a yellow circle on a blue background.\",\n  \"uncertainty_notes\": \"\",\n  \"species\": []\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_attempts" : [
+        {
+          "duration_ms" : 16694,
+          "error" : {
+            "code" : "E_MODEL_SCHEMA_VIOLATION",
+            "message" : "Model response violated schema urn:aisidecar:response:whole-image:1.4.0: $: Value must not match forbidden schema.",
+            "recoverable" : true,
+            "stage" : "model"
+          },
+          "json_valid" : false,
+          "kind" : "primary",
+          "parsed_response_json" : {
+            "behavior_or_action" : [
+
+            ],
+            "genre_or_photography_type" : [
+              {
+                "confidence" : "high",
+                "evidence" : "abstract",
+                "term" : "still_life"
+              }
+            ],
+            "habitat_or_setting" : [
+
+            ],
+            "main_subjects" : [
+              {
+                "confidence" : "high",
+                "evidence" : "yellow circle on blue background",
+                "term" : "circle"
+              },
+              {
+                "confidence" : "medium",
+                "evidence" : "blue background with yellow circle",
+                "term" : "abstract art"
+              }
+            ],
+            "proposed_keywords" : [
+              {
+                "confidence" : "high",
+                "evidence" : "yellow circle on blue background",
+                "term" : "circle"
+              },
+              {
+                "confidence" : "medium",
+                "evidence" : "blue background with yellow circle",
+                "term" : "abstract art"
+              }
+            ],
+            "scene_context" : [
+
+            ],
+            "secondary_subjects" : [
+
+            ],
+            "species" : [
+
+            ],
+            "summary" : "A simple abstract image featuring a yellow circle on a blue background.",
+            "uncertainty_notes" : ""
+          },
+          "prompt_sha256" : "3d86ce6000df9a9c4d2fcd5ec743536ef5762ec2929bd370787db977d41e93cb",
+          "prompt_version" : "aisidecar.prompt.whole_image/1.4.0",
+          "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"abstract\"\n    ,\n    \"term\": \"still_life\"\n    }\n  ],\n  \"habitat_or_setting\": [],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"yellow circle on blue background\"\n    , \"term\": \"circle\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"blue background with yellow circle\"\n    , \"term\": \"abstract art\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"yellow circle on blue background\"\n    , \"term\": \"circle\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"blue background with yellow circle\"\n    , \"term\": \"abstract art\"\n    }\n  ],\n  \"scene_context\": [],\n  \"secondary_subjects\": [],\n  \"summary\": \"A simple abstract image featuring a yellow circle on a blue background.\",\n  \"uncertainty_notes\": \"\",\n  \"species\": []\n}",
+          "request_options" : {
+            "keep_alive" : "30m",
+            "response_repair_attempts" : 1,
+            "retry_limit" : 2,
+            "seed" : 0,
+            "temperature" : 0,
+            "thinking_enabled" : false,
+            "timeout_seconds" : 180
+          },
+          "response_schema_version" : "urn:aisidecar:response:whole-image:1.4.0",
+          "runtime_metrics" : {
+            "eval_count" : 249,
+            "eval_duration_ns" : 5552195000,
+            "load_duration_ns" : 4441275750,
+            "prompt_eval_count" : 2394,
+            "prompt_eval_duration_ns" : 6681582000,
+            "total_duration_ns" : 16692100916
+          }
+        },
+        {
+          "duration_ms" : 8128,
+          "error" : {
+            "code" : "E_MODEL_SCHEMA_VIOLATION",
+            "message" : "Model response violated schema urn:aisidecar:response:whole-image:1.4.0: $: Value must not match forbidden schema.",
+            "recoverable" : true,
+            "stage" : "model"
+          },
+          "json_valid" : false,
+          "kind" : "repair",
+          "parsed_response_json" : {
+            "behavior_or_action" : [
+
+            ],
+            "genre_or_photography_type" : [
+              {
+                "confidence" : "high",
+                "evidence" : "abstract",
+                "term" : "still_life"
+              }
+            ],
+            "habitat_or_setting" : [
+
+            ],
+            "main_subjects" : [
+              {
+                "confidence" : "high",
+                "evidence" : "yellow circle on blue background",
+                "term" : "circle"
+              },
+              {
+                "confidence" : "medium",
+                "evidence" : "blue background with yellow circle",
+                "term" : "abstract art"
+              }
+            ],
+            "proposed_keywords" : [
+              {
+                "confidence" : "high",
+                "evidence" : "yellow circle on blue background",
+                "term" : "circle"
+              },
+              {
+                "confidence" : "medium",
+                "evidence" : "blue background with yellow circle",
+                "term" : "abstract art"
+              }
+            ],
+            "scene_context" : [
+
+            ],
+            "secondary_subjects" : [
+
+            ],
+            "species" : [
+
+            ],
+            "summary" : "A simple abstract image featuring a yellow circle on a blue background.",
+            "uncertainty_notes" : ""
+          },
+          "prompt_sha256" : "5c32670bd84bd04a21cf2b84b6c02970057d8fbc797132680b6e3cc3ae174e6a",
+          "prompt_version" : "aisidecar.prompt.model_response_repair/1.0.0",
+          "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"abstract\",\n      \"term\": \"still_life\"\n    }\n  ],\n  \"habitat_or_setting\": [],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"yellow circle on blue background\",\n      \"term\": \"circle\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"blue background with yellow circle\",\n      \"term\": \"abstract art\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"yellow circle on blue background\",\n      \"term\": \"circle\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"blue background with yellow circle\",\n      \"term\": \"abstract art\"\n    }\n  ],\n  \"scene_context\": [],\n  \"secondary_subjects\": [],\n  \"summary\": \"A simple abstract image featuring a yellow circle on a blue background.\",\n  \"uncertainty_notes\": \"\",\n  \"species\": []\n}",
+          "request_options" : {
+            "keep_alive" : "30m",
+            "response_repair_attempts" : 1,
+            "retry_limit" : 2,
+            "seed" : 0,
+            "temperature" : 0,
+            "thinking_enabled" : false,
+            "timeout_seconds" : 180
+          },
+          "response_schema_version" : "urn:aisidecar:response:whole-image:1.4.0",
+          "runtime_metrics" : {
+            "eval_count" : 240,
+            "eval_duration_ns" : 4999354000,
+            "load_duration_ns" : 97037084,
+            "prompt_eval_count" : 1405,
+            "prompt_eval_duration_ns" : 3013075000,
+            "total_duration_ns" : 8126061875
+          }
+        }
+      ],
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.4.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 240,
+        "eval_duration_ns" : 4999354000,
+        "load_duration_ns" : 97037084,
+        "prompt_eval_count" : 1405,
+        "prompt_eval_duration_ns" : 3013075000,
+        "total_duration_ns" : 8126061875
+      },
+      "runtime_version" : "0.30.10"
+    },
+    {
+      "duration_ms" : 16896,
+      "error" : {
+        "code" : "E_MODEL_SCHEMA_VIOLATION",
+        "message" : "Model response violated schema urn:aisidecar:response:subject-isolated:1.4.0: $: Value must not match forbidden schema.",
+        "recoverable" : true,
+        "stage" : "model"
+      },
+      "input_derivative_sha256" : "3a4193e2d712118da6f525462b6d10fe7f5522abcbd3d7103ec10f13aa3baf64",
+      "input_role" : "subject_isolated",
+      "json_valid" : false,
+      "model" : "qwen2.5vl:7b",
+      "model_digest" : "sha256:5ced39dfa4bac325dc183dd1e4febaa1c46b3ea28bce48896c8e69c1e79611cc",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "simple geometric shape with uniform color",
+            "term" : "abstract"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "uniform yellow circle on neutral background",
+            "term" : "circle"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "uniform color and shape",
+            "term" : "color"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "simple geometric form",
+            "term" : "shape"
+          }
+        ],
+        "secondary_subjects" : [
+
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A uniform yellow circle on a neutral background.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "348609be8a9ec55a9b13b8cf54e43ef69b7dc21511546d3b24d377c2a6d3487f",
+      "prompt_version" : "aisidecar.prompt.subject_isolated/1.4.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"simple geometric shape with uniform color\",\n      \"term\": \"abstract\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"uniform yellow circle on neutral background\",\n      \"term\": \"circle\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"uniform color and shape\",\n      \"term\": \"color\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"simple geometric form\",\n      \"term\": \"shape\"\n    }\n  ],\n  \"secondary_subjects\": [],\n  \"summary\": \"A uniform yellow circle on a neutral background.\",\n  \"uncertainty_notes\": \"\",\n  \"species\": []\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_attempts" : [
+        {
+          "duration_ms" : 11076,
+          "error" : {
+            "code" : "E_MODEL_SCHEMA_VIOLATION",
+            "message" : "Model response violated schema urn:aisidecar:response:subject-isolated:1.4.0: $: Value must not match forbidden schema.",
+            "recoverable" : true,
+            "stage" : "model"
+          },
+          "json_valid" : false,
+          "kind" : "primary",
+          "parsed_response_json" : {
+            "behavior_or_action" : [
+
+            ],
+            "genre_or_photography_type" : [
+              {
+                "confidence" : "high",
+                "evidence" : "simple geometric shape with uniform color",
+                "term" : "abstract"
+              }
+            ],
+            "main_subjects" : [
+              {
+                "confidence" : "high",
+                "evidence" : "uniform yellow circle on neutral background",
+                "term" : "circle"
+              }
+            ],
+            "proposed_keywords" : [
+              {
+                "confidence" : "high",
+                "evidence" : "uniform color and shape",
+                "term" : "color"
+              },
+              {
+                "confidence" : "medium",
+                "evidence" : "simple geometric form",
+                "term" : "shape"
+              }
+            ],
+            "secondary_subjects" : [
+
+            ],
+            "species" : [
+
+            ],
+            "summary" : "A uniform yellow circle on a neutral background.",
+            "uncertainty_notes" : ""
+          },
+          "prompt_sha256" : "348609be8a9ec55a9b13b8cf54e43ef69b7dc21511546d3b24d377c2a6d3487f",
+          "prompt_version" : "aisidecar.prompt.subject_isolated/1.4.0",
+          "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"simple geometric shape with uniform color\"\n    ,\n      \"term\": \"abstract\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"uniform yellow circle on neutral background\"\n    ,\n      \"term\": \"circle\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"uniform color and shape\"\n    ,\n      \"term\": \"color\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"simple geometric form\"\n    ,\n      \"term\": \"shape\"\n    }\n  ],\n  \"secondary_subjects\": [],\n  \"summary\": \"A uniform yellow circle on a neutral background.\",\n  \"uncertainty_notes\": \"\",\n  \"species\": []\n}",
+          "request_options" : {
+            "keep_alive" : "30m",
+            "response_repair_attempts" : 1,
+            "retry_limit" : 2,
+            "seed" : 0,
+            "temperature" : 0,
+            "thinking_enabled" : false,
+            "timeout_seconds" : 180
+          },
+          "response_schema_version" : "urn:aisidecar:response:subject-isolated:1.4.0",
+          "runtime_metrics" : {
+            "eval_count" : 200,
+            "eval_duration_ns" : 4377633000,
+            "load_duration_ns" : 95868417,
+            "prompt_eval_count" : 2395,
+            "prompt_eval_duration_ns" : 6581517000,
+            "total_duration_ns" : 11073536084
+          }
+        },
+        {
+          "duration_ms" : 5820,
+          "error" : {
+            "code" : "E_MODEL_SCHEMA_VIOLATION",
+            "message" : "Model response violated schema urn:aisidecar:response:subject-isolated:1.4.0: $: Value must not match forbidden schema.",
+            "recoverable" : true,
+            "stage" : "model"
+          },
+          "json_valid" : false,
+          "kind" : "repair",
+          "parsed_response_json" : {
+            "behavior_or_action" : [
+
+            ],
+            "genre_or_photography_type" : [
+              {
+                "confidence" : "high",
+                "evidence" : "simple geometric shape with uniform color",
+                "term" : "abstract"
+              }
+            ],
+            "main_subjects" : [
+              {
+                "confidence" : "high",
+                "evidence" : "uniform yellow circle on neutral background",
+                "term" : "circle"
+              }
+            ],
+            "proposed_keywords" : [
+              {
+                "confidence" : "high",
+                "evidence" : "uniform color and shape",
+                "term" : "color"
+              },
+              {
+                "confidence" : "medium",
+                "evidence" : "simple geometric form",
+                "term" : "shape"
+              }
+            ],
+            "secondary_subjects" : [
+
+            ],
+            "species" : [
+
+            ],
+            "summary" : "A uniform yellow circle on a neutral background.",
+            "uncertainty_notes" : ""
+          },
+          "prompt_sha256" : "f8525b8cc83de97b19b2d8831149fdf8098873408c73f5751d862fb633cda245",
+          "prompt_version" : "aisidecar.prompt.model_response_repair/1.0.0",
+          "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"simple geometric shape with uniform color\",\n      \"term\": \"abstract\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"uniform yellow circle on neutral background\",\n      \"term\": \"circle\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"uniform color and shape\",\n      \"term\": \"color\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"simple geometric form\",\n      \"term\": \"shape\"\n    }\n  ],\n  \"secondary_subjects\": [],\n  \"summary\": \"A uniform yellow circle on a neutral background.\",\n  \"uncertainty_notes\": \"\",\n  \"species\": []\n}",
+          "request_options" : {
+            "keep_alive" : "30m",
+            "response_repair_attempts" : 1,
+            "retry_limit" : 2,
+            "seed" : 0,
+            "temperature" : 0,
+            "thinking_enabled" : false,
+            "timeout_seconds" : 180
+          },
+          "response_schema_version" : "urn:aisidecar:response:subject-isolated:1.4.0",
+          "runtime_metrics" : {
+            "eval_count" : 192,
+            "eval_duration_ns" : 3980798000,
+            "load_duration_ns" : 96022917,
+            "prompt_eval_count" : 1289,
+            "prompt_eval_duration_ns" : 1720138000,
+            "total_duration_ns" : 5817870542
+          }
+        }
+      ],
+      "response_schema_version" : "urn:aisidecar:response:subject-isolated:1.4.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 192,
+        "eval_duration_ns" : 3980798000,
+        "load_duration_ns" : 96022917,
+        "prompt_eval_count" : 1289,
+        "prompt_eval_duration_ns" : 1720138000,
+        "total_duration_ns" : 5817870542
+      },
+      "runtime_version" : "0.30.10"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "skip",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "qwen2.5vl:7b",
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_response_repair_attempts" : 1,
+    "profile" : "gemma4-26b-default",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 8,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "DSC_0421.jpg",
+    "file_size" : 5345,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "deed41f1fdef8e2bd25993dc5ad34117291d0080732c8a0df4d92bdbd8377705"
+    },
+    "modified_at" : "2026-07-07T11:25:24Z",
+    "path" : "/tmp/claude-501/-Users-ronbuening-Programming-LocalModels-CameraVision/f4b0f27a-a122-48d4-b55b-e900b5b9db1f/scratchpad/realfixture/DSC_0421.jpg",
+    "relative_path" : "DSC_0421.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 200,
+      "width" : 320
+    },
+    "crop_bounding_box" : {
+      "height" : 142,
+      "width" : 142,
+      "x" : 49,
+      "y" : 29
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 10,
+    "final_dimensions" : {
+      "height" : 142,
+      "width" : 142
+    },
+    "full_resolution" : {
+      "height" : 200,
+      "width" : 320
+    },
+    "instance_count" : 1,
+    "instances" : [
+      {
+        "area_pixels" : 11814,
+        "index" : 1,
+        "normalized_bounding_box" : {
+          "height" : 0.61,
+          "width" : 0.38125,
+          "x" : 0.184375,
+          "y" : 0.195
+        },
+        "normalized_centroid" : {
+          "x" : 0.37536080074487893,
+          "y" : 0.49988107330286097
+        }
+      }
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 1,
+      "y" : 1
+    },
+    "selected_bounding_box" : {
+      "height" : 0.6099999999999999,
+      "width" : 0.38125000000000003,
+      "x" : 0.184375,
+      "y" : 0.195
+    },
+    "selected_instance_indices" : [
+      1
+    ],
+    "selected_to_union_area_ratio" : 1,
+    "status" : "success",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 41722,
+    "pipeline_elapsed_ms" : 42995,
+    "render_ms" : 336,
+    "subject_isolation_ms" : 913,
+    "write_ms" : 1
+  }
+}

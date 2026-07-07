@@ -676,6 +676,32 @@ final class ModelRuntimeTests: XCTestCase {
     private func fixedDateProvider(_ date: Date) -> @Sendable () -> Date {
         { date }
     }
+
+    // MARK: - CORE-8: standalone vision-tag listing (Phase 4 Settings)
+
+    func testListInstalledVisionTagsFiltersNonVisionModels() async throws {
+        let transport = RecordingOllamaTransport([
+            .success(jsonResponse("""
+            {"models":[
+              {"name":"qwen2.5vl:7b","model":"qwen2.5vl:7b","digest":"a"},
+              {"name":"llama3:8b","model":"llama3:8b","digest":"b"},
+              {"name":"gemma4:26b-a4b-it-qat","model":"gemma4:26b-a4b-it-qat","digest":"c"}
+            ]}
+            """)),
+            .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
+            .success(jsonResponse(#"{"capabilities":["completion"]}"#)),
+            .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let tags = try await runner.listInstalledVisionTags(
+            endpoint: URL(string: "http://localhost:11434")!
+        )
+
+        XCTAssertEqual(tags, ["gemma4:26b-a4b-it-qat", "qwen2.5vl:7b"], "sorted, non-vision excluded")
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.map(\.path), ["/api/tags", "/api/show", "/api/show", "/api/show"])
+    }
 }
 
 private actor RecordingOllamaTransport: OllamaHTTPTransport {

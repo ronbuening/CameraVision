@@ -1,0 +1,190 @@
+import AISidecarCore
+import CryptoKit
+import Foundation
+import Observation
+
+/// Shell-agnostic normalization state (M6): session context inputs, the
+/// model-free normalization run, CORE-6 summaries for the Inspector, and the
+/// accepted-only write path via `ApplySessionPipeline` (FR4-052–055).
+@MainActor
+@Observable
+final class NormalizationModel {
+    enum OutcomeFilter: String, CaseIterable {
+        case all
+        case accepted
+        case withheld
+        case skipped
+        case needsAttention
+
+        var label: String {
+            switch self {
+            case .all: "All"
+            case .accepted: "Accepted"
+            case .withheld: "Withheld"
+            case .skipped: "Skipped"
+            case .needsAttention: "Needs attention"
+            }
+        }
+    }
+
+    enum Phase: Equatable {
+        case idle
+        case running
+        case ready
+        case writing
+        case written(targets: Int, backups: Bool)
+        case failed(message: String)
+    }
+
+    // Session context panel state (FR4-052).
+    var subject = ""
+    var habitat = ""
+    var event = ""
+    var allowSubjectPropagation = false
+    var allowHabitatPropagation = false
+    var allowEventPropagation = false
+    var unknownPolicy: UnknownSessionContextPolicy = .reject
+    /// nil = bundled starter vocabulary.
+    var vocabularyPath: String?
+
+    private(set) var phase: Phase = .idle
+    private(set) var session: NormalizationSessionDocument?
+    private(set) var summaries: [KeywordDecisionSummary] = []
+    var outcomeFilter: OutcomeFilter = .all
+    var stageFilter: NormalizationDecisionStage?
+
+    private let stateDirectory: URL
+
+    init(stateDirectory: URL = ReviewModel.defaultStateDirectory) {
+        self.stateDirectory = stateDirectory
+    }
+
+    // MARK: - Derived
+
+    var filteredSummaries: [KeywordDecisionSummary] {
+        summaries.filter { summary in
+            let outcomeMatch: Bool = switch outcomeFilter {
+            case .all: true
+            case .accepted: summary.acceptedCount > 0
+            case .withheld: summary.withheldCount > 0
+            case .skipped: summary.skippedCount > 0
+            case .needsAttention: summary.needsAttention
+            }
+            let stageMatch = stageFilter.map { summary.stages.contains($0) } ?? true
+            return outcomeMatch && stageMatch
+        }
+    }
+
+    var acceptedTotal: Int { summaries.reduce(0) { $0 + $1.acceptedCount } }
+    var withheldTotal: Int { summaries.reduce(0) { $0 + $1.withheldCount } }
+    var skippedTotal: Int { summaries.reduce(0) { $0 + $1.skippedCount } }
+
+    var contextRecords: [NormalizationSessionContextRecord] { session?.sessionContext ?? [] }
+
+    /// FR4-054: the session predates the current vocabulary file.
+    var vocabularyIsStale: Bool {
+        guard let session, let vocabularyPath else { return false }
+        guard let data = FileManager.default.contents(atPath: (vocabularyPath as NSString).expandingTildeInPath) else {
+            return true
+        }
+        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return hash != session.vocabulary.sha256
+    }
+
+    // MARK: - Run (model-free; FR4-054)
+
+    func run(jsonRoot: String, sourceRoot: String) {
+        guard phase != .running else { return }
+        phase = .running
+        let artifactDir = stateDirectory
+            .appendingPathComponent("normalize-artifacts", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString).path
+        let configuration = buildConfiguration(sourceRoot: sourceRoot, outputDir: artifactDir)
+
+        Task {
+            do {
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try NormalizePipeline().runSessionOnly(
+                        mode: .fromJSON(path: jsonRoot),
+                        configuration: configuration
+                    )
+                }.value
+                adopt(session: result.session)
+            } catch {
+                phase = .failed(message: (error as? SidecarError)?.message ?? error.localizedDescription)
+            }
+        }
+    }
+
+    func adopt(session sessionDocument: NormalizationSessionDocument) {
+        session = sessionDocument
+        summaries = NormalizationDecisionExplainer.summaries(for: sessionDocument)
+        phase = .ready
+    }
+
+    func buildConfiguration(sourceRoot: String, outputDir: String) -> ResolvedNormalizationConfiguration {
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.recursive = true
+        configuration.sourceRoot = sourceRoot
+        configuration.outputDir = outputDir
+        if let vocabularyPath {
+            configuration.vocabularyPath = vocabularyPath
+        }
+        configuration.sessionSubject = subject.isEmpty ? nil : subject
+        configuration.sessionHabitat = habitat.isEmpty ? nil : habitat
+        configuration.sessionEvent = event.isEmpty ? nil : event
+        configuration.allowSessionSubjectPropagation = allowSubjectPropagation
+        configuration.allowSessionHabitatPropagation = allowHabitatPropagation
+        configuration.allowSessionEventPropagation = allowEventPropagation
+        configuration.unknownSessionContextPolicy = unknownPolicy
+        return configuration
+    }
+
+    func reset() {
+        phase = .idle
+        session = nil
+        summaries = []
+        outcomeFilter = .all
+        stageFilter = nil
+    }
+
+    // MARK: - Session files (FR4-012b, AC4-016)
+
+    func saveSession(to url: URL) throws {
+        guard let session else { return }
+        try NormalizationSessionWriter().write(session, to: url.path)
+    }
+
+    func importSession(from url: URL) throws {
+        adopt(session: try NormalizationSessionReader().read(from: url.path))
+    }
+
+    // MARK: - Write (FR4-053; accepted set only, via the frozen-session writer)
+
+    func writeNormalizedXMP(sourceRoot: String, outputDir: String?) {
+        guard let session, phase == .ready else { return }
+        phase = .writing
+        let sessionDir = stateDirectory.appendingPathComponent("normalize-artifacts", isDirectory: true)
+        Task {
+            do {
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+                    let sessionPath = sessionDir.appendingPathComponent("write-\(UUID().uuidString).json").path
+                    try NormalizationSessionWriter().write(session, to: sessionPath)
+
+                    var configuration = ResolvedApplySessionConfiguration.builtInDefaults
+                    configuration.sourceRoot = sourceRoot
+                    configuration.outputDir = outputDir
+                    configuration.dryRun = false
+                    return try ApplySessionPipeline(
+                        xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+                    ).run(sessionPath: sessionPath, configuration: configuration)
+                }.value
+                let targets = result.changePlan.targetPlans.count
+                phase = .written(targets: targets, backups: true)
+            } catch {
+                phase = .failed(message: (error as? SidecarError)?.message ?? error.localizedDescription)
+            }
+        }
+    }
+}

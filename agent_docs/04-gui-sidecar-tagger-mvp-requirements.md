@@ -1,10 +1,11 @@
 # Phase 4 Requirements - GUI Sidecar Tagger MVP
 
-Version: 0.3
-Date: 2026-06-12
-Supersedes: 0.2
+Version: 0.9
+Date: 2026-07-07
+Supersedes: 0.8
 Builds on: Phase 1 Requirements v0.4, Phase 2 Requirements v0.5, Phase 3 Requirements v0.4
-Working name: `SidecarTagger.app`
+App name: `CupricAspect.app` (resolves the former working name `SidecarTagger.app`)
+Visual design basis: `agent_docs/07-cupricaspect-gui-design.md`
 Core library: `AISidecarCore` (shared with the `aisidecar` CLI by construction, per PW-002)
 Minimum deployment target: macOS 15
 Default vision model: `gemma4:26b-a4b-it-qat`
@@ -12,7 +13,62 @@ Primary output artifact: reviewed XMP sidecar files, with a local working databa
 
 This document inherits the Project-Wide Conventions of the Phase 1 requirements and the owned-XMP export/normalization behavior of Phases 2 and 3. They are not restated except where Phase 4 narrows or clarifies their GUI use.
 
-## 0. Changes from v0.2
+## 0. Changes from v0.8 — beta readiness (B0)
+
+This revision scopes the first beta (plan milestone B0). The MVP feature flow is complete; these changes remove sharp edges and add the two requirements a beta cannot ship without.
+
+1. **FR4-007 amended — single root folder.** Multi-root import is eliminated from the MVP: the user selects one root folder, and nested folders are covered by the existing recursive scan (the current implementation already matches this). Multi-root import moves to Section 12 as a future item if demand appears.
+2. **FR4-058 — first-run and missing-runtime guidance.** Launching without a reachable Ollama, or with Ollama but no installed vision-capable model, shall present actionable guidance (install pointer; a suggested starter vision model with its `ollama pull` command) instead of an empty picker or a failing run.
+3. **FR4-059 — diagnostic file logging.** The GUI shall write pipeline and diagnostic logs to a size-bounded file in the app state directory (today the pipeline logger sink is discarded), with the log location visible in Settings. Session save/import failures shall surface in the UI rather than failing silently.
+4. AC4-034/035 added. The remaining beta work (packaging, signing, notarization, icon, single-source version, release evidence) is tracked as plan milestone **B0**, largely by reference to `agent_docs/06-packaging-single-app-plan.md`.
+
+## 0.1 Changes from v0.7 — Settings write-through and model picker (retained)
+
+1. **FR4-056 — Settings persist to the shared config.** Run defaults edited in Settings (model tag, endpoint, render mode, GPS context, existing-sidecar policy) are written to the shared `~/Library/Application Support/aisidecar/config.json` via a read-modify-write that preserves keys the GUI does not know, so hand edits and newer-version fields survive. Precedence is unchanged (env and CLI flags still override); active `AISIDECAR_*` overrides are disclosed in the Settings UI rather than hidden.
+2. **FR4-057 — Vision model picker.** Settings lists the installed Ollama models that report the `vision` capability (the same `/api/tags` + `/api/show` probing the run preflight uses, exposed as `OllamaVisionRunner.listInstalledVisionTags`); picking one persists per FR4-056, and a configured-but-unavailable model is called out. The endpoint is editable with validation and a connectivity indicator following the FR4-051 no-polling policy.
+3. AC4-032 (write-through + unknown-key preservation + CLI resolve parity) and AC4-033 (picker filters to vision-capable tags) added.
+
+## 0.2 Changes from v0.6 — normalization reality, vocabulary tooling deferred (retained)
+
+This revision follows a review of the Phase 3 normalization engine as implemented. Normalization is fully automatic and deterministic per run; there are no per-keyword human decisions, and `apply-session` rejects decision-affecting flags. The GUI must reflect that.
+
+1. **Normalization review is inspection + explanation, never per-keyword editing.** FR4-026/027 amended and FR4-052–055 added: the normalize screen becomes a **Normalization Inspector** (outcome, stage, governing rule, skip reasons, conflicts per keyword) plus a **session context panel** (the engine's only per-run human input: subject/habitat/event with per-field propagation gates), and a model-free **re-run loop**. The GUI shall not offer per-keyword keep/merge/rename/drop controls — the design prototypes' decision table is void (design doc resolution 10).
+2. **All vocabulary tooling is deferred** (FR4-021–025 and AC4-005 removed from the MVP → Section 12, probable future inclusion). Vocabulary tooling is not currently an enabled part of the product; the engine consumes the bundled starter vocabulary or a user-supplied JSON file directly, and users edit that file externally. The GUI's only vocabulary interactions in the MVP are: selecting a vocabulary file for normalization runs, and *displaying* vocabulary-derived facts the engine reports (match state, `requires_review`, policies). All milestone dependencies on vocabulary editing are removed.
+3. **New CLI work item `aisidecar explain-session`** (plan CLI-1, AC4-031): renders a session's decision trace for a keyword — stage, governing rule, support, conflicts, skip reasons — from the session file. GUI and CLI share one Core explainer (plan CORE-6) so their explanations cannot drift.
+
+## 0.3 Changes from v0.5 — MVP scoping and derived-state fidelity (retained)
+
+This revision applies the 2026-07-06 design review decisions.
+
+1. **Wizard-first MVP** (FR4-040 amended): the Wizard shell is the MVP. The Studio shell ships in its own milestone *after* the core feature flow and *before* the experimental database. Until then, the "Nonlinear UI" toggle is visible but disabled, labeled "coming soon".
+2. **Review autosave** (FR4-046a, AC4-027): sidecar-only review state autosaves to a recovery session file; relaunch after an unclean exit offers restoration. Closes the unsaved-work gap the sidecar-only default introduced.
+3. **Export status recorded in the raw sidecar** (FR4-049, Core work item CORE-4): successful XMP exports write an additive `xmp_export` block into the asset's `.ai.json`, so "exported by this pipeline" is derivable from files alone. XMP present without the block renders as "XMP present (external)" — never as "exported".
+4. **Reprocessing descoped** (FR4-012 narrowed): MVP re-runs analysis with `skip`/`overwrite` semantics under the current configuration. Reprocessing filtered by arbitrary provenance dimensions moves to Section 12.
+5. **Vocabulary editor descoped** (FR4-021–025 amended, AC4-005 amended): MVP ships a vocabulary *inspector* — browse, live integrity validation, and per-entry `requires_review` / auto-approval toggles (written back through Core with a fresh content hash). Full add/edit/delete/synonym editing moves to Section 12.
+6. **Single window** (FR4-050): the MVP is a single-window application.
+7. **Ollama status policy** (FR4-051): connectivity is checked at launch, before each run, and on manual refresh — never by continuous background polling.
+8. Section 0.4 dependency status refreshed: Phases 1–3 are complete and Phase 4 is the active implementation target.
+
+## 0.4 Changes from v0.4 — storage modes (retained)
+
+This revision makes **sidecar-only** the default storage mode and demotes the SQLite working database to an experimental opt-in.
+
+1. FR4-046: by default the GUI keeps all durable state in files the CLI already understands — `.ai.json` raw sidecars, XMP sidecars, Phase 3 vocabulary and normalization-session files, and `config.json`. Review state is in-memory for the session; durability comes from session export/import (NFR4-008, the design's "Save session only" and "Apply Prior Session"). No database file is created or opened.
+2. FR4-047: the SQLite working database becomes an experimental option at Settings → Advanced → "Working database (experimental)", stored under `~/Library/Application Support/CupricAspect/` — never inside the app bundle.
+3. FR4-048 scopes existing requirements by mode: the database-backed guarantees (persisted queue state, cross-session external-change detection and non-resurrection, provenance-driven reprocessing across sessions, transactional crash resumability, retention policy) apply only when database mode is enabled, and the sidecar-only limitations must be disclosed in the UI where they matter.
+4. Rationale: the file-based methodology is the proven, transparent core of the project — every artifact is inspectable and CLI-interoperable, and the GUI defaults to it. The database earns its way in as an enhancement once its value is demonstrated, rather than being a structural prerequisite.
+
+## 0.5 Changes from v0.3 — design adoption (retained)
+
+This revision adopts the CupricAspect visual design (Claude Design handoff bundle at `agent_docs/gui-wrapper-for-cameravision/`, extracted into `agent_docs/07-cupricaspect-gui-design.md`).
+
+1. The application is named **CupricAspect**. Wherever this document or the packaging plan says `SidecarTagger.app`, read `CupricAspect.app`. The GUI-only state directory becomes `~/Library/Application Support/CupricAspect/`. Shared `aisidecar` config and derivative-cache paths are unchanged.
+2. New interface-shell and appearance requirements FR4-040 through FR4-045 (Section 13): dual Wizard/Studio shells, theme and accent system, the aperture brand/progress component, and reduce-motion behavior.
+3. Where the design prototypes and this document diverge, the resolutions in design doc Section 8.2 are binding — notably the existing-sidecar control is Skip/Overwrite/Fail (Core `ExistingPolicy`) in both shells, and every prototype count, rate, filename, and thumbnail is sample data to be replaced by real pipeline state.
+4. The design prototypes cover the primary happy-path surfaces only. All other surfaces required by this document (asset queue and state machine, vocabulary editor — since deferred entirely in v0.7, external-change and malformed-XMP states, dry-run change plans, compatibility reports) remain required and shall be built with the same design tokens (design doc Section 8.3).
+5. Data-retention requirements FR4-004a–c and AC4-023/024 (added in this revision): per-folder forget, age-based pruning of the append-only history tables with change-detection records exempt, and post-deletion compaction. The working database is intentionally append-heavy — provenance-driven reprocessing (FR4-012) and external-change memory (FR4-020a, FR4-030a–e) require history — so growth is bounded by explicit policy rather than left unbounded.
+
+## 0.6 Changes from v0.2 (retained)
 
 This revision updates Phase 4 for the Phase 2/3 decision to use a project-owned XMP sidecar engine instead of ExifTool.
 
@@ -27,9 +83,9 @@ This revision updates Phase 4 for the Phase 2/3 decision to use a project-owned 
 
 For continuity, all substantive v0.2 changes remain active: out-of-band sidecar edit detection, versioned SQLite schema, scoped batch correction, 5,000-image responsiveness target, crash-resumability through transactions and pipeline artifacts, direct surfacing of structured error codes, SwiftUI on macOS 15, and a thin owned SQLite data layer.
 
-## 0.1 Current Dependency Status
+## 0.7 Current Dependency Status
 
-Phase 4 is not the next implementation target. The repository is ready through Phase 2 Milestone 10 plus the pre-Phase-3 GPS context milestone; Phase 1 Milestone 9 release evidence or explicit deferral remains before release signoff. Phase 4 work should wait until Phase 3 provides vocabulary files, normalization sessions, normalized export plans, and `normalize` / `apply-session` command behavior in `AISidecarCore`.
+Phase 4 is the active implementation target. Phases 1–3 are complete and released (Phase 1 Milestones 0–9a, Phase 2 Milestones 0–10, the GPS-context milestone, Phase 3 Milestones 0–11); `AISidecarCore` provides everything Phase 4 consumes, including vocabulary files, normalization sessions, normalized export plans, and `normalize` / `apply-session` behavior. Phase 4 milestone M0 (scaffold, design tokens, aperture, shell skeleton) is complete. One outstanding item for overall release signoff, tracked outside Phase 4: Phase 1 Milestone 9 calibration evidence or an explicit deferral.
 
 ## 1. Purpose
 
@@ -60,8 +116,8 @@ The GUI shall support:
 - whole-image and subject-isolated preview display;
 - one-pass or two-pass model analysis;
 - candidate tag review;
-- controlled vocabulary editing;
-- batch normalization review;
+- controlled vocabulary selection for normalization runs and read-only display of vocabulary-derived facts (editing deferred — Section 12);
+- batch normalization inspection with session context input (v0.7);
 - source verification and stale-session warnings;
 - sidecar snapshot refresh;
 - sidecar export through the owned XMP engine;
@@ -76,11 +132,31 @@ FR4-001 - The GUI shall be a native macOS application built with SwiftUI, target
 
 FR4-002 - All processing shall be performed by `AISidecarCore`; the GUI target contains presentation, state orchestration, and user interaction only.
 
-FR4-003 - The GUI shall use a local SQLite database as working state, accessed through a thin data layer owned by the project. No heavyweight ORM shall be used in the MVP.
+FR4-046 - **Sidecar-only mode (default).** By default the GUI shall keep all durable state in the file formats the CLI already reads and writes: `.ai.json` raw sidecars, XMP sidecars, Phase 3 vocabulary files, Phase 3 normalization-session files, and the shared `config.json`. Between-session queue state is derived by rescanning the selected folders and inspecting those files. In-session review state is held in memory and made durable by session export (NFR4-008); an unfinished review is resumed by importing the session file (FR4-012b). In this mode the GUI shall not create, open, or require any database file.
+
+FR4-046a - **Review autosave (sidecar-only mode).** The GUI shall autosave in-progress review state to a recovery session file (Phase 3 session format) in the GUI state directory, after every 25 review decisions or 5 minutes since the last save, whichever comes first (defaults; tunable in config). On relaunch after an unclean exit the GUI shall offer to restore from the recovery file. Recovery files are superseded by explicit session export and removed on clean completion of the flow they protect.
+
+FR4-047 - **Database mode (experimental opt-in).** The SQLite working database shall be offered as an experimental option under Settings → Advanced ("Working database (experimental)"), off by default. Enabling it creates the database under `~/Library/Application Support/CupricAspect/` — never inside the app bundle, which is read-only and code-signed. Disabling it returns the GUI to sidecar-only behavior without loss of any sidecar, session, or vocabulary file, and offers to keep or delete the database file. The toggle's UI copy shall state, in plain language, what the database adds (persisted review state without manual session export, cross-session external-change detection, keyword non-resurrection memory, granular crash resumability) and that the feature is experimental.
+
+FR4-049 - **Export status in the raw sidecar.** On every successful XMP export of an asset, the export pipelines (Core change CORE-4 — shared by CLI and GUI) shall write an additive, optional `xmp_export` block into that asset's `.ai.json`: target XMP path, content hash of the written XMP, writer recipe version, engine version, and timestamp. The block follows PW-011/012 additive schema evolution — older readers ignore it; analyze paths never write it (it belongs to export, preserving the analyze-never-touches-XMP invariant's spirit: analysis output remains pure, export appends its own provenance). Queue-state derivation uses it as follows: block present **and** target XMP present → `exported`; XMP present without the block → `XMP present (external)`, never `exported`; block present but XMP missing → `XMP missing (was exported)`.
+
+FR4-050 - **Single window.** The MVP is a single-window application: one main window, no ⌘N second window, no multi-window state model. Auxiliary content (About, confirmations) uses sheets or panels.
+
+FR4-051 - **Ollama status policy.** Endpoint/model connectivity shall be verified at app launch, immediately before each run (the FR4-009 preflight), and on explicit user refresh — never by continuous background polling. Status indicators (the "connected"/"verified" dots) reflect the most recent check and its time; a stale or failed check renders as such rather than as "disconnected" alarm or silent success.
+
+FR4-048 - **Mode scoping.** The following apply only in database mode: FR4-003, FR4-004, FR4-004a–c, FR4-005, the persisted form of the FR4-011 state machine, FR4-012 reprocessing across sessions, FR4-020a cross-session non-resurrection, FR4-030a–e external-change detection, NFR4-004 transactional state changes, NFR4-007 migrations, and AC4-009, AC4-012 (cross-session part), AC4-015, AC4-020, AC4-023, AC4-024. In sidecar-only mode the GUI shall disclose the relevant limitation at the point of use (for example, before export: "External edits since your last export are merged, but cannot be flagged — enable the working database for change detection"). Requirements not listed here apply in both modes.
+
+FR4-003 - (Database mode.) The GUI shall use a local SQLite database as working state, accessed through a thin data layer owned by the project. No heavyweight ORM shall be used in the MVP.
 
 FR4-004 - The database shall store assets, source identity hashes, source-resolution state, sidecar target paths, sidecar content hashes, sidecar mtimes, `XMPMetadataSnapshot` records, `XMPUnmanagedContentFingerprint` records, derivative records, model runs, tag candidates, approved tags, rejected tags, deferred tags, vocabulary entries, normalization sessions, export actions, review actions, external-change events, backup paths, validation results, engine versions, and writer recipe versions.
 
-FR4-005 - The GUI shall treat XMP sidecars as export artifacts, not as the only working memory. The database is the working truth between sessions; the current sidecar on disk is the interchange truth; reconciling the two is required before export.
+FR4-004a - The user shall be able to "forget" an imported root folder: delete its assets and all dependent rows (snapshots, candidates, reviews, model runs, events, export actions, validation results) in one transaction. Forgetting shall require either a completed session export in the NFR4-008 format or an explicit confirmation that names what is lost — review history and the external-change memory that prevents keyword resurrection (FR4-020a) for that folder. Forgetting shall never modify or delete image files, sidecars, or sidecar backups on disk.
+
+FR4-004b - The append-only history tables (`model_runs`, `review_actions`, `export_actions`, `external_change_events`, `validation_results`) shall be prunable by age with a user-configurable retention window (default 180 days). Pruning shall always retain, per asset and regardless of age: the most recent sidecar snapshot, the most recent export action, and every record still required for external-change detection (FR4-030a–e) and non-resurrection (FR4-020a). Current review decisions, tag candidates for not-yet-exported work, normalization sessions, and vocabulary entries are never auto-pruned.
+
+FR4-004c - After a forget or prune deletes a substantial number of rows, the data layer shall compact the database (SQLite `VACUUM` or incremental auto-vacuum) off the main actor, so on-disk size tracks live data.
+
+FR4-005 - (Database mode.) The GUI shall treat XMP sidecars as export artifacts, not as the only working memory. The database is the working truth between sessions; the current sidecar on disk is the interchange truth; reconciling the two is required before export. (In sidecar-only mode the files on disk are the only truth; export always merges against current sidecar content via the Phase 2 semantic-merge path.)
 
 FR4-006 - The GUI shall import existing Phase 1 `.ai.json`, Phase 2 XMP sidecars, Phase 2 export reports/change plans, Phase 3 vocabulary files, and Phase 3 normalization session files, honoring PW-011/PW-012 schema evolution.
 
@@ -92,7 +168,7 @@ FR4-006c - XMP parse, merge, validation, hashing, and snapshot work shall run of
 
 ## 5. User Workflow Requirements
 
-FR4-007 - The user shall be able to select one or more folders for scanning.
+FR4-007 - (Amended v0.9.) The user shall be able to select one root folder for scanning; nested folders are included via the recursive toggle (on by default). Multi-root import in one session is out of the MVP (Section 12).
 
 FR4-008 - The user shall be able to choose analysis mode: whole image, subject isolated, or both.
 
@@ -120,7 +196,7 @@ failed
 
 Failed states shall display the structured error code and message and shall be filterable by code.
 
-FR4-012 - The application shall allow reprocessing by model, prompt version, render recipe, vocabulary version, normalization session, XMP writer recipe version, or source-verification result, using recorded provenance.
+FR4-012 - (Descoped in v0.6.) The MVP shall allow re-running analysis for selected assets or a whole folder under the current configuration, with `skip` or `overwrite` existing-sidecar semantics. Reprocessing filtered by arbitrary recorded provenance dimensions (prompt version, render recipe, vocabulary version, normalization session, XMP writer recipe version, source-verification result) is deferred to Section 12 — recorded provenance already contains everything needed, and database mode makes the queries practical.
 
 FR4-012a - The user shall be able to refresh metadata snapshots without running analysis or export.
 
@@ -148,19 +224,19 @@ FR4-020a - When a tag was removed from an XMP sidecar outside the app after a pr
 
 ## 7. Vocabulary and Normalization UI Requirements
 
-FR4-021 - The GUI shall include a controlled vocabulary editor operating on the Phase 3 JSON format and enforcing Phase 3 integrity rules at edit time, with violations explained inline rather than only at save time.
+FR4-021 – FR4-025 - (Deferred in v0.7 — Section 12.) All vocabulary tooling (inspector, editor, flag toggles, synonym editing) is out of the MVP: vocabulary tooling is not currently an enabled part of the product, and no MVP feature may depend on it. In the MVP the GUI shall only (a) let the user pick the vocabulary JSON file a normalization run uses (defaulting to the bundled starter vocabulary) and (b) display vocabulary-derived facts the engine reports (match state, `requires_review`, direct-apply policy). Vocabulary files are edited externally; surfaces that would benefit from vocabulary edits shall point the user at the file path and the re-run loop (FR4-054), never at an in-app editor.
 
-FR4-022 - The user shall be able to add, edit, delete, import, and export vocabulary entries. Export shall produce a valid Phase 3 vocabulary file with a fresh content hash.
-
-FR4-023 - The user shall be able to define synonyms, with collision detection live in the editor.
-
-FR4-024 - The user shall be able to mark a tag as requiring review.
-
-FR4-025 - The user shall be able to mark a tag as eligible or ineligible for auto-approval.
-
-FR4-026 - The user shall be able to inspect batch normalization decisions before XMP export, including the governing rule for each decision.
+FR4-026 - (Amended v0.7.) The user shall be able to inspect batch normalization decisions before XMP export in a **Normalization Inspector**: per keyword — outcome (`accepted` / `withheld` / `skipped`), originating stage (`direct_model_observation`, `user_session_context`, `local_affinity_propagation`, `global_backstop_propagation`, `phase2_fallback`), governing rule, support (asset count and support units), and skip reasons rendered as human-readable text; expandable per-asset detail with supporting assets and conflicts. Filters: by outcome, by stage, and a "needs attention" view (requires-review, conflicts, unmatched vocabulary). The Inspector is read-only over the session document — **the GUI shall not offer per-keyword keep/merge/rename/drop or any other per-keyword decision control; the normalization engine has no such inputs.**
 
 FR4-027 - The GUI shall show conflicting model observations and explain why a tag was or was not propagated.
+
+FR4-052 - **Session context panel (v0.7).** Before a normalization run, the GUI shall offer the engine's per-run human inputs: Subject, Habitat, and Event text fields mapping to `--session-subject/-habitat/-event`, a per-field propagation toggle (off by default, mapping to the `--allow-session-*-propagation` gates), and the unknown-context policy (`reject` default / `write-unnormalized`). Field-level feedback shall show the vocabulary match state before the run where practical (matched → canonical path; unmatched → the policy choice and its consequence). After a run, the FR3-025 lists (non-supporting and conflicted assets per context value) shall be reachable from the Inspector.
+
+FR4-053 - **Accepted-only export surface (v0.7).** "Write normalized XMP" exports accepted decisions exactly as the engine planned them; withheld and skipped keywords are visibly excluded with their reasons. "Save session only" and session import remain available from the same surface.
+
+FR4-054 - **Model-free re-run loop (v0.7).** The GUI shall offer "Re-run normalization" after vocabulary-file or session-context changes, using the engine's `fromJSON` mode over existing `.ai.json` sidecars — no model calls. The Inspector shall indicate when its session predates the current vocabulary file (content hash mismatch).
+
+FR4-055 - **Shared decision explainer (v0.7).** The human-readable rendering of stages, governing rules, and skip reasons shall live in `AISidecarCore` (one mapping), consumed by both the Inspector and the `aisidecar explain-session` command (plan CORE-6/CLI-1), so GUI and CLI explanations cannot drift.
 
 FR4-027a - The GUI shall distinguish raw model candidates, vocabulary-canonicalized candidates, propagated batch tags, and user session context in the visual review model.
 
@@ -252,7 +328,7 @@ AC4-003 - The GUI shows both whole-image and subject-isolated model outputs wher
 
 AC4-004 - The user can approve, reject, edit, or defer proposed tags, with confidence bands, evidence, vocabulary match, and provenance visible.
 
-AC4-005 - The user can manage a controlled vocabulary and synonyms, with integrity violations caught at edit time.
+AC4-005 - (Deferred in v0.7 — moved to Section 12 with the vocabulary tooling. No MVP acceptance depends on vocabulary editing.)
 
 AC4-006 - The GUI can apply Phase 3 batch normalization and show the governing rule and provenance for each result.
 
@@ -284,10 +360,39 @@ AC4-019 - The shipped GUI can export sidecars without ExifTool installed.
 
 AC4-020 - Manual metadata refresh detects changed, added, deleted, malformed, and missing sidecars without running image analysis.
 
+AC4-023 - Forgetting a folder removes its rows in one transaction, leaves every other folder's state and all on-disk image/sidecar files untouched, shrinks the database file after compaction, and a subsequent re-import of that folder behaves as a first import. The forget action is blocked until a session export completes or the user explicitly confirms the described loss. (AC4-021/022 are in Section 13.)
+
+AC4-024 - After pruning history older than the retention window, AC4-009 external-change detection and keyword non-resurrection still pass for an asset whose relevant events predate the window.
+
+AC4-025 - On a fresh install with defaults, a complete analyze → review → export → relaunch → re-review cycle succeeds with no database file created anywhere on disk; after relaunch the queue is rebuilt from the folder's files, and an exported session file restores the in-progress review via import.
+
+AC4-026 - Enabling the experimental working database creates it under `~/Library/Application Support/CupricAspect/`; disabling it returns to sidecar-only behavior with all sidecar, session, and vocabulary files intact, and the user is offered the choice to keep or delete the database file. The app bundle's contents are unchanged by either action.
+
+AC4-027 - Killing the app mid-review after at least one autosave interval, then relaunching, offers recovery; accepting restores the review decisions present at the last autosave, and declining leaves the recovery file available until a new review begins.
+
+AC4-028 - An asset whose XMP sidecar existed before any app export renders as "XMP present (external)" and never as "exported"; after an app export, it renders as "exported"; deleting the exported XMP afterwards renders "XMP missing (was exported)".
+
+AC4-029 - The session context panel: a value matching the vocabulary shows its canonical path before the run; an unmatched value surfaces the reject / write-unnormalized choice with its consequence; propagation toggles are off by default; after a run, conflicted assets for a context value are listed and did not receive it.
+
+AC4-030 - The Normalization Inspector explains every non-exported keyword: each withheld/skipped row shows its stage, governing rule, and skip reasons in plain language; conflicts list the competing keywords and assets; "Write normalized XMP" writes exactly the accepted set; no per-keyword decision control exists anywhere in the flow.
+
+AC4-031 - `aisidecar explain-session <session> --keyword <term>` prints the same stage/rule/support/conflict/skip facts for that keyword that the Inspector displays, sourced from the same Core explainer, for a session produced by either the CLI or the GUI.
+
+AC4-032 - Changing a run default in Settings updates `config.json` such that a subsequent CLI resolve reflects it, while hand-added keys in the file survive the write; an invalid endpoint is rejected without writing.
+
+AC4-033 - The model picker lists exactly the installed tags whose Ollama capabilities include `vision`, sorted; selecting one persists it as the default model.
+
+AC4-034 - On a machine without Ollama, launch and each run attempt produce actionable install/start guidance and no hang or crash; with Ollama running but no vision model installed, the model picker area explains the situation and names a pull command.
+
+AC4-035 - A failed run leaves a readable log file under the app state directory containing the structured errors; a failing "Save session only" or session import shows the error in the UI.
+
 ## 12. Future Groundwork Beyond the GUI MVP
 
 The GUI phase should leave room for:
 
+- multi-root folder import in one session, eliminated from the MVP in v0.9 (FR4-007);
+- vocabulary tooling, deferred in full from FR4-021–025 (v0.7 — probable future inclusion once vocabulary tooling is an enabled part of the product): an inspector (browse, validate, policy display), `requires_review`/auto-approval flag toggles, guided "map keyword → synonym / new entry" actions from the Normalization Inspector, and eventually the full editor (add/edit/delete entries, synonym definition with live collision detection, import/export with fresh content hashes) plus matching `aisidecar vocab add-synonym` / `vocab add-entry` CLI commands;
+- provenance-dimension reprocessing deferred from FR4-012: re-run filtered by prompt version, render recipe, vocabulary version, normalization session, writer recipe version, or source-verification result;
 - visual embedding search, which would unlock a real "visually similar" scope for FR4-019;
 - stronger species-specific assist models;
 - OCR-specific passes using Apple Vision text recognition or a dedicated text model path;
@@ -299,6 +404,34 @@ The GUI phase should leave room for:
 - broader XMP namespace editing only when each namespace and field is explicitly scoped;
 - optional external-tool comparison as developer diagnostics, not as shipped runtime behavior;
 - direct plug-in integrations, if later justified.
+
+## 13. Interface Shell and Appearance Requirements (v0.4)
+
+These requirements bind the GUI to the CupricAspect design. Exact tokens, layouts, and per-screen specs live in `agent_docs/07-cupricaspect-gui-design.md`; this section states only the testable behavior.
+
+FR4-040 - The application shall provide two interface shells over the same feature state: a linear **Wizard** (five steps: Photos, What to do, Options, Working, Review) and a nonlinear **Studio** (sidebar navigation: Analyze, Normalize, Write XMP, Apply Prior Session, Settings). Wizard is the first-launch default. **MVP scoping (v0.6):** the Wizard is the MVP shell; Studio ships in its own milestone after the core feature flow completes and before the experimental database milestone. Until Studio lands, the "Nonlinear UI" toggle is visible but disabled, labeled "coming soon", and FR4-041/AC4-021 apply from the Studio milestone onward.
+
+FR4-041 - The shell choice shall be a Settings toggle ("Nonlinear UI"), persisted across launches (`UserDefaults` key `cupricaspect.nonlinear`). Switching shells shall not discard in-flight state: selected folders, chosen action, options, and unexported results survive the switch.
+
+FR4-042 - The application shall support Light, Dark, and Auto themes and three accent palettes (copper — default, amber/"Brass", patina), persisted across launches. Auto shall follow the macOS system appearance and update live when it changes.
+
+FR4-043 - The animated aperture component (design doc Section 5) is the brand mark and the working indicator: idle-open when no job runs; breathing/spinning while a job runs. When the system reduce-motion setting is on, it shall render statically and entrance/progress animations shall be disabled.
+
+FR4-044 - Option controls shall map one-to-one onto existing Core enums (`AnalysisMode`, `ExistingPolicy`, `GPSContextMode`, `XMPPairScope`, `stage_concurrency`); the GUI shall not invent option values that Core does not accept. The existing-sidecar control offers Skip / Overwrite / Fail in both shells.
+
+FR4-045 - Every count, rate, filename, thumbnail, and progress figure shown in the shells shall come from real pipeline, database, or filesystem state; prototype sample data shall not ship.
+
+FR4-056 - **Settings write-through (v0.8).** Run defaults edited in Settings (model tag, model endpoint, render mode, GPS context, existing-sidecar policy) shall persist to the shared config file via a read-modify-write that preserves unknown keys. The precedence chain is unchanged; Settings shall disclose active `AISIDECAR_*` environment overrides.
+
+FR4-057 - **Vision model picker (v0.8).** Settings shall list installed Ollama models reporting the `vision` capability (Core `listInstalledVisionTags`, the preflight's own probing), let the user pick one (persisted per FR4-056), flag a configured-but-unavailable model, and offer an editable, validated endpoint with a connectivity indicator under the FR4-051 no-polling policy.
+
+FR4-058 - **First-run and missing-runtime guidance (v0.9).** When Ollama is unreachable at launch or before a run, the GUI shall present the install/start guidance (mirroring the README troubleshooting) rather than a bare failure. When Ollama is reachable but no installed model reports the `vision` capability, the GUI shall say so and suggest a starter vision model with its `ollama pull` command.
+
+FR4-059 - **Diagnostic file logging (v0.9).** The GUI shall route pipeline logger output to a size-bounded log file under the app state directory and show its location in Settings. User-initiated file operations (session save/import, config writes) shall surface failures in the UI; no silent `try?` on user-visible actions.
+
+AC4-021 - Switching Nonlinear UI off→on→off with a folder selected and un-exported review results present loses no state, and the chosen shell is restored after relaunch.
+
+AC4-022 - With macOS reduce-motion enabled, the working screen shows a static aperture and a non-animated progress fill while a batch runs to completion successfully.
 
 ## Reference Basis
 

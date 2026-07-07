@@ -1,0 +1,208 @@
+<?xml version="1.0"?>
+
+<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+<title>CupricAspect Icon</title>
+<defs>
+
+  <clipPath id="disc">
+    <circle cx="80" cy="80" r="74"></circle>
+  </clipPath>
+
+  
+  <radialGradient id="iconBg" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#2A1408"></stop>
+    <stop offset="100%" stop-color="#0A0500"></stop>
+  </radialGradient>
+
+  
+
+  
+  <filter id="metalWear" x="-3%" y="-3%" width="106%" height="106%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.55 0.80" numOctaves="4" seed="9" result="noise"></feTurbulence>
+    <feComponentTransfer in="noise" result="warmGrain">
+      <feFuncR type="linear" slope="0.18" intercept="0.41"></feFuncR>
+      <feFuncG type="linear" slope="0.14" intercept="0.41"></feFuncG>
+      <feFuncB type="linear" slope="0.10" intercept="0.38"></feFuncB>
+    </feComponentTransfer>
+    <feBlend in="SourceGraphic" in2="warmGrain" mode="overlay" result="grained"></feBlend>
+    <feComposite in="grained" in2="SourceGraphic" operator="in"></feComposite>
+  </filter>
+
+  
+  <filter id="irisOrg" x="-12%" y="-12%" width="124%" height="124%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.08 0.05" numOctaves="3" seed="14" result="wave"></feTurbulence>
+    <feDisplacementMap in="SourceGraphic" in2="wave" scale="3.5" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+  </filter>
+
+  
+  <radialGradient id="patina" gradientUnits="userSpaceOnUse" cx="48" cy="128" r="80">
+    <stop offset="0%" stop-color="#3E7C60" stop-opacity="0.22"></stop>
+    <stop offset="35%" stop-color="#306050" stop-opacity="0.09"></stop>
+    <stop offset="100%" stop-color="#306050" stop-opacity="0.00"></stop>
+  </radialGradient>
+
+  
+
+  
+  <linearGradient id="g0" gradientUnits="userSpaceOnUse" x1="152.0" y1="80.0" x2="126.0" y2="80.0">
+    <stop offset="0%" stop-color="#F0AA40"></stop>
+    <stop offset="100%" stop-color="#9C5018"></stop>
+  </linearGradient>
+
+  
+  <linearGradient id="g1" gradientUnits="userSpaceOnUse" x1="130.9" y1="130.9" x2="112.5" y2="112.5">
+    <stop offset="0%" stop-color="#B87A26"></stop>
+    <stop offset="100%" stop-color="#4E3220"></stop>
+  </linearGradient>
+
+  
+  <linearGradient id="g2" gradientUnits="userSpaceOnUse" x1="80.0" y1="152.0" x2="80.0" y2="126.0">
+    <stop offset="0%" stop-color="#A86C1E"></stop>
+    <stop offset="100%" stop-color="#42281A"></stop>
+  </linearGradient>
+
+  
+  <linearGradient id="g3" gradientUnits="userSpaceOnUse" x1="29.1" y1="130.9" x2="47.5" y2="112.5">
+    <stop offset="0%" stop-color="#BA7620"></stop>
+    <stop offset="100%" stop-color="#503018"></stop>
+  </linearGradient>
+
+  
+  <linearGradient id="g4" gradientUnits="userSpaceOnUse" x1="8.0" y1="80.0" x2="34.0" y2="80.0">
+    <stop offset="0%" stop-color="#D08830"></stop>
+    <stop offset="100%" stop-color="#743610"></stop>
+  </linearGradient>
+
+  
+  <linearGradient id="g5" gradientUnits="userSpaceOnUse" x1="29.1" y1="29.1" x2="47.5" y2="47.5">
+    <stop offset="0%" stop-color="#FFD060"></stop>
+    <stop offset="100%" stop-color="#B05E20"></stop>
+  </linearGradient>
+
+  
+  <linearGradient id="g6" gradientUnits="userSpaceOnUse" x1="80.0" y1="8.0" x2="80.0" y2="34.0">
+    <stop offset="0%" stop-color="#F8BC50"></stop>
+    <stop offset="100%" stop-color="#A85820"></stop>
+  </linearGradient>
+
+  
+  <linearGradient id="g7" gradientUnits="userSpaceOnUse" x1="130.9" y1="29.1" x2="112.5" y2="47.5">
+    <stop offset="0%" stop-color="#ECA034"></stop>
+    <stop offset="100%" stop-color="#8A4414"></stop>
+  </linearGradient>
+
+  
+  <radialGradient id="iris" cx="42%" cy="37%" r="64%" fx="42%" fy="37%">
+    <stop offset="0%" stop-color="#C8F0A0"></stop>
+    <stop offset="14%" stop-color="#68CE64"></stop>
+    <stop offset="32%" stop-color="#389050"></stop>
+    <stop offset="56%" stop-color="#256040"></stop>
+    <stop offset="77%" stop-color="#184A2C"></stop>
+    <stop offset="90%" stop-color="#2E3C1C"></stop>  
+    <stop offset="100%" stop-color="#060A04"></stop>
+  </radialGradient>
+
+  
+  <radialGradient id="limbus" cx="50%" cy="50%" r="50%">
+    <stop offset="68%" stop-color="#000" stop-opacity="0"></stop>
+    <stop offset="100%" stop-color="#000" stop-opacity="0.94"></stop>
+  </radialGradient>
+
+  
+  <radialGradient id="pupil" cx="33%" cy="29%" r="72%">
+    <stop offset="0%" stop-color="#1A1A1A"></stop>
+    <stop offset="100%" stop-color="#010101"></stop>
+  </radialGradient>
+
+  
+  <clipPath id="ic">
+    <ellipse cx="80" cy="80" rx="43" ry="34"></ellipse>
+  </clipPath>
+
+</defs>
+
+<g clip-path="url(#disc)">
+
+  
+  <circle cx="80" cy="80" r="74" fill="url(#iconBg)"></circle>
+
+  
+  <circle cx="80" cy="80" r="73.5" fill="none" stroke="#1E0C04" stroke-width="1.5" stroke-opacity="0.85"></circle>
+
+  
+
+  
+  <ellipse cx="80" cy="80" rx="43" ry="34" fill="url(#iris)"></ellipse>
+
+  
+  <g clip-path="url(#ic)" filter="url(#irisOrg)" stroke="#082010" stroke-opacity="0.22" stroke-width="0.8">
+    <line x1="80" y1="80" x2="125.0" y2="80.0"></line>
+    <line x1="80" y1="80" x2="122.3" y2="95.4"></line>
+    <line x1="80" y1="80" x2="114.5" y2="108.9"></line>
+    <line x1="80" y1="80" x2="102.5" y2="119.0"></line>
+    <line x1="80" y1="80" x2="87.8" y2="124.3"></line>
+    <line x1="80" y1="80" x2="72.2" y2="124.3"></line>
+    <line x1="80" y1="80" x2="57.5" y2="119.0"></line>
+    <line x1="80" y1="80" x2="45.5" y2="108.9"></line>
+    <line x1="80" y1="80" x2="37.7" y2="95.4"></line>
+    <line x1="80" y1="80" x2="35.0" y2="80.0"></line>
+    <line x1="80" y1="80" x2="37.7" y2="64.6"></line>
+    <line x1="80" y1="80" x2="45.5" y2="51.1"></line>
+    <line x1="80" y1="80" x2="57.5" y2="41.0"></line>
+    <line x1="80" y1="80" x2="72.2" y2="35.7"></line>
+    <line x1="80" y1="80" x2="87.8" y2="35.7"></line>
+    <line x1="80" y1="80" x2="102.5" y2="41.0"></line>
+    <line x1="80" y1="80" x2="114.5" y2="51.1"></line>
+    <line x1="80" y1="80" x2="122.3" y2="64.6"></line>
+  </g>
+
+  
+  <ellipse cx="80" cy="80" rx="43" ry="34" fill="url(#limbus)"></ellipse>
+  <ellipse cx="80" cy="80" rx="43" ry="34" fill="none" stroke="#3AB048" stroke-width="0.5" stroke-opacity="0.20"></ellipse>
+
+  
+  <circle cx="80" cy="80" r="16" fill="url(#pupil)"></circle>
+
+  
+  <g fill="white" fill-opacity="0.12">
+    <circle cx="72" cy="72" r="0.8"></circle> <circle cx="76" cy="72" r="0.8"></circle>
+    <circle cx="80" cy="72" r="0.8"></circle> <circle cx="84" cy="72" r="0.8"></circle>
+    <circle cx="88" cy="72" r="0.8"></circle>
+    <circle cx="72" cy="76" r="0.8"></circle> <circle cx="76" cy="76" r="0.8"></circle>
+    <circle cx="80" cy="76" r="0.8"></circle> <circle cx="84" cy="76" r="0.8"></circle>
+    <circle cx="88" cy="76" r="0.8"></circle>
+    <circle cx="72" cy="80" r="0.8"></circle> <circle cx="76" cy="80" r="0.8"></circle>
+    <circle cx="80" cy="80" r="0.8"></circle> <circle cx="84" cy="80" r="0.8"></circle>
+    <circle cx="88" cy="80" r="0.8"></circle>
+    <circle cx="72" cy="84" r="0.8"></circle> <circle cx="76" cy="84" r="0.8"></circle>
+    <circle cx="80" cy="84" r="0.8"></circle> <circle cx="84" cy="84" r="0.8"></circle>
+    <circle cx="88" cy="84" r="0.8"></circle>
+    <circle cx="72" cy="88" r="0.8"></circle> <circle cx="76" cy="88" r="0.8"></circle>
+    <circle cx="80" cy="88" r="0.8"></circle> <circle cx="84" cy="88" r="0.8"></circle>
+    <circle cx="88" cy="88" r="0.8"></circle>
+  </g>
+
+  
+  <ellipse cx="73.5" cy="73.5" rx="5.5" ry="3.8" transform="rotate(-40 73.5 73.5)" fill="white" fill-opacity="0.88"></ellipse>
+  <circle cx="86.5" cy="86.5" r="1.8" fill="white" fill-opacity="0.22"></circle>
+
+  
+  <g filter="url(#metalWear)">
+    <path d="M 146.5  52.4  A 72 72 0 0 1 146.5 107.6  L 114.2 110.8  L 125.9  77.6 Z" fill="url(#g0)" stroke="#1A0A04" stroke-width="0.7" stroke-linejoin="round"></path>
+    <path d="M 146.5 107.6  A 72 72 0 0 1 107.6 146.5  L  82.4 125.9  L 114.2 110.8 Z" fill="url(#g1)" stroke="#1A0A04" stroke-width="0.7" stroke-linejoin="round"></path>
+    <path d="M 107.6 146.5  A 72 72 0 0 1  52.4 146.5  L  49.2 114.2  L  82.4 125.9 Z" fill="url(#g2)" stroke="#1A0A04" stroke-width="0.7" stroke-linejoin="round"></path>
+    <path d="M  52.4 146.5  A 72 72 0 0 1  13.5 107.6  L  34.1  82.4  L  49.2 114.2 Z" fill="url(#g3)" stroke="#1A0A04" stroke-width="0.7" stroke-linejoin="round"></path>
+    <path d="M  13.5 107.6  A 72 72 0 0 1  13.5  52.4  L  45.8  49.2  L  34.1  82.4 Z" fill="url(#g4)" stroke="#1A0A04" stroke-width="0.7" stroke-linejoin="round"></path>
+    <path d="M  13.5  52.4  A 72 72 0 0 1  52.4  13.5  L  77.6  34.1  L  45.8  49.2 Z" fill="url(#g5)" stroke="#1A0A04" stroke-width="0.7" stroke-linejoin="round"></path>
+    <path d="M  52.4  13.5  A 72 72 0 0 1 107.6  13.5  L 110.8  45.8  L  77.6  34.1 Z" fill="url(#g6)" stroke="#1A0A04" stroke-width="0.7" stroke-linejoin="round"></path>
+    <path d="M 107.6  13.5  A 72 72 0 0 1 146.5  52.4  L 125.9  77.6  L 110.8  45.8 Z" fill="url(#g7)" stroke="#1A0A04" stroke-width="0.7" stroke-linejoin="round"></path>
+  </g>
+
+  
+  <circle cx="80" cy="80" r="73" fill="url(#patina)"></circle>
+
+  
+  <polygon points="114.2,110.8 82.4,125.9 49.2,114.2 34.1,82.4 45.8,49.2 77.6,34.1 110.8,45.8 125.9,77.6" fill="none" stroke="#D89030" stroke-width="0.8" stroke-opacity="0.35" stroke-linejoin="round"></polygon>
+
+</g>
+</svg>
