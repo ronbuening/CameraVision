@@ -42,6 +42,13 @@ struct Step4WorkingView: View {
             .buttonStyle(.plain)
             .disabled(runModel.phase == .cancelling)
             .padding(.top, 24)
+
+            // B0-6 pause story (FR4-010): cancel is a safe pause — finished
+            // sidecars stay on disk and the next Start skips them (CORE-3).
+            Text("Progress is kept — analyzed photos stay done. Start again to resume where you left off.")
+                .font(.system(size: 11))
+                .foregroundStyle(theme.textFaint)
+                .padding(.top, 8)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
