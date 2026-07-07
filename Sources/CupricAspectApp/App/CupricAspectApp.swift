@@ -23,6 +23,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        // M8 hygiene: stale per-run artifact directories are scratch, not
+        // user data — prune off the main thread at launch.
+        let stateDirectory = ReviewModel.defaultStateDirectory
+        Task.detached(priority: .utility) {
+            StateHousekeeping.pruneArtifacts(in: stateDirectory)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

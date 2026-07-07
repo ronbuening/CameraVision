@@ -66,6 +66,17 @@ swift run aisidecar normalize --file-list <image-list.txt> --session-only --outp
 swift run aisidecar normalize <image-or-folder> --mode both --output-dir <tmp-output>
 ```
 
+### Phase 4 GUI hardening (M8 / AC4-025)
+
+```bash
+# Kill mid-analyze, resume, CLI parity, no-database check (repeatable):
+Scripts/m8-kill-relaunch-check.sh [count] [model]
+# Synthetic scale fixture for grid/queue checks (M3/M11):
+swift Scripts/generate-synthetic-fixture.swift <dir> [count]
+# GUI dev hooks: CUPRIC_IMPORT_PATH=<folder> auto-imports on launch;
+# CUPRIC_DEBUG_AUTORUN=1 [CUPRIC_DEBUG_ACTION=analyze|write|normalize] runs the wizard flow.
+```
+
 ## Performance Verification
 
 For performance-affecting changes, capture before/after numbers (see the Verification Baseline section of `agent_docs/05-efficiency-improvement-plan.md`): release-build benchmark runs, wall-clock on a fixed image set, and Instruments (Time Profiler, Allocations, System Trace lock contention) where relevant. Report numbers in the PR description.

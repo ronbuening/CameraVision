@@ -155,11 +155,13 @@ All vocabulary tooling moved to requirements Section 12 (v0.7): it is not curren
 
 *Status: implemented — `Features/Export/` (`ExportModel`: every write fronted by a dry-run change plan per FR4-029, then the real write through `ApplySessionPipeline` + `XMPExportPipeline` — the Phase 2 backup/source-hash/validation/restore chain unchanged; `ChangePlanSheet`: per-target adds, same-base-name group + pair-scope badges (AC4-018 display — pair-scope *selection* is fixed at session build, noted), failed targets excluded with error codes per FR4-035a, LR/C1 compatibility notes per FR4-036–038; `ExportReportView`: per-target status/backup/validation/errors, engine identity, report-recorded application instructions per FR4-035b/c and FR4-038a-lite; `Step3ApplyView`: session picker with recorded facts). All four wizard actions now live: analyze / write / normalize / apply, all writes through the one export surface. The Lightroom Classic / Capture One round-trip check remains a manual release-evidence step (Ron: run a write, open in LR/C1, record per `agent_docs/release-evidence/`).*
 
-### M8 — Sidecar-only hardening (AC4-025, crash behavior)
+### M8 — Sidecar-only hardening ✅ (completed 2026-07-07; AC4-025, crash behavior)
 
 - Kill-mid-batch testing: scripted kill/relaunch during analyze and export leaves no ambiguous file state (partial writes are the pipelines' existing temp-file/rename discipline; verify from the GUI paths).
 - Relaunch reconstruction review: every screen's state either rebuilds from disk or is explicitly session-scoped and marked as such.
 - **Done when:** AC4-025 passes end-to-end repeatedly, including kill/relaunch variants.
+
+*Status: implemented and verified live. **`Scripts/m8-kill-relaunch-check.sh`** (repeatable; needs Ollama) SIGKILLs the app mid-analyze, asserts no atomic-writer temp files and every surviving `.ai.json` parses, relaunches and resumes to the full set via existing-skip, runs the CLI normalize + apply-session follow-through to well-formed XMP, and asserts no database file exists under the state directory (AC4-025). First live run: killed at 1/6 → resumed to 6/6 → 6 valid XMPs → PASS. **Housekeeping:** `StateHousekeeping.pruneArtifacts` removes per-run artifact directories (`review-artifacts`/`normalize-artifacts`/`export-sessions`) older than 7 days at launch — never the recovery file — so the state directory is bounded (tested). **Relaunch reconstruction audit:** queue → rescanned from disk (including `exported` via the CORE-4 stamp); options → re-resolved from the config chain; run progress → transient by design, resumable via skip semantics; review → FR4-046a recovery file + explicit session save/import; Inspector → session files (AC4-016); export plans → ephemeral dry-runs, recomputed; written state → derived from stamps + XMP on disk; appearance/shell → UserDefaults. Nothing depends on process memory alone.*
 
 ### M9 — Studio shell (FR4-040, FR4-041, AC4-021)
 
