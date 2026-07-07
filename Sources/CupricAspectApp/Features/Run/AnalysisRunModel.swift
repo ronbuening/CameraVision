@@ -148,7 +148,7 @@ final class AnalysisRunModel {
         Task {
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
-                let pipeline = AnalyzePipeline(logger: Logger(sink: { _ in }), runner: OllamaVisionRunner())
+                let pipeline = AnalyzePipeline(logger: GUILog.shared.makeLogger(), runner: OllamaVisionRunner())
                 let result = try await Task.detached(priority: .userInitiated) {
                     try await pipeline.run(
                         inputPath: inputPath,

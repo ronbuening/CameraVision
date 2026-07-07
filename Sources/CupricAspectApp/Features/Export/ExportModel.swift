@@ -77,7 +77,7 @@ final class ExportModel {
                     configuration.outputDir = outputDir
                     configuration.dryRun = true
                     let result = try ApplySessionPipeline(
-                        xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+                        xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
                     ).run(sessionPath: sessionPath, configuration: configuration)
                     return (result.changePlan, sessionPath)
                 }.value
@@ -110,7 +110,7 @@ final class ExportModel {
                     configuration.outputDir = outputDir
                     configuration.dryRun = false
                     return try ApplySessionPipeline(
-                        xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+                        xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
                     ).run(sessionPath: sessionPath, configuration: configuration)
                 }.value
                 exportReport = result.exportReport

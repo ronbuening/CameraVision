@@ -382,6 +382,27 @@ struct SettingsSheet: View {
                     }
                     Spacer()
                 }
+                Divider().overlay(theme.border)
+                // FR4-059: the diagnostic log location is visible, not buried.
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Diagnostic log")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundStyle(theme.text)
+                        Text(GUILog.shared.logURL.path)
+                            .font(.system(size: 10.5, design: .monospaced))
+                            .foregroundStyle(theme.textFaint)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    Button("Reveal") {
+                        NSWorkspace.shared.activateFileViewerSelecting([GUILog.shared.logURL])
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(theme.accent.accent)
+                }
             }
         }
     }

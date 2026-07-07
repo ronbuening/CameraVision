@@ -150,6 +150,25 @@ final class NormalizationModel {
 
     // MARK: - Session files (FR4-012b, AC4-016)
 
+    /// FR4-059: save/import failures surface in the UI and the diagnostic
+    /// log instead of vanishing behind `try?`.
+    private(set) var fileError: String?
+
+    func reportFileError(_ action: String, _ error: Error) {
+        let message = "\(action) failed: \((error as? SidecarError)?.message ?? error.localizedDescription)"
+        fileError = message
+        try? GUILog.shared.makeLogger().log(LogRecord(
+            level: .error,
+            event: "normalize.file_operation_failed",
+            message: message,
+            errors: (error as? SidecarError).map { [$0] } ?? []
+        ))
+    }
+
+    func clearFileError() {
+        fileError = nil
+    }
+
     func saveSession(to url: URL) throws {
         guard let session else { return }
         try NormalizationSessionWriter().write(session, to: url.path)
@@ -177,7 +196,7 @@ final class NormalizationModel {
                     configuration.outputDir = outputDir
                     configuration.dryRun = false
                     return try ApplySessionPipeline(
-                        xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+                        xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
                     ).run(sessionPath: sessionPath, configuration: configuration)
                 }.value
                 let targets = result.changePlan.targetPlans.count

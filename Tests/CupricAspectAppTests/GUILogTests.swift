@@ -1,0 +1,65 @@
+import AISidecarCore
+import XCTest
+@testable import CupricAspectApp
+
+/// B0-4 (FR4-059, AC4-035): the shared file sink persists structured pipeline
+/// log lines under the state directory and stays size-bounded via rotation.
+final class GUILogTests: XCTestCase {
+    private var directory: URL!
+
+    override func setUpWithError() throws {
+        directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("guilog-\(UUID().uuidString)", isDirectory: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    func testLoggerWritesStructuredErrorLinesToFile() throws {
+        let sink = FileLogSink(directory: directory)
+        let logger = sink.makeLogger()
+        try logger.log(LogRecord(
+            level: .error,
+            event: "analyze.failed",
+            message: "model response invalid",
+            errors: [SidecarError(
+                code: .modelSchemaViolation,
+                stage: .model,
+                message: "schema violation",
+                recoverable: true
+            )]
+        ))
+        let contents = try String(contentsOf: sink.logURL, encoding: .utf8)
+        XCTAssertTrue(contents.contains("analyze.failed"))
+        XCTAssertTrue(contents.contains("E_MODEL_SCHEMA_VIOLATION"), "structured code must be readable")
+    }
+
+    func testRotationBoundsTheLogAndKeepsOneGeneration() throws {
+        let sink = FileLogSink(directory: directory, sizeCapBytes: 200)
+        for index in 0..<20 {
+            sink.write("line \(index) with some padding to cross the cap sooner")
+        }
+        let currentSize = try FileManager.default
+            .attributesOfItem(atPath: sink.logURL.path)[.size] as? Int ?? 0
+        XCTAssertLessThanOrEqual(currentSize, 200 + 64, "current log stays near the cap")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: sink.previousLogURL.path),
+            "one rotated generation is kept"
+        )
+        // Newest line is always in the current file.
+        let contents = try String(contentsOf: sink.logURL, encoding: .utf8)
+        XCTAssertTrue(contents.contains("line 19"))
+    }
+
+    func testMinimumLevelFiltersBelowThreshold() throws {
+        let sink = FileLogSink(directory: directory)
+        let logger = sink.makeLogger(minimumLevel: .warn)
+        try logger.log(LogRecord(level: .debug, event: "noise", message: "dropped"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sink.logURL.path))
+        try logger.log(LogRecord(level: .error, event: "kept", message: "written"))
+        let contents = try String(contentsOf: sink.logURL, encoding: .utf8)
+        XCTAssertFalse(contents.contains("noise"))
+        XCTAssertTrue(contents.contains("kept"))
+    }
+}
