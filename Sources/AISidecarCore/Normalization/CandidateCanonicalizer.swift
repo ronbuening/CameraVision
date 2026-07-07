@@ -925,6 +925,10 @@ public struct CandidateCanonicalizer {
             return .globalBackstopThreshold
         case .sessionContextConflict:
             return .sessionContextConflict
+        case .userReviewRejected:
+            return .userReviewRejected
+        case .userReviewDeferred:
+            return .userReviewDeferred
         }
     }
 

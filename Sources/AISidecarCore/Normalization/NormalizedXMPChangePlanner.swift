@@ -459,6 +459,10 @@ private extension SkippedCandidateReason {
             self = .globalBackstopThreshold
         case .sessionContextConflict:
             self = .sessionContextConflict
+        case .userReviewRejected:
+            self = .userReviewRejected
+        case .userReviewDeferred:
+            self = .userReviewDeferred
         }
     }
 }

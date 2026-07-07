@@ -16,7 +16,7 @@ extension NormalizationDecisionStatus: CaseIterable {
 
 extension NormalizedCandidateKind: CaseIterable {
     public static var allCases: [NormalizedCandidateKind] {
-        [.canonicalVocabulary, .observedModelTag, .modelSpeciesFallback, .phase2Fallback, .userContextUnnormalized]
+        [.canonicalVocabulary, .observedModelTag, .modelSpeciesFallback, .phase2Fallback, .userContextUnnormalized, .userEdited]
     }
 }
 
@@ -95,6 +95,7 @@ public enum NormalizationDecisionExplainer {
         case .modelSpeciesFallback: "model species without a vocabulary hierarchy"
         case .phase2Fallback: "Phase 2 fallback term"
         case .userContextUnnormalized: "user context written without vocabulary normalization"
+        case .userEdited: "keyword text edited during review"
         }
     }
 
@@ -148,6 +149,10 @@ public enum NormalizationDecisionExplainer {
             "batch-wide agreement is below the backstop threshold"
         case .sessionContextConflict:
             "this asset's own observations conflict with the session context"
+        case .userReviewRejected:
+            "rejected during review"
+        case .userReviewDeferred:
+            "deferred during review"
         }
     }
 

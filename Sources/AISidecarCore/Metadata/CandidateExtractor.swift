@@ -160,6 +160,10 @@ public enum SkippedCandidateReason: String, Codable, Equatable, Sendable {
     case gearOnlyAffinity = "gear_only_affinity"
     case globalBackstopThreshold = "global_backstop_threshold"
     case sessionContextConflict = "session_context_conflict"
+    // Additive (Phase 4 review, invariant 7): mirrored from
+    // NormalizationCandidateSkipReason for report parity.
+    case userReviewRejected = "user_review_rejected"
+    case userReviewDeferred = "user_review_deferred"
 }
 
 /// Diagnostic for a candidate or keyword that Milestone 2 did not export.

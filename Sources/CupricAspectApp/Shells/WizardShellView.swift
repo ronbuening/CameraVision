@@ -8,6 +8,7 @@ struct WizardShellView: View {
     @State private var importModel = FolderImportModel()
     @State private var options = AnalysisOptions()
     @State private var runModel = AnalysisRunModel()
+    @State private var reviewModel = ReviewModel()
     @State private var selectedAction: WizardAction?
     @State private var step = 1
     @State private var showAbout = false
@@ -48,6 +49,11 @@ struct WizardShellView: View {
                 selectedAction = .analyze
                 step = debugStep
             }
+            // FR4-046a: offer recovery of an interrupted review on launch.
+            if reviewModel.recoveryAvailable {
+                selectedAction = .analyze
+                step = 5
+            }
             if env["CUPRIC_DEBUG_AUTORUN"] == "1" {
                 selectedAction = .analyze
                 while importModel.scanning || importModel.assets.isEmpty {
@@ -67,6 +73,12 @@ struct WizardShellView: View {
                     step = 3
                 } else {
                     step = 5
+                    if let source = importModel.sourceFolder {
+                        reviewModel.buildSession(
+                            jsonRoot: importModel.outputFolder?.path ?? source.path,
+                            sourceRoot: source.path
+                        )
+                    }
                 }
                 Task { await importModel.rescan() }
             case .failed:
@@ -180,22 +192,18 @@ struct WizardShellView: View {
         case 4:
             Step4WorkingView(action: selectedAction ?? .analyze, runModel: runModel)
         default:
-            if case .finished(let outcome) = runModel.phase {
-                Step5SummaryView(outcome: outcome)
-            } else {
-                VStack(spacing: 14) {
-                    ApertureView(size: 64)
-                    Text("Review")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(theme.text)
-                    Text("Candidate review arrives with milestone M4.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(theme.textDim)
+            VStack(spacing: 0) {
+                if case .finished(let outcome) = runModel.phase, outcome.failed > 0 {
+                    Step5SummaryView(outcome: outcome)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 120)
+                Step5ReviewView(review: reviewModel, runOutcome: finishedOutcome)
             }
         }
+    }
+
+    private var finishedOutcome: RunOutcome? {
+        if case .finished(let outcome) = runModel.phase { return outcome }
+        return nil
     }
 
     private func failureBanner(_ message: String) -> some View {
@@ -252,7 +260,7 @@ struct WizardShellView: View {
         case 4:
             return "Processing locally"
         default:
-            return "Sidecars written — review arrives with M4"
+            return "\(reviewModel.approvedCount) approved · Done clears the review"
         }
     }
 
@@ -271,6 +279,7 @@ struct WizardShellView: View {
             )
             step = 4
         case 5:
+            reviewModel.completeCleanly()
             runModel.reset()
             selectedAction = nil
             step = 1

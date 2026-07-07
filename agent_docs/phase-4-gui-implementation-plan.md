@@ -115,7 +115,7 @@ Per-milestone **Not in this milestone** lines are binding scope limits — when 
 
 *Status: implemented — `Features/Preview/` (`ThumbnailStore`: ImageIO embedded-thumbnail decode, byte-capped NSCache, in-flight dedup; `AssetPreviewDetails`: off-main sidecar decode preferring cached pipeline derivatives; `AssetPreviewSheet`: whole image + subject derivative with instance count/selection per FR4-014) and `Features/Import/AssetGridView` (LazyVGrid, async cells, state dots), with a Grid/List toggle in Step 1. `Scripts/generate-synthetic-fixture.swift` fabricates the synthetic folder; verified with 5,000 assets: scan+derive populated the queue in seconds, grid renders lazily, process idle ~110 MB RSS. Interactive scroll-feel check on real RAW libraries remains a manual step (M11). Preview decode covered by tests against an unmodified pipeline-written sidecar fixture.*
 
-### M4 — Candidate review UI and session durability (FR4-013–FR4-020, NFR4-008, AC4-003, AC4-004)
+### M4 — Candidate review UI and session durability ✅ (completed 2026-07-07; FR4-013–FR4-020, FR4-046a, NFR4-008, AC4-003 partial, AC4-004, AC4-013, AC4-027)
 
 - Review screen: full image + isolated derivative, candidate list showing flat keyword, hierarchical keyword, confidence band, evidence, alternatives, vocabulary match, normalization rule, review requirement, provenance, and producing source (FR4-015/016).
 - Approve / reject / edit / defer per candidate; batch approve/reject (FR4-017/018) — all in-memory review state.
@@ -124,6 +124,8 @@ Per-milestone **Not in this milestone** lines are binding scope limits — when 
 - Scoped batch correction with explicit confirmation, limited to computable scopes only (FR4-019 — no "visually similar").
 - `requires_review` vocabulary policy surfaced, not reimplemented (FR4-020). (FR4-020a external-removal rendering is database-mode — arrives in M10b.)
 - **Done when:** AC4-004 walkthrough passes on a real analyzed folder, and an export → quit → relaunch → import round trip restores the review exactly.
+
+*Status: implemented. **Architecture:** the durable review form is a Phase 3 session document — `SessionReview` (Core, CORE-7) applies verdicts as decision status + additive `user_review_rejected`/`user_review_deferred` skip reasons and edits as additive `user_edited` candidate kind, so `apply-session` writes exactly the approved set with zero new write paths (AC4-013, proven by `testApplySessionWritesOnlyApprovedKeywords`). The review base session is built model-free via `runSessionOnly` (`fromJSON`, observed-tags + single-image). **GUI:** `Features/Review/` — `ReviewModel` (verdicts, edits, folder-scoped `editEverywhere` for FR4-019's computable scope, FR4-046a autosave: 25 decisions / 5 minutes to a recovery session, launch-time restore offer) and `Step5ReviewView` (thumbnail rows, keyword chips with confidence band + provenance/vocabulary-kind tooltip, approve/reject/defer/edit context menu, per-asset Accept all, batch Approve/Reject all, Save session only / Import session). Verified live against real model output. **Known gaps for later milestones:** the isolated-derivative side-by-side inside review rows (M3's preview sheet has it; wire a click-through in M6/M7 polish — AC4-003 partial), and richer per-candidate detail beyond the tooltip.*
 
 ### M5 — (vacated in v0.5) Vocabulary tooling deferred
 
