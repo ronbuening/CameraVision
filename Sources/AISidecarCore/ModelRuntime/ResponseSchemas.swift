@@ -19,7 +19,7 @@ public enum ResponseSchemas {
     }
 
     private static func resourceSchema(named resourceName: String) throws -> JSONValue {
-        guard let url = Bundle.module.url(forResource: resourceName, withExtension: "json") else {
+        guard let url = AISidecarResourceBundle.current.url(forResource: resourceName, withExtension: "json") else {
             throw resourceError("Missing bundled response schema resource: \(resourceName).json")
         }
         do {
