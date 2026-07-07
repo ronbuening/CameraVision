@@ -1,10 +1,12 @@
 # Phase 4 Implementation Plan — CupricAspect GUI MVP
 
-Version: 0.4
-Date: 2026-07-06
-Requirements basis: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.6)
+Version: 0.5
+Date: 2026-07-07
+Requirements basis: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.7)
 Visual design basis: `agent_docs/07-cupricaspect-gui-design.md` (v0.1) — read it before building any screen
 Audience: junior engineer or Sonnet-level coding agent, one milestone at a time.
+
+**v0.5 changes (requirements v0.7):** normalization reality — the Phase 3 engine is fully automatic, so M6 is rewritten as the **Normalization Inspector** (inspection + explanation + session-context input + model-free re-run; FR4-026 amended, FR4-052–055), and the prototypes' keep/merge/rename/drop table is void. **All vocabulary tooling is deferred** (M5 vacated to a stub; FR4-021–025/AC4-005 → Section 12; no milestone may depend on vocabulary editing). New prerequisites: CORE-6 (shared decision explainer) and CLI-1 (`aisidecar explain-session`).
 
 **v0.4 changes (requirements v0.6):** Wizard-first — M1–M8 build only the Wizard shell (Studio toggle disabled, "coming soon"); Studio is now M9, before the experimental database (M10, split into three parts); scale/evidence is M11. New CORE-4 prerequisite (`xmp_export` block in `.ai.json`); M1 gets the corrected file→state derivation table and the lazy-identity policy; M2 gets the FR4-051 Ollama check policy; M4 gets FR4-046a autosave; M5 becomes the vocabulary inspector; M0 code change: single window (FR4-050) and disabled Studio toggle land with M1.
 
@@ -42,6 +44,12 @@ Small Core additions the GUI needs. Each follows AGENTS.md rules (reusable behav
 
 **CORE-5 — Discovery-only scan ✅ (completed 2026-07-06).** `ImageScanner.inventory(inputPath:recursive:)` returns `ScanInventory` entries (path, relative path, name, extension, size, mtime, detected type) plus the usual recoverable errors, sharing the same visibility/ignore/supported-type rules as `scan` but computing no `SourceIdentity` — the M1 lazy-identity policy needs listing without hashing. `scan` is now built on the same discovery pass, so the two cannot disagree.
 *Acceptance (met):* inventory/scan parity, non-recursive exclusion, single-file input, and unsupported-file error tests in `ImageScannerInventoryTests`; full suite unchanged.
+
+**CORE-6 — Normalization decision explainer (FR4-055).** One Core mapping from `NormalizationDecisionStage`, governing rules, and `NormalizationCandidateSkipReason` (and conflict records) to human-readable one-liners, plus a small query API over a `NormalizationSessionDocument` (per-keyword rollup: outcome, stage, support, conflicts, skip reasons, per-asset detail). Consumed by the GUI Inspector (M6) and CLI-1 — never duplicated.
+*Acceptance:* unit tests cover every enum case (a new case fails the exhaustiveness test); rollup verified against a real session fixture.
+
+**CLI-1 — `aisidecar explain-session` (AC4-031).** New read-only subcommand: `explain-session <session.json> [--keyword <term>] [--needs-attention]` prints the CORE-6 rollup — all keywords summarized, one keyword's full trace, or the requires-review/conflict/unmatched set. No writes, no model calls, no normalization-decision flags.
+*Acceptance:* AC4-031 parity test against a session fixture; `--help` wiring check; `swift test` green.
 
 **CORE-3 — Pause/resume clarification ✅ (verified 2026-07-07, no Core change).** FR4-010 requires pause/resume. `InterruptionMonitor` supports graceful *stop*; "pause" is a GUI-level job-queue concern: run work in bounded slices and simply not schedule the next slice while paused; `--existing skip` semantics make re-runs additive.
 *Acceptance (met):* `testTwoSliceRunMatchesSingleFullRun` proves a single-file slice + skip-folder slice produces sidecars identical to one uninterrupted run.
@@ -118,19 +126,19 @@ Per-milestone **Not in this milestone** lines are binding scope limits — when 
 - `requires_review` vocabulary policy surfaced, not reimplemented (FR4-020). (FR4-020a external-removal rendering is database-mode — arrives in M10b.)
 - **Done when:** AC4-004 walkthrough passes on a real analyzed folder, and an export → quit → relaunch → import round trip restores the review exactly.
 
-### M5 — Vocabulary inspector (FR4-021–FR4-025 as amended v0.6, AC4-005)
+### M5 — (vacated in v0.5) Vocabulary tooling deferred
 
-- Inspector over the Phase 3 vocabulary JSON format using Core's `VocabularyLoader`/`VocabularyValidator`: load, browse entries (canonical paths, synonyms, flags), re-validate on reload, violations explained inline (FR4-021). Displays synonyms and validation-reported collisions; does not edit them (FR4-023 deferred).
-- `requires_review` and auto-approval eligibility toggles per entry (FR4-024/025); flag changes are the only write path, going through Core with a fresh content hash (FR4-022 as amended).
-- **Not in this milestone:** no add/edit/delete of entries, no synonym editing — the full editor is a Section 12 future item.
-- **Done when:** AC4-005 (amended) passes, including a deliberately invalid file caught inline and a flag toggle round-tripping with a fresh hash.
+All vocabulary tooling moved to requirements Section 12 (v0.7): it is not currently an enabled part of the product, and no milestone depends on it. The MVP's only vocabulary touchpoints are the vocabulary-file picker in the normalize options (M6) and read-only display of engine-reported vocabulary facts. The milestone number is kept so cross-references stay stable; there is no M5 work item.
 
-### M6 — Normalization review (FR4-026, FR4-027, FR4-027a/b, AC4-006, AC4-016)
+### M6 — Normalization Inspector (FR4-026 amended, FR4-027, FR4-027a/b, FR4-052–055, AC4-006, AC4-016, AC4-029, AC4-030; prerequisites CORE-6, CLI-1)
 
-- Run `NormalizePipeline.runSessionOnly`/`runDryRun` against reviewed candidates; persist the session document as a file; render per-decision governing rule and provenance (FR4-026).
-- Conflict view: conflicting observations and why a tag did or didn't propagate (FR4-027); visually distinguish raw vs canonicalized vs propagated vs user-context tags (FR4-027a); hierarchical display only from `canonical_path` (FR4-027b).
-- Import an existing normalization session file and continue review (FR4-012b, AC4-016).
-- **Done when:** AC4-006 and AC4-016 pass.
+- **Session context panel** (FR4-052, AC4-029): Subject/Habitat/Event fields with vocabulary-match feedback, per-field propagation toggles (off by default), unknown-context policy; plus the vocabulary-file picker (bundled starter vocabulary default).
+- Run `NormalizePipeline.runSessionOnly`/`runDryRun` over the existing `.ai.json` set (`fromJSON` mode, no model calls); persist the session document as a file.
+- **Inspector table** (FR4-026, AC4-030): keyword / support bar (asset count + support units) / outcome chip (accepted · withheld · skipped) / why (stage + governing rule + skip reasons via the CORE-6 explainer); expandable per-asset detail with supporting assets and conflicts (FR4-027); raw vs canonicalized vs propagated vs user-context visually distinct (FR4-027a); hierarchy display only from `canonical_path` (FR4-027b). Filters: outcome, stage, needs-attention. FR3-025 non-supporting/conflicted lists reachable per context value.
+- **Re-run loop** (FR4-054): "Re-run normalization" after vocabulary-file or context changes; stale-vocabulary indicator via content-hash mismatch.
+- **Export surface** (FR4-053): "Write normalized XMP" (accepted set only, exclusions labeled) and "Save session only"; import an existing session and continue (FR4-012b, AC4-016).
+- **Not in this milestone:** no per-keyword decision controls of any kind (the engine has none — FR4-026); no vocabulary editing (point at the file path + re-run loop instead); the XMP write itself reuses M7's export path if M7 lands first, otherwise `runWritePlan` + Phase 2 writer as the engine already wires it.
+- **Done when:** AC4-006, AC4-016, AC4-029, and AC4-030 pass against a real analyzed folder, with CLI-1's `explain-session` showing identical facts for a spot-checked keyword (AC4-031).
 
 ### M7 — Export, validation, and compatibility (FR4-028–FR4-038b, AC4-007, AC4-008, AC4-010, AC4-011, AC4-017, AC4-018, AC4-019)
 
@@ -196,8 +204,8 @@ Sources/CupricAspectApp/
 ├── Features/            shell-agnostic feature views/state both shells embed
 │   ├── Import/          folder picker, scan, queue list
 │   ├── Review/          review screen, candidate actions, batch corrections
-│   ├── Vocabulary/      editor, validation surface
-│   ├── Normalization/   session run + decision inspection
+│   ├── Normalization/   session context panel, inspector, re-run loop
+│   │                    (Vocabulary/ returns if Section 12 tooling lands)
 │   ├── Export/          change-plan view, export runner, compatibility reports
 │   └── Settings/        model/endpoint config, cache locations, appearance, shell toggle
 └── Support/             formatting, error-code presentation, preview fixtures
@@ -209,7 +217,7 @@ Shells are thin: layout, navigation, and chrome only. Feature views and their ob
 
 - Data layer and job engine: XCTest in a `CupricAspectAppTests` SwiftPM test target, offline, deterministic — same bar as `AISidecarCoreTests`; runs under plain `swift test`.
 - Pipeline integration: use Core's existing mock runners (`MockVisionModelRunner`, recorded-fixture replay) so GUI tests never need Ollama.
-- UI: XCUITest smoke for the M2/M5/M9 golden paths only; don't chase pixel coverage. (XCUITest needs an app bundle — defer wiring it until the packaging script exists; manual golden-path walkthroughs are the interim bar.)
+- UI: XCUITest smoke for the M1 import, M4 review, and M7 export golden paths only; don't chase pixel coverage. (XCUITest needs an app bundle — defer wiring it until the packaging script exists; manual golden-path walkthroughs are the interim bar.)
 - Every milestone ends with `swift test` green and `swift build --product CupricAspect` succeeding.
 
 ## 6. Out of Scope (MVP)

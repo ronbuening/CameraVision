@@ -1,7 +1,7 @@
 # CupricAspect GUI Visual Design Specification
 
-Version: 0.2 (v0.2: Wizard-first MVP scoping, Ollama status policy, single window — matching requirements v0.6)
-Date: 2026-07-06
+Version: 0.3 (v0.3: normalization screens replaced by the Inspector + session context panel per requirements v0.7 — the prototypes' keep/merge/rename/drop table is void, resolution 10; vocabulary editor deferred. v0.2: Wizard-first MVP scoping, Ollama status policy, single window.)
+Date: 2026-07-07
 Design source: Claude Design handoff bundle at `agent_docs/gui-wrapper-for-cameravision/` (project "GUI wrapper for CameraVision", root component `CupricAspect.dc.html`)
 Companion docs: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.4), `agent_docs/phase-4-gui-implementation-plan.md` (v0.2)
 Audience: junior engineer or Sonnet-level coding agent.
@@ -197,7 +197,8 @@ Footer (always visible): "‹ Back" bordered button (hidden-ish at 35% opacity a
   - write → "Ready to export" (same subtitle)
   - normalize → "Keywords normalized" / "{N} images · {K} unique keywords · adjust decisions below"
 - **Keyword review list** (analyze/write): one row card per image — 70px thumbnail + filename, extension badge (mono 10, accent on `accent-soft`), "{a} of {k} accepted" label, "Accept all" button (green on hover), then wrapped keyword chips (Section 3.5) with confidence %.
-- **Normalize table** (normalize action): columns KEYWORD / FREQUENCY / DECISION. Frequency = accent bar scaled to max + count in mono. Decision = native dropdown (Keep / Merge → / Rename → / Drop) plus an accent mono target keyword when merge/rename. Drop rows: strikethrough keyword, 50% row opacity, danger-colored dropdown text.
+- **Normalization Inspector** (normalize action; replaces the prototypes' decision table — resolution 10, requirements FR4-026): columns KEYWORD / SUPPORT / OUTCOME / WHY. Support = the prototype's accent bar scaled to max, plus "N assets · M units" in mono. Outcome = chip: accepted (green-soft/green), withheld (accent-soft/accent), skipped (panel-2/text-dim). Why = stage + governing rule + skip reasons as plain-language text from the shared Core explainer (FR4-055), mono for rule/reason identifiers. Rows expand to per-asset detail: supporting assets, conflicts (competing keyword + assets, danger-tinted). Filter segmented control: All / Accepted / Withheld / Skipped / Needs attention; a second stage filter (Direct / User context / Propagated / Backstop / Fallback). No editing controls of any kind on rows.
+- **Session context panel** (before the normalize run; FR4-052): a card with three labeled fields — SUBJECT, HABITAT, EVENT — each with: text field (mono), a live match line beneath (matched → "→ Animals|Birds|Owls" in accent mono; unmatched → "not in vocabulary — will reject the run" in danger, or "will write as flat user keyword" when the policy allows), and a small "allow propagation" toggle (off by default) with the caption "apply to all non-conflicting photos". A footer row holds the unknown-context policy segmented (Reject / Write unnormalized) and the vocabulary-file picker (mono path, "Choose…", bundled-default label). After a run, each context value gains "N conflicted · M weak support" links opening the FR3-025 lists.
 - Primary: analyze → "Done"; write → "Write XMP"; normalize → "Write normalized XMP". Hint: "Review, then export".
 
 ### Settings (Wizard)
@@ -267,9 +268,9 @@ writing .ai.json ▍        ← blinking caret (cvblink 1s), accent color
 
 ### Normalize
 
-- Title "Normalize keywords"; subtitle "Batch-aware decisions across the whole set. {N} images · {K} unique keywords".
-- The keyword/frequency/decision table (same anatomy as Wizard step 5 normalize table).
-- Run bar: "{m} merges · {d} drops pending" + secondary "Save session only" + primary "Write normalized XMP".
+- Title "Normalize keywords"; subtitle "Batch-aware reconciliation under your vocabulary and consensus rules. {N} images · {K} unique keywords".
+- The session context panel, then the Normalization Inspector (same anatomy as the Wizard's — see §6 Step 5). "Re-run normalization" appears once a session exists (FR4-054), with a stale-vocabulary indicator on content-hash mismatch.
+- Run bar: "{a} accepted · {w} withheld · {s} skipped" + secondary "Save session only" + primary "Write normalized XMP" (writes the accepted set only; FR4-053).
 
 ### Settings (Studio)
 
@@ -301,10 +302,11 @@ Same sections as Wizard Settings — including the ADVANCED section above — pl
 7. **Rate figure** ("2.4 img/s") is hardcoded in the prototype stat rows; compute a smoothed real rate.
 8. **Progress totals** in Studio's log well and progress row must reflect the actual pipeline stage (scan/render/model/write), fed by CORE-1 progress hooks.
 9. **Status dots poll nothing.** The "connected"/"verified"/"ready" indicators reflect the most recent explicit check — at launch, before each run, or on manual refresh (FR4-051). No timer-based background polling; a stale check renders as stale, not as failure or success.
+10. **The normalize decision table is void (v0.3, binding).** The prototypes' KEYWORD/FREQUENCY/DECISION table with Keep / Merge → / Rename → / Drop dropdowns implies per-keyword human decisions the Phase 3 engine does not have — normalization is fully automatic and deterministic, and `apply-session` rejects decision-affecting flags. Build the **Normalization Inspector + session context panel** specified in Sections 6/7 instead (requirements FR4-026, FR4-052–055). "Merge/rename" is in reality a vocabulary edit (deferred to Section 12); "drop" is vocabulary policy. The prototypes' Step 2 card copy "merge, rename, drop" becomes "reconcile keywords batch-wide under your vocabulary and consensus rules".
 
 ### 8.3 Relationship to the Phase 4 requirements screens
 
-The prototypes cover the primary happy-path surfaces: folder intake, action choice, options, progress, candidate review, normalization decisions, write/apply, settings. The Phase 4 requirements demand more surfaces that the prototypes do not draw — asset queue with the 13-state machine and error-code filtering (FR4-011), vocabulary editor (FR4-021–025), external-change/malformed-XMP states (FR4-030x, `E_XMP_PARSE_FAILED`), dry-run change-plan view (FR4-029), compatibility reports (FR4-038a), data-retention controls (a "Forget folder…" action in the queue UI and the "History retention" row, FR4-004a–c — shown only when the experimental database mode is enabled). **These are still required** (the database-backed ones only in database mode, FR4-048). Build them with the same tokens: cards on `panel`, section labels, segmented controls, mono for paths/codes, accent/green/danger semantics. Error-code chips: mono, danger-tinted for failures. The design system here is the vocabulary; the requirements doc remains the feature list.
+The prototypes cover the primary happy-path surfaces: folder intake, action choice, options, progress, candidate review, normalization decisions, write/apply, settings. The Phase 4 requirements demand more surfaces that the prototypes do not draw — asset queue with the 13-state machine and error-code filtering (FR4-011), the session context panel and Normalization Inspector (FR4-026, FR4-052–055 — replacing the drawn decision table per resolution 10), external-change/malformed-XMP states (FR4-030x, `E_XMP_PARSE_FAILED`), dry-run change-plan view (FR4-029), compatibility reports (FR4-038a), data-retention controls (a "Forget folder…" action in the queue UI and the "History retention" row, FR4-004a–c — shown only when the experimental database mode is enabled). **These are still required** (the database-backed ones only in database mode, FR4-048). Build them with the same tokens: cards on `panel`, section labels, segmented controls, mono for paths/codes, accent/green/danger semantics. Error-code chips: mono, danger-tinted for failures. The design system here is the vocabulary; the requirements doc remains the feature list.
 
 ## 9. Accessibility
 
