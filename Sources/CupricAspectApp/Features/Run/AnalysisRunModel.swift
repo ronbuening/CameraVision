@@ -148,7 +148,7 @@ final class AnalysisRunModel {
         Task {
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
-                let pipeline = AnalyzePipeline(logger: Logger(sink: { _ in }), runner: OllamaVisionRunner())
+                let pipeline = AnalyzePipeline(logger: GUILog.shared.makeLogger(), runner: OllamaVisionRunner())
                 let result = try await Task.detached(priority: .userInitiated) {
                     try await pipeline.run(
                         inputPath: inputPath,
@@ -214,7 +214,7 @@ final class AnalysisRunModel {
         }
         switch sidecarError.code {
         case .modelEndpointUnreachable:
-            return "Ollama isn't reachable. Start it with `ollama serve` (or open the Ollama app), then retry."
+            return "Ollama isn't reachable. If it's installed, open the Ollama app (or run `ollama serve`); if not, download it from \(RuntimeGuidanceModel.downloadURL). Then retry."
         case .modelTagNotFound:
             return sidecarError.message + " Pull it with `ollama pull <tag>` or pick an installed vision model."
         default:

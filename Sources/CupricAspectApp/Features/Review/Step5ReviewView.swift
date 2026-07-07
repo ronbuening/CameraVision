@@ -24,7 +24,7 @@ struct Step5ReviewView: View {
                     .padding(.top, 14)
             }
 
-            if let error = review.buildError {
+            if let error = review.buildError ?? review.fileError {
                 Text(error)
                     .font(.system(size: 12.5))
                     .foregroundStyle(theme.danger)
@@ -129,7 +129,10 @@ struct Step5ReviewView: View {
                 .foregroundStyle(theme.text)
             Spacer()
             headerButton("Discard") { review.discardRecovery() }
-            headerButton("Restore", filled: true) { try? review.restoreFromRecovery() }
+            headerButton("Restore", filled: true) {
+                do { try review.restoreFromRecovery(); review.clearFileError() }
+                catch { review.reportFileError("Restore recovered review", error) }
+            }
         }
         .padding(EdgeInsets(top: 12, leading: 15, bottom: 12, trailing: 15))
         .background(theme.accent.soft)
@@ -233,7 +236,8 @@ struct Step5ReviewView: View {
         panel.nameFieldStringValue = "review-session.json"
         panel.allowedContentTypes = [.json]
         if panel.runModal() == .OK, let url = panel.url {
-            try? review.saveSession(to: url)
+            do { try review.saveSession(to: url); review.clearFileError() }
+            catch { review.reportFileError("Save session", error) }
         }
     }
 
@@ -242,7 +246,8 @@ struct Step5ReviewView: View {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
-            try? review.importSession(from: url)
+            do { try review.importSession(from: url); review.clearFileError() }
+            catch { review.reportFileError("Import session", error) }
         }
     }
 }

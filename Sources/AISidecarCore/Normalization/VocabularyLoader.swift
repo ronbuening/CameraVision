@@ -82,8 +82,8 @@ public enum VocabularyLoader {
     }
 
     private static func resourceURL(name: String, extension fileExtension: String, subdirectory: String) -> URL? {
-        Bundle.module.url(forResource: name, withExtension: fileExtension, subdirectory: subdirectory)
-            ?? Bundle.module.url(forResource: name, withExtension: fileExtension)
+        AISidecarResourceBundle.current.url(forResource: name, withExtension: fileExtension, subdirectory: subdirectory)
+            ?? AISidecarResourceBundle.current.url(forResource: name, withExtension: fileExtension)
     }
 }
 

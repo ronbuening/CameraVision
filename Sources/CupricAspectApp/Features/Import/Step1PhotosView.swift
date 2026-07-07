@@ -37,6 +37,11 @@ struct Step1PhotosView: View {
                 .foregroundStyle(theme.textDim)
                 .padding(.top, 5)
 
+            if let candidate = model.reopenCandidate, model.sourceFolder == nil {
+                reopenOffer(candidate)
+                    .padding(.top, 14)
+            }
+
             dropZone
                 .padding(.top, 22)
 
@@ -78,6 +83,41 @@ struct Step1PhotosView: View {
     }
 
     private var hasSource: Bool { model.sourceFolder != nil }
+
+    /// B0-6 reopen-last-folder: an offer, never an auto-import.
+    private func reopenOffer(_ candidate: URL) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 12))
+                .foregroundStyle(theme.accent.accent)
+            Text("Last time: \(candidate.lastPathComponent)")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(theme.text)
+            Text(candidate.path)
+                .font(.system(size: 10.5, design: .monospaced))
+                .foregroundStyle(theme.textFaint)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            Button("Reopen") { model.reopenLastFolder() }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(theme.accent.accent)
+            Button {
+                model.dismissReopenOffer()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(theme.textFaint)
+            }
+            .buttonStyle(.plain)
+            .help("Dismiss")
+        }
+        .padding(EdgeInsets(top: 9, leading: 13, bottom: 9, trailing: 13))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.accent.soft)
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+    }
 
     private var dropZone: some View {
         Button {

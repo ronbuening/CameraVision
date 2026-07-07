@@ -19,7 +19,7 @@ public enum PromptRegistry {
     }
 
     private static func normalizedResourceText(named resourceName: String) throws -> String {
-        guard let url = Bundle.module.url(forResource: resourceName, withExtension: "txt") else {
+        guard let url = AISidecarResourceBundle.current.url(forResource: resourceName, withExtension: "txt") else {
             throw resourceError("Missing bundled prompt resource: \(resourceName).txt")
         }
         let data = try Data(contentsOf: url)

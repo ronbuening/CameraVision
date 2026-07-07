@@ -2,10 +2,9 @@ import AISidecarCore
 import SwiftUI
 
 /// App and engine version constants surfaced in the UI (plan M0).
-/// The app version becomes single-sourced with the CLI's in packaging WI
-/// D5; until then it mirrors `AISidecarCommand`'s placeholder.
+/// Single-sourced with the CLI per packaging plan D5.
 enum AppInfo {
-    static let version = "0.0.0 (dev)"
+    static let version = AISidecarVersion.current
 }
 
 /// M0 placeholder content shared by both shells: branding, version info,

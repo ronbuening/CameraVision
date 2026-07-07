@@ -156,6 +156,65 @@ final class ExportModelTests: XCTestCase {
         )
     }
 
+    /// The default write path merges into pre-existing XMP: the dry-run plan
+    /// carries the merge preview the change-plan sheet reveals (existing
+    /// keywords kept, not a new file), and the write preserves them on disk.
+    @MainActor
+    func testPlanRevealsMergeIntoExistingXMPAndWritePreservesKeywords() async throws {
+        let (session, sourceRoot) = try makeSession()
+        let xmpURL = sourceRoot.appendingPathComponent("A.xmp")
+        try Data("""
+        <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+        <x:xmpmeta xmlns:x="adobe:ns:meta/">
+          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+            <rdf:Description rdf:about=""
+                xmlns:dc="http://purl.org/dc/elements/1.1/"
+                xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+              <xmp:Rating>4</xmp:Rating>
+              <dc:subject>
+                <rdf:Bag>
+                  <rdf:li>Kyoto</rdf:li>
+                  <rdf:li>Family Trip</rdf:li>
+                </rdf:Bag>
+              </dc:subject>
+            </rdf:Description>
+          </rdf:RDF>
+        </x:xmpmeta>
+        <?xpacket end="w"?>
+        """.utf8).write(to: xmpURL)
+
+        let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
+        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil)
+        try await waitUntil("dry-run plan") { export.phase == .planReady }
+
+        XCTAssertEqual(export.mergeTargets.count, 1)
+        let preview = try XCTUnwrap(export.mergeTargets.first?.preview)
+        XCTAssertFalse(preview.wouldCreate)
+        XCTAssertEqual(preview.existingFlatKeywords, ["Kyoto", "Family Trip"])
+        XCTAssertEqual(export.preservedKeywordCount, 2)
+        XCTAssertTrue(preview.resultingFlatKeywords.contains("Kyoto"))
+        XCTAssertTrue(preview.resultingFlatKeywords.contains("bird"))
+
+        export.confirmWrite()
+        try await waitUntil("write") {
+            if case .written = export.phase { return true }
+            if case .failed = export.phase { return true }
+            return false
+        }
+        guard export.phase == .written else {
+            return XCTFail("write failed: \(export.phase)")
+        }
+
+        let written = try String(contentsOf: xmpURL, encoding: .utf8)
+        for preserved in ["Kyoto", "Family Trip", "<xmp:Rating>4</xmp:Rating>", "bird"] {
+            XCTAssertTrue(written.contains(preserved), "merged XMP should contain \(preserved)")
+        }
+        // Backup-and-merge default: the pre-write file survives as a backup.
+        let backups = try FileManager.default.contentsOfDirectory(atPath: sourceRoot.path)
+            .filter { $0.hasPrefix("A.xmp.bak-") }
+        XCTAssertEqual(backups.count, 1)
+    }
+
     @MainActor
     func testCancelPlanWritesNothing() async throws {
         let (session, sourceRoot) = try makeSession()

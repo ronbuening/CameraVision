@@ -8,9 +8,41 @@ import Observation
 @MainActor
 @Observable
 final class FolderImportModel {
+    enum DefaultsKeys {
+        static let lastSource = "cupricaspect.lastSourceFolder"
+        static let lastOutput = "cupricaspect.lastOutputFolder"
+    }
+
     var sourceFolder: URL?
     var outputFolder: URL?
     var recursive = true
+
+    /// B0-6 reopen-last-folder: the previous session's source folder, offered
+    /// on launch (never auto-imported) while nothing is selected yet.
+    private(set) var reopenCandidate: URL?
+
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        if let path = defaults.string(forKey: DefaultsKeys.lastSource),
+           FileManager.default.fileExists(atPath: path) {
+            reopenCandidate = URL(fileURLWithPath: path, isDirectory: true)
+        }
+    }
+
+    func reopenLastFolder() {
+        guard let reopenCandidate else { return }
+        if let outputPath = defaults.string(forKey: DefaultsKeys.lastOutput),
+           FileManager.default.fileExists(atPath: outputPath) {
+            outputFolder = URL(fileURLWithPath: outputPath, isDirectory: true)
+        }
+        chooseSource(reopenCandidate)
+    }
+
+    func dismissReopenOffer() {
+        reopenCandidate = nil
+    }
 
     private(set) var scanning = false
     private(set) var assets: [AssetRecord] = []
@@ -39,11 +71,18 @@ final class FolderImportModel {
 
     func chooseSource(_ url: URL) {
         sourceFolder = url
+        reopenCandidate = nil
+        defaults.set(url.path, forKey: DefaultsKeys.lastSource)
         Task { await rescan() }
     }
 
     func chooseOutput(_ url: URL?) {
         outputFolder = url
+        if let url {
+            defaults.set(url.path, forKey: DefaultsKeys.lastOutput)
+        } else {
+            defaults.removeObject(forKey: DefaultsKeys.lastOutput)
+        }
         Task { await rescan() }
     }
 

@@ -172,21 +172,31 @@ All vocabulary tooling moved to requirements Section 12 (v0.7): it is not curren
 - **GUI:** `Features/Settings/` — `SettingsModel` (resolves through the standard chain, writes through CORE-9, discloses active `AISIDECAR_*` overrides, rejects invalid endpoints without writing) and `SettingsSheet` (vision model picker with refresh + unavailable-model flag, editable endpoint with connectivity badge, render/GPS/existing defaults, config Reveal, derivative-cache Purge with confirmation, appearance, about card). Replaces the M0 About sheet; Studio adopts it in M9.
 - Verified live: connected badge and picker against a running Ollama; write-through, unknown-key preservation, env-disclosure, and vision filtering covered by tests.
 
-### B0 — Beta readiness ⬅ NEXT (requirements v0.9; the first beta ships from here, Wizard-only)
+### B0 — Beta readiness (requirements v0.9; the first beta ships from here, Wizard-only)
 
 The MVP feature flow is complete (M0–M8a). B0 turns it into something that can be handed to a beta tester. Work the items in this order; each is independently committable. M9–M11 are post-beta.
+
+**Progress (2026-07-07): B0-1 (minus Developer ID signing/notarization), B0-2, B0-3, B0-4, and B0-6 are done — see per-item status notes. Outstanding: B0-5 (manual release evidence), the Developer ID signing/notarization/`spctl` pass, and the `v0.1.0-beta.1` tag. Alongside B0, the always-on Phase 2 merge-into-existing-XMP behavior (backup-and-merge default) was verified end-to-end (CLI live round trip preserving foreign keywords, `xmp:Rating`, and a timestamped backup) and is now revealed in the change-plan UI: a standing policy card, per-target merge/new-file badges with preserved-keyword counts from the dry-run preview, and footer totals.**
 
 **B0-1 — Packaging (the blocker).** Execute `agent_docs/06-packaging-single-app-plan.md` WI-2 → WI-1 → WI-4 → WI-6 for the GUI: resource-bundle relocation test first (the plan's own "most likely bug"), then the release build script that assembles `CupricAspect.app` around the SwiftPM release binary (Contents/MacOS, Info.plist per WI-4, embedded CLI per D3 optional for beta — GUI-only bundle is acceptable for B0), `.icns` generated from the design bundle's `cupricaspect_icon-3.svg`, Developer ID signing + notarization + stapling, DMG.
 *Done when:* the DMG installs and launches on a Mac that has never had Xcode, `spctl --assess` passes.
 
+*Status (2026-07-07): implemented except Developer ID signing/notarization (deferred by decision until the certificate is in hand — the script ad-hoc signs by default and takes `--sign <identity>` for the WI-1 steps 4–5 when ready; `spctl --assess` therefore still pending). WI-2 found the real relocation bug: SwiftPM's generated `Bundle.module` accessor checks only the main-bundle root and the absolute build-machine path — a relocated executable resolves resources only on the machine that built it, and an app bundle would look in the `.app` root, not `Contents/Resources`. Fixed with `AISidecarResourceBundle` in Core (search order: `Contents/Resources` → executable-adjacent → `../Resources` for the Helpers CLI → `Bundle.module` for dev/test); prompts, schemas, and vocabulary all resolve through it. The SwiftPM resource bundle is flat, so codesign rejects a copy under `Helpers/` — the app carries ONE copy in `Contents/Resources` shared by both executables. `Scripts/wi2-relocation-check.sh` proves both relocated layouts with the build tree hidden plus a negative control. `Scripts/build-release.sh` assembles `dist/CupricAspect.app` (Info.plist from `Scripts/packaging/Info.plist.template`, committed `AppIcon.icns` from `Scripts/generate-app-icon.sh`, embedded CLI by default, version cross-checked against the embedded CLI) and packs the DMG. Verified: assembled app launches, embedded CLI reports the product version.*
+
 **B0-2 — Single-source version (packaging plan D5).** One version constant feeds the app About card, `CFBundleShortVersionString`, and `aisidecar --version` (currently "0.0.0"). Tag the beta `v0.1.0-beta.1`.
 *Done when:* all three surfaces show the same non-placeholder version from one source.
+
+*Status (2026-07-07): done — `AISidecarVersion.current` ("0.1.0-beta.1") in Core feeds `aisidecar --version`, the About/Settings cards, and the build script's `CFBundleShortVersionString` injection (cross-checked at assembly). The `v0.1.0-beta.1` tag itself waits for B0-5 evidence.*
 
 **B0-3 — First-run / missing-runtime guidance (FR4-058, AC4-034; packaging plan WI-5).** Launch-time Ollama check with install/start guidance; empty vision-model list explains itself and names a starter model with its `ollama pull` command (do not silently assume the 26B default model exists).
 *Done when:* AC4-034 passes on a clean user account without Ollama, and again with Ollama but no vision model.
 
+*Status (2026-07-07): done — `RuntimeGuidanceModel` (one launch-time check + manual re-check, no polling) drives a Wizard banner: unreachable → install/start guidance with a Download Ollama action; reachable-but-no-vision-model → starter suggestion with a copyable `ollama pull <resolved tag>` command. Settings' empty model picker explains itself the same way. Unit-tested via an injected tag lister; unreachable banner verified live against a dead endpoint. The clean-user-account pass remains part of B0-5's manual round.*
+
 **B0-4 — Diagnostic file logging (FR4-059, AC4-035).** Replace the discarded `Logger(sink: { _ in })` with a shared file sink: size-bounded log under the state directory, path shown in Settings → About. Fix the silent `try?` on "Save session only" / session import — errors surface in the UI.
 *Done when:* AC4-035 passes; a deliberately failed run's structured errors are readable in the log file.
+
+*Status (2026-07-07): done — `FileLogSink` (5 MB cap, one rotated generation, text format so `errors=E_*` codes stay readable) under `~/Library/Application Support/CupricAspect/logs/`, fed by all four pipeline loggers; path + Reveal in Settings → About. Review and normalization save/import/restore surface failures via `fileError` in the UI and echo them to the log. Sink write/rotation/level tests in `GUILogTests`.*
 
 **B0-5 — Release evidence (manual).** The Lightroom Classic / Capture One round trip per `agent_docs/release-evidence/` (write real XMP from the GUI, import in LR/C1, record results), plus the outstanding Phase 1 M9 calibration evidence or an explicit deferral note (AGENTS release-signoff requirement).
 *Done when:* evidence files exist under `agent_docs/release-evidence/` for the current writer recipe.
@@ -197,6 +207,8 @@ The MVP feature flow is complete (M0–M8a). B0 turns it into something that can
 - Review-screen scale sanity: load the M4 review list from a 1,000–2,000 image synthetic session (`Scripts/generate-synthetic-fixture.swift`) and fix any stalls (the 5,000 target formally lands in M11).
 - Reopen-last-folder convenience on launch (remember the last source/output folders in UserDefaults; offer, don't auto-import).
 *Done when:* each edge verified with a note here.
+
+*Status (2026-07-07): all four verified.* **Step 1 copy** — already singular ("Drop a folder of photos here"); screenshot-checked, no change. **Pause story** — the copy option: Step 4's Cancel now carries "Progress is kept — analyzed photos stay done. Start again to resume where you left off." **Review scale** — the generator gained `--sidecar-template` (patches a real pipeline sidecar per image, correct per-file identity) so full 1,500-asset sessions can be fabricated; the env-gated `ReviewScaleTests` (`CUPRIC_SCALE_TESTS=1 CUPRIC_SCALE_DIR=…`) measured session build 8.5 s (one-time, behind the building spinner), `assetRows` recompute 40 ms, single-asset verdict update < 100 ms — no stalls to fix; rows render in a `LazyVStack`. **Reopen-last-folder** — `FolderImportModel` remembers source/output in UserDefaults and offers a "Last time: …" row on launch (Reopen/dismiss, never auto-imports); covered by `FolderImportReopenTests`.
 
 **Not in B0:** Studio (M9), the database (M10), vocabulary tooling, embedded-CLI install action (WI-3), Sparkle/auto-update, CI. Beta distribution is a signed DMG handed out directly.
 

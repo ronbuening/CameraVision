@@ -29,6 +29,7 @@ struct ChangePlanSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    mergePolicyCard
                     ForEach(export.writableTargets, id: \.targetXMPPath) { plan in
                         targetRow(plan)
                     }
@@ -82,11 +83,47 @@ struct ChangePlanSheet: View {
         let flat = export.writableTargets.reduce(0) { $0 + $1.flatKeywordsToAdd.count }
         let hierarchical = export.writableTargets.reduce(0) { $0 + $1.hierarchicalKeywordsToAdd.count }
         var text = "\(flat) flat · \(hierarchical) hierarchical keywords to add"
+        if !export.mergeTargets.isEmpty {
+            text += " · \(export.preservedKeywordCount) existing kept"
+        }
         let excluded = export.failedTargets.count + export.planFailures.count
         if excluded > 0 {
             text += " · \(excluded) excluded (see failures)"
         }
         return text
+    }
+
+    /// Merging into existing XMP is the default write behavior (the Phase 2
+    /// backup-and-merge conflict policy), so say so up front — existing
+    /// keywords survive every write.
+    private var mergePolicyCard: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "arrow.triangle.merge")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(theme.accent.accent)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Existing XMP files are merged, not replaced")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(theme.text)
+                Text(mergePolicyDetail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.textDim)
+            }
+            Spacer()
+        }
+        .padding(EdgeInsets(top: 10, leading: 13, bottom: 10, trailing: 13))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.accent.soft)
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+    }
+
+    private var mergePolicyDetail: String {
+        let base = "Keywords already in a sidecar are kept, new keywords are added without duplicates, and other metadata (ratings, edits) is left untouched. A timestamped backup is written before any existing file is modified."
+        let merges = export.mergeTargets.count
+        guard merges > 0 else {
+            return base + " This write creates only new sidecar files."
+        }
+        return base + " This write merges into \(merges) existing sidecar\(merges == 1 ? "" : "s"), preserving \(export.preservedKeywordCount) existing keyword\(export.preservedKeywordCount == 1 ? "" : "s")."
     }
 
     private func targetRow(_ plan: XMPChangePlan) -> some View {
@@ -106,6 +143,9 @@ struct ChangePlanSheet: View {
                         .background(theme.accent.soft)
                         .clipShape(Capsule())
                 }
+                if let preview = plan.preview {
+                    mergeBadge(preview)
+                }
                 Spacer()
                 Text("+\(plan.flatKeywordsToAdd.count) flat · +\(plan.hierarchicalKeywordsToAdd.count) hier")
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
@@ -123,6 +163,22 @@ struct ChangePlanSheet: View {
         .background(theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 9))
         .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(theme.border))
+    }
+
+    /// Per-target disclosure of the merge outcome the dry-run previewed:
+    /// existing sidecars show how many keywords the merge preserves.
+    private func mergeBadge(_ preview: XMPWritePreview) -> some View {
+        let existing = preview.existingFlatKeywords.count + preview.existingHierarchicalKeywords.count
+        let label = preview.wouldCreate
+            ? "new file"
+            : "merge · keeps \(existing) existing"
+        return Text(label)
+            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+            .foregroundStyle(preview.wouldCreate ? theme.textDim : theme.green)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 6)
+            .background((preview.wouldCreate ? theme.textDim : theme.green).opacity(0.12))
+            .clipShape(Capsule())
     }
 
     private var failuresSection: some View {

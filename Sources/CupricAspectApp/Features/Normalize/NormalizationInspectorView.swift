@@ -16,6 +16,13 @@ struct NormalizationInspectorView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
 
+            if let error = model.fileError {
+                Text(error)
+                    .font(.system(size: 12))
+                    .foregroundStyle(theme.danger)
+                    .padding(.top, 10)
+            }
+
             if !model.contextRecords.isEmpty {
                 contextResults
                     .padding(.top, 14)
@@ -344,7 +351,8 @@ struct NormalizationInspectorView: View {
         panel.nameFieldStringValue = "normalization-session.json"
         panel.allowedContentTypes = [.json]
         if panel.runModal() == .OK, let url = panel.url {
-            try? model.saveSession(to: url)
+            do { try model.saveSession(to: url); model.clearFileError() }
+            catch { model.reportFileError("Save session", error) }
         }
     }
 
@@ -353,7 +361,8 @@ struct NormalizationInspectorView: View {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
-            try? model.importSession(from: url)
+            do { try model.importSession(from: url); model.clearFileError() }
+            catch { model.reportFileError("Import session", error) }
         }
     }
 }

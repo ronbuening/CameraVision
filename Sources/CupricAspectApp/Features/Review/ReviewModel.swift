@@ -164,6 +164,26 @@ final class ReviewModel {
         lastAutosaveAt = now()
     }
 
+    /// FR4-059: user-initiated file operations surface failures instead of
+    /// silently dropping them. Set by the views' save/import/restore actions,
+    /// shown beside `buildError`, and echoed to the diagnostic log.
+    private(set) var fileError: String?
+
+    func reportFileError(_ action: String, _ error: Error) {
+        let message = "\(action) failed: \((error as? SidecarError)?.message ?? error.localizedDescription)"
+        fileError = message
+        try? GUILog.shared.makeLogger().log(LogRecord(
+            level: .error,
+            event: "review.file_operation_failed",
+            message: message,
+            errors: (error as? SidecarError).map { [$0] } ?? []
+        ))
+    }
+
+    func clearFileError() {
+        fileError = nil
+    }
+
     func importSession(from url: URL) throws {
         adopt(session: try NormalizationSessionReader().read(from: url.path))
     }
