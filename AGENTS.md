@@ -11,6 +11,7 @@ CameraVision is a Swift 6, macOS 15, SwiftPM project for local-first AI-assisted
 ## Before You Change Code
 
 1. Read `agent_docs/invariants.md` — the binding safety, compatibility, and process rules. All of them apply to every change.
+   - **Precedence when documents conflict:** `invariants.md` > phase requirements docs > implementation plans > design doc 07 > design prototypes in `agent_docs/gui-wrapper-for-cameravision/`. Resolve using the higher document and note the conflict for the maintainer; don't average.
 2. Read `agent_docs/architecture-map.md` if you are unsure where code lives or which type is the entry point.
 3. Read the phase requirements doc for the area you are changing (index below).
 4. Verify with `agent_docs/testing-and-verification.md`; at minimum `swift test` must pass.

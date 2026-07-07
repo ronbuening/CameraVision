@@ -1,6 +1,6 @@
 # CupricAspect GUI Visual Design Specification
 
-Version: 0.1
+Version: 0.2 (v0.2: Wizard-first MVP scoping, Ollama status policy, single window — matching requirements v0.6)
 Date: 2026-07-06
 Design source: Claude Design handoff bundle at `agent_docs/gui-wrapper-for-cameravision/` (project "GUI wrapper for CameraVision", root component `CupricAspect.dc.html`)
 Companion docs: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.4), `agent_docs/phase-4-gui-implementation-plan.md` (v0.2)
@@ -31,6 +31,8 @@ The app has **two switchable shells over the same feature state**:
 | Navigation | Footer bar: Back · hint · primary button | Sidebar: Analyze / Normalize / Write XMP / Apply Prior Session / Settings |
 | Audience intent | First-run and casual use | Power use, direct access to each pipeline |
 
+- **MVP scoping (requirements v0.6):** the Wizard is the MVP; Studio arrives in plan milestone M9, after the feature flow and before the experimental database. Until then the "Nonlinear UI" toggle renders disabled with the caption "Studio layout — coming soon."
+- The app is single-window (FR4-050): one main window, sheets/panels for auxiliary content, no ⌘N second window.
 - The toggle lives in Settings → Interface → "Nonlinear UI" (a switch). On = Studio, Off = Wizard. Copy: "On: jump freely between commands (Studio). Off: return to the guided step-by-step Wizard."
 - The choice persists across launches (prototype key `cupricaspect.nonlinear`; use `UserDefaults` key `cupricaspect.nonlinear` in the app).
 - Switching shells must not lose in-flight state (source folder, options, results). Both shells bind to the same observable app state; they are presentation only.
@@ -298,6 +300,7 @@ Same sections as Wizard Settings — including the ADVANCED section above — pl
 6. **Traffic-light window buttons** in the prototypes are decorative. Use native macOS window chrome; keep the 46px toolbar styling.
 7. **Rate figure** ("2.4 img/s") is hardcoded in the prototype stat rows; compute a smoothed real rate.
 8. **Progress totals** in Studio's log well and progress row must reflect the actual pipeline stage (scan/render/model/write), fed by CORE-1 progress hooks.
+9. **Status dots poll nothing.** The "connected"/"verified"/"ready" indicators reflect the most recent explicit check — at launch, before each run, or on manual refresh (FR4-051). No timer-based background polling; a stale check renders as stale, not as failure or success.
 
 ### 8.3 Relationship to the Phase 4 requirements screens
 
