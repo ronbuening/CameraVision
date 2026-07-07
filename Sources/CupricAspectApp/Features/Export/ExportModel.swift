@@ -45,6 +45,19 @@ final class ExportModel {
         plannedTargets.filter(\.failures.isEmpty)
     }
 
+    /// Targets whose dry-run preview shows an existing XMP being merged into
+    /// (the default backup-and-merge policy) rather than a new file created.
+    var mergeTargets: [XMPChangePlan] {
+        writableTargets.filter { $0.preview?.wouldCreate == false }
+    }
+
+    /// Existing keywords the merge preserves across all merge targets.
+    var preservedKeywordCount: Int {
+        mergeTargets.reduce(0) {
+            $0 + ($1.preview.map { $0.existingFlatKeywords.count + $0.existingHierarchicalKeywords.count } ?? 0)
+        }
+    }
+
     /// FR4-029: dry-run the session and hold the change plan for review.
     func plan(session: NormalizationSessionDocument, sourceRoot: String, outputDir: String?) {
         guard phase != .planning, phase != .writing else { return }
