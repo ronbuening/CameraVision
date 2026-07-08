@@ -266,7 +266,7 @@ struct Step3OptionsView: View {
                     Text("Advanced flags")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(theme.text)
-                    Text("gps · existing sidecars · existing xmp · concurrency")
+                    Text("gps · existing .ai.json · existing xmp · concurrency")
                         .font(.system(size: 11))
                         .foregroundStyle(theme.textFaint)
                     Spacer()
@@ -287,7 +287,7 @@ struct Step3OptionsView: View {
                                 label: { $0.rawValue.capitalized }
                             )
                         }
-                        advancedGroup("EXISTING SIDECARS") {
+                        advancedGroup("EXISTING .AI.JSON SIDECARS") {
                             CVSegmentedControl(
                                 options: ExistingPolicy.allCases,
                                 selection: $options.existing,
@@ -318,10 +318,13 @@ struct Step3OptionsView: View {
                     }
                 }
                 .padding(EdgeInsets(top: 14, leading: 17, bottom: 18, trailing: 17))
-                Text("Merge keeps keywords already in your .xmp; Backup & Merge writes a .xmp.bak first.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.textFaint)
-                    .padding(EdgeInsets(top: 0, leading: 17, bottom: 16, trailing: 17))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Existing .ai.json: the tool's own analysis files, not your .xmp.")
+                    Text("Merge keeps keywords already in your .xmp; Backup & Merge writes a .xmp.bak first.")
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(theme.textFaint)
+                .padding(EdgeInsets(top: 0, leading: 17, bottom: 16, trailing: 17))
             }
         }
         .background(theme.panel)

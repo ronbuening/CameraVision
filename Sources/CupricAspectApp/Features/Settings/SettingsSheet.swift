@@ -287,7 +287,10 @@ struct SettingsSheet: View {
                     )
                 }
                 Divider().overlay(theme.border)
-                settingRow("Existing sidecars") {
+                settingRow(
+                    "Existing .ai.json sidecars",
+                    caption: "The tool's own .ai.json analysis files, not your .xmp."
+                ) {
                     CVSegmentedControl(
                         options: ExistingPolicy.allCases,
                         selection: Binding(get: { settings.existing }, set: { settings.setExisting($0) }),
