@@ -20,7 +20,7 @@ Each work item below carries: the goal, the verified current code, the concrete 
 
 | Step | Gate | Detail |
 |---|---|---|
-| R1-1 → R1-7 | gates the `v0.1.0-beta.1` tag | §Milestone R1 below |
+| R1-1 → R1-10 | gates the `v0.1.0-beta.1` tag | §Milestone R1 below |
 | R1 exit gate | manual + `swift test` | end of R1 section |
 | B0-5 + signing + tag | manual (Ron) | §2 below |
 | R2-1 → R2-7 | first post-beta code milestone | §Milestone R2 below |
@@ -46,14 +46,14 @@ Not agent work, but recorded here so the whole sequence lives in one document. P
 
 ## Milestone R1 — Beta ship-blockers
 
-R1 is the seven-item wave that gates the `v0.1.0-beta.1` tag (plan 08 §1.1/§2): four GUI dead-states or silent failures a beta tester will hit in the first hour, one Core crash bug, and two review-semantics bugs. Entry criteria: `swift test` green at the current baseline. Execute **in order R1-1 → R1-7**: R1-1, R1-2, R1-4, and R1-5 all edit `Sources/CupricAspectApp/Shells/WizardShellView.swift`, and R1-2's recovery landing depends on R1-1's `WizardNavigation` helper. R1-3 (Core, `JSONLWriter`) is independent and may land at any point inside the wave. All items respect invariant 13 (GUI is presentation/state only — no processing moves out of Core) and invariant 16 (each behavior change lands with tests).
+R1 is the ten-item wave that gates the `v0.1.0-beta.1` tag (plan 08 §1.1/§2): four GUI dead-states or silent failures a beta tester will hit in the first hour, one Core crash bug, two review-semantics bugs, and three Options/write alpha fixes (R1-8 per-run model override, R1-9 visible XMP conflict policy, R1-10 opt-in post-write cleanup). Entry criteria: `swift test` green at the current baseline. Execute **in order R1-1 → R1-10**: R1-1, R1-2, R1-4, and R1-5 all edit `Sources/CupricAspectApp/Shells/WizardShellView.swift`, and R1-2's recovery landing depends on R1-1's `WizardNavigation` helper. R1-3 (Core, `JSONLWriter`) is independent and may land at any point inside the wave. R1-8 and R1-9 both edit `Features/Run/Step3OptionsView.swift`; do them last and in that order (R1-8 → R1-9) to keep the Options-view edits in a single line — R1-8 also touches `AnalysisOptions`/`AnalysisRunModel`, R1-9 also touches `ExportModel`. R1-10 follows R1-9 (both touch `ExportModel`) and adds `Features/Export/ChangePlanSheet.swift`. All items respect invariant 13 (GUI is presentation/state only — no processing moves out of Core) and invariant 16 (each behavior change lands with tests).
 
-### R1-1 — Wizard "Back" from Step 5 lands on a dead Working screen (HIGH)
+### R1-1 — Wizard "Back" from Step 5 lands on a dead Working screen; re-run silently discards analysis (HIGH)
 
-**Goal.** Back from Step 5 after a completed (or never-started) run lands on Step 3 with a live primary button; Step 4 is unreachable without an in-flight run.
+**Goal.** Back from Step 5 after a completed (or never-started) run lands on Step 3 with a live primary button; Step 4 is unreachable without an in-flight run. Returning to Options is non-destructive; re-running from Step 3 when a completed analysis/review (or a built normalization session) already exists asks for confirmation before it discards that data. Applies to both the analyze/write flow and the normalize flow (Step 5 → Step 3 is one code path).
 
 **Files.**
-- `Sources/CupricAspectApp/Shells/WizardShellView.swift:341` (`backEnabled`), `:429-431` (Back button `step -= 1`), `:247-248` (`Step4WorkingView` rendered unconditionally for `case 4`)
+- `Sources/CupricAspectApp/Shells/WizardShellView.swift:341` (`backEnabled`), `:429-431` (Back button `step -= 1`), `:247-248` (`Step4WorkingView` rendered unconditionally for `case 4`), `:395-425` (`primaryAction()` — `case 3` re-runs via `runModel.start(...)`)
 - New: `Sources/CupricAspectApp/Shells/WizardNavigation.swift`
 - `Sources/CupricAspectApp/Features/Run/AnalysisRunModel.swift:171-175` (`cancel()` guards `phase == .running` — verified)
 
@@ -89,6 +89,16 @@ enum WizardNavigation {
         default: step - 1
         }
     }
+
+    /// Whether re-running from Step 3 would discard already-produced data
+    /// (a completed run's review verdicts, or a built normalization session)
+    /// and therefore must confirm first. A fresh Step 3 never prompts.
+    static func needsRerunConfirmation(phase: AnalysisRunModel.Phase, hasReview: Bool) -> Bool {
+        switch phase {
+        case .finished, .cancelling: true
+        default: hasReview   // covers the recovery/imported-session path where phase is .idle
+        }
+    }
 }
 ```
 
@@ -105,6 +115,24 @@ if let target = WizardNavigation.backTarget(from: step, phase: runModel.phase) {
 ```
 
 3. No change to the render switch (`content`) — Step 4 stays render-if-`step == 4`, but no navigation path reaches it without a live run.
+
+4. Guard the destructive re-run. In `primaryAction()` `case 3` (the analyze/write/normalize re-run branch), when `WizardNavigation.needsRerunConfirmation(phase:hasReview:)` is true, set a `@State private var confirmRerun = false` instead of starting the run; the confirmation's primary calls the same start logic. `hasReview` derives from the model already in the shell (e.g. `!reviewModel.assetRows.isEmpty` / a non-nil normalization session), never from view-only state. Wire a `.confirmationDialog` on the shell:
+
+```swift
+// @State private var confirmRerun = false
+.confirmationDialog(
+    "Re-run the analysis?",
+    isPresented: $confirmRerun,
+    titleVisibility: .visible
+) {
+    Button("Re-run", role: .destructive) { startRun() }   // the extracted case-3 start
+    Button("Cancel", role: .cancel) {}
+} message: {
+    Text("This discards the current results and \(reviewModel.decisionCount) review decisions.")
+}
+```
+
+Extract the `case 3` non-apply body (the `runModel.start(...)` + `step = 4`) into a `startRun()` method so both the guarded path and the confirmation button call it. The apply-session `case 3` branch (`selectedAction == .apply`) is unaffected — it never analyzes. Use the real count expression the review model exposes; if none exists, add a trivial `decisionCount` derived from existing verdict state (presentation-only, invariant 13 safe).
 
 **Tests.** `Tests/CupricAspectAppTests/WizardNavigationTests.swift` (new file):
 
@@ -133,17 +161,27 @@ final class WizardNavigationTests: XCTestCase {
         XCTAssertEqual(WizardNavigation.backTarget(from: 3, phase: .idle), 2)
         XCTAssertEqual(WizardNavigation.backTarget(from: 2, phase: .idle), 1)
     }
+
+    func testRerunConfirmationRequiredOnlyWhenDataWouldBeLost() {
+        // Completed run → prompt regardless of review contents.
+        XCTAssertTrue(WizardNavigation.needsRerunConfirmation(phase: .finished(RunOutcome()), hasReview: false))
+        // Recovery/imported path: phase .idle but a restored review present → prompt.
+        XCTAssertTrue(WizardNavigation.needsRerunConfirmation(phase: .idle, hasReview: true))
+        // Fresh Step 3, no prior run and nothing restored → no prompt.
+        XCTAssertFalse(WizardNavigation.needsRerunConfirmation(phase: .idle, hasReview: false))
+    }
 }
 ```
 
 (Adjust `RunOutcome()` to the real initializer; the phase's payload is irrelevant to the decision.)
 
 **Acceptance.**
-- [ ] From a completed analyze, write, and normalize flow: press Back on Step 5 → land on Step 3 with options intact and the primary button enabled; complete the flow again from there.
+- [ ] From a completed analyze, write, and normalize flow: press Back on Step 5 → land on Step 3 with options intact and the primary button enabled; navigating Step 5 → 3 → 5 without re-running shows the same review (data retained).
+- [ ] Pressing Start again on Step 3 with a completed run/review prompts "Re-run the analysis? This discards the current results and N review decisions." — Cancel keeps the data; Re-run proceeds. A first Start with no prior run does not prompt.
 - [ ] No reachable state renders Step 4 without a live run.
-- [ ] `WizardNavigationTests` cover `(5, .finished) → 3`, `(5, .idle) → 3`, `(3, *) → 2`, Step-4 in-flight unchanged.
+- [ ] `WizardNavigationTests` cover `(5, .finished) → 3`, `(5, .idle) → 3`, `(3, *) → 2`, Step-4 in-flight unchanged, and the `needsRerunConfirmation` cases above.
 
-**Commit.** `GUI R1-1: Back from Step 5 skips the dead Working step via testable WizardNavigation`
+**Commit.** `GUI R1-1: Back from Step 5 skips the dead Working step and re-run confirms before discarding, via testable WizardNavigation`
 
 ### R1-2 — Recovery launch can't export and its primary action deletes the recovery (HIGH)
 
@@ -595,14 +633,133 @@ func testEditEverywhereMatchesCanonicalPathLabeledChips() throws {
 
 **Commit.** `GUI R1-7: editEverywhere edits only visible chips, matches display labels, reports count`
 
+### R1-8 — Options-page vision model is read-only; add a per-run override dropdown (MEDIUM)
+
+**Goal.** The Step-3 "Vision model" card is a dropdown of installed vision-capable tags that overrides the model **for this run only** — it never writes `config.json`. Leaving it untouched uses the resolved config default exactly as today.
+
+**Files.**
+- `Sources/CupricAspectApp/Features/Run/Step3OptionsView.swift:102-122` (`modelCard`, currently static text)
+- `Sources/CupricAspectApp/Features/Run/AnalysisRunModel.swift:10-45` (`AnalysisOptions`: add `modelOverride`; `buildConfiguration` threads it; `loadResolvedDefaults` must not clobber it)
+- Reuse: `Sources/CupricAspectApp/Features/Settings/SettingsModel.swift` (installed-tag list via `listInstalledVisionTags`) and the `SettingsSheet.swift:171-215` `modelPicker` menu as the UI template — do not re-implement the probe.
+
+**Current behavior (verified 2026-07-08).** `modelCard` shows `options.resolvedModel` as static mono text plus the preflight badge. The only model control is Settings, which persists through `config.json` (FR4-056). No per-run override exists.
+
+**Change.**
+1. `AnalysisOptions` gains `var modelOverride: String? = nil`. In `buildConfiguration(recursive:outputDir:)`, pass the override into `RunConfigurationOverrides` as the model (the same precedence slot the CLI `--model` flag occupies), leaving it nil = resolver picks the config model:
+
+```swift
+func buildConfiguration(recursive: Bool, outputDir: String?) throws -> ResolvedRunConfiguration {
+    try ConfigurationResolver.resolve(
+        cli: RunConfigurationOverrides(
+            mode: mode,
+            existing: existing,
+            recursive: recursive,
+            outputDir: outputDir,
+            stageConcurrency: concurrency,
+            gpsContext: gps,
+            model: modelOverride            // nil ⇒ resolved config model (unchanged path)
+        )
+    )
+}
+```
+
+(Confirm `RunConfigurationOverrides` has a `model` field and that the resolver treats a nil model as "fall through"; the CLI `--model` already flows this way — mirror it. If the initializer label differs, match it.) Ensure `loadResolvedDefaults()` does **not** reset `modelOverride` (it seeds display + option defaults only), so a chosen override survives navigation within the import session (and composes cleanly with R2-1's `defaultsLoaded` guard).
+
+2. `modelCard` becomes a dropdown. Reuse the Settings `modelPicker` pattern: a `Menu` over the installed vision tags with the effective model in a mono well and a refresh affordance; a small caption "this run only — Settings sets the saved default" to distinguish it from a config change. Source the tag list from the same model the Settings sheet uses (installed vision tags); flag an override that isn't installed/vision-capable the same way Settings does. The preflight badge already reflects `options`-derived state — after a pick, re-run `runModel.checkPreflight(options:…)` so it validates the effective model.
+
+**STOP: maintainer decision (small).** The tag list currently lives in `SettingsModel`. Either (a) lift the installed-tag fetch into a tiny shared source both Settings and Step 3 read, or (b) have Step 3 hold its own lightweight fetch. Recommend (a) — one probe, one cache; but (b) is acceptable for R1 if (a) balloons. Either way the override value lives on `AnalysisOptions`, not in Settings.
+
+**Tests.** `Tests/CupricAspectAppTests` — assert `AnalysisOptions.buildConfiguration` resolves to the override model when `modelOverride` is set and to the resolved config model when nil (resolver-precedence style, matching the existing config-resolution tests). The menu itself is presentation; do not test SwiftUI. Optionally assert `loadResolvedDefaults()` leaves a set `modelOverride` intact.
+
+**Acceptance.**
+- [ ] Step 3 model card opens a dropdown of installed vision-capable tags; picking one changes the run's model and the preflight re-checks against it.
+- [ ] `config.json` and the Settings default are unchanged after using the override (verify the file).
+- [ ] Override does not persist across imports or relaunch; nil override behaves exactly as today.
+
+**Commit.** `GUI R1-8: Step 3 vision-model dropdown as a per-run override (no config write)`
+
+### R1-9 — Surface the XMP conflict policy in Options → Advanced, defaulting to backup-and-merge (MEDIUM)
+
+**Goal.** The Step-3 Advanced disclosure exposes an EXISTING XMP control mapping onto Core `XMPConflictPolicy` (`fail` / `merge` / `backup-and-merge`), defaulting to `backup-and-merge` — the current Core built-in — so the always-on merge behavior is visible and adjustable at the point of decision, with the GUI default provably equal to the CLI/Core default.
+
+**Files.**
+- `Sources/CupricAspectApp/Features/Run/Step3OptionsView.swift:170-234` (`advancedCard` grid — add the control + hint string)
+- `Sources/CupricAspectApp/Features/Run/AnalysisRunModel.swift:10-45` (`AnalysisOptions`: add `xmpConflictPolicy` with default `.backupAndMerge`)
+- `Sources/CupricAspectApp/Features/Export/ExportModel.swift:75-114` (stop hardcoding `ResolvedApplySessionConfiguration.builtInDefaults`; take the policy in)
+- Reference: `Sources/AISidecarCore/Configuration/XMPExportConfiguration.swift:11-15` (`XMPConflictPolicy`), `Sources/AISidecarCore/Configuration/NormalizationConfiguration.swift:414` (built-in `.backupAndMerge`)
+
+**Current behavior (verified 2026-07-08).** `ExportModel.plan`/`confirmWrite` build with `ResolvedApplySessionConfiguration.builtInDefaults` (`xmpConflictPolicy = .backupAndMerge`, `backupSidecars = true`) — safe and always-merge, but invisible to the user; Step-3 Advanced exposes only GPS / existing-sidecars / concurrency. `XMPConflictPolicy` has three cases; `.backupAndMerge` writes a timestamped `.xmp.bak` then merges, `.merge` merges without a separate backup, `.fail` refuses when an `.xmp` exists.
+
+**Change.**
+1. `AnalysisOptions` gains `var xmpConflictPolicy: XMPConflictPolicy = .backupAndMerge`. Do not seed it from `loadResolvedDefaults` unless the resolver already carries a configured value — the built-in default is the required default; keep GUI and CLI identical.
+2. In `advancedCard`, add an EXISTING XMP `advancedGroup` with a `CVSegmentedControl` over `XMPConflictPolicy.allCases`, labeled Fail / Merge / Backup & Merge, bound to `$options.xmpConflictPolicy`. Add a one-line caption at the bottom of the disclosure: "Merge keeps keywords already in your `.xmp`; Backup & Merge writes a `.xmp.bak` first." Update the disclosure hint from "gps · existing sidecars · concurrency" to include "existing xmp".
+3. Thread the selection into `ExportModel`: give `plan`/`confirmWrite` (or the `ExportModel` init) an `xmpConflictPolicy` input and set `configuration.xmpConflictPolicy` from it instead of relying on `builtInDefaults`. The wizard passes `options.xmpConflictPolicy` at the Step-5 write. `backupSidecars` stays true.
+
+**Invariant/consistency note.** FR4-044 forbids inventing option values — use `XMPConflictPolicy.allCases` verbatim. The default must equal `ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy` (and `ResolvedXMPExportConfiguration.builtInDefaults.xmpConflictPolicy`); a test pins this equality so a future default change can't silently diverge GUI from CLI.
+
+**Tests.** `Tests/CupricAspectAppTests` — assert the export configuration built by the wizard carries the selected `XMPConflictPolicy`, and that the `AnalysisOptions` default equals the Core built-in (`XCTAssertEqual(AnalysisOptions().xmpConflictPolicy, ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy)`). Keep the Core merge-preservation tests green (they already assert foreign-keyword retention and `.xmp.bak` creation under backup-and-merge).
+
+**Acceptance.**
+- [ ] Step-3 Advanced shows EXISTING XMP defaulting to Backup & Merge, with the caption explaining merge/backup.
+- [ ] The write path uses the selected policy: under merge/backup-and-merge a pre-existing foreign keyword in the `.xmp` is preserved; under backup-and-merge a `.xmp.bak` is written; under fail an existing `.xmp` refuses.
+- [ ] The GUI default equals the CLI/Core built-in (pinned by test).
+
+**Commit.** `GUI R1-9: surface XMP conflict policy in Options → Advanced (default backup-and-merge)`
+
+### R1-10 — Opt-in post-write cleanup of intermediate sidecars and run artifacts (MEDIUM)
+
+**Goal.** A checkbox beside the change-plan "Write" button, off by default, that after a fully successful write removes the run's `.ai.json` raw sidecars and batch/report/summary artifacts from the artifact directory — reusing the hardened Core `ArtifactCleanup`, preserving `.xmp`, `.xmp.bak`, the derivative cache, and reusable session JSON. GUI orchestration only.
+
+**Files.**
+- `Sources/CupricAspectApp/Features/Export/ChangePlanSheet.swift:47-74` (footer — add the checkbox next to the Write button)
+- `Sources/CupricAspectApp/Features/Export/ExportModel.swift:97-135` (`confirmWrite` — run cleanup after `phase = .written` on a clean write; hold the flag and the removed count)
+- Reuse: `Sources/AISidecarCore/Cleanup/ArtifactCleanup.swift` (`ArtifactCleanup().run(rootPath:recursive:dryRun:)`) — do not re-implement or widen it
+- The wizard passes the import's `recursive` and the effective artifact root (`pendingOutputDir ?? pendingSourceRoot`) — `ExportModel` already retains `pendingSourceRoot`/`pendingOutputDir`
+
+**Current behavior (verified 2026-07-08).** `confirmWrite()` sets `phase = .written` and stops; nothing cleans the folder. `ArtifactCleanup` exists and is exercised by `ArtifactCleanupTests`, but only the CLI `cleanup` command calls it. The change-plan footer has Cancel + "Write N sidecars" and no other controls.
+
+**Change.**
+1. `ExportModel` gains `var cleanupAfterWrite = false` (bound to the checkbox) and `private(set) var cleanupRemovedCount: Int?`. In `confirmWrite()`, after the write task completes with `phase = .written` **and** the export report shows no failed targets, and only when `cleanupAfterWrite`, run cleanup off the main actor over the artifact root:
+
+```swift
+// after: exportReport = result.exportReport; phase = .written
+if cleanupAfterWrite, (result.exportReport?.failedCount ?? 0) == 0 {
+    let root = pendingOutputDir ?? pendingSourceRoot
+    if let root {
+        let report = try? await Task.detached(priority: .utility) {
+            try ArtifactCleanup().run(rootPath: root, recursive: recursive, dryRun: false)
+        }.value
+        cleanupRemovedCount = report?.removedCount
+        // a cleanup failure is a non-fatal warning; the delivered XMP already succeeded
+    }
+}
+```
+
+(`XMPExportReport.failedCount` is the accessor; thread `recursive` in from the wizard the same way `sourceRoot`/`outputDir` are already threaded into `plan`/`confirmWrite`. If the artifacts can land in both the source and a separate output dir, clean both — but only roots the run actually wrote to.)
+
+2. `ChangePlanSheet` footer: add a `Toggle` bound to `$export.cleanupAfterWrite` to the left of the Write button (or on the row above the summary), label "Remove intermediate sidecars & run files after writing", with a `.help(...)`/caption: "Deletes the `.ai.json` sidecars and batch logs this run created. Your photos, `.xmp` files, and backups are untouched. You'll need to re-analyze to review these images again." Default unchecked on every fresh plan (`ExportModel.reset()`/`cancelPlan()` clear it).
+
+3. The written banner (R1-5's composition function) gains "· N intermediate files removed" when `cleanupRemovedCount` is set and > 0. Keep R1-5's failure-aware tone — cleanup text is additive, never replaces the write summary.
+
+**Invariant/safety note.** Invariant 13: no deletion logic in the view — `ChangePlanSheet` only toggles a flag; `ExportModel` calls Core. `ArtifactCleanup` is already narrow (owned filename patterns only; never source images, `.xmp`, `.xmp.bak`, derivative cache, debug derivatives, or session JSON) — do **not** broaden it for the GUI. Cleanup runs **only** after a clean write (no failed targets) so provenance is never dropped for images that didn't export; it is non-fatal (a delivered XMP is never rolled back by a cleanup error). Off by default because deleting `.ai.json` drops the FR4-049 `xmp_export` provenance and the audit trail.
+
+**Tests.** `Tests/CupricAspectAppTests` — with a stubbed/temp fixture, `confirmWrite` + `cleanupAfterWrite == true` on a clean write invokes `ArtifactCleanup` over the expected root and records the removed count; a report with failed targets performs no cleanup; `cleanupAfterWrite == false` performs no cleanup; a session JSON in the folder survives. Reuse `ArtifactCleanupTests` for the owned-only/session-preserving deletion semantics — do not duplicate.
+
+**Acceptance.**
+- [ ] Change-plan sheet shows an unchecked "Remove intermediate sidecars & run files after writing" box beside Write, with the consequence caption.
+- [ ] Checked + successful write: `.ai.json` and batch/report/summary artifacts gone from the artifact dir; `.xmp`, `.xmp.bak`, and any normalization session JSON remain; banner reports the count.
+- [ ] Any failed target ⇒ no cleanup. Unchecked ⇒ no cleanup. The box is unchecked on every new plan.
+
+**Commit.** `GUI R1-10: opt-in post-write cleanup of intermediate sidecars via Core ArtifactCleanup`
+
 ### R1 exit gate
 
-All seven items landed, then in order:
+All ten items landed, then in order:
 
 1. **Automated:** `swift test` green (full suite). Then `swift run aisidecar --help` and `swift build --product CupricAspect` succeed (the standing R-milestone gate, plan 08 §7).
-2. **Manual GUI pass — analyze:** launch `CupricAspect` (or `CUPRIC_IMPORT_PATH=<fixture> CUPRIC_DEBUG_AUTORUN=1 CUPRIC_DEBUG_ACTION=analyze` per `agent_docs/testing-and-verification.md`) → Step 1 import a folder → Step 2 "Analyze" → Step 3 Start → run completes → Step 5 review shows chips. **Back from Step 5 lands on Step 3, primary enabled (R1-1); re-run the flow from there.** Done with unsaved verdicts asks first (R1-2 sign-off variant permitting).
-3. **Manual GUI pass — write:** same fixture, action "Write" → review → "Write XMP" → plan sheet → confirm → banner counts match the report. Repeat once with a **read-only output dir**: banner shows the warning tone with 0 written (R1-5); "Save session only" with no session is disabled (R1-6).
-4. **Manual GUI pass — normalize:** action "Normalize" → run → Inspector. Then set a **nonexistent vocabulary path** in the Inspector context and re-run: Step 3 shows the failure banner with the message (R1-4). "Apply to all photos" on an edited chip reports "Applied to N photos" (R1-7).
+2. **Manual GUI pass — analyze:** launch `CupricAspect` (or `CUPRIC_IMPORT_PATH=<fixture> CUPRIC_DEBUG_AUTORUN=1 CUPRIC_DEBUG_ACTION=analyze` per `agent_docs/testing-and-verification.md`) → Step 1 import a folder → Step 2 "Analyze" → Step 3 (the model card is a dropdown of installed vision tags, "this run only"; Advanced shows EXISTING XMP defaulting to Backup & Merge — R1-8/R1-9) → Start → run completes → Step 5 review shows chips. **Back from Step 5 lands on Step 3, primary enabled, review retained (R1-1); pressing Start again prompts "Re-run the analysis? … N review decisions" — Cancel keeps the data, Re-run proceeds (R1-1).** Done with unsaved verdicts asks first (R1-2 sign-off variant permitting).
+3. **Manual GUI pass — write:** same fixture, action "Write" → review → "Write XMP" → plan sheet → confirm → banner counts match the report. Confirm the write honored the Step-3 EXISTING XMP policy (a pre-existing foreign keyword survives; a `.xmp.bak` exists under Backup & Merge — R1-9). Run once more with the plan sheet's **"Remove intermediate sidecars & run files after writing"** box checked: after a clean write the `.ai.json` sidecars and batch/report artifacts are gone, the `.xmp`/`.xmp.bak` and any session JSON remain, and the banner reports "N intermediate files removed" (R1-10). Repeat once with a **read-only output dir**: banner shows the warning tone with 0 written (R1-5), and **no** cleanup runs even if the box was checked (R1-10); "Save session only" with no session is disabled (R1-6).
+4. **Manual GUI pass — normalize:** action "Normalize" → run → Inspector. **Back from the Inspector (Step 5) lands on Step 3, then a re-run prompts before discarding the normalization session (R1-1).** Then set a **nonexistent vocabulary path** in the Inspector context and re-run: Step 3 shows the failure banner with the message (R1-4). "Apply to all photos" on an edited chip reports "Applied to N photos" (R1-7). Pick a non-default vision model in the Step-3 dropdown and confirm `config.json` is untouched afterward (R1-8).
 5. **Manual GUI pass — apply-session:** action "Apply" → Step 3 pick a saved session JSON → "Apply session" → plan sheet → confirm → written banner + report.
 6. **Kill-relaunch-restore-export:** run `Scripts/m8-kill-relaunch-check.sh` (needs Ollama + a vision model) for the SIGKILL/no-temp-file/no-database invariants; then the R1-2-specific manual leg: start a review, record a few verdicts (≥ the autosave threshold or wait for it), `kill -9` CupricAspect, relaunch → recovery banner → Restore → verdicts present, **"Write XMP" available**, export end-to-end → Done (no data-loss prompt after export).
 7. Only then proceed to B0-5 evidence, signing, and the `v0.1.0-beta.1` tag per the phase-4 plan.
