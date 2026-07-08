@@ -20,7 +20,7 @@ Each work item below carries: the goal, the verified current code, the concrete 
 
 | Step | Gate | Detail |
 |---|---|---|
-| R1-1 → R1-10 | gates the `v0.1.0-beta.1` tag | §Milestone R1 below |
+| R1-1 → R1-14 | gates the `v0.1.0-beta.1` tag | §Milestone R1 below |
 | R1 exit gate | manual + `swift test` | end of R1 section |
 | B0-5 + signing + tag | manual (Ron) | §2 below |
 | R2-1 → R2-7 | first post-beta code milestone | §Milestone R2 below |
@@ -46,7 +46,7 @@ Not agent work, but recorded here so the whole sequence lives in one document. P
 
 ## Milestone R1 — Beta ship-blockers
 
-R1 is the ten-item wave that gates the `v0.1.0-beta.1` tag (plan 08 §1.1/§2): four GUI dead-states or silent failures a beta tester will hit in the first hour, one Core crash bug, two review-semantics bugs, and three Options/write alpha fixes (R1-8 per-run model override, R1-9 visible XMP conflict policy, R1-10 opt-in post-write cleanup). Entry criteria: `swift test` green at the current baseline. Execute **in order R1-1 → R1-10**: R1-1, R1-2, R1-4, and R1-5 all edit `Sources/CupricAspectApp/Shells/WizardShellView.swift`, and R1-2's recovery landing depends on R1-1's `WizardNavigation` helper. R1-3 (Core, `JSONLWriter`) is independent and may land at any point inside the wave. R1-8 and R1-9 both edit `Features/Run/Step3OptionsView.swift`; do them last and in that order (R1-8 → R1-9) to keep the Options-view edits in a single line — R1-8 also touches `AnalysisOptions`/`AnalysisRunModel`, R1-9 also touches `ExportModel`. R1-10 follows R1-9 (both touch `ExportModel`) and adds `Features/Export/ChangePlanSheet.swift`. All items respect invariant 13 (GUI is presentation/state only — no processing moves out of Core) and invariant 16 (each behavior change lands with tests).
+R1 is the fourteen-item wave that gates the `v0.1.0-beta.1` tag (plan 08 §1.1/§2): four GUI dead-states or silent failures a beta tester will hit in the first hour, one Core crash bug, two review-semantics bugs, three Options/write alpha fixes (R1-8 per-run model override, R1-9 visible XMP conflict policy, R1-10 opt-in post-write cleanup), and four further alpha fixes (R1-11 Settings default for concurrency, R1-12 Settings default for XMP treatment, R1-13 relabel the program's `.ai.json` sidecar control, R1-14 seconds-per-image rate under skips). Entry criteria: `swift test` green at the current baseline. Execute **in order R1-1 → R1-14**: R1-1, R1-2, R1-4, and R1-5 all edit `Sources/CupricAspectApp/Shells/WizardShellView.swift`, and R1-2's recovery landing depends on R1-1's `WizardNavigation` helper. R1-3 (Core, `JSONLWriter`) is independent and may land at any point inside the wave. R1-8 and R1-9 both edit `Features/Run/Step3OptionsView.swift` and in that order (R1-8 → R1-9) keep the Options-view edits in a single line — R1-8 also touches `AnalysisOptions`/`AnalysisRunModel`, R1-9 also touches `ExportModel`. R1-10 follows R1-9 (both touch `ExportModel`) and adds `Features/Export/ChangePlanSheet.swift`. R1-11 and R1-12 both add a control to the Settings `CONFIGURATION` section (`Features/Settings/SettingsSheet.swift`) plus a write-through to `Features/Settings/SettingsModel.swift`; do R1-11 → R1-12 to keep the Settings-view edits in one line (R1-12 also adds one seeding line to `AnalysisOptions.loadResolvedDefaults`). R1-13 follows R1-12 (it also edits `SettingsSheet.swift`, plus `Step3OptionsView.swift`). R1-14 (`AnalysisRunModel.swift` rate math) is independent and may land anywhere inside the wave. All items respect invariant 13 (GUI is presentation/state only — no processing moves out of Core) and invariant 16 (each behavior change lands with tests).
 
 ### R1-1 — Wizard "Back" from Step 5 lands on a dead Working screen; re-run silently discards analysis (HIGH)
 
@@ -752,14 +752,184 @@ if cleanupAfterWrite, (result.exportReport?.failedCount ?? 0) == 0 {
 
 **Commit.** `GUI R1-10: opt-in post-write cleanup of intermediate sidecars via Core ArtifactCleanup`
 
+### R1-11 — Settings: expose a default for concurrency (MEDIUM)
+
+**Goal.** The Settings `CONFIGURATION` section gains a concurrency default that persists to `config.json` (shared with the CLI) and pre-populates the Options-page stepper on the next import. Leaving it unset keeps today's resolver default (the performance-core count).
+
+**Files.**
+- `Sources/CupricAspectApp/Features/Settings/SettingsSheet.swift:274-296` (the `CVSegmentedControl` rows for mode/gps/existing in `configurationSection` — add the concurrency row alongside)
+- `Sources/CupricAspectApp/Features/Settings/SettingsModel.swift:31-44` (stored properties), `:57-77` (`reload()`), `:90-107` (write-through setters like `setMode`/`setExisting`), `:81-88` (`write(_:_:)`)
+- Reference (no edit): `Sources/AISidecarCore/Configuration/AppConfig.swift:25/78` (`stageConcurrency` ⇄ `"stage_concurrency"`), `RunConfiguration.swift:184/268-275` (`ResolvedRunConfiguration.stageConcurrency`, default), `ConfigurationResolver.swift:712-713` (validation: `> 0`)
+- No Options-page edit: `AnalysisOptions.loadResolvedDefaults` already seeds `concurrency` from `resolved.stageConcurrency` (`AnalysisRunModel.swift:34`).
+
+**Current behavior (verified 2026-07-08).** `SettingsModel` reads `model`, `endpoint`, `mode`, `gps`, `existing`, `derivativeCachePath` in `reload()` but never `stageConcurrency`; the setters write `mode`/`gps_context`/`existing`/`model`/`model_endpoint` only. `SettingsSheet.configurationSection` renders "Default render mode", "Default GPS context", "Existing sidecars", and the derivative-cache row — no concurrency control.
+
+**Change.**
+1. `SettingsModel` gains `@Published var stageConcurrency: Int` (seed in `reload()` from the resolved config, clamped to the UI's 1–8 like the Options page: `stageConcurrency = min(8, max(1, resolved.stageConcurrency))`) and a setter mirroring `setExisting`:
+
+```swift
+func setConcurrency(_ value: Int) {
+    let clamped = min(8, max(1, value))          // resolver rejects <= 0
+    write("stage_concurrency", .number(Double(clamped)))   // match the JSON-value shape write() expects
+}
+```
+
+(Confirm `write(_:_:)`'s value type — mirror how the existing numeric/string writes are shaped; if `write` takes a config-value enum, use its integer/number case. `ConfigFileEditor.merge` preserves unknown keys, `AtomicFileWriter`, then `reload()`.)
+
+2. `SettingsSheet.configurationSection` gains a `CONCURRENCY` row after "Existing sidecars": a 1–8 stepper (`−` / value / `+`) bound through `settings.setConcurrency`, styled like the Options-page stepper (`Step3OptionsView` concurrency control) so the two read identically. Add a short caption consistent with the design doc ("Lower = less memory pressure.").
+
+**Tests.** `Tests/CupricAspectAppTests` — a `SettingsModel` write-through test asserting `setConcurrency(n)` merges `stage_concurrency` into the config file and preserves a hand-added unknown key (mirror the existing `setMode`/`setExisting` write-through tests); a resolver round-trip asserting the written value re-resolves. Clamp behavior: `setConcurrency(0)` writes `1`, `setConcurrency(99)` writes `8`.
+
+**Acceptance.**
+- [ ] Settings shows a concurrency default control; changing it writes `stage_concurrency` to `config.json` with hand-added keys preserved, and a CLI resolve reflects it.
+- [ ] A fresh import's Options page shows the saved value as its concurrency default (via the existing `loadResolvedDefaults` seeding — no Options-page code change).
+- [ ] Unset behaves as today (resolver default = performance-core count).
+
+**Commit.** `GUI R1-11: Settings default for stage concurrency (write-through to config.json)`
+
+### R1-12 — Settings: expose a default for XMP treatment; seed the Options control from config (MEDIUM)
+
+**Goal.** The Settings `CONFIGURATION` section gains an `EXISTING XMP` default (Fail / Merge / Backup & Merge) persisting `xmp_conflict_policy` to `config.json`, and the R1-9 Options control seeds from the resolved config so the saved default (or a hand-edited value) actually flows into a run. GUI and CLI defaults stay identical.
+
+**Files.**
+- `Sources/CupricAspectApp/Features/Settings/SettingsSheet.swift:274-296` (`configurationSection` — add the `EXISTING XMP` `CVSegmentedControl`)
+- `Sources/CupricAspectApp/Features/Settings/SettingsModel.swift:31-44` (property), `:57-77` (`reload()`), `:90-107` (setter)
+- `Sources/CupricAspectApp/Features/Run/AnalysisRunModel.swift:27-35` (`loadResolvedDefaults` — add the seeding line), `:17` (the hard-coded `xmpConflictPolicy` initializer stays as the *fallback* default)
+- Reference (no edit): `AppConfig.swift:35/86` (`xmpConflictPolicy` ⇄ `"xmp_conflict_policy"`), `XMPExportConfiguration.swift:11-15` (`XMPConflictPolicy` cases), `NormalizationConfiguration.swift:414` / `XMPExportConfiguration.swift:185` (built-in `.backupAndMerge`), `ConfigurationResolver.swift:818-819` (cross-field: `backup-and-merge` requires `backup_sidecars == true`)
+
+**Current behavior (verified 2026-07-08).** No Settings control and no `SettingsModel` property/setter for the policy. `AnalysisOptions.xmpConflictPolicy` is initialized to `ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy` at `AnalysisRunModel.swift:17` and `loadResolvedDefaults()` (`:27-35`) never touches it — so a `config.json` value is ignored by the GUI (concurrency is seeded at `:34`, XMP is not: the asymmetry this item removes).
+
+**Change.**
+1. `SettingsModel` gains `@Published var xmpConflictPolicy: XMPConflictPolicy` (seed in `reload()` from the resolved config; the resolver returns `.backupAndMerge` when unset) and a setter:
+
+```swift
+func setXMPConflictPolicy(_ policy: XMPConflictPolicy) {
+    // backup-and-merge requires backup_sidecars == true, which is the default and
+    // not exposed here, so all three cases are valid to write.
+    write("xmp_conflict_policy", .string(policy.rawValue))
+}
+```
+
+2. `SettingsSheet.configurationSection` gains an `EXISTING XMP` row: a `CVSegmentedControl` over `XMPConflictPolicy.allCases` labeled Fail / Merge / Backup & Merge (reuse the Options-page `xmpPolicyLabel` mapping, `Step3OptionsView.swift:346-352`), bound through `settings.setXMPConflictPolicy`. Add the same point-of-decision caption the Options disclosure uses ("Merge keeps keywords already in your `.xmp`; Backup & Merge writes a `.xmp.bak` first.").
+
+3. Seed the Options control from config — one line in `loadResolvedDefaults()`:
+
+```swift
+func loadResolvedDefaults() {
+    guard let resolved = try? ConfigurationResolver.resolve() else { return }
+    // …existing seeds (model, endpoint, mode, gps, existing, concurrency)…
+    xmpConflictPolicy = resolved.xmpConflictPolicy      // R1-12: inherit the saved/hand-edited default
+}
+```
+
+(Use the resolved run/apply configuration's actual policy accessor — confirm the field name on `ResolvedRunConfiguration`/the resolved apply config surfaced here; if the analyze resolve doesn't carry it, resolve the apply/export configuration the same way `ExportModel` does. The default (`.backupAndMerge`) is unchanged, so the R1-9 equality invariant holds.)
+
+**Invariant/consistency note.** FR4-044 forbids invented values — use `XMPConflictPolicy.allCases`. The GUI default must equal the Core built-in: the R1-9 test `XCTAssertEqual(AnalysisOptions().xmpConflictPolicy, ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy)` must stay green (it does — the initializer at `:17` is untouched; only `loadResolvedDefaults` now overlays a resolved value, which equals the built-in when unset).
+
+**Tests.** `Tests/CupricAspectAppTests` — a `SettingsModel` write-through for `xmp_conflict_policy` (preserves unknown keys); a resolver-precedence test that after writing a policy, `AnalysisOptions.loadResolvedDefaults()` seeds `xmpConflictPolicy` to it, and falls back to `.backupAndMerge` when the key is absent; keep the R1-9 default-equality and merge-preservation Core tests green.
+
+**Acceptance.**
+- [ ] Settings `CONFIGURATION` shows `EXISTING XMP` defaulting to Backup & Merge; changing it writes `xmp_conflict_policy` to `config.json` (unknown keys preserved) and a CLI resolve reflects it.
+- [ ] A fresh import's Options → Advanced `EXISTING XMP` shows the saved default; unset shows Backup & Merge in both Settings and Options.
+- [ ] The R1-9 per-run override still overrides for one run without writing `config.json`.
+
+**Commit.** `GUI R1-12: Settings default for XMP conflict policy; Options inherits it via loadResolvedDefaults`
+
+### R1-13 — Relabel the `ExistingPolicy` control so it names the program's `.ai.json` sidecars, not XMP (MEDIUM)
+
+**Goal.** The existing-`.ai.json` control reads unambiguously as the tool's own analysis files on both the Options → Advanced disclosure and the Settings `CONFIGURATION` section, so testers stop confusing it with XMP handling. Labels and caption only — no behavior change.
+
+**Files.**
+- `Sources/CupricAspectApp/Features/Run/Step3OptionsView.swift:290` (`advancedGroup("EXISTING SIDECARS")`), `:269` (disclosure hint string "gps · existing sidecars · existing xmp · concurrency")
+- `Sources/CupricAspectApp/Features/Settings/SettingsSheet.swift:290` (`settingRow("Existing sidecars")`)
+- Reference (no edit): `RunConfiguration.swift:12` (`ExistingPolicy` skip/overwrite/fail), `SharedOptions.swift:92-93` (`--existing`)
+
+**Current behavior (verified 2026-07-08).** The `ExistingPolicy` control is labeled "EXISTING SIDECARS" (Options) / "Existing sidecars" (Settings) with no `.ai.json` qualifier, sitting beside the R1-9 `EXISTING XMP` control; the disclosure hint pairs "existing sidecars · existing xmp". The bare word "sidecar" also denotes `.xmp` in the change-plan sheet (`ChangePlanSheet.swift:75/133/136/138`), so the term is overloaded.
+
+**Change.**
+1. Options: `advancedGroup("EXISTING SIDECARS")` → an explicit label, recommended `advancedGroup("EXISTING .AI.JSON SIDECARS")` (or "EXISTING ANALYSIS SIDECARS"), and the disclosure hint (`:269`) → "gps · existing .ai.json · existing xmp · concurrency". Add a one-line caption in the disclosure distinguishing the two controls: "Existing `.ai.json`: the tool's own analysis files — not your `.xmp` (see Existing XMP)."
+2. Settings: `settingRow("Existing sidecars")` → "Existing `.ai.json` sidecars" (matching the Options wording), optionally with the same short caption.
+
+**STOP: maintainer wording decision (small).** The exact label strings are Ron's call; the only requirement is that the control stop reading as XMP handling and name `.ai.json` explicitly. Pick one wording and use it in both places for consistency.
+
+**Optional (defer to R2 if it widens the diff).** Change the change-plan sheet's bare "sidecar" (which means `.xmp`) to "XMP sidecar" (`ChangePlanSheet.swift:75/133/136/138`) so the same word never denotes two things. Not required for R1-13's acceptance.
+
+**Tests.** Presentation-only — no unit test asserts label strings. If a label/snapshot test exists, update it deliberately and note it in the commit; otherwise the R1 manual GUI pass covers it. `swift build --product CupricAspect` must stay clean.
+
+**Acceptance.**
+- [ ] On Options → Advanced and Settings `CONFIGURATION`, the existing-`.ai.json` control names the file type explicitly; `EXISTING XMP` remains the only XMP-facing control.
+- [ ] No functional change: `ExistingPolicy` cases, the `--existing` mapping, and defaults are untouched; the write path is unchanged.
+
+**Commit.** `GUI R1-13: relabel the existing-.ai.json-sidecar control (Options + Settings) to disambiguate from XMP`
+
+### R1-14 — Seconds-per-image rate misreads on a skip-heavy re-run (MEDIUM)
+
+**Goal.** The Working screen's "Rate" reflects real per-image processing time even when a re-run skips most images (the natural path after picking a non-default model via R1-8), instead of dividing total elapsed by only the written count.
+
+**Files.**
+- `Sources/CupricAspectApp/Features/Run/AnalysisRunModel.swift:110-114` (`secondsPerImage`), `:151-154` (the `done` / `writtenCount` increment split in `start()`)
+- `Sources/CupricAspectApp/Features/Run/Step4WorkingView.swift:122` (the "Rate" stat display — no logic change needed if the computed value is fixed)
+
+**Current behavior (verified 2026-07-08).**
+
+```swift
+// AnalysisRunModel.swift:110-114
+var secondsPerImage: Double {
+    guard let startedAt, writtenCount > 0 else { return 0 }
+    let elapsed = Date().timeIntervalSince(startedAt)
+    return elapsed > 0.5 ? elapsed / Double(writtenCount) : 0
+}
+// AnalysisRunModel.swift:151-154 — every record increments done; only .written increments writtenCount
+for await record in stream {
+    done += 1
+    if record.status == .written { writtenCount += 1 }
+    ...
+}
+```
+
+`elapsed` is total wall-clock across **all** records, but the denominator is `writtenCount`. With the default `existing = .skip`, a re-run of an already-analyzed folder returns `.skippedExisting` for prior images: `done` climbs, `writtenCount` stays low or zero → the rate reads wildly inflated, or `guard` returns `0` (rendered "—") when everything is skipped. The value references no model variable, confirming the model isn't the cause — the denominator is.
+
+**Change.** Divide by the images the run actually processed. Simplest correct form — use `done` (every record represents time spent reaching a decision), or `done` minus failures if failures should be excluded; pick one and note it in the commit:
+
+```swift
+var secondsPerImage: Double {
+    guard let startedAt, done > 0 else { return 0 }
+    let elapsed = Date().timeIntervalSince(startedAt)
+    return elapsed > 0.5 ? elapsed / Double(done) : 0
+}
+```
+
+If the intent is specifically "seconds of model work per newly-analyzed image", instead accumulate elapsed only across `.written` records (a separate timer) rather than dividing whole-run elapsed by `writtenCount`; that is more invasive — the `done`-denominator form above satisfies the acceptance and is preferred unless Ron wants written-only timing.
+
+*(Secondary, note only — do not fix here unless trivial: the Step 4 "Model" stat, `Step4WorkingView.swift:130-133`, reads the cached `preflight` state rather than the live run config; fold into R2.)*
+
+**Tests.** Extract the arithmetic into a pure, testable function so no `Date()`/timer is needed:
+
+```swift
+// AnalysisRunModel (or a small free function)
+static func secondsPerImage(elapsed: Double, done: Int) -> Double {
+    guard done > 0, elapsed > 0.5 else { return 0 }
+    return elapsed / Double(done)
+}
+```
+
+`Tests/CupricAspectAppTests` — `secondsPerImage(elapsed: 60, done: 0) == 0` (all skipped, nothing processed → "—", not a huge number); `secondsPerImage(elapsed: 60, done: 30)` ≈ 2.0 (mixed skip+write divides by processed count); a fresh all-written run (`done == writtenCount`) matches today's figure.
+
+**Acceptance.**
+- [ ] Re-running a mostly-skipped folder shows a sane per-image rate (or "—" only when zero images were processed), for both the default and an R1-8-overridden model.
+- [ ] A fresh all-written run's rate is unchanged.
+- [ ] The rate arithmetic is covered by a pure-function unit test.
+
+**Commit.** `GUI R1-14: seconds-per-image divides by processed count so skip-heavy re-runs read correctly`
+
 ### R1 exit gate
 
-All ten items landed, then in order:
+All fourteen items landed, then in order:
 
 1. **Automated:** `swift test` green (full suite). Then `swift run aisidecar --help` and `swift build --product CupricAspect` succeed (the standing R-milestone gate, plan 08 §7).
-2. **Manual GUI pass — analyze:** launch `CupricAspect` (or `CUPRIC_IMPORT_PATH=<fixture> CUPRIC_DEBUG_AUTORUN=1 CUPRIC_DEBUG_ACTION=analyze` per `agent_docs/testing-and-verification.md`) → Step 1 import a folder → Step 2 "Analyze" → Step 3 (the model card is a dropdown of installed vision tags, "this run only"; Advanced shows EXISTING XMP defaulting to Backup & Merge — R1-8/R1-9) → Start → run completes → Step 5 review shows chips. **Back from Step 5 lands on Step 3, primary enabled, review retained (R1-1); pressing Start again prompts "Re-run the analysis? … N review decisions" — Cancel keeps the data, Re-run proceeds (R1-1).** Done with unsaved verdicts asks first (R1-2 sign-off variant permitting).
+2. **Manual GUI pass — Settings defaults + analyze:** open **Settings → `CONFIGURATION`**: it now shows a **CONCURRENCY** default (R1-11) and an **EXISTING XMP** default reading Backup & Merge (R1-12); the existing-`.ai.json` control is labeled so it clearly names the tool's own analysis files, not XMP (R1-13). Change the concurrency and XMP defaults, confirm `config.json` updates (hand-added keys survive) and a `swift run aisidecar --help`-style resolve reflects them. Then launch/import → Step 2 "Analyze" → Step 3: the model card is a dropdown of installed vision tags ("this run only"); Advanced's `EXISTING XMP` and `CONCURRENCY` show the **Settings defaults just set** (R1-12 seeding / R1-11), and the existing-`.ai.json` control carries the disambiguated label (R1-13). Start → run completes → Step 5 review shows chips. **Back from Step 5 lands on Step 3, primary enabled, review retained (R1-1); pressing Start again prompts "Re-run the analysis? … N review decisions" — Cancel keeps the data, Re-run proceeds (R1-1).** Done with unsaved verdicts asks first (R1-2 sign-off variant permitting).
 3. **Manual GUI pass — write:** same fixture, action "Write" → review → "Write XMP" → plan sheet → confirm → banner counts match the report. Confirm the write honored the Step-3 EXISTING XMP policy (a pre-existing foreign keyword survives; a `.xmp.bak` exists under Backup & Merge — R1-9). Run once more with the plan sheet's **"Remove intermediate sidecars & run files after writing"** box checked: after a clean write the `.ai.json` sidecars and batch/report artifacts are gone, the `.xmp`/`.xmp.bak` and any session JSON remain, and the banner reports "N intermediate files removed" (R1-10). Repeat once with a **read-only output dir**: banner shows the warning tone with 0 written (R1-5), and **no** cleanup runs even if the box was checked (R1-10); "Save session only" with no session is disabled (R1-6).
-4. **Manual GUI pass — normalize:** action "Normalize" → run → Inspector. **Back from the Inspector (Step 5) lands on Step 3, then a re-run prompts before discarding the normalization session (R1-1).** Then set a **nonexistent vocabulary path** in the Inspector context and re-run: Step 3 shows the failure banner with the message (R1-4). "Apply to all photos" on an edited chip reports "Applied to N photos" (R1-7). Pick a non-default vision model in the Step-3 dropdown and confirm `config.json` is untouched afterward (R1-8).
+4. **Manual GUI pass — normalize + rate:** action "Normalize" → run → Inspector. **Back from the Inspector (Step 5) lands on Step 3, then a re-run prompts before discarding the normalization session (R1-1).** Then set a **nonexistent vocabulary path** in the Inspector context and re-run: Step 3 shows the failure banner with the message (R1-4). "Apply to all photos" on an edited chip reports "Applied to N photos" (R1-7). Pick a non-default vision model in the Step-3 dropdown and confirm `config.json` is untouched afterward (R1-8). **Re-run an already-analyzed folder against that non-default model with the default skip policy so most images are `.skippedExisting`; the Step 4 "Rate" shows a sane seconds-per-image (or "—" only when nothing was processed), not an inflated figure (R1-14).**
 5. **Manual GUI pass — apply-session:** action "Apply" → Step 3 pick a saved session JSON → "Apply session" → plan sheet → confirm → written banner + report.
 6. **Kill-relaunch-restore-export:** run `Scripts/m8-kill-relaunch-check.sh` (needs Ollama + a vision model) for the SIGKILL/no-temp-file/no-database invariants; then the R1-2-specific manual leg: start a review, record a few verdicts (≥ the autosave threshold or wait for it), `kill -9` CupricAspect, relaunch → recovery banner → Restore → verdicts present, **"Write XMP" available**, export end-to-end → Done (no data-loss prompt after export).
 7. Only then proceed to B0-5 evidence, signing, and the `v0.1.0-beta.1` tag per the phase-4 plan.
