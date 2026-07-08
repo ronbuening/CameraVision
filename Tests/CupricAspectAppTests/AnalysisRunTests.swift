@@ -82,6 +82,13 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(options.xmpConflictPolicy, .backupAndMerge)
     }
 
+    func testSecondsPerImageUsesProcessedCount() {
+        XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 60, done: 0), 0)
+        XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 0.25, done: 10), 0)
+        XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 60, done: 30), 2.0, accuracy: 0.001)
+        XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 60, done: 20), 3.0, accuracy: 0.001)
+    }
+
     func testOutcomeReductionCountsStatusesAndAggregatesErrorCodes() {
         func record(_ status: ProgressStatus, codes: [SidecarErrorCode] = []) -> ProgressRecord {
             ProgressRecord(

@@ -130,9 +130,14 @@ final class AnalysisRunModel {
 
     /// Smoothed seconds per image over the run so far.
     var secondsPerImage: Double {
-        guard let startedAt, writtenCount > 0 else { return 0 }
+        guard let startedAt else { return 0 }
         let elapsed = Date().timeIntervalSince(startedAt)
-        return elapsed > 0.5 ? elapsed / Double(writtenCount) : 0
+        return Self.secondsPerImage(elapsed: elapsed, done: done)
+    }
+
+    nonisolated static func secondsPerImage(elapsed: Double, done: Int) -> Double {
+        guard done > 0, elapsed > 0.5 else { return 0 }
+        return elapsed / Double(done)
     }
 
     func checkPreflight(options: AnalysisOptions, recursive: Bool, outputDir: String?) {
