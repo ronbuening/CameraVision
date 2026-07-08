@@ -28,6 +28,19 @@ Overall verdict: the safety core is genuinely strong — the XMP write chain (pr
 
 Rules for every item: one work item at a time (invariant 17); each item independently committable with `swift test` green; behavior changes ship with focused unit tests (invariant 16); commit at each passing breakpoint, docs and code in separate commits.
 
+### 1.1 Execution order at a glance
+
+Work strictly top to bottom. Within a milestone, work items in their numbered order unless an item's text says otherwise.
+
+1. **R1-1 → R1-7, in order.** These gate the beta tag; nothing else comes first. R1-1, R1-2, R1-4, R1-5 all touch `WizardShellView.swift` — doing them in order avoids merge churn. R1-3 (Core, `JSONLWriter`) is independent and may be done at any point inside R1.
+2. **R1 exit gate** (end of §2): full `swift test`, manual GUI pass over all four flows plus kill-relaunch-restore-export.
+3. **B0-5 + release (manual, Ron):** LR/C1 round-trip evidence per `agent_docs/release-evidence/`, Phase 1 M9 calibration evidence or explicit deferral note, Developer ID signing → notarization → stapling → `spctl --assess` pass, tag `v0.1.0-beta.1`, DMG handout. (Per the phase-4 plan B0 section.)
+4. **R2-1 → R2-7, in order.** First post-beta code milestone.
+5. **R3-1 → R3-11, in order.** R3 and R4 are independent of each other and may swap wholesale if priorities change, but do not interleave them. R3-11's sub-items are each one small commit and may be reordered or individually deferred.
+6. **R4-1 → R4-6, in order.** R4-6 must be coordinated with efficiency-plan P2/P3 (one manifest redesign, not two).
+7. **M9 → M10 (a/b/c) → M11**, unchanged, per `agent_docs/phase-4-gui-implementation-plan.md`.
+8. **After M11:** feature work per `agent_docs/09-post-m11-feature-roadmap.md`.
+
 ---
 
 ## 2. R1 — Beta ship-blockers

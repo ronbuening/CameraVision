@@ -344,7 +344,8 @@ swift run aisidecar benchmark --self-test
 - `agent_docs/07-cupricaspect-gui-design.md`: binding GUI visual design spec.
 - `agent_docs/05-efficiency-improvement-plan.md`: Refactoring and performance work items.
 - `agent_docs/06-packaging-single-app-plan.md`: Single-app packaging and distribution plan.
-- `agent_docs/08-post-review-hardening-plan.md`: Active hardening plan — beta ship-blockers and post-review correctness milestones.
+- `agent_docs/08-post-review-hardening-plan.md`: Active hardening plan — beta ship-blockers and post-review correctness milestones (§1.1 = execution order).
+- `agent_docs/09-post-m11-feature-roadmap.md`: Post-M11 feature roadmap — outlined requirements, approaches, acceptance criteria, and tests.
 - `agent_docs/architecture-map.md`: Module map, key types, and pipeline entry points.
 - `agent_docs/invariants.md`: Binding project rules for any change.
 - `agent_docs/testing-and-verification.md`: Build, test, and smoke-check procedures.
