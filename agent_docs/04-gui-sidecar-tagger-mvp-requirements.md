@@ -28,6 +28,7 @@ Each row summarizes what that document version changed relative to the one befor
 | v0.8 | Settings write-through to the shared `config.json` via read-modify-write preserving unknown keys, with `AISIDECAR_*` overrides disclosed (FR4-056, AC4-032); vision-capable model picker with validated, connectivity-indicated endpoint (FR4-057, AC4-033). |
 | v0.9 | Beta readiness (plan milestone B0): single root folder, multi-root import moved to Section 12 (FR4-007); first-run and missing-runtime guidance (FR4-058, AC4-034); diagnostic file logging with UI-surfaced save/import failures (FR4-059, AC4-035); packaging/signing/notarization/icon/version/release evidence tracked by reference to `agent_docs/06-packaging-single-app-plan.md`. |
 | v0.10 | Collapsed revision histories into this table; status pointers refreshed. |
+| v0.11 | Alpha-build Options-page and navigation fixes, scheduled in `agent_docs/08-post-review-hardening-plan.md` R1 (before the beta tag): per-run vision-model override on the Options page distinct from the persisted Settings default (FR4-060, AC4-036); the XMP conflict policy surfaced in Options → Advanced with the Core `backup-and-merge` default (FR4-061, AC4-037); Back from the Review step returns to Options non-destructively and a re-run confirms before discarding completed analysis/review data (FR4-062, AC4-038). |
 
 ## 0.1 Current Dependency Status
 
@@ -332,6 +333,12 @@ AC4-034 - On a machine without Ollama, launch and each run attempt produce actio
 
 AC4-035 - A failed run leaves a readable log file under the app state directory containing the structured errors; a failing "Save session only" or session import shows the error in the UI.
 
+AC4-036 - On the Options step, the vision-model dropdown lists the installed vision-capable tags; selecting a non-default model runs that batch against it and preflight re-checks it, while `config.json` and the Settings default remain unchanged; the override is gone after a new import or relaunch.
+
+AC4-037 - The Options → Advanced existing-XMP control defaults to Backup & Merge; a write under Merge or Backup & Merge preserves a keyword already present in the target `.xmp`, Backup & Merge additionally writes a `.xmp.bak`, and Fail refuses when an `.xmp` exists; the default equals the Core/CLI built-in.
+
+AC4-038 - Back from the Review step lands on Options with results and review decisions intact (Review → Options → Review without re-running shows the same review); pressing Start again then prompts to confirm the discard, Cancel keeps the data, and a first run with nothing prior does not prompt.
+
 ## 12. Future Groundwork Beyond the GUI MVP
 
 The GUI phase should leave room for:
@@ -363,7 +370,7 @@ FR4-042 - The application shall support Light, Dark, and Auto themes and three a
 
 FR4-043 - The animated aperture component (design doc Section 5) is the brand mark and the working indicator: idle-open when no job runs; breathing/spinning while a job runs. When the system reduce-motion setting is on, it shall render statically and entrance/progress animations shall be disabled.
 
-FR4-044 - Option controls shall map one-to-one onto existing Core enums (`AnalysisMode`, `ExistingPolicy`, `GPSContextMode`, `XMPPairScope`, `stage_concurrency`); the GUI shall not invent option values that Core does not accept. The existing-sidecar control offers Skip / Overwrite / Fail in both shells.
+FR4-044 - Option controls shall map one-to-one onto existing Core enums (`AnalysisMode`, `ExistingPolicy`, `GPSContextMode`, `XMPPairScope`, `XMPConflictPolicy` (v0.11), `stage_concurrency`); the GUI shall not invent option values that Core does not accept. The existing-sidecar control offers Skip / Overwrite / Fail in both shells; the existing-XMP control offers Fail / Merge / Backup & Merge (FR4-061).
 
 FR4-045 - Every count, rate, filename, thumbnail, and progress figure shown in the shells shall come from real pipeline, database, or filesystem state; prototype sample data shall not ship.
 
@@ -374,6 +381,12 @@ FR4-057 - **Vision model picker (v0.8).** Settings shall list installed Ollama m
 FR4-058 - **First-run and missing-runtime guidance (v0.9).** When Ollama is unreachable at launch or before a run, the GUI shall present the install/start guidance (mirroring the README troubleshooting) rather than a bare failure. When Ollama is reachable but no installed model reports the `vision` capability, the GUI shall say so and suggest a starter vision model with its `ollama pull` command.
 
 FR4-059 - **Diagnostic file logging (v0.9).** The GUI shall route pipeline logger output to a size-bounded log file under the app state directory and show its location in Settings. User-initiated file operations (session save/import, config writes) shall surface failures in the UI; no silent `try?` on user-visible actions.
+
+FR4-060 - **Per-run vision-model override (v0.11).** The Options step shall present the vision model as a selectable dropdown of installed vision-capable Ollama tags (the same source as the Settings picker, FR4-057), applying the choice as a **one-time override for that run only**. Choosing a model here shall not write `config.json` and shall not change the persisted Settings default (FR4-056); leaving it untouched shall use the resolved config model exactly as before. The override maps onto the model precedence slot the CLI `--model` flag occupies (a CLI-equivalent override, per FR4-013/invariant 13) and shall not persist across imports or relaunch. Preflight (FR4-051) shall validate the effective (override-or-resolved) model.
+
+FR4-061 - **XMP conflict policy visible in Options (v0.11).** The Options → Advanced disclosure shall expose the existing-XMP conflict policy as a control mapping one-to-one onto Core `XMPConflictPolicy` (Fail / Merge / Backup & Merge; per FR4-044 no invented values), **defaulting to `backup-and-merge`** — the Core/CLI built-in, which merges new keywords into an existing `.xmp` after writing a timestamped backup. The GUI default shall equal the Core built-in so GUI and CLI never diverge (FR4-056 spirit). The disclosure shall state the behavior at the point of decision (merge preserves keywords already in the `.xmp`; Backup & Merge writes a `.xmp.bak` first). The selected policy shall drive the export write path rather than a hardcoded default.
+
+FR4-062 - **Non-destructive Back from Review; confirmed re-run (v0.11).** Back from the Review step (Wizard Step 5, both the analyze/write flow and the normalize Inspector) shall return to the Options step, skipping the Working step, and shall be non-destructive — completed results and in-memory review decisions survive the navigation. Re-running analysis from Options when a completed run/review or a built normalization session already exists shall require a confirmation naming the loss ("Re-run … discards the current results and N review decisions") with a Cancel that aborts and preserves the data; a first run with nothing to lose shall not prompt.
 
 AC4-021 - Switching Nonlinear UI off→on→off with a folder selected and un-exported review results present loses no state, and the chosen shell is restored after relaunch.
 

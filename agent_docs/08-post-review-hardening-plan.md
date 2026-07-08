@@ -20,7 +20,7 @@ Overall verdict: the safety core is genuinely strong — the XMP write chain (pr
 
 | Milestone | Gate | Contents |
 |---|---|---|
-| **R1 — Beta ship-blockers** | must land **before** the `v0.1.0-beta.1` tag | 7 items: GUI dead states, silent failures a tester will hit, one Core crash bug |
+| **R1 — Beta ship-blockers** | must land **before** the `v0.1.0-beta.1` tag | 9 items: GUI dead states, silent failures a tester will hit, one Core crash bug, plus two Options-page alpha fixes (per-run model override, visible XMP conflict policy) |
 | *(B0-5 + signing + tag)* | manual, per phase-4 plan | LR/C1 round trip, Developer ID sign/notarize, tag |
 | **R2 — GUI hardening round 2** | first post-beta code milestone | remaining GUI mediums/lows |
 | **R3 — CLI process-boundary hardening** | after R2 (independent, can swap) | exit codes, cancellation, retries, scan robustness |
@@ -33,7 +33,7 @@ Rules for every item: one work item at a time (invariant 17); each item independ
 
 Work strictly top to bottom. Within a milestone, work items in their numbered order unless an item's text says otherwise.
 
-1. **R1-1 → R1-7, in order.** These gate the beta tag; nothing else comes first. R1-1, R1-2, R1-4, R1-5 all touch `WizardShellView.swift` — doing them in order avoids merge churn. R1-3 (Core, `JSONLWriter`) is independent and may be done at any point inside R1. R1-3 also edits the same lines as efficiency-plan P4 (fsync cadence) — R1-3 lands first; P4 waits for its slot in step 7.
+1. **R1-1 → R1-9, in order.** These gate the beta tag; nothing else comes first. R1-1, R1-2, R1-4, R1-5 all touch `WizardShellView.swift` — doing them in order avoids merge churn. R1-3 (Core, `JSONLWriter`) is independent and may be done at any point inside R1. R1-3 also edits the same lines as efficiency-plan P4 (fsync cadence) — R1-3 lands first; P4 waits for its slot in step 7. R1-8 and R1-9 both edit `Step3OptionsView.swift` (Options page); R1-8 also touches `AnalysisOptions`/`AnalysisRunModel` and R1-9 also touches `ExportModel` — do R1-8 then R1-9 to keep the Options-view edits in one line.
 2. **R1 exit gate** (end of §2): full `swift test`, manual GUI pass over all four flows plus kill-relaunch-restore-export.
 3. **B0-5 + release (manual, Ron):** LR/C1 round-trip evidence per `agent_docs/release-evidence/`, Phase 1 M9 calibration evidence or explicit deferral note, Developer ID signing → notarization → stapling → `spctl --assess` pass, tag `v0.1.0-beta.1`, DMG handout. (Per the phase-4 plan B0 section.) While executing this step, write down the exact sequence as `agent_docs/release-checklist.md` (packaging-plan WI-7, pulled forward: the beta tag is the first real execution of that procedure; roadmap F4-R4 then extends the checklist rather than authoring it).
 4. **R2-1 → R2-7, in order.** First post-beta code milestone.
@@ -47,15 +47,17 @@ Work strictly top to bottom. Within a milestone, work items in their numbered or
 
 ## 2. R1 — Beta ship-blockers
 
-### R1-1 — Wizard "Back" from Step 5 lands on a dead Working screen (HIGH)
+### R1-1 — Wizard "Back" from Step 5 lands on a dead Working screen; re-run silently discards analysis (HIGH)
 
-**Finding.** `Sources/CupricAspectApp/Shells/WizardShellView.swift:341` enables Back on Step 5 (`backEnabled = step > 1 && step != 4`); Back decrements to Step 4 (`:429-430`), which renders `Step4WorkingView` unconditionally (`:247-248`). Step 4 is only exited by `onChange(of: runModel.phase)` transitions that have already fired. On arrival, `runModel.phase` is `.finished` (or `.idle` on the recovery path), so: Cancel no-ops (`AnalysisRunModel.cancel()` guards `phase == .running`), the primary button is disabled, and Back is disabled on Step 4. The only escape is relaunching the app; unsaved review verdicts since the last autosave are lost. Every completed flow exposes this.
+**Finding.** `Sources/CupricAspectApp/Shells/WizardShellView.swift:341` enables Back on Step 5 (`backEnabled = step > 1 && step != 4`); Back decrements to Step 4 (`:429-430`), which renders `Step4WorkingView` unconditionally (`:247-248`). Step 4 is only exited by `onChange(of: runModel.phase)` transitions that have already fired. On arrival, `runModel.phase` is `.finished` (or `.idle` on the recovery path), so: Cancel no-ops (`AnalysisRunModel.cancel()` guards `phase == .running`), the primary button is disabled, and Back is disabled on Step 4. The only escape is relaunching the app; unsaved review verdicts since the last autosave are lost. Every completed flow exposes this. Second defect on the same path: once Back correctly lands on Step 3, the Step-3 primary re-runs the pipeline (`primaryAction()` `case 3` → `runModel.start(...)`, `:401-410`) with **no warning** that this discards the completed analysis and the review verdicts the user just made — a silent data loss the moment the fix opens the path.
 
-**Fix.** In `WizardShellView`, make Back from Step 5 skip the Working step: when `step == 5` and `runModel.phase != .running`, Back goes to Step 3 (options), not Step 4. Equivalently: Step 4 is only a valid destination while a run is in flight — encode that in the back-navigation logic, not in the render switch.
+**Fix.** Two parts, one behavior each:
+1. **Skip the dead Working step.** In `WizardShellView`, make Back from Step 5 skip the Working step: when `step == 5` and `runModel.phase != .running`, Back goes to Step 3 (options), not Step 4. Equivalently: Step 4 is only a valid destination while a run is in flight — encode that in the back-navigation logic, not in the render switch. This is flow-agnostic (Step 5 → Step 3 for both the analyze/write flow and the normalize flow — the normalize Step 5 is the Inspector, same navigation).
+2. **Confirm before a destructive re-run.** Returning to Options is itself non-destructive — the completed results and in-memory review verdicts survive the navigation. The loss happens only on re-run. Guard the Step-3 primary ("Start") so that, when a completed analysis/review or a built normalization session already exists, pressing it raises a confirmation — "Re-run the analysis? This discards the current results and N review decisions." — with **Re-run** (proceeds and discards) and **Cancel** (aborts, existing data untouched). Same guard on the normalize flow's re-run (discards the current normalization session and Inspector outcomes). A fresh Step 3 with no prior run must not prompt.
 
-**Acceptance.** From a completed analyze, write, and normalize flow: press Back on Step 5 → land on Step 3 with options intact and the primary button enabled; complete the flow again from there. No reachable state renders Step 4 without a live run.
+**Acceptance.** From a completed analyze, write, and normalize flow: press Back on Step 5 → land on Step 3 with options intact, the primary enabled, and the existing results/verdicts retained (navigating Step 5 → 3 → 5 without re-running shows the same review). Pressing Start again warns that re-running discards the current analysis and N review decisions; Cancel aborts and keeps the data, Re-run proceeds. A first-time Start (no prior run) does not prompt. No reachable state renders Step 4 without a live run.
 
-**Tests.** Wizard step-navigation logic is in the view today; extract the `backTarget(from:phase:)` decision into a small testable function (in the shell file or a `WizardNavigation` helper) and unit-test: `(step 5, .finished) → 3`, `(step 5, .idle) → 3`, `(step 3, *) → 2`, Step-4 in-flight unchanged.
+**Tests.** Wizard step-navigation logic is in the view today; extract the `backTarget(from:phase:)` decision into a small testable function (in the shell file or a `WizardNavigation` helper) and unit-test: `(step 5, .finished) → 3`, `(step 5, .idle) → 3`, `(step 3, *) → 2`, Step-4 in-flight unchanged. Extract the re-run-guard decision the same way (e.g. `needsRerunConfirmation(action:phase:hasReview:)`) and unit-test: completed run with verdicts → prompt; normalization session present → prompt; fresh options, no prior run → no prompt.
 
 ### R1-2 — Recovery launch can't export and its primary action deletes the recovery (HIGH)
 
@@ -108,7 +110,27 @@ Work strictly top to bottom. Within a milestone, work items in their numbered or
 
 **Acceptance/tests.** Extend `ReviewModelTests`: a session containing a withheld decision with the same keyword — `editEverywhere` must not change it; a decision whose chip label comes from `canonicalPath` — the edit must apply; count is returned and correct. `testApplySessionWritesOnlyApprovedKeywords` stays green.
 
-**R1 exit gate:** all seven items landed, `swift test` green, one manual GUI pass over analyze/write/normalize/apply + kill-relaunch-restore-export. Then proceed to B0-5 evidence, signing, and the `v0.1.0-beta.1` tag per the phase-4 plan.
+### R1-8 — Options-page vision model is read-only; no per-run override (MEDIUM)
+
+**Finding.** `Step3OptionsView.swift:102-122` (`modelCard`) renders the resolved model tag as static text (`options.resolvedModel`); the only way to change the model is Settings (`SettingsSheet.swift:171-215`), which writes through to the shared `config.json` (FR4-056) — a persistent config change, not a one-off. A tester who wants to try a different vision model for a single batch (e.g. compare a larger model on one folder) either has no path or must permanently mutate the CLI-shared default. The picker mechanics already exist in `SettingsModel`/`SettingsSheet` and the tag list already comes from `listInstalledVisionTags`.
+
+**Fix.** Make the Step-3 "Vision model" card a dropdown (same menu-over-installed-vision-tags UI as Settings), but scoped as a **one-time override for this run only** — it does **not** write `config.json`. Add an optional `modelOverride` to `AnalysisOptions`, default nil (= use the resolved config model); when set, thread it as a CLI-equivalent override in `buildConfiguration` (the model override belongs on `RunConfigurationOverrides`, same precedence slot the CLI `--model` flag uses — GUI choices are CLI-equivalent overrides, invariant 13). Label it as a session override (e.g. a small "this run only" caption) so it reads as distinct from the Settings default. Reuse the installed-tag list and the unavailable-model flagging; do not re-implement the probe. The preflight badge continues to reflect the effective (override-or-resolved) model.
+
+**Acceptance.** On Step 3, the model card opens a dropdown of installed vision-capable tags; picking one changes the model used for this run and the preflight re-checks against it; `config.json` is unchanged (verify the Settings default and the file are untouched). Leaving it alone uses the resolved config default exactly as today. The override does not persist across imports/relaunch.
+
+**Tests.** Unit-test that `AnalysisOptions.buildConfiguration` carries `modelOverride` into the resolved configuration's model when set and falls back to the resolved config model when nil (resolver-precedence style, per the existing config tests). The tag-list/menu is presentation; cover the override→resolution mapping, not SwiftUI.
+
+### R1-9 — XMP conflict policy is invisible in the GUI; Advanced must expose it with the merge default (MEDIUM)
+
+**Finding.** The GUI never surfaces the XMP conflict policy: `ExportModel` (`ExportModel.swift:75-114`) writes with `ResolvedApplySessionConfiguration.builtInDefaults`, whose `xmpConflictPolicy` is `.backupAndMerge` (`NormalizationConfiguration.swift:414`) — correct and safe, but the user can't see or confirm it, and the Step-3 Advanced card (`Step3OptionsView.swift:170-234`) only exposes GPS / existing-sidecars / concurrency. Testers reasonably fear the tool overwrites their Lightroom/Capture One keywords; the always-on merge behavior is real but unstated at the point of decision. (Design-doc drift note: the design lists a RAW+JPEG PAIRING control in Advanced that the code does not render — reconcile in the same pass, see R2/design update.)
+
+**Fix.** Add an **EXISTING XMP** control to the Step-3 Advanced disclosure, mapping one-to-one onto Core `XMPConflictPolicy` (`fail` / `merge` / `backup-and-merge`; invariant 13 / FR4-044 — no invented values), **defaulting to `backup-and-merge`** (the current Core built-in — merges new keywords into the existing `.xmp` after writing a timestamped backup; existing keywords are always preserved). Thread the selection through `ExportModel`'s configuration instead of hardcoding `builtInDefaults` (add an `xmpConflictPolicy` input resolved the same way the CLI resolves `--existing-xmp`). Add a one-line caption making the behavior explicit at the point of decision, e.g. "Merge preserves keywords already in your `.xmp`; Backup & Merge writes a `.xmp.bak` first." This is the GUI surfacing of the always-on merge behavior the phase-4 plan already verified end-to-end — it does not change the default, it makes it visible and adjustable.
+
+**Acceptance.** Step-3 Advanced shows an EXISTING XMP control defaulting to Backup & Merge; the write path uses the selected policy (verify a `.xmp` with pre-existing foreign keywords is preserved under merge/backup-and-merge and a `.xmp.bak` is written under backup-and-merge). The default matches the CLI/Core built-in exactly — no divergence (invariant: GUI and CLI defaults never diverge, FR4-056 spirit).
+
+**Tests.** Unit-test the export configuration carries the selected `XMPConflictPolicy` (default `.backupAndMerge`) into `ResolvedApplySessionConfiguration`; keep the existing merge-preservation Core tests green (they already assert foreign-keyword retention and backup creation).
+
+**R1 exit gate:** all nine items landed, `swift test` green, one manual GUI pass over analyze/write/normalize/apply + kill-relaunch-restore-export. Then proceed to B0-5 evidence, signing, and the `v0.1.0-beta.1` tag per the phase-4 plan.
 
 ---
 
@@ -226,7 +248,9 @@ Every R-milestone ends with: `swift test` green; `swift run aisidecar --help`; `
 
 | Review finding | Work item |
 |---|---|
-| GUI H1 (Back dead state) | R1-1 |
+| GUI H1 (Back dead state) + alpha: re-run data-loss confirmation | R1-1 |
+| Alpha: Options per-run model override (dropdown) | R1-8 |
+| Alpha: Options XMP conflict policy visible, backup-and-merge default | R1-9 |
 | GUI H2 (recovery flow) | R1-2 |
 | Core #1 (JSONL crash) | R1-3 |
 | GUI M1 (normalize failure invisible) | R1-4 |

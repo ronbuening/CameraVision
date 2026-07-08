@@ -1,9 +1,9 @@
 # CupricAspect GUI Visual Design Specification
 
-Version: 0.3 (v0.3: normalization screens replaced by the Inspector + session context panel per requirements v0.7 — the prototypes' keep/merge/rename/drop table is void, resolution 10; vocabulary editor deferred. v0.2: Wizard-first MVP scoping, Ollama status policy, single window.)
-Date: 2026-07-07
+Version: 0.4 (v0.4: alpha-build Options-page and navigation fixes per requirements v0.11 / plan 08 R1 — Step 3 vision-model dropdown as a per-run override, EXISTING XMP control in Advanced defaulting to backup-and-merge, non-destructive Back from Review with a confirmed re-run; RAW+JPEG PAIRING design/code drift flagged. v0.3: normalization screens replaced by the Inspector + session context panel per requirements v0.7 — the prototypes' keep/merge/rename/drop table is void, resolution 10; vocabulary editor deferred. v0.2: Wizard-first MVP scoping, Ollama status policy, single window.)
+Date: 2026-07-08
 Design source: Claude Design handoff bundle at `agent_docs/gui-wrapper-for-cameravision/` (project "GUI wrapper for CameraVision", root component `CupricAspect.dc.html`)
-Companion docs: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.10), `agent_docs/phase-4-gui-implementation-plan.md` (v0.7)
+Companion docs: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.11), `agent_docs/phase-4-gui-implementation-plan.md` (v0.7)
 Audience: junior engineer or Sonnet-level coding agent.
 
 This document is the binding visual and interaction spec for the Phase 4 GUI. The HTML prototypes in the bundle are the source of exact values; this doc extracts everything needed so you normally do not have to open them. When this doc and the prototypes disagree, this doc wins (it resolves the known prototype/Core mismatches in Section 8).
@@ -154,7 +154,7 @@ Sizes used: 19–20 title bar, 30 Studio sidebar header, 64 Wizard drop zone, 96
 
 Five steps with a step rail at top: `Photos → What to do → Options → Working → Review`. Rail items: 24px circle + label. Completed = green circle with "✓", label `text-dim`; current = accent circle, white number, label `text`; upcoming = `panel-2` circle, `text-faint`. 1.5px hairline connectors.
 
-Footer (always visible): "‹ Back" bordered button (hidden-ish at 35% opacity and disabled on step 1 and during step 4), a `text-faint` hint string, and the primary button (disabled at 40% opacity until the step's requirement is met).
+Footer (always visible): "‹ Back" bordered button (hidden-ish at 35% opacity and disabled on step 1 and during step 4), a `text-faint` hint string, and the primary button (disabled at 40% opacity until the step's requirement is met). (Amended v0.4, FR4-062) Back from the Review step (5) skips the Working step and returns to **Options** (3) — Step 4 is a valid Back target only while a run is in flight. That navigation is non-destructive; the completed results and review decisions persist. A re-run from Options that would discard them raises a confirmation ("Re-run the analysis? This discards the current results and N review decisions.") with **Re-run** (destructive) and **Cancel** (keeps the data); a first run with nothing prior does not prompt.
 
 ### Step 1 — Photos ("Choose your photos")
 
@@ -178,9 +178,9 @@ Footer (always visible): "‹ Back" bordered button (hidden-ish at 35% opacity a
 
 - Subtitle = one-line action summary (e.g. "Write .ai.json sidecars only — no XMP is touched.").
 - Summary card in mono: `from {source}` / `to {output}` / "{N} images detected".
-- Row of cards: **RENDER MODE** segmented (Whole Image / Subject Only / Both) and **Vision model** card (model tag in mono + green "ready" dot).
-- **Advanced flags** disclosure card (chevron ▶ rotates 90° open; contents in a 2-column grid): GPS CONTEXT (Off/Coarse/Exact), EXISTING SIDECARS (see Section 8 — use Skip/Overwrite/Fail), RAW + JPEG PAIRING (Union/RAW/JPEG), CONCURRENCY stepper (− / value / +, range 1–8).
-- Primary becomes "Start"; hint "{action} · {N} images".
+- Row of cards: **RENDER MODE** segmented (Whole Image / Subject Only / Both) and **Vision model** card. (Amended v0.4, FR4-060) The model card is a **dropdown** — the same menu-over-installed-vision-tags UI as Settings (§6 Settings MODEL / FR4-057) — applied as a **one-time override for this run only**, with a caption "this run only — Settings sets the saved default". It does **not** write `config.json`. The green "ready"/preflight dot reflects the effective (override-or-resolved) model.
+- **Advanced flags** disclosure card (chevron ▶ rotates 90° open; contents in a 2-column grid): GPS CONTEXT (Off/Coarse/Exact), EXISTING SIDECARS (see Section 8 — use Skip/Overwrite/Fail), **EXISTING XMP** (Fail / Merge / Backup & Merge — amended v0.4, FR4-061; defaults to **Backup & Merge**, the Core/CLI built-in), CONCURRENCY stepper (− / value / +, range 1–8). A caption under the disclosure states the write behavior: "Merge keeps keywords already in your `.xmp`; Backup & Merge writes a `.xmp.bak` first." Update the disclosure hint to "gps · existing sidecars · existing xmp · concurrency". **Drift note (v0.4):** the RAW + JPEG PAIRING (Union/RAW/JPEG) control listed here in v0.3 is not rendered by the shipped `Step3OptionsView` (pairing resolves at export). Treat pairing as export-scoped (§Write XMP / change-plan) and do not claim a Step-3 control until one exists; reconcile in the R2 pass.
+- Primary becomes "Start"; hint "{action} · {N} images". Re-running when a completed analysis/review or a built normalization session already exists first asks to confirm the discard (amended v0.4, FR4-062 — see the footer note).
 
 ### Step 4 — Working
 
@@ -227,8 +227,8 @@ Centered: 96px idle aperture; "Point CupricAspect at your photos" (700 22); "Cho
 
 - Title "Analyze"; subtitle "Scan images, run the local vision model, and write auditable `.ai.json` sidecars. No XMP is touched here."
 - Row: SOURCE FOLDER card (path + "Choose…", plus "Include subfolders (recursive)" toggle) and OUTPUT FOLDER card (path + "Choose…", caption "Sidecars are written beside a staging copy, never over your originals.").
-- Row: RENDER MODE segmented (Whole Image / Subject / Both; caption ""Both" sends the full frame and a detected-subject crop. Whole Image is fastest.") and VISION MODEL card (mono well, green "vision-capable" dot, caption "Endpoint {endpoint}").
-- Advanced flags disclosure ("gps · pair scope · collisions · concurrency" hint): GPS CONTEXT (Off/Coarse/Exact), EXISTING SIDECARS (Skip/Overwrite/Fail), RAW + JPEG PAIRING (Union/RAW only/JPEG only), STAGE CONCURRENCY stepper (1–8; caption "Lower = less memory pressure.").
+- Row: RENDER MODE segmented (Whole Image / Subject / Both; caption ""Both" sends the full frame and a detected-subject crop. Whole Image is fastest.") and VISION MODEL card (mono well, green "vision-capable" dot, caption "Endpoint {endpoint}"). (When Studio lands, mirror the Wizard's v0.4 per-run model dropdown override, FR4-060 — the Studio run bar's model is a one-time override, not a config write.)
+- Advanced flags disclosure ("gps · existing xmp · pair scope · concurrency" hint): GPS CONTEXT (Off/Coarse/Exact), EXISTING SIDECARS (Skip/Overwrite/Fail), EXISTING XMP (Fail/Merge/Backup & Merge, default Backup & Merge — v0.4, FR4-061), RAW + JPEG PAIRING (Union/RAW only/JPEG only), STAGE CONCURRENCY stepper (1–8; caption "Lower = less memory pressure."). (Studio-only pairing control is fine here — the Wizard defers pairing to export; see the Step 3 drift note.)
 - "Detected" divider row: "Detected" + accent mono count + hairline; then a wrap of 66px thumbnail cells (50px tone swatch + tiny mono filename) with a final dashed "+{overflow}" cell.
 - Run bar: "Ready · {N} images · mode {mode}" + accent primary "▶ Run analysis".
 
