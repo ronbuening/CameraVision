@@ -1,3 +1,5 @@
+> **ARCHIVED (2026-07-08).** Historical implementation plan; the work it describes is complete. Not maintained — status lines, cross-reference filenames, and test counts inside reflect the writing date. Living detail: requirements docs 01/02/03, `agent_docs/cli-implementation-notes.md`, `agent_docs/invariants.md`.
+
 # Implementation Plan - Phase 2 CLI XMP Sidecar Writer
 
 Version: 0.4

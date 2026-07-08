@@ -96,4 +96,4 @@ For performance-affecting changes, capture before/after numbers (see the Verific
 
 ## Release Evidence
 
-Compatibility smoke evidence (Lightroom Classic / Capture One import of written XMP) follows the recorded pattern in `agent_docs/release-evidence/`. Release-gating rules live in AGENTS.md and the phase implementation plans.
+Compatibility smoke evidence (Lightroom Classic / Capture One import of written XMP) follows the recorded pattern in `agent_docs/release-evidence/`. Release-gating rules live in AGENTS.md and `agent_docs/08-post-review-hardening-plan.md` §1.1; the open Phase 1 Milestone 9 calibration item is detailed in `agent_docs/cli-implementation-notes.md`.

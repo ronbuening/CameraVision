@@ -1,8 +1,8 @@
 # Phase 3 Requirements - CLI Normalized Batch Tagger
 
-Version: 0.7
-Date: 2026-06-15
-Supersedes: 0.6
+Version: 0.8
+Date: 2026-07-08
+Change log: v0.8: removed revision-history and status sections (status now lives in README/AGENTS); merged FR3-AFF-005 numbers into the FR3-AFF-006 table; traceability matrix pointer updated.
 Builds on: Phase 1 Requirements v0.4 (`01-cli-raw-json-sidecar-requirements.md`) and Phase 2 Requirements v0.5 (`02-cli-xmp-sidecar-requirements-updated.md`)
 Binary: `aisidecar` (subcommands: `normalize`, `apply-session`)
 Core library: `AISidecarCore`
@@ -12,114 +12,9 @@ Primary output artifacts: normalization session file, normalized XMP sidecar fil
 
 This document inherits the Project-Wide Conventions of the Phase 1 requirements and the owned-XMP metadata-writing requirements of Phase 2. They are not restated except where Phase 3 narrows or clarifies their use.
 
-## 0. Changes from v0.6
+Implementation status lives in `README.md` and `AGENTS.md`; this document carries requirements only. Phase 3 (Milestones 0–11) is implemented; the traceability matrix lives in `agent_docs/cli-implementation-notes.md`.
 
-This revision tightens the v0.6 metadata-affinity design into implementation-ready policy. It does not change the basic Phase 3 direction; it removes ambiguity around ordering, direct-write rules, session context, affinity audit data, deterministic scoring, conflict math, output artifacts, and implementation traceability. Older Phase 3 v0.4, v0.5, and v0.6 documents are superseded by this v0.7 file for Phase 3 implementation.
-
-1. The document now defines one ordered normalization decision pipeline so implementation does not invent policy in code.
-2. Vocabulary policy now separates direct model/user application from propagation: `direct_apply_policy` governs direct observations and user context; `auto_apply_allowed` governs propagation only.
-3. `--session-habitat` and `--session-event` now have explicit matching, unknown-value, conflict, provenance, and export semantics. `--unknown-session-context-policy` replaces the earlier subject-only wording.
-4. Affinity metadata sources are specified for analyze, from-json, file-list, and apply-session workflows. `apply-session` consumes stored decisions and does not recompute affinity.
-5. Session/report privacy requirements now prevent exact GPS coordinates, capture timestamps, camera serials, and raw affinity metadata from leaking into normal reports.
-6. Numeric determinism is now specified: rounding, score bands, stable edge sorting, neighbor truncation, and tie-breaking.
-7. Edge-storage invariants now guarantee decision-contributing edges remain auditable even when size limits omit weak edges.
-8. Local conflict mass and global-backstop minimum-count rules are defined so propagation is not driven by percentages alone.
-9. Confidence bands are fixed as filters and tie-breakers only; surviving observations contribute one unit of support unless a later schema changes that explicitly.
-10. `--allow-specific-tags` is explicitly limited to Phase 2 fallback/unmatched behavior and cannot override controlled vocabulary review or propagation policy.
-11. Dry-run, session-only, and output artifact behavior is captured in a truth table.
-12. A starter-vocabulary appendix now gives the minimum bundled entries and representative JSON shapes required for Phase 3 fixtures.
-13. Graph-construction scalability requirements now require deterministic candidate-neighbor generation before pruning.
-14. The companion implementation plan now contains a traceability matrix mapping requirement families to modules, tests, and milestones.
-
-## 0.1 Changes from v0.5
-
-This revision adds metadata-affinity weighting as a first-class Phase 3 requirement. Normalization is now local-first and proximity-biased rather than a flat whole-folder vote.
-
-1. Phase 3 shall build an asset-affinity graph before cross-image propagation. Nodes are source assets or same-base-name RAW/JPEG groups; edges are weighted by capture-time proximity, GPS proximity, filename sequence/list adjacency, and camera/lens agreement.
-2. Batch-conservative mode now means proximity-weighted local consensus by default. Whole-batch/global consensus remains only a backstop for vocabulary entries whose `propagation_scope = global`.
-3. Capture time, GPS, filename sequence, and explicit file-list adjacency are primary affinity signals. Camera/lens match is only a reinforcing signal and cannot create propagation eligibility by itself.
-4. The conservative default affinity profile is specified numerically: time/GPS/filename primary weights, decay half-lives, cutoffs, gear boost, edge storage threshold, consensus threshold, support-mass gates, and neighbor limits.
-5. Controlled vocabulary entries now include `propagation_scope` and `specificity` fields so broad, mid-specific, and specific tags have separate propagation behavior.
-6. Normalization sessions now record affinity inputs, edge scores, component scores, score bands, local clusters, and local weighted consensus records so `apply-session` remains model-free and decision-reproducible.
-7. Reports now explain proximity-driven decisions with explicit skip/block reasons such as `blocked_low_affinity`, `blocked_gear_only_affinity`, and `gps_missing_used_time_filename_fallback`.
-8. Acceptance criteria now require tests for high-affinity propagation, low-affinity blocking, gear-only blocking, GPS-missing fallback, present-but-distant GPS penalties, direct-conflict blocking, RAW/JPEG group collapse, and session recording of affinity math.
-
-## 0.2 Changes from v0.4
-
-This revision rereviews the current Phase 2 implementation state and tightens Phase 3 around the implemented writer/export foundation.
-
-1. Phase 3 now treats Phase 2 Milestones 0-10 as the implemented baseline, including `XMPExportPipeline`, `AnalyzeAndXMPPipeline`, same-base-name group planning, source hash rechecks, owned XMP merge/backup/restore/validation, interruption behavior, reports, summaries, and Lightroom Classic/Capture One smoke evidence.
-2. The Phase 3 entry gate is narrowed: Phase 2 XMP compatibility is no longer an open risk. Before Phase 3 implementation starts, record a current `swift test` and CLI help baseline and archive Phase 1 Milestone 9 evidence or an explicit deferral. Representative GPS-context quality comparison remains release evidence for analysis quality, not a separate XMP-writer gate.
-3. `apply-session` flag scope is clarified. It is a model-free writer over a frozen normalization session and may override only source resolution, stale-session, destination, dry-run, logging, backup, and XMP conflict behavior. It shall not accept normalization-decision flags such as `--min-confidence`, `--allow-specific-tags`, `--pair-scope`, `--normalization-mode`, or `--write-ai-json`.
-4. A bundled conservative starter vocabulary is now required when `--vocabulary` is omitted. User-supplied JSON vocabulary files still override the bundled vocabulary and use the same schema validation, hash identity, and integrity checks.
-5. The previously promised explicit file-list workflow is now defined through `--file-list <path>` for image-source normalization input.
-6. `--normalization-mode off|single-image|batch-conservative` semantics are now explicit so implementation can test baseline pass-through, per-image canonicalization, and cross-image conservative propagation separately.
-7. Phase 3 adds explicit taxonomy entries for `E_VOCABULARY_INVALID` and `E_SESSION_STALE`, while continuing to inherit Phase 2 source, schema, XMP parse, unsupported-RDF, validation, and configuration errors.
-
-## 0.3 Changes from v0.3
-
-This revision updates Phase 3 for completed Phase 2 Milestone 10 compatibility evidence and the implementation deltas that Phase 3 now inherits.
-
-1. Phase 2 Milestone 10 is complete for the owned XMP writer: sidecars written by `OwnedXMPSidecarEngine` have been smoke-verified as readable by both Lightroom Classic and Capture One.
-2. Phase 3 starts from Phase 2 Requirements v0.5 and must reuse the compatibility-checked writer path rather than introducing any new export engine.
-3. The pre-Phase-3 GPS context milestone is now an inherited analysis input path. GPS remains prompt/model-input context only; coordinates and GPS-only evidence remain non-exportable.
-4. Phase 3 reports and summaries shall extend the Phase 2 application-instruction pattern, including Lightroom Classic and Capture One post-export guidance, instead of replacing it.
-
-## 0.4 Changes from v0.2
-
-This revision updates Phase 3 for the Phase 2 decision to use a project-owned XMP sidecar engine instead of ExifTool.
-
-1. Phase 3 now inherits `OwnedXMPSidecarEngine` behind `MetadataWriteEngine`. It no longer inherits, requires, invokes, packages, reports, or validates through ExifTool.
-2. Existing XMP preservation is semantic, not byte-for-byte. Phase 3 relies on Phase 2's owned parser, `XMPMetadataSnapshot`, and `XMPUnmanagedContentFingerprint` validation.
-3. XMP parse and unsupported-RDF failures are inherited from Phase 2: malformed XML fails as `E_XMP_PARSE_FAILED`; well-formed but unsafe RDF/XMP shapes fail as `E_XMP_UNSUPPORTED_RDF`.
-4. Phase 3 writes multi-level hierarchical keywords only from the controlled vocabulary's `canonical_path`, never from raw model text containing the hierarchy separator.
-5. `normalize --from-json` and `apply-session` inherit Phase 2 source-resolution and source-verification behavior, including `--source-root`, `--source-verification`, `E_SOURCE_MISSING`, and `E_SOURCE_IDENTITY_MISMATCH`.
-6. `apply-session` is explicitly model-free, render-free, and analysis-free. It consumes a normalization session file, verifies source identity, builds normalized XMP write plans, and writes through the owned XMP engine.
-7. Reports now record the owned XMP engine name/version and XMP writer recipe version, not an ExifTool version.
-8. Acceptance criteria are updated so sidecar validation is performed by the owned parser plus Lightroom Classic and Capture One release smoke checks.
-
-For continuity, all substantive v0.2 changes remain active: the single `aisidecar` binary, JSON-only vocabulary, vocabulary integrity rules, hierarchy-aware consensus, removal of the undefined `batch-folder-context` mode, `--unknown-session-context-policy`, measurable conflict semantics, session identity binding, and ordinal confidence bands.
-
-## 0.5 Current Entry Status
-
-Phase 3 is specified but not implemented. The repository baseline now includes Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, Phase 2 Milestones 0-10, the owned XMP writer/export path, and the pre-Phase-3 GPS context milestone.
-
-Phase 2 is complete enough to build on. It includes `aisidecar write-xmp`, from-json export, analyze-and-write export, source verification, candidate extraction, coordinate/GPS-only evidence guards, same-base-name RAW/JPEG grouping, dry-run change planning, `OwnedXMPSidecarEngine`, semantic merge/backup/restore/validation, source hash rechecks, progress/report/summary artifacts, interruption handling, offline tests, and Lightroom Classic/Capture One compatibility smoke evidence.
-
-Before beginning Phase 3 Milestone 0, record a current baseline:
-
-```text
-swift test
-swift run aisidecar --help
-swift run aisidecar normalize --help     # expected after Milestone 0 only
-swift run aisidecar apply-session --help # expected after Milestone 0 only
-swift run aisidecar write-xmp --help
-swift run aisidecar benchmark --self-test
-swift run aisidecar purge --help
-```
-
-Before Phase 3 release, complete or explicitly defer:
-
-- Phase 1 Milestone 9 calibration and quality review evidence;
-- representative GPS-context quality comparison under `--gps-context off|coarse|exact`, or a documented deferral with residual risk;
-- a fresh no-XMP regression pass proving Phase 1 commands remain XMP-silent after Phase 3 modules are linked;
-- a Phase 3 compatibility smoke pass proving normalized sidecars remain readable by the owned parser, Lightroom Classic, and Capture One.
-
-The first Phase 3 implementation unit should be CLI scaffolding for `aisidecar normalize` and `aisidecar apply-session`, plus core vocabulary/session schema identifiers and configuration validation. Do not add a second XMP writer; normalized export plans must flow through the Phase 2 `MetadataWriteEngine` and `OwnedXMPSidecarEngine`.
-
-## 0.6 Phase 2 Implementation Delta Inherited by Phase 3
-
-Phase 3 should treat these Phase 2 deviations and additions as settled foundation:
-
-1. The original external-tool-oriented XMP approach is replaced by the owned sidecar engine. Runtime export, validation, reports, and Phase 3 sessions must record the owned engine identity and writer recipe, not an ExifTool version.
-2. XMP preservation is semantic. Phase 3 must compare parser-derived snapshots and unmanaged-content fingerprints, not byte-for-byte XML formatting, prefix order, attribute order, or whitespace.
-3. Compatibility evidence now exists for the fields Phase 2 writes. Lightroom Classic and Capture One can read the owned-engine keyword sidecars; Phase 3 should continue writing flat `dc:subject` terms for broad interchange and Lightroom-style `lr:HierarchicalSubject` terms for controlled hierarchy.
-4. Same-base-name RAW/JPEG grouping, `--pair-scope`, target collision detection, output-dir mirroring, backup/restore, source-hash recheck, progress logs, JSON reports, Markdown summaries, and interruption semantics already exist in Phase 2 and should be reused.
-5. Phase 2 candidate extraction includes conditional `species` candidates, ordinal confidence bands, evidence strings, input-role provenance, and model/prompt/schema/runtime provenance. Phase 3 normalization should operate on those records rather than re-reading model JSON ad hoc.
-6. Phase 2 added coordinate/GPS-only evidence guards after the GPS context milestone. Phase 3 vocabulary and propagation rules must not convert GPS context, coordinates, or location commonness into XMP keywords without user-supplied vocabulary/session evidence.
-7. Phase 2's heuristic specific-tag policy remains the write-xmp fallback. Phase 3 replaces that heuristic only where a controlled vocabulary entry, `requires_review`, and `auto_apply_allowed` policy make a more explicit decision.
-8. Unmatched Phase 1 `species` common-name candidates may be normalized across the batch from model text alone as direct, flat-only model-species fallback decisions. This fallback shall not create controlled hierarchy, vocabulary support, or propagation eligibility.
-9. Analyze-and-write can preserve `.ai.json` by default or run with `--no-write-ai-json` while retaining report-ready provenance. Phase 3 may use the same pattern, but normalization sessions remain the durable Phase 3 audit artifact.
+Phase 3 compatibility evidence is recorded at `agent_docs/release-evidence/phase-3-milestone-11-compatibility-smoke.md`.
 
 ## 1. Purpose
 
@@ -559,32 +454,13 @@ decay(value, half_life, cutoff):
 
 Missing primary components are omitted from the available-weight denominator. Present-but-distant primary components score near zero and therefore reduce affinity.
 
-FR3-AFF-005 - The default `conservative` profile shall use these primary component weights and decay values:
+FR3-AFF-005 - The default `conservative` profile's decay, gear, edge-storage, neighbor, and global-backstop parameter values are the `conservative` column of the FR3-AFF-006 profile table, which is the single source of profile numbers. The conservative profile shall additionally use these primary component weights:
 
 ```text
 Primary component weights:
   time_score       0.45
   gps_score        0.35
   filename_score   0.20
-
-Gear:
-  gear_boost_max   0.20
-
-Decay parameters:
-  time_half_life_seconds        120
-  time_cutoff_seconds           1800
-  gps_half_distance_meters      25
-  gps_cutoff_meters             250
-  filename_half_gap             5
-  filename_cutoff               30
-
-Graph parameters:
-  min_affinity_for_consensus    0.35
-  min_affinity_to_store_edge    0.15
-  max_neighbors_per_asset       30
-  global_consensus_threshold    0.80
-  global_min_eligible_assets    5
-  global_min_supporting_assets  3
 ```
 
 FR3-AFF-006 - The named profiles shall have these default values unless overridden by JSON configuration:
@@ -1159,7 +1035,7 @@ Phase 4 shall turn this into an interactive review and correction workflow over 
 
 ## 14. Appendix B - Document Traceability Expectations
 
-The companion Phase 3 implementation plan shall maintain a traceability matrix mapping requirement families to their primary implementation modules, milestones, and automated test families. This appendix makes that traceability expectation part of the requirements, while the implementation plan carries the detailed matrix.
+The companion `agent_docs/cli-implementation-notes.md` shall maintain a traceability matrix mapping requirement families to their primary implementation modules, milestones, and automated test families. This appendix makes that traceability expectation part of the requirements, while `cli-implementation-notes.md` carries the detailed matrix.
 
 Minimum coverage:
 
@@ -1175,7 +1051,7 @@ FR3-031..040         XMP plan adapter, report, dry-run/session-only/output-artif
 AC3-* / AC3-AFF-*    end-to-end acceptance fixtures and release smoke evidence
 ```
 
-When future revisions add, remove, or rename requirement IDs, the implementation plan traceability matrix shall be updated in the same documentation pass.
+When future revisions add, remove, or rename requirement IDs, the traceability matrix in `agent_docs/cli-implementation-notes.md` shall be updated in the same documentation pass.
 
 ## Reference Basis
 

@@ -3,7 +3,7 @@
 Version: 0.3 (v0.3: normalization screens replaced by the Inspector + session context panel per requirements v0.7 — the prototypes' keep/merge/rename/drop table is void, resolution 10; vocabulary editor deferred. v0.2: Wizard-first MVP scoping, Ollama status policy, single window.)
 Date: 2026-07-07
 Design source: Claude Design handoff bundle at `agent_docs/gui-wrapper-for-cameravision/` (project "GUI wrapper for CameraVision", root component `CupricAspect.dc.html`)
-Companion docs: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.4), `agent_docs/phase-4-gui-implementation-plan.md` (v0.2)
+Companion docs: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.10), `agent_docs/phase-4-gui-implementation-plan.md` (v0.7)
 Audience: junior engineer or Sonnet-level coding agent.
 
 This document is the binding visual and interaction spec for the Phase 4 GUI. The HTML prototypes in the bundle are the source of exact values; this doc extracts everything needed so you normally do not have to open them. When this doc and the prototypes disagree, this doc wins (it resolves the known prototype/Core mismatches in Section 8).
@@ -170,7 +170,7 @@ Footer (always visible): "‹ Back" bordered button (hidden-ish at 35% opacity a
 - Three selectable action cards (2px border, radius 13; selected = accent border + `accent-soft` fill + accent radio dot with "✓"; hover = accent border). Each: 26px accent line icon, title (700 15), description (12.5, `text-dim`):
   1. **Analyze only** — "Write auditable `.ai.json` sidecars. No XMP is created — safest first pass."
   2. **Analyze & write XMP** — "Analyze, then export accepted keywords straight to `.xmp` for Lightroom Classic & Capture One."
-  3. **Analyze, Normalize, and Write XMP** — "The full pipeline — reconcile keywords across the whole batch (merge, rename, drop), then write normalized XMP."
+  3. **Analyze, Normalize, and Write XMP** — "The full pipeline — reconcile keywords batch-wide under your vocabulary and consensus rules, then write normalized XMP." (Copy amended per resolution 10 — the prototypes' "merge, rename, drop" implies per-keyword decisions the engine does not have.)
 - Centered link below: "Already have a saved plan? **Apply a normalization session →**" — selects the `apply` action and jumps straight to step 3.
 - Primary "Continue" enabled once an action is picked; hint shows "{action} selected".
 
@@ -195,7 +195,7 @@ Footer (always visible): "‹ Back" bordered button (hidden-ish at 35% opacity a
 - Header: 26px green "✓" disc + title/subtitle depending on the action:
   - analyze → "Analysis complete" / "{N} analyzed · {M} with tags · accept or reject candidates below"
   - write → "Ready to export" (same subtitle)
-  - normalize → "Keywords normalized" / "{N} images · {K} unique keywords · adjust decisions below"
+  - normalize → "Keywords normalized" / "{N} images · {K} unique keywords · review outcomes below" (copy amended per resolution 10 / FR4-026: there are no adjustable decisions)
 - **Keyword review list** (analyze/write): one row card per image — 70px thumbnail + filename, extension badge (mono 10, accent on `accent-soft`), "{a} of {k} accepted" label, "Accept all" button (green on hover), then wrapped keyword chips (Section 3.5) with confidence %.
 - **Normalization Inspector** (normalize action; replaces the prototypes' decision table — resolution 10, requirements FR4-026): columns KEYWORD / SUPPORT / OUTCOME / WHY. Support = the prototype's accent bar scaled to max, plus "N assets · M units" in mono. Outcome = chip: accepted (green-soft/green), withheld (accent-soft/accent), skipped (panel-2/text-dim). Why = stage + governing rule + skip reasons as plain-language text from the shared Core explainer (FR4-055), mono for rule/reason identifiers. Rows expand to per-asset detail: supporting assets, conflicts (competing keyword + assets, danger-tinted). Filter segmented control: All / Accepted / Withheld / Skipped / Needs attention; a second stage filter (Direct / User context / Propagated / Backstop / Fallback). No editing controls of any kind on rows.
 - **Session context panel** (before the normalize run; FR4-052): a card with three labeled fields — SUBJECT, HABITAT, EVENT — each with: text field (mono), a live match line beneath (matched → "→ Animals|Birds|Owls" in accent mono; unmatched → "not in vocabulary — will reject the run" in danger, or "will write as flat user keyword" when the policy allows), and a small "allow propagation" toggle (off by default) with the caption "apply to all non-conflicting photos". A footer row holds the unknown-context policy segmented (Reject / Write unnormalized) and the vocabulary-file picker (mono path, "Choose…", bundled-default label). After a run, each context value gains "N conflicted · M weak support" links opening the FR3-025 lists.
@@ -215,7 +215,7 @@ Full-window overlay (fades in over the content area) with "‹ Back" + "Settings
 
 Layout: 46px title bar; 214px sidebar (`sidebar` bg, right hairline); main content scrolls; per-view sticky bottom run bar.
 
-Sidebar: 30px aperture + "CupricAspect" (700 14) + "AI photo tagging" (10.5 faint); "WORKFLOW" section label; nav items (17px icon + label, 13 weight-550, radius 8; active = `accent-soft` bg + accent text; hover = `accent-soft`): Analyze, Normalize, Write XMP, Apply Prior Session. Pinned at bottom: hairline, Settings item, and "● Ollama connected" (green dot + halo, 10.5 mono faint).
+Sidebar: 30px aperture + "CupricAspect" (700 14) + "AI photo tagging" (10.5 faint); "WORKFLOW" section label; nav items (17px icon + label, 13 weight-550, radius 8; active = `accent-soft` bg + accent text; hover = `accent-soft`): Analyze, Normalize, Write XMP, Apply Prior Session. Pinned at bottom: hairline, Settings item, and "● Ollama connected" (green dot + halo, 10.5 mono faint). The dot reflects the most recent explicit check only (resolution 9 / FR4-051) — no timer-based polling; render a stale check as stale.
 
 Views (`view` state): `analyze`, `normalize`, `write`, `apply`, `settings`, plus transient `processing` and `results`.
 
@@ -242,7 +242,7 @@ Centered: 96px idle aperture; "Point CupricAspect at your photos" (700 22); "Cho
 ### Apply Prior Session
 
 - Subtitle: "Re-apply a saved normalization session — no model runs, no re-analysis."
-- SESSION FILE card: filename + "Choose…", then a stats row under a hairline: "{N} images · {K} keyword decisions · {m} merges · {d} drops".
+- SESSION FILE card: filename + "Choose…", then a stats row under a hairline: "{N} images · {K} keyword decisions · {a} accepted · {w} withheld". (Amended per resolution 10: the prototypes' "{m} merges · {d} drops" counters have no engine counterpart and cannot be populated from a real session; accepted/withheld outcomes exist in the session document.)
 - Run bar: "Apply session" primary.
 
 ### Processing
