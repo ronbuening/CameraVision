@@ -23,6 +23,72 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(configuration.outputDir, "/tmp/out")
     }
 
+    @MainActor
+    func testModelOverrideResolvesForThisRunOnly() throws {
+        let options = AnalysisOptions()
+        options.modelOverride = "override:model"
+
+        let configuration = try options.buildConfiguration(recursive: true, outputDir: nil)
+
+        XCTAssertEqual(configuration.model, "override:model")
+    }
+
+    @MainActor
+    func testNilModelOverrideFallsBackToResolvedConfigurationModel() throws {
+        let expected = try ConfigurationResolver.resolve().model
+        let options = AnalysisOptions()
+
+        let configuration = try options.buildConfiguration(recursive: true, outputDir: nil)
+
+        XCTAssertEqual(configuration.model, expected)
+    }
+
+    @MainActor
+    func testLoadResolvedDefaultsPreservesRunScopedModelOverride() {
+        let options = AnalysisOptions()
+        options.modelOverride = "override:model"
+
+        options.loadResolvedDefaults()
+
+        XCTAssertEqual(options.modelOverride, "override:model")
+    }
+
+    @MainActor
+    func testXMPConflictPolicyDefaultMatchesCoreApplySessionDefault() {
+        let options = AnalysisOptions()
+
+        XCTAssertEqual(
+            options.xmpConflictPolicy,
+            ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+        )
+    }
+
+    @MainActor
+    func testLoadResolvedDefaultsSeedsXMPConflictPolicyFromConfig() throws {
+        let configPath = try writeConfig(#"{ "xmp_conflict_policy": "merge" }"#)
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: configPath)
+
+        options.loadResolvedDefaults()
+
+        XCTAssertEqual(options.xmpConflictPolicy, .merge)
+    }
+
+    @MainActor
+    func testLoadResolvedDefaultsFallsBackToCoreXMPConflictPolicyDefault() {
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: missingConfigPath())
+
+        options.loadResolvedDefaults()
+
+        XCTAssertEqual(options.xmpConflictPolicy, .backupAndMerge)
+    }
+
+    func testSecondsPerImageUsesProcessedCount() {
+        XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 60, done: 0), 0)
+        XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 0.25, done: 10), 0)
+        XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 60, done: 30), 2.0, accuracy: 0.001)
+        XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 60, done: 20), 3.0, accuracy: 0.001)
+    }
+
     func testOutcomeReductionCountsStatusesAndAggregatesErrorCodes() {
         func record(_ status: ProgressStatus, codes: [SidecarErrorCode] = []) -> ProgressRecord {
             ProgressRecord(
@@ -54,5 +120,19 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(outcome.failed, 3)
         XCTAssertTrue(outcome.interrupted)
         XCTAssertEqual(outcome.errorSummaries, ["E_UNSUPPORTED_FORMAT × 2", "E_VALIDATION_FAILED × 1"])
+    }
+
+    private func missingConfigPath() -> String {
+        "\(NSTemporaryDirectory())cupric-options-tests/\(UUID().uuidString)/missing-config.json"
+    }
+
+    private func writeConfig(_ contents: String) throws -> String {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("cupric-options-tests")
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent("config.json")
+        try contents.data(using: .utf8)!.write(to: file)
+        return file.path
     }
 }

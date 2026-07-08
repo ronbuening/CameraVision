@@ -142,6 +142,28 @@ final class NormalizationModelTests: XCTestCase {
     }
 
     @MainActor
+    func testRunFailureCarriesThrownErrorMessageInPhase() async throws {
+        let (_, sourceRoot) = try writeFixture(terms: ["bird"])
+        let missingJSONRoot = root.appendingPathComponent("missing-json").path
+        let model = NormalizationModel(stateDirectory: root.appendingPathComponent("state"))
+
+        model.run(jsonRoot: missingJSONRoot, sourceRoot: sourceRoot)
+        try await waitUntil("normalization failure") {
+            if case .failed = model.phase { return true }
+            return false
+        }
+
+        guard case .failed(let message) = model.phase else {
+            return XCTFail("expected failed phase, got \(model.phase)")
+        }
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertTrue(
+            message.contains("missing-json") || message.localizedCaseInsensitiveContains("does not exist"),
+            "message should name the failing input: \(message)"
+        )
+    }
+
+    @MainActor
     func testStaleVocabularyDetection() async throws {
         let (jsonRoot, sourceRoot) = try writeFixture(terms: ["bird"])
         let model = NormalizationModel(stateDirectory: root.appendingPathComponent("state"))
@@ -156,6 +178,26 @@ final class NormalizationModelTests: XCTestCase {
         try Data("{}".utf8).write(to: vocabFile)
         model.vocabularyPath = vocabFile.path
         XCTAssertTrue(model.vocabularyIsStale)
+    }
+
+    @MainActor
+    func testSaveWithNoSessionThrowsInsteadOfSilentlySucceeding() async throws {
+        let model = NormalizationModel(stateDirectory: root.appendingPathComponent("state"))
+        XCTAssertFalse(model.canSaveSession)
+        let url = root.appendingPathComponent("never-written-normalization.json")
+
+        XCTAssertThrowsError(try model.saveSession(to: url)) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .validationFailed)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+
+        let (jsonRoot, sourceRoot) = try writeFixture(terms: ["bird"])
+        model.run(jsonRoot: jsonRoot, sourceRoot: sourceRoot)
+        try await waitUntil("normalization run") { model.phase == .ready }
+        XCTAssertTrue(model.canSaveSession)
+
+        model.reset()
+        XCTAssertFalse(model.canSaveSession)
     }
 
     @MainActor

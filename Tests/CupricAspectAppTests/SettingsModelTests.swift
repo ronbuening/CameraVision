@@ -67,6 +67,67 @@ final class SettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testConcurrencyWriteThroughPreservesUnknownKeys() throws {
+        try Data(#"{"custom_note": "mine"}"#.utf8)
+            .write(to: URL(fileURLWithPath: configPath))
+        let model = makeModel()
+
+        model.setConcurrency(4)
+
+        let object = try readConfigObject()
+        XCTAssertEqual(object["custom_note"] as? String, "mine")
+        XCTAssertEqual(object["stage_concurrency"] as? Int, 4)
+    }
+
+    @MainActor
+    func testConcurrencyWritesThroughAndResolves() throws {
+        let model = makeModel()
+
+        model.setConcurrency(4)
+
+        let resolved = try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath)
+        XCTAssertEqual(model.stageConcurrency, 4)
+        XCTAssertEqual(resolved.stageConcurrency, 4)
+    }
+
+    @MainActor
+    func testConcurrencyWriteThroughClampsToSettingsRange() throws {
+        let model = makeModel()
+
+        model.setConcurrency(0)
+        XCTAssertEqual(model.stageConcurrency, 1)
+        XCTAssertEqual(try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath).stageConcurrency, 1)
+
+        model.setConcurrency(99)
+        XCTAssertEqual(model.stageConcurrency, 8)
+        XCTAssertEqual(try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath).stageConcurrency, 8)
+    }
+
+    @MainActor
+    func testXMPConflictPolicyWriteThroughPreservesUnknownKeys() throws {
+        try Data(#"{"custom_note": "mine"}"#.utf8)
+            .write(to: URL(fileURLWithPath: configPath))
+        let model = makeModel()
+
+        model.setXMPConflictPolicy(.merge)
+
+        let object = try readConfigObject()
+        XCTAssertEqual(object["custom_note"] as? String, "mine")
+        XCTAssertEqual(object["xmp_conflict_policy"] as? String, "merge")
+    }
+
+    @MainActor
+    func testXMPConflictPolicyWritesThroughAndResolvesForExport() throws {
+        let model = makeModel()
+
+        model.setXMPConflictPolicy(.merge)
+
+        XCTAssertEqual(model.xmpConflictPolicy, .merge)
+        let resolved = try ConfigurationResolver.resolveXMPExport(environment: [:], defaultConfigPath: configPath)
+        XCTAssertEqual(resolved.xmpConflictPolicy, .merge)
+    }
+
+    @MainActor
     func testInvalidEndpointIsRejectedWithoutWriting() {
         let model = makeModel()
         model.endpointDraft = "not a url"
@@ -83,5 +144,13 @@ final class SettingsModelTests: XCTestCase {
         )
         XCTAssertEqual(model.environmentOverrides, ["AISIDECAR_MODE", "AISIDECAR_MODEL"])
         XCTAssertEqual(model.mode, .whole, "environment wins over file per precedence")
+    }
+
+    private func readConfigObject() throws -> [String: Any] {
+        try XCTUnwrap(
+            try JSONSerialization.jsonObject(
+                with: Data(contentsOf: URL(fileURLWithPath: configPath))
+            ) as? [String: Any]
+        )
     }
 }

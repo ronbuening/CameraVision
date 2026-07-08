@@ -40,6 +40,8 @@ final class ReviewModel {
     private(set) var building = false
     private(set) var buildError: String?
     private(set) var recoveryAvailable = false
+    private(set) var restoredFromRecovery = false
+    private(set) var restoredRecoveryDirty = false
 
     /// Autosave policy (FR4-046a defaults): every 25 decisions or 5 minutes.
     private let autosaveDecisionLimit: Int
@@ -79,9 +81,9 @@ final class ReviewModel {
         guard let session else { return [] }
         let assetsByID = Dictionary(uniqueKeysWithValues: session.sourceAssets.map { ($0.assetID, $0) })
         var rows: [String: AssetRow] = [:]
-        for decision in session.perAssetDecisions where decision.status == .accepted || verdicts[decision.decisionID] != nil {
+        for decision in session.perAssetDecisions where isVisibleReviewDecision(decision) {
             let asset = assetsByID[decision.assetID]
-            let keyword = edits[decision.decisionID] ?? decision.flatKeyword ?? decision.canonicalPath ?? decision.sourceText ?? "?"
+            let keyword = displayKeyword(for: decision)
             let observation = decision.observations.first
             var detailParts: [String] = [NormalizationDecisionExplainer.text(for: decision.candidateKind)]
             if let provenance = observation?.provenance {
@@ -94,7 +96,7 @@ final class ReviewModel {
             let chip = Chip(
                 decisionID: decision.decisionID,
                 keyword: keyword,
-                originalKeyword: edits[decision.decisionID] != nil ? (decision.flatKeyword ?? decision.sourceText) : nil,
+                originalKeyword: edits[decision.decisionID] != nil ? baseDisplayKeyword(for: decision) : nil,
                 confidence: observation?.confidence,
                 evidence: observation?.evidence,
                 verdict: verdicts[decision.decisionID] ?? .approved,
@@ -111,9 +113,22 @@ final class ReviewModel {
         return rows.values.sorted { $0.fileName.lowercased() < $1.fileName.lowercased() }
     }
 
+    private func isVisibleReviewDecision(_ decision: PerAssetNormalizationDecision) -> Bool {
+        decision.status == .accepted || verdicts[decision.decisionID] != nil
+    }
+
+    private func displayKeyword(for decision: PerAssetNormalizationDecision) -> String {
+        edits[decision.decisionID] ?? baseDisplayKeyword(for: decision)
+    }
+
+    private func baseDisplayKeyword(for decision: PerAssetNormalizationDecision) -> String {
+        decision.flatKeyword ?? decision.canonicalPath ?? decision.sourceText ?? "?"
+    }
+
     var approvedCount: Int { verdicts.values.count { $0 == .approved } }
     var rejectedCount: Int { verdicts.values.count { $0 == .rejected } }
     var deferredCount: Int { verdicts.values.count { $0 == .deferred } }
+    var canSaveSession: Bool { session != nil }
 
     /// The exportable document: base session + review verdicts and edits.
     var reviewedSession: NormalizationSessionDocument? {
@@ -162,6 +177,8 @@ final class ReviewModel {
         edits = SessionReview.edits(in: sessionDocument)
         changesSinceAutosave = 0
         lastAutosaveAt = now()
+        restoredFromRecovery = false
+        restoredRecoveryDirty = false
     }
 
     /// FR4-059: user-initiated file operations surface failures instead of
@@ -190,8 +207,16 @@ final class ReviewModel {
 
     /// "Save session only" — the reviewed session in the Phase 3 format.
     func saveSession(to url: URL) throws {
-        guard let reviewedSession else { return }
+        guard let reviewedSession else {
+            throw SidecarError(
+                code: .validationFailed,
+                stage: .write,
+                message: "No review session is loaded; nothing to save.",
+                recoverable: true
+            )
+        }
         try NormalizationSessionWriter().write(reviewedSession, to: url.path)
+        restoredRecoveryDirty = false
     }
 
     /// Clean completion: review state is exported or intentionally dropped.
@@ -201,6 +226,8 @@ final class ReviewModel {
         session = nil
         verdicts = [:]
         edits = [:]
+        restoredFromRecovery = false
+        restoredRecoveryDirty = false
     }
 
     // MARK: - Verdicts
@@ -246,11 +273,13 @@ final class ReviewModel {
     /// current folder carrying the same keyword. Callers confirm explicitly.
     func editEverywhere(keyword: String, to text: String) -> Int {
         guard let session else { return 0 }
-        let folded = keyword.lowercased()
+        let folded = keyword.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let replacement = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !folded.isEmpty, !replacement.isEmpty else { return 0 }
         var applied = 0
         for decision in session.perAssetDecisions
-        where (edits[decision.decisionID] ?? decision.flatKeyword ?? "").lowercased() == folded {
-            edits[decision.decisionID] = text
+        where isVisibleReviewDecision(decision) && displayKeyword(for: decision).lowercased() == folded {
+            edits[decision.decisionID] = replacement
             verdicts[decision.decisionID] = .approved
             applied += 1
         }
@@ -262,6 +291,9 @@ final class ReviewModel {
 
     private func recordChange() {
         changesSinceAutosave += 1
+        if restoredFromRecovery {
+            restoredRecoveryDirty = true
+        }
         let elapsed = now().timeIntervalSince(lastAutosaveAt)
         if changesSinceAutosave >= autosaveDecisionLimit || elapsed >= autosaveInterval {
             autosaveNow()
@@ -286,10 +318,15 @@ final class ReviewModel {
 
     func restoreFromRecovery() throws {
         adopt(session: try NormalizationSessionReader().read(from: recoveryURL.path))
+        recoveryAvailable = true
+        restoredFromRecovery = true
+        restoredRecoveryDirty = true
     }
 
     func discardRecovery() {
         try? FileManager.default.removeItem(at: recoveryURL)
         recoveryAvailable = false
+        restoredFromRecovery = false
+        restoredRecoveryDirty = false
     }
 }

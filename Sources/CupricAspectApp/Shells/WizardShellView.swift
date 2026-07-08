@@ -1,4 +1,5 @@
 import AISidecarCore
+import AppKit
 import SwiftUI
 
 /// Wizard shell (design doc Section 6): 46px title bar, step rail, content
@@ -19,6 +20,8 @@ struct WizardShellView: View {
     @State private var selectedAction: WizardAction?
     @State private var step = 1
     @State private var showAbout = false
+    @State private var showRerunConfirmation = false
+    @State private var showDiscardRestoredReviewConfirmation = false
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @Environment(\.colorScheme) private var colorScheme
 
@@ -63,7 +66,7 @@ struct WizardShellView: View {
             }
             // FR4-046a: offer recovery of an interrupted review on launch.
             if reviewModel.recoveryAvailable {
-                selectedAction = .analyze
+                selectedAction = .write
                 step = 5
             }
             if env["CUPRIC_DEBUG_AUTORUN"] == "1" {
@@ -132,8 +135,38 @@ struct WizardShellView: View {
                 break
             }
         }
+        .onChange(of: reviewModel.session?.session.sessionID) { _, _ in
+            rehydrateImportContextFromReviewSession()
+        }
         .sheet(isPresented: $showPlanSheet) {
             ChangePlanSheet(export: exportModel)
+        }
+        .confirmationDialog(
+            rerunConfirmationTitle,
+            isPresented: $showRerunConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Re-run", role: .destructive) {
+                startRun()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(rerunConfirmationMessage)
+        }
+        .confirmationDialog(
+            "Discard the restored review?",
+            isPresented: $showDiscardRestoredReviewConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Save session first...") {
+                saveRestoredReviewSessionThenFinish()
+            }
+            Button("Discard review", role: .destructive) {
+                finishCleanly()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Discard the restored review? \(reviewModel.verdicts.count) decisions will be lost.")
         }
     }
 
@@ -232,6 +265,9 @@ struct WizardShellView: View {
                 if case .failed(let message) = exportModel.phase {
                     failureBanner(message)
                 }
+                if case .failed(let message) = normalizationModel.phase {
+                    failureBanner(message)
+                }
                 if selectedAction == .apply {
                     Step3ApplyView(session: $applySession, sessionPath: $applySessionPath)
                 } else {
@@ -254,12 +290,17 @@ struct WizardShellView: View {
                 if case .failed(let message) = exportModel.phase {
                     failureBanner(message)
                 }
-                if exportModel.phase == .written {
-                    writtenBanner(targets: exportModel.exportReport?.targetReports.count ?? 0)
-                    if let report = exportModel.exportReport {
-                        ExportReportView(report: report)
-                            .padding(EdgeInsets(top: 12, leading: 34, bottom: 0, trailing: 34))
-                    }
+                if let warning = exportModel.cleanupWarning {
+                    failureBanner(warning)
+                }
+                if exportModel.phase == .written, let report = exportModel.exportReport {
+                    writtenBanner(WizardNavigation.writtenBanner(
+                        written: report.writtenCount,
+                        failed: report.failedCount,
+                        cleanupRemoved: exportModel.cleanupRemovedCount
+                    ))
+                    ExportReportView(report: report)
+                        .padding(EdgeInsets(top: 12, leading: 34, bottom: 0, trailing: 34))
                 }
                 switch selectedAction {
                 case .normalize:
@@ -278,36 +319,98 @@ struct WizardShellView: View {
     /// Route every write through the FR4-029 dry-run gate (M7): the plan
     /// sheet opens when the dry run completes.
     private func startExport() {
-        guard let source = importModel.sourceFolder else { return }
+        guard let source = importModel.sourceFolder else {
+            let error = exportReadinessError("No source folder is loaded; choose a folder before writing XMP.")
+            reportStartExportError(error)
+            assertionFailure(error.message)
+            return
+        }
         let session: NormalizationSessionDocument? = switch selectedAction {
         case .normalize: normalizationModel.session
         case .apply: applySession
         default: reviewModel.reviewedSession
         }
-        guard let session else { return }
+        guard let session else {
+            let error = exportReadinessError(missingExportSessionMessage)
+            reportStartExportError(error)
+            assertionFailure(error.message)
+            return
+        }
         exportModel.plan(
             session: session,
             sourceRoot: source.path,
-            outputDir: importModel.outputFolder?.path
+            outputDir: importModel.outputFolder?.path,
+            recursive: importModel.recursive,
+            xmpConflictPolicy: options.xmpConflictPolicy
         )
     }
 
-    private func writtenBanner(targets: Int) -> some View {
-        HStack(spacing: 10) {
+    private var missingExportSessionMessage: String {
+        switch selectedAction {
+        case .normalize:
+            "No normalization session is loaded; nothing to write."
+        case .apply:
+            "No apply-session document is loaded; nothing to write."
+        default:
+            "No review session is loaded; nothing to write."
+        }
+    }
+
+    private func exportReadinessError(_ message: String) -> SidecarError {
+        SidecarError(
+            code: .validationFailed,
+            stage: .write,
+            message: message,
+            recoverable: true
+        )
+    }
+
+    private func reportStartExportError(_ error: SidecarError) {
+        switch selectedAction {
+        case .normalize:
+            normalizationModel.reportFileError("Write normalized XMP", error)
+        case .apply:
+            exportModel.reportValidationFailure(error)
+        default:
+            reviewModel.reportFileError("Write XMP", error)
+        }
+    }
+
+    private func rehydrateImportContextFromReviewSession() {
+        guard reviewModel.restoredFromRecovery || selectedAction == .write else {
+            return
+        }
+        guard let root = reviewModel.session?.session.sourceRoot,
+              FileManager.default.fileExists(atPath: root) else {
+            return
+        }
+        if reviewModel.restoredFromRecovery {
+            selectedAction = .write
+        }
+        guard importModel.sourceFolder?.path != root else { return }
+        importModel.chooseSource(URL(fileURLWithPath: root, isDirectory: true))
+    }
+
+    private func writtenBanner(_ content: WrittenBannerContent) -> some View {
+        let tone = content.isWarning ? theme.danger : theme.green
+        let fill = content.isWarning ? theme.danger.opacity(0.12) : theme.greenSoft
+        return HStack(spacing: 10) {
             ZStack {
-                Circle().fill(theme.green)
-                Text("✓").font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                Circle().fill(tone)
+                Text(content.isWarning ? "!" : "✓")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
             }
             .frame(width: 22, height: 22)
-            Text("\(targets) XMP sidecar\(targets == 1 ? "" : "s") written · backups saved · validated — ready to import in Lightroom / Capture One")
+            Text(content.message)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(theme.text)
             Spacer()
         }
         .padding(EdgeInsets(top: 12, leading: 15, bottom: 12, trailing: 15))
-        .background(theme.greenSoft)
+        .background(fill)
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(theme.green.opacity(0.5)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(tone.opacity(0.5)))
         .padding(EdgeInsets(top: 20, leading: 34, bottom: 0, trailing: 34))
     }
 
@@ -338,7 +441,9 @@ struct WizardShellView: View {
 
     // MARK: - Footer
 
-    private var backEnabled: Bool { step > 1 && step != 4 }
+    private var backEnabled: Bool {
+        WizardNavigation.backTarget(from: step, phase: runModel.phase) != nil
+    }
 
     private var primaryEnabled: Bool {
         switch step {
@@ -355,6 +460,7 @@ struct WizardShellView: View {
     /// True when Step 5's primary should be a write, not Done (M7).
     private var step5WriteAvailable: Bool {
         guard exportModel.phase != .written else { return false }
+        guard importModel.sourceFolder != nil else { return false }
         switch selectedAction {
         case .write: return reviewModel.session != nil
         case .normalize: return normalizationModel.session != nil
@@ -399,35 +505,88 @@ struct WizardShellView: View {
         case 3 where selectedAction == .apply:
             startExport()
         case 3:
-            guard let source = importModel.sourceFolder else { return }
-            runModel.start(
-                options: options,
-                inputPath: source.path,
-                recursive: importModel.recursive,
-                outputDir: importModel.outputFolder?.path,
-                expectedTotal: importModel.assets.count
-            )
-            step = 4
+            if WizardNavigation.needsRerunConfirmation(
+                phase: runModel.phase,
+                hasReview: reviewModel.session != nil,
+                hasNormalizationSession: normalizationModel.session != nil
+            ) {
+                showRerunConfirmation = true
+            } else {
+                startRun()
+            }
         case 5 where step5WriteAvailable:
             startExport()
         case 5:
-            reviewModel.completeCleanly()
-            normalizationModel.reset()
-            exportModel.reset()
-            applySession = nil
-            applySessionPath = nil
-            runModel.reset()
-            selectedAction = nil
-            step = 1
+            if WizardNavigation.doneNeedsConfirmation(
+                hasSession: reviewModel.session != nil,
+                restoredRecoveryDirty: reviewModel.restoredRecoveryDirty,
+                exported: exportModel.phase == .written
+            ) {
+                showDiscardRestoredReviewConfirmation = true
+            } else {
+                finishCleanly()
+            }
         default:
             break
+        }
+    }
+
+    private var rerunConfirmationTitle: String {
+        selectedAction == .normalize ? "Re-run normalization?" : "Re-run the analysis?"
+    }
+
+    private var rerunConfirmationMessage: String {
+        if selectedAction == .normalize {
+            return "This discards the current normalization session and Inspector outcomes."
+        }
+        return "This discards the current results and \(reviewModel.verdicts.count) review decisions."
+    }
+
+    private func startRun() {
+        guard let source = importModel.sourceFolder else { return }
+        runModel.start(
+            options: options,
+            inputPath: source.path,
+            recursive: importModel.recursive,
+            outputDir: importModel.outputFolder?.path,
+            expectedTotal: importModel.assets.count
+        )
+        step = 4
+    }
+
+    private func finishCleanly() {
+        reviewModel.completeCleanly()
+        normalizationModel.reset()
+        exportModel.reset()
+        applySession = nil
+        applySessionPath = nil
+        runModel.reset()
+        options.modelOverride = nil
+        selectedAction = nil
+        step = 1
+    }
+
+    private func saveRestoredReviewSessionThenFinish() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "review-session.json"
+        panel.allowedContentTypes = [.json]
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try reviewModel.saveSession(to: url)
+                reviewModel.clearFileError()
+                finishCleanly()
+            } catch {
+                reviewModel.reportFileError("Save session", error)
+            }
         }
     }
 
     private var footerBar: some View {
         HStack(spacing: 14) {
             Button {
-                if backEnabled { step -= 1 }
+                if let target = WizardNavigation.backTarget(from: step, phase: runModel.phase) {
+                    step = target
+                }
             } label: {
                 Text("‹ Back")
                     .font(.system(size: 12.5, weight: .semibold))

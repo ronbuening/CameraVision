@@ -44,10 +44,22 @@ struct ChangePlanSheet: View {
 
             Divider().overlay(theme.border)
 
-            HStack(spacing: 14) {
-                Text(footerSummary)
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.textDim)
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(footerSummary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.textDim)
+                    Toggle(isOn: $export.cleanupAfterWrite) {
+                        Text("Remove intermediate sidecars & run files after writing")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(theme.text)
+                    }
+                    .toggleStyle(.checkbox)
+                    Text("Deletes the .ai.json sidecars and batch logs this run created. Your photos, .xmp files, and backups are untouched. You'll need to re-analyze to review these images again.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(theme.textFaint)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Spacer()
                 Button("Cancel") {
                     export.cancelPlan()

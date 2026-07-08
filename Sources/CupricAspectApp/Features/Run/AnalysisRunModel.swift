@@ -8,24 +8,50 @@ import Observation
 @MainActor
 @Observable
 final class AnalysisOptions {
+    private let environment: [String: String]
+    private let defaultConfigPath: String?
+
     var mode: AnalysisMode = .both
     var gps: GPSContextMode = .coarse
     var existing: ExistingPolicy = .skip
     var concurrency = 1
     var advancedOpen = false
+    var modelOverride: String?
+    var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
 
     /// Resolved display values (model tag, endpoint) from the config chain.
     private(set) var resolvedModel = ""
     private(set) var resolvedEndpoint = ""
 
+    init(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaultConfigPath: String? = nil
+    ) {
+        self.environment = environment
+        self.defaultConfigPath = defaultConfigPath
+    }
+
+    var effectiveModel: String {
+        modelOverride ?? resolvedModel
+    }
+
     func loadResolvedDefaults() {
-        guard let resolved = try? ConfigurationResolver.resolve() else { return }
+        guard let resolved = try? ConfigurationResolver.resolve(
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        ) else { return }
         resolvedModel = resolved.model
         resolvedEndpoint = resolved.modelEndpoint.absoluteString
         mode = resolved.mode
         gps = resolved.gpsContext
         existing = resolved.existing
         concurrency = min(8, max(1, resolved.stageConcurrency))
+        if let exportDefaults = try? ConfigurationResolver.resolveApplySession(
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        ) {
+            xmpConflictPolicy = exportDefaults.xmpConflictPolicy
+        }
     }
 
     /// Build the run configuration: UI choices as CLI-equivalent overrides on
@@ -37,9 +63,12 @@ final class AnalysisOptions {
                 existing: existing,
                 recursive: recursive,
                 outputDir: outputDir,
+                model: modelOverride,
                 stageConcurrency: concurrency,
                 gpsContext: gps
-            )
+            ),
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
         )
     }
 }
@@ -91,6 +120,7 @@ final class AnalysisRunModel {
     var onRecord: ((ProgressRecord) -> Void)?
 
     private var monitor: InterruptionMonitor?
+    private var preflightGeneration = 0
 
     var progressFraction: Double {
         total > 0 ? Double(done) / Double(total) : 0
@@ -100,24 +130,32 @@ final class AnalysisRunModel {
 
     /// Smoothed seconds per image over the run so far.
     var secondsPerImage: Double {
-        guard let startedAt, writtenCount > 0 else { return 0 }
+        guard let startedAt else { return 0 }
         let elapsed = Date().timeIntervalSince(startedAt)
-        return elapsed > 0.5 ? elapsed / Double(writtenCount) : 0
+        return Self.secondsPerImage(elapsed: elapsed, done: done)
+    }
+
+    nonisolated static func secondsPerImage(elapsed: Double, done: Int) -> Double {
+        guard done > 0, elapsed > 0.5 else { return 0 }
+        return elapsed / Double(done)
     }
 
     func checkPreflight(options: AnalysisOptions, recursive: Bool, outputDir: String?) {
-        guard preflight != .checking else { return }
+        preflightGeneration += 1
+        let generation = preflightGeneration
         preflight = .checking
         Task {
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
                 let runtime = try await OllamaVisionRunner().prepare(configuration: configuration)
+                guard generation == preflightGeneration else { return }
                 preflight = .ready(
                     model: runtime.model,
                     digest: runtime.modelDigest,
                     runtimeVersion: runtime.runtimeVersion
                 )
             } catch {
+                guard generation == preflightGeneration else { return }
                 preflight = .failed(message: Self.guidance(for: error))
             }
         }

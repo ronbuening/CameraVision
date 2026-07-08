@@ -20,7 +20,7 @@ Overall verdict: the safety core is genuinely strong — the XMP write chain (pr
 
 | Milestone | Gate | Contents |
 |---|---|---|
-| **R1 — Beta ship-blockers** | must land **before** the `v0.1.0-beta.1` tag | 10 items: GUI dead states, silent failures a tester will hit, one Core crash bug, plus three Options/write alpha fixes (per-run model override, visible XMP conflict policy, opt-in post-write cleanup) |
+| **R1 — Beta ship-blockers** | must land **before** the `v0.1.0-beta.1` tag | 14 items: GUI dead states, silent failures a tester will hit, one Core crash bug, three Options/write alpha fixes (per-run model override, visible XMP conflict policy, opt-in post-write cleanup), plus four further alpha fixes (Settings default for concurrency, Settings default for XMP treatment, relabel the program's `.ai.json` sidecar control so it doesn't read as XMP, and the seconds-per-image rate that misreads on a skip-heavy re-run) |
 | *(B0-5 + signing + tag)* | manual, per phase-4 plan | LR/C1 round trip, Developer ID sign/notarize, tag |
 | **R2 — GUI hardening round 2** | first post-beta code milestone | remaining GUI mediums/lows |
 | **R3 — CLI process-boundary hardening** | after R2 (independent, can swap) | exit codes, cancellation, retries, scan robustness |
@@ -33,7 +33,7 @@ Rules for every item: one work item at a time (invariant 17); each item independ
 
 Work strictly top to bottom. Within a milestone, work items in their numbered order unless an item's text says otherwise.
 
-1. **R1-1 → R1-10, in order.** These gate the beta tag; nothing else comes first. R1-1, R1-2, R1-4, R1-5 all touch `WizardShellView.swift` — doing them in order avoids merge churn. R1-3 (Core, `JSONLWriter`) is independent and may be done at any point inside R1. R1-3 also edits the same lines as efficiency-plan P4 (fsync cadence) — R1-3 lands first; P4 waits for its slot in step 7. R1-8 and R1-9 both edit `Step3OptionsView.swift` (Options page); R1-8 also touches `AnalysisOptions`/`AnalysisRunModel` and R1-9 also touches `ExportModel` — do R1-8 then R1-9 to keep the Options-view edits in one line. R1-10 also touches `ExportModel` plus `ChangePlanSheet.swift`; do it right after R1-9 so the two `ExportModel` edits (XMP policy, cleanup flag) land together.
+1. **R1-1 → R1-14, in order.** These gate the beta tag; nothing else comes first. R1-1, R1-2, R1-4, R1-5 all touch `WizardShellView.swift` — doing them in order avoids merge churn. R1-3 (Core, `JSONLWriter`) is independent and may be done at any point inside R1. R1-3 also edits the same lines as efficiency-plan P4 (fsync cadence) — R1-3 lands first; P4 waits for its slot in step 7. R1-8 and R1-9 both edit `Step3OptionsView.swift` (Options page); R1-8 also touches `AnalysisOptions`/`AnalysisRunModel` and R1-9 also touches `ExportModel` — do R1-8 then R1-9 to keep the Options-view edits in one line. R1-10 also touches `ExportModel` plus `ChangePlanSheet.swift`; do it right after R1-9 so the two `ExportModel` edits (XMP policy, cleanup flag) land together. **R1-11 and R1-12** both add a control to the Settings `CONFIGURATION` section (`SettingsSheet.swift`) and a write-through to `SettingsModel.swift`; do R1-11 then R1-12 to keep the Settings-view edits in one line. R1-12 also adds one seeding line to `AnalysisOptions.loadResolvedDefaults` (`AnalysisRunModel.swift`). **R1-13** (label/caption changes) also edits `SettingsSheet.swift` (the existing-sidecar row) and `Step3OptionsView.swift`; do it right after R1-12 so the three `SettingsSheet.swift` edits land in one line. **R1-14** (rate math in `AnalysisRunModel.swift`) is independent and may land at any point inside R1.
 2. **R1 exit gate** (end of §2): full `swift test`, manual GUI pass over all four flows plus kill-relaunch-restore-export.
 3. **B0-5 + release (manual, Ron):** LR/C1 round-trip evidence per `agent_docs/release-evidence/`, Phase 1 M9 calibration evidence or explicit deferral note, Developer ID signing → notarization → stapling → `spctl --assess` pass, tag `v0.1.0-beta.1`, DMG handout. (Per the phase-4 plan B0 section.) While executing this step, write down the exact sequence as `agent_docs/release-checklist.md` (packaging-plan WI-7, pulled forward: the beta tag is the first real execution of that procedure; roadmap F4-R4 then extends the checklist rather than authoring it).
 4. **R2-1 → R2-7, in order.** First post-beta code milestone.
@@ -140,7 +140,49 @@ Work strictly top to bottom. Within a milestone, work items in their numbered or
 
 **Tests.** Model-level: a successful `ExportModel` write with `cleanupAfterWrite == true` invokes `ArtifactCleanup` over the correct root and surfaces the removed count; with a failed target, cleanup does not run; with the flag false, cleanup does not run. Reuse the existing `ArtifactCleanupTests` for the Core deletion semantics (owned-only, session-preserving) — do not duplicate them.
 
-**R1 exit gate:** all ten items landed, `swift test` green, one manual GUI pass over analyze/write/normalize/apply + kill-relaunch-restore-export. Then proceed to B0-5 evidence, signing, and the `v0.1.0-beta.1` tag per the phase-4 plan.
+### R1-11 — Settings has no default for concurrency (MEDIUM)
+
+**Finding.** The Settings `CONFIGURATION` section (`SettingsSheet.swift:242-317`) lets the user set persistent defaults for render mode, GPS context, and existing-sidecar policy, but exposes **no** control for `stage_concurrency`; `SettingsModel` (`SettingsModel.swift:31-44`, `reload()` `:57-77`) never reads or writes it. The config layer already supports the key end-to-end — `AppConfig.stageConcurrency` ⇄ `"stage_concurrency"` (`AppConfig.swift:25/78`), resolved default = the Apple-Silicon performance-core count (`RunConfiguration.swift:268-275`) — and the per-run Options stepper already seeds itself from the resolved value (`AnalysisOptions.loadResolvedDefaults`, `AnalysisRunModel.swift:34`). So a tester can override concurrency for one run but cannot set a persistent default the CLI and every GUI run share, unlike mode/gps/existing which all have Settings defaults. On a memory-constrained Mac a tester who wants a permanently lower concurrency has no path short of hand-editing `config.json`.
+
+**Fix.** Add a `CONCURRENCY` control to the Settings `CONFIGURATION` section mapping onto `stage_concurrency` (a 1–8 stepper matching the Options-page control, styled to the section). Add a `stageConcurrency` property and a `setConcurrency` write-through to `SettingsModel` — `write("stage_concurrency", …)` via `ConfigFileEditor.merge`, the same pattern as `setMode`/`setExisting`. No Options-page change is needed: it already reads `resolved.stageConcurrency`, so the new default flows through automatically. Validate `> 0` before writing (the resolver rejects zero).
+
+**Acceptance.** Setting a default concurrency in Settings writes `stage_concurrency` to `config.json` (hand-added keys preserved), a subsequent CLI resolve reflects it, and a fresh import's Options page shows that value as its concurrency default. Leaving it unset behaves exactly as today (resolver default = performance-core count).
+
+**Tests.** A `SettingsModel` write-through test (writes the key, preserves unknown keys) mirroring the existing `setMode`/`setExisting` tests; a resolver round-trip asserting `stage_concurrency` survives the merge.
+
+### R1-12 — Settings has no default for XMP treatment, and Options can't inherit one (MEDIUM)
+
+**Finding.** The XMP conflict policy has no Settings default: `SettingsModel` has no `xmpConflictPolicy` property or writer and the `CONFIGURATION` section exposes no control, even though the config layer supports `xmp_conflict_policy` (`AppConfig.swift:35/86`; enum `XMPConflictPolicy` = `fail`/`merge`/`backup-and-merge`, `XMPExportConfiguration.swift:11-15`; built-in default `.backupAndMerge`). A compounding gap: the R1-9 per-run Options control does **not** seed from config — `AnalysisOptions.xmpConflictPolicy` is initialized to the hard-coded built-in (`AnalysisRunModel.swift:17`) and `loadResolvedDefaults()` never touches it (`:27-35`), unlike concurrency, which is seeded (`:34`). So even a hand-edited `xmp_conflict_policy` in `config.json` is ignored by the GUI today. A Settings default plus the seeding fix closes both gaps and keeps GUI and CLI from diverging (FR4-056 spirit).
+
+**Fix.** Two parts.
+1. Add an `EXISTING XMP` control to the Settings `CONFIGURATION` section over `XMPConflictPolicy.allCases` (Fail / Merge / Backup & Merge), defaulting to the Core built-in `.backupAndMerge`, with an `xmpConflictPolicy` property and a `setXMPConflictPolicy` write-through (`write("xmp_conflict_policy", …)`). Honor the cross-field constraint: `backup-and-merge` requires `backup_sidecars == true` (`ConfigurationResolver` validation `:818-819`). Since `backup_sidecars` defaults true and Settings does not expose it, all three policies remain valid — do not write a policy that would violate it.
+2. Seed the Options control from config: add one line to `loadResolvedDefaults()` setting `xmpConflictPolicy` from the resolved configuration, so the Settings default (or a hand-edited config value) flows into the per-run Advanced control exactly as mode/gps/existing/concurrency already do. The R1-9 default-equality invariant still holds — with no config value the resolver returns the built-in, so `AnalysisOptions().xmpConflictPolicy == builtInDefaults.xmpConflictPolicy`.
+
+**Acceptance.** Setting a default XMP treatment in Settings writes `xmp_conflict_policy` to `config.json` (unknown keys preserved), a CLI resolve reflects it, and a fresh import's Options → Advanced `EXISTING XMP` control shows that value. Leaving it unset shows Backup & Merge (the Core built-in) in both Settings and Options, matching the CLI. The R1-9 per-run override still overrides the default for a single run without changing `config.json`.
+
+**Tests.** `SettingsModel` write-through for `xmp_conflict_policy`; a resolver-precedence test that `loadResolvedDefaults()` seeds `xmpConflictPolicy` from a config value and falls back to `.backupAndMerge` when absent; keep the R1-9 default-equality test green.
+
+### R1-13 — "Existing sidecars" control reads as XMP handling; relabel it as the program's own sidecars (MEDIUM)
+
+**Finding.** The Options → Advanced grid places `EXISTING SIDECARS` (`Step3OptionsView.swift:290`; `ExistingPolicy` skip/overwrite/fail, governing the program's own `.ai.json` raw sidecars) directly beside `EXISTING XMP` (`:299`; `XMPConflictPolicy`, governing the `.xmp`), and the disclosure hint lists both as "existing sidecars · existing xmp · concurrency" (`:269`). Settings mirrors the same bare "Existing sidecars" label (`SettingsSheet.swift:290`). Testers read "Existing sidecars" as XMP handling and fear the tool overwrites their Lightroom/Capture One keywords, when the control only decides whether analysis re-writes its own `.ai.json` intermediates. The word "sidecar" is overloaded in the GUI: it means `.ai.json` in Settings/Options but `.xmp` in the change-plan sheet (`ChangePlanSheet.swift:75/133/136/138`).
+
+**Fix.** Relabel the `ExistingPolicy` control everywhere it surfaces so it unambiguously names the program's own analysis files, not XMP — recommended "Existing `.ai.json` sidecars" (or "Existing analysis sidecars (`.ai.json`)") on both the Options → Advanced control and the Settings row, and update the disclosure hint to "existing .ai.json · existing xmp · concurrency". Add a one-line caption distinguishing it from `EXISTING XMP` (e.g. "Governs the tool's own `.ai.json` analysis files, not your `.xmp`."). **Labels and caption only — no enum, CLI-mapping, or default change.** *(STOP: maintainer wording decision — the exact strings are Ron's call; the requirement is only that the control stop reading as XMP handling.)* Optional consistency pass, deferrable to R2 if it widens the diff: change the change-plan sheet's bare "sidecar" (which means `.xmp`) to "XMP sidecar" so the same word never denotes two things.
+
+**Acceptance.** On both the Options → Advanced disclosure and the Settings `CONFIGURATION` section, the existing-`.ai.json` control names the file type explicitly and no longer reads as XMP handling; `EXISTING XMP` remains the only XMP-facing control. No functional change — the enum, CLI mapping (`--existing`), and defaults are untouched.
+
+**Tests.** Presentation-only; no unit test asserts label strings. If a snapshot/label test exists, update it deliberately and say so; otherwise the R1 manual GUI pass covers it.
+
+### R1-14 — Seconds-per-image reads wrong after switching model and re-running (MEDIUM)
+
+**Finding.** The Working screen's "Rate" stat (`Step4WorkingView.swift:122`) shows `runModel.secondsPerImage`, computed as `elapsed / writtenCount` (`AnalysisRunModel.swift:110-114`), where `elapsed` is total wall-clock across **all** processed records but `writtenCount` counts only `.written` ones (`:151-154` increments `done` for every record, `writtenCount` only on `.written`). The natural way to try a non-default vision model (R1-8) is to re-run an already-analyzed folder; with the default `existing = .skip` policy, previously-analyzed images return `.skippedExisting`, so `done` climbs while `writtenCount` stays low or zero. Result: the rate reads wildly inflated, or "—" when every image is skipped — precisely the "seconds-per-image is wrong when I pick a different model" symptom. The estimate references no model variable at all (verified), so the model is not the cause; the skip-vs-written denominator is. (Design resolution 7 already committed this figure to a real, smoothed seconds-per-image; this makes it correct under skips.)
+
+**Fix.** Make the rate reflect real per-image processing time — divide `elapsed` by the number of images the run actually spent time on (e.g. `done`, or `done` minus failures), or accumulate elapsed only across `.written` images, so skipped images (≈ no model time) don't distort it. The acceptance is behavioral: a re-run against a mostly-skipped folder shows a sane rate (or a clearly-labeled "—" only when nothing was processed), not an inflated figure. *(Secondary, note only: the Step 4 "Model" stat, `Step4WorkingView.swift:130-133`, reads the cached `preflight` state rather than the live run config, so before preflight resolves it can show "—"/a stale tag while the run uses the correct override — fold into R2 unless trivially fixed here.)*
+
+**Acceptance.** Re-running a folder whose sidecars are all/mostly skipped shows a rate consistent with the real time spent per newly-written image (or "—" only when zero images were processed), for both the default and an overridden model. A fresh all-written run is unchanged.
+
+**Tests.** Extract the rate math into a pure function (e.g. `secondsPerImage(elapsed:done:written:failed:)`) and unit-test: all-skipped → 0/"—", not a huge number; mixed skip+write → divides by the processed count; a fresh all-written run matches today's value.
+
+**R1 exit gate:** all fourteen items landed, `swift test` green, one manual GUI pass over analyze/write/normalize/apply + kill-relaunch-restore-export. Then proceed to B0-5 evidence, signing, and the `v0.1.0-beta.1` tag per the phase-4 plan.
 
 ---
 
@@ -262,6 +304,10 @@ Every R-milestone ends with: `swift test` green; `swift run aisidecar --help`; `
 | Alpha: Options per-run model override (dropdown) | R1-8 |
 | Alpha: Options XMP conflict policy visible, backup-and-merge default | R1-9 |
 | Alpha: opt-in post-write cleanup of intermediate sidecars/artifacts | R1-10 |
+| Alpha: Settings default for concurrency | R1-11 |
+| Alpha: Settings default for XMP treatment (+ Options inherits it) | R1-12 |
+| Alpha: relabel the program's `.ai.json` sidecar control (vs XMP) | R1-13 |
+| Alpha: seconds-per-image wrong on skip-heavy re-run | R1-14 |
 | GUI H2 (recovery flow) | R1-2 |
 | Core #1 (JSONL crash) | R1-3 |
 | GUI M1 (normalize failure invisible) | R1-4 |

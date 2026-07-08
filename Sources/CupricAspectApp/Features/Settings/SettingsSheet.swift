@@ -287,12 +287,43 @@ struct SettingsSheet: View {
                     )
                 }
                 Divider().overlay(theme.border)
-                settingRow("Existing sidecars") {
+                settingRow(
+                    "Existing .ai.json sidecars",
+                    caption: "The tool's own .ai.json analysis files, not your .xmp."
+                ) {
                     CVSegmentedControl(
                         options: ExistingPolicy.allCases,
                         selection: Binding(get: { settings.existing }, set: { settings.setExisting($0) }),
                         label: { $0.rawValue.capitalized }
                     )
+                }
+                Divider().overlay(theme.border)
+                settingRow(
+                    "Existing XMP",
+                    caption: "Merge keeps keywords already in your .xmp; Backup & Merge writes a .xmp.bak first."
+                ) {
+                    CVSegmentedControl(
+                        options: XMPConflictPolicy.allCases,
+                        selection: Binding(
+                            get: { settings.xmpConflictPolicy },
+                            set: { settings.setXMPConflictPolicy($0) }
+                        ),
+                        label: xmpPolicyLabel
+                    )
+                }
+                Divider().overlay(theme.border)
+                settingRow("Concurrency", caption: "Lower = less memory pressure.") {
+                    HStack(spacing: 0) {
+                        settingsStepButton("−") { settings.setConcurrency(settings.stageConcurrency - 1) }
+                        Text("\(settings.stageConcurrency)")
+                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(theme.text)
+                            .frame(width: 32)
+                        settingsStepButton("+") { settings.setConcurrency(settings.stageConcurrency + 1) }
+                    }
+                    .background(theme.panel2)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
                 }
                 Divider().overlay(theme.border)
                 HStack(spacing: 10) {
@@ -459,5 +490,24 @@ struct SettingsSheet: View {
             Spacer()
             control()
         }
+    }
+
+    private func xmpPolicyLabel(_ policy: XMPConflictPolicy) -> String {
+        switch policy {
+        case .fail: "Fail"
+        case .merge: "Merge"
+        case .backupAndMerge: "Backup & Merge"
+        }
+    }
+
+    private func settingsStepButton(_ glyph: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(glyph)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(theme.text)
+                .frame(width: 32, height: 30)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

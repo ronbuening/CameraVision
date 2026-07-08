@@ -154,6 +154,34 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testRecoveryRoundTripPreservesSourceRootAndTracksUnsavedRestoredReview() throws {
+        let model = makeModel(decisionLimit: 1)
+        model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))
+        let chips = try XCTUnwrap(model.assetRows.first?.chips)
+
+        model.setVerdict(.rejected, for: chips[0].decisionID)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: model.recoveryURL.path))
+
+        let relaunched = makeModel()
+        try relaunched.restoreFromRecovery()
+        XCTAssertEqual(
+            relaunched.session?.session.sourceRoot,
+            root.appendingPathComponent("source").path,
+            "restored review must carry the source folder so the shell can re-enable export"
+        )
+        XCTAssertTrue(relaunched.restoredFromRecovery)
+        XCTAssertTrue(relaunched.restoredRecoveryDirty)
+
+        let saved = root.appendingPathComponent("saved-restored-session.json")
+        try relaunched.saveSession(to: saved)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: saved.path))
+        XCTAssertFalse(relaunched.restoredRecoveryDirty)
+
+        relaunched.setVerdict(.rejected, for: chips[1].decisionID)
+        XCTAssertTrue(relaunched.restoredRecoveryDirty)
+    }
+
+    @MainActor
     func testAutosaveTriggersOnElapsedTime() throws {
         var fakeNow = Date(timeIntervalSince1970: 1_800_000_000)
         let model = makeModel(clock: { fakeNow }, decisionLimit: 100)
@@ -191,13 +219,66 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testSaveWithNoSessionThrowsInsteadOfSilentlySucceeding() throws {
+        let model = makeModel()
+        XCTAssertFalse(model.canSaveSession)
+        let url = root.appendingPathComponent("never-written.json")
+
+        XCTAssertThrowsError(try model.saveSession(to: url)) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .validationFailed)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+
+        model.adopt(session: try makeBaseSession(terms: ["bird"]))
+        XCTAssertTrue(model.canSaveSession)
+        model.completeCleanly()
+        XCTAssertFalse(model.canSaveSession)
+    }
+
+    @MainActor
     func testEditEverywhereAppliesToMatchingKeywordsOnly() throws {
         let model = makeModel()
-        model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))
-        let applied = model.editEverywhere(keyword: "BIRD", to: "Owl")
+        var session = try makeBaseSession(terms: ["bird", "tree"])
+        let birdDecision = try XCTUnwrap(session.perAssetDecisions.first { $0.flatKeyword == "bird" })
+        var withheldBird = birdDecision
+        withheldBird.decisionID = "decision-withheld-bird"
+        withheldBird.status = .withheld
+        session.perAssetDecisions.append(withheldBird)
+
+        model.adopt(session: session)
+        let applied = model.editEverywhere(keyword: "BIRD", to: " Owl ")
         XCTAssertEqual(applied, 1)
         let chips = try XCTUnwrap(model.assetRows.first?.chips)
         XCTAssertTrue(chips.contains { $0.keyword == "Owl" })
         XCTAssertTrue(chips.contains { $0.keyword == "tree" })
+
+        let reviewed = try XCTUnwrap(model.reviewedSession)
+        let withheld = try XCTUnwrap(reviewed.perAssetDecisions.first { $0.decisionID == "decision-withheld-bird" })
+        XCTAssertEqual(withheld.status, .withheld)
+        XCTAssertEqual(withheld.flatKeyword, "bird")
+    }
+
+    @MainActor
+    func testEditEverywhereMatchesCanonicalAndSourceTextFallbacks() throws {
+        let model = makeModel()
+        var session = try makeBaseSession(terms: ["canonical", "source"])
+        session.perAssetDecisions[0].flatKeyword = nil
+        session.perAssetDecisions[0].canonicalPath = "Subject|Wildlife|Birds"
+        session.perAssetDecisions[0].sourceText = nil
+        session.perAssetDecisions[1].flatKeyword = nil
+        session.perAssetDecisions[1].canonicalPath = nil
+        session.perAssetDecisions[1].sourceText = "visible sign"
+
+        model.adopt(session: session)
+        var chips = try XCTUnwrap(model.assetRows.first?.chips)
+        XCTAssertTrue(chips.contains { $0.keyword == "Subject|Wildlife|Birds" })
+        XCTAssertTrue(chips.contains { $0.keyword == "visible sign" })
+
+        XCTAssertEqual(model.editEverywhere(keyword: "Subject|Wildlife|Birds", to: "Birds"), 1)
+        XCTAssertEqual(model.editEverywhere(keyword: "visible sign", to: "Signage"), 1)
+
+        chips = try XCTUnwrap(model.assetRows.first?.chips)
+        XCTAssertTrue(chips.contains { $0.keyword == "Birds" && $0.originalKeyword == "Subject|Wildlife|Birds" })
+        XCTAssertTrue(chips.contains { $0.keyword == "Signage" && $0.originalKeyword == "visible sign" })
     }
 }

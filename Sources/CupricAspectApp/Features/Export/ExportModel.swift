@@ -22,10 +22,15 @@ final class ExportModel {
     private(set) var phase: Phase = .idle
     private(set) var changePlan: XMPChangePlanDocument?
     private(set) var exportReport: XMPExportReport?
+    private(set) var cleanupRemovedCount: Int?
+    private(set) var cleanupWarning: String?
+    var cleanupAfterWrite = false
 
     private var pendingSessionPath: String?
     private var pendingSourceRoot: String?
     private var pendingOutputDir: String?
+    private var pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    private var pendingCleanupRecursive = false
     private let stateDirectory: URL
 
     init(stateDirectory: URL = ReviewModel.defaultStateDirectory) {
@@ -58,12 +63,40 @@ final class ExportModel {
         }
     }
 
+    func reportValidationFailure(_ error: SidecarError) {
+        phase = .failed(message: error.message)
+    }
+
+    nonisolated static func applyConfiguration(
+        sourceRoot: String,
+        outputDir: String?,
+        dryRun: Bool,
+        xmpConflictPolicy: XMPConflictPolicy
+    ) -> ResolvedApplySessionConfiguration {
+        var configuration = ResolvedApplySessionConfiguration.builtInDefaults
+        configuration.sourceRoot = sourceRoot
+        configuration.outputDir = outputDir
+        configuration.dryRun = dryRun
+        configuration.xmpConflictPolicy = xmpConflictPolicy
+        configuration.backupSidecars = true
+        return configuration
+    }
+
     /// FR4-029: dry-run the session and hold the change plan for review.
-    func plan(session: NormalizationSessionDocument, sourceRoot: String, outputDir: String?) {
+    func plan(
+        session: NormalizationSessionDocument,
+        sourceRoot: String,
+        outputDir: String?,
+        recursive: Bool = false,
+        xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    ) {
         guard phase != .planning, phase != .writing else { return }
         phase = .planning
         changePlan = nil
         exportReport = nil
+        cleanupAfterWrite = false
+        cleanupRemovedCount = nil
+        cleanupWarning = nil
 
         let sessionDir = stateDirectory.appendingPathComponent("export-sessions", isDirectory: true)
         Task {
@@ -72,10 +105,12 @@ final class ExportModel {
                     try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
                     let sessionPath = sessionDir.appendingPathComponent("export-\(UUID().uuidString).json").path
                     try NormalizationSessionWriter().write(session, to: sessionPath)
-                    var configuration = ResolvedApplySessionConfiguration.builtInDefaults
-                    configuration.sourceRoot = sourceRoot
-                    configuration.outputDir = outputDir
-                    configuration.dryRun = true
+                    let configuration = ExportModel.applyConfiguration(
+                        sourceRoot: sourceRoot,
+                        outputDir: outputDir,
+                        dryRun: true,
+                        xmpConflictPolicy: xmpConflictPolicy
+                    )
                     let result = try ApplySessionPipeline(
                         xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
                     ).run(sessionPath: sessionPath, configuration: configuration)
@@ -85,6 +120,8 @@ final class ExportModel {
                 pendingSessionPath = sessionPath
                 pendingSourceRoot = sourceRoot
                 pendingOutputDir = outputDir
+                pendingXMPConflictPolicy = xmpConflictPolicy
+                pendingCleanupRecursive = recursive
                 phase = .planReady
             } catch {
                 phase = .failed(message: (error as? SidecarError)?.message ?? error.localizedDescription)
@@ -102,22 +139,48 @@ final class ExportModel {
         }
         phase = .writing
         let outputDir = pendingOutputDir
+        let xmpConflictPolicy = pendingXMPConflictPolicy
+        let cleanupAfterWrite = cleanupAfterWrite
+        let cleanupRoot = outputDir ?? sourceRoot
+        let cleanupRecursive = pendingCleanupRecursive
         Task {
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
-                    var configuration = ResolvedApplySessionConfiguration.builtInDefaults
-                    configuration.sourceRoot = sourceRoot
-                    configuration.outputDir = outputDir
-                    configuration.dryRun = false
+                    let configuration = ExportModel.applyConfiguration(
+                        sourceRoot: sourceRoot,
+                        outputDir: outputDir,
+                        dryRun: false,
+                        xmpConflictPolicy: xmpConflictPolicy
+                    )
                     return try ApplySessionPipeline(
                         xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
                     ).run(sessionPath: sessionPath, configuration: configuration)
                 }.value
                 exportReport = result.exportReport
                 phase = .written
+                if cleanupAfterWrite,
+                   let report = result.exportReport,
+                   report.failedCount == 0 {
+                    await runCleanup(rootPath: cleanupRoot, recursive: cleanupRecursive)
+                }
             } catch {
                 phase = .failed(message: (error as? SidecarError)?.message ?? error.localizedDescription)
             }
+        }
+    }
+
+    private func runCleanup(rootPath: String, recursive: Bool) async {
+        do {
+            let report = try await Task.detached(priority: .utility) {
+                try ArtifactCleanup().run(rootPath: rootPath, recursive: recursive, dryRun: false)
+            }.value
+            cleanupRemovedCount = report.removedCount
+            if report.failedCount > 0 {
+                cleanupWarning = "\(report.failedCount) intermediate file\(report.failedCount == 1 ? "" : "s") could not be removed."
+            }
+        } catch {
+            let message = (error as? SidecarError)?.message ?? error.localizedDescription
+            cleanupWarning = "Cleanup failed: \(message)"
         }
     }
 
@@ -125,12 +188,20 @@ final class ExportModel {
         guard phase == .planReady else { return }
         phase = .idle
         changePlan = nil
+        cleanupAfterWrite = false
+        cleanupRemovedCount = nil
+        cleanupWarning = nil
     }
 
     func reset() {
         phase = .idle
         changePlan = nil
         exportReport = nil
+        cleanupAfterWrite = false
+        cleanupRemovedCount = nil
+        cleanupWarning = nil
         pendingSessionPath = nil
+        pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+        pendingCleanupRecursive = false
     }
 }
