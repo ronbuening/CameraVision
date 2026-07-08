@@ -555,6 +555,7 @@ struct WizardShellView: View {
         applySession = nil
         applySessionPath = nil
         runModel.reset()
+        options.modelOverride = nil
         selectedAction = nil
         step = 1
     }

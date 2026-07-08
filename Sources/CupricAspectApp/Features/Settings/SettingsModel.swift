@@ -3,6 +3,19 @@ import AppKit
 import Foundation
 import Observation
 
+enum VisionTagState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case failed(message: String)
+}
+
+enum VisionTagLoader {
+    static func listInstalledVisionTags(endpoint: URL) async throws -> [String] {
+        try await OllamaVisionRunner().listInstalledVisionTags(endpoint: endpoint)
+    }
+}
+
 /// Settings state (FR4-056/057): reads through the same resolver chain as
 /// every run (CLI flag > env > config.json > defaults) and writes user
 /// changes back to the shared `config.json` via `ConfigFileEditor`, so CLI
@@ -12,13 +25,6 @@ import Observation
 @MainActor
 @Observable
 final class SettingsModel {
-    enum VisionTagState: Equatable {
-        case idle
-        case loading
-        case loaded
-        case failed(message: String)
-    }
-
     private let configPath: String
     private let environment: [String: String]
 
@@ -108,7 +114,7 @@ final class SettingsModel {
         visionTagState = .loading
         Task {
             do {
-                let tags = try await OllamaVisionRunner().listInstalledVisionTags(endpoint: url)
+                let tags = try await VisionTagLoader.listInstalledVisionTags(endpoint: url)
                 visionTags = tags
                 visionTagState = .loaded
             } catch {

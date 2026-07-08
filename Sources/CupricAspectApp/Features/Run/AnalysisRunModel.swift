@@ -13,10 +13,15 @@ final class AnalysisOptions {
     var existing: ExistingPolicy = .skip
     var concurrency = 1
     var advancedOpen = false
+    var modelOverride: String?
 
     /// Resolved display values (model tag, endpoint) from the config chain.
     private(set) var resolvedModel = ""
     private(set) var resolvedEndpoint = ""
+
+    var effectiveModel: String {
+        modelOverride ?? resolvedModel
+    }
 
     func loadResolvedDefaults() {
         guard let resolved = try? ConfigurationResolver.resolve() else { return }
@@ -37,6 +42,7 @@ final class AnalysisOptions {
                 existing: existing,
                 recursive: recursive,
                 outputDir: outputDir,
+                model: modelOverride,
                 stageConcurrency: concurrency,
                 gpsContext: gps
             )
@@ -91,6 +97,7 @@ final class AnalysisRunModel {
     var onRecord: ((ProgressRecord) -> Void)?
 
     private var monitor: InterruptionMonitor?
+    private var preflightGeneration = 0
 
     var progressFraction: Double {
         total > 0 ? Double(done) / Double(total) : 0
@@ -106,18 +113,21 @@ final class AnalysisRunModel {
     }
 
     func checkPreflight(options: AnalysisOptions, recursive: Bool, outputDir: String?) {
-        guard preflight != .checking else { return }
+        preflightGeneration += 1
+        let generation = preflightGeneration
         preflight = .checking
         Task {
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
                 let runtime = try await OllamaVisionRunner().prepare(configuration: configuration)
+                guard generation == preflightGeneration else { return }
                 preflight = .ready(
                     model: runtime.model,
                     digest: runtime.modelDigest,
                     runtimeVersion: runtime.runtimeVersion
                 )
             } catch {
+                guard generation == preflightGeneration else { return }
                 preflight = .failed(message: Self.guidance(for: error))
             }
         }

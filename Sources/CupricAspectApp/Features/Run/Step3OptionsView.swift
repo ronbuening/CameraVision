@@ -11,6 +11,8 @@ struct Step3OptionsView: View {
     var normalizationModel: NormalizationModel?
 
     @Environment(\.cvTheme) private var theme
+    @State private var visionTags: [String] = []
+    @State private var visionTagState: VisionTagState = .idle
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -43,11 +45,8 @@ struct Step3OptionsView: View {
         .padding(EdgeInsets(top: 26, leading: 34, bottom: 40, trailing: 34))
         .onAppear {
             options.loadResolvedDefaults()
-            runModel.checkPreflight(
-                options: options,
-                recursive: importModel.recursive,
-                outputDir: importModel.outputFolder?.path
-            )
+            refreshVisionTags()
+            runPreflight()
         }
     }
 
@@ -100,16 +99,21 @@ struct Step3OptionsView: View {
     }
 
     private var modelCard: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 7) {
                 Text("Vision model")
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(theme.text)
-                Text(options.resolvedModel.isEmpty ? "—" : options.resolvedModel)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(theme.textDim)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                modelPicker
+                Text("this run only — Settings sets the saved default")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(theme.textFaint)
+                if let status = modelStatusText {
+                    Text(status)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(modelStatusIsWarning ? theme.danger : theme.textFaint)
+                        .lineLimit(2)
+                }
             }
             Spacer()
             preflightBadge
@@ -119,6 +123,92 @@ struct Step3OptionsView: View {
         .background(theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
+    }
+
+    private var modelPicker: some View {
+        HStack(spacing: 8) {
+            Menu {
+                Button {
+                    selectModelOverride(nil)
+                } label: {
+                    let label = options.resolvedModel.isEmpty ? "Use Settings default" : "Use Settings default: \(options.resolvedModel)"
+                    if options.modelOverride == nil {
+                        Label(label, systemImage: "checkmark")
+                    } else {
+                        Text(label)
+                    }
+                }
+                Divider()
+                ForEach(visionTags, id: \.self) { tag in
+                    Button {
+                        selectModelOverride(tag)
+                    } label: {
+                        if tag == options.effectiveModel {
+                            Label(tag, systemImage: "checkmark")
+                        } else {
+                            Text(tag)
+                        }
+                    }
+                }
+                if visionTags.isEmpty {
+                    Button("No vision models found") {}.disabled(true)
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(options.effectiveModel.isEmpty ? "—" : options.effectiveModel)
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text("▾").font(.system(size: 9))
+                }
+                .foregroundStyle(theme.text)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 11)
+                .frame(maxWidth: 280, alignment: .leading)
+                .background(theme.panel2)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(theme.border))
+            }
+            .menuStyle(.borderlessButton)
+
+            Button {
+                refreshVisionTags()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.textDim)
+            }
+            .buttonStyle(.plain)
+            .help("Refresh installed models")
+        }
+    }
+
+    private var modelStatusText: String? {
+        switch visionTagState {
+        case .idle:
+            nil
+        case .loading:
+            "loading installed models…"
+        case .loaded where visionTags.isEmpty:
+            "No installed vision models found at this endpoint."
+        case .loaded where !options.effectiveModel.isEmpty && !visionTags.contains(options.effectiveModel):
+            "\(options.effectiveModel) is not installed or is not vision-capable at this endpoint."
+        case .loaded:
+            nil
+        case .failed(let message):
+            "Model list unavailable: \(message)"
+        }
+    }
+
+    private var modelStatusIsWarning: Bool {
+        switch visionTagState {
+        case .loaded:
+            !visionTags.isEmpty && !options.effectiveModel.isEmpty && !visionTags.contains(options.effectiveModel)
+        case .failed:
+            true
+        default:
+            false
+        }
     }
 
     @ViewBuilder
@@ -154,11 +244,7 @@ struct Step3OptionsView: View {
                         .frame(maxWidth: 320)
                 }
                 Button("Retry") {
-                    runModel.checkPreflight(
-                        options: options,
-                        recursive: importModel.recursive,
-                        outputDir: importModel.outputFolder?.path
-                    )
+                    runPreflight()
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 11.5, weight: .semibold))
@@ -256,5 +342,43 @@ struct Step3OptionsView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func selectModelOverride(_ tag: String?) {
+        options.modelOverride = tag
+        runPreflight()
+    }
+
+    private func runPreflight() {
+        runModel.checkPreflight(
+            options: options,
+            recursive: importModel.recursive,
+            outputDir: importModel.outputFolder?.path
+        )
+    }
+
+    private func refreshVisionTags() {
+        guard visionTagState != .loading else { return }
+        guard let endpoint = URL(string: options.resolvedEndpoint) else {
+            visionTags = []
+            visionTagState = .failed(message: "Invalid model endpoint.")
+            return
+        }
+        visionTagState = .loading
+        Task {
+            do {
+                let tags = try await VisionTagLoader.listInstalledVisionTags(endpoint: endpoint)
+                await MainActor.run {
+                    visionTags = tags
+                    visionTagState = .loaded
+                }
+            } catch {
+                let message = (error as? SidecarError)?.message ?? error.localizedDescription
+                await MainActor.run {
+                    visionTags = []
+                    visionTagState = .failed(message: message)
+                }
+            }
+        }
     }
 }

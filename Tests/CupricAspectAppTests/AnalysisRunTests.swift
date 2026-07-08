@@ -23,6 +23,36 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(configuration.outputDir, "/tmp/out")
     }
 
+    @MainActor
+    func testModelOverrideResolvesForThisRunOnly() throws {
+        let options = AnalysisOptions()
+        options.modelOverride = "override:model"
+
+        let configuration = try options.buildConfiguration(recursive: true, outputDir: nil)
+
+        XCTAssertEqual(configuration.model, "override:model")
+    }
+
+    @MainActor
+    func testNilModelOverrideFallsBackToResolvedConfigurationModel() throws {
+        let expected = try ConfigurationResolver.resolve().model
+        let options = AnalysisOptions()
+
+        let configuration = try options.buildConfiguration(recursive: true, outputDir: nil)
+
+        XCTAssertEqual(configuration.model, expected)
+    }
+
+    @MainActor
+    func testLoadResolvedDefaultsPreservesRunScopedModelOverride() {
+        let options = AnalysisOptions()
+        options.modelOverride = "override:model"
+
+        options.loadResolvedDefaults()
+
+        XCTAssertEqual(options.modelOverride, "override:model")
+    }
+
     func testOutcomeReductionCountsStatusesAndAggregatesErrorCodes() {
         func record(_ status: ProgressStatus, codes: [SidecarErrorCode] = []) -> ProgressRecord {
             ProgressRecord(
