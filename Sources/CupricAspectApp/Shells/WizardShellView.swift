@@ -19,6 +19,7 @@ struct WizardShellView: View {
     @State private var selectedAction: WizardAction?
     @State private var step = 1
     @State private var showAbout = false
+    @State private var showRerunConfirmation = false
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @Environment(\.colorScheme) private var colorScheme
 
@@ -134,6 +135,18 @@ struct WizardShellView: View {
         }
         .sheet(isPresented: $showPlanSheet) {
             ChangePlanSheet(export: exportModel)
+        }
+        .confirmationDialog(
+            rerunConfirmationTitle,
+            isPresented: $showRerunConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Re-run", role: .destructive) {
+                startRun()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(rerunConfirmationMessage)
         }
     }
 
@@ -338,7 +351,9 @@ struct WizardShellView: View {
 
     // MARK: - Footer
 
-    private var backEnabled: Bool { step > 1 && step != 4 }
+    private var backEnabled: Bool {
+        WizardNavigation.backTarget(from: step, phase: runModel.phase) != nil
+    }
 
     private var primaryEnabled: Bool {
         switch step {
@@ -399,15 +414,15 @@ struct WizardShellView: View {
         case 3 where selectedAction == .apply:
             startExport()
         case 3:
-            guard let source = importModel.sourceFolder else { return }
-            runModel.start(
-                options: options,
-                inputPath: source.path,
-                recursive: importModel.recursive,
-                outputDir: importModel.outputFolder?.path,
-                expectedTotal: importModel.assets.count
-            )
-            step = 4
+            if WizardNavigation.needsRerunConfirmation(
+                phase: runModel.phase,
+                hasReview: reviewModel.session != nil,
+                hasNormalizationSession: normalizationModel.session != nil
+            ) {
+                showRerunConfirmation = true
+            } else {
+                startRun()
+            }
         case 5 where step5WriteAvailable:
             startExport()
         case 5:
@@ -424,10 +439,35 @@ struct WizardShellView: View {
         }
     }
 
+    private var rerunConfirmationTitle: String {
+        selectedAction == .normalize ? "Re-run normalization?" : "Re-run the analysis?"
+    }
+
+    private var rerunConfirmationMessage: String {
+        if selectedAction == .normalize {
+            return "This discards the current normalization session and Inspector outcomes."
+        }
+        return "This discards the current results and \(reviewModel.verdicts.count) review decisions."
+    }
+
+    private func startRun() {
+        guard let source = importModel.sourceFolder else { return }
+        runModel.start(
+            options: options,
+            inputPath: source.path,
+            recursive: importModel.recursive,
+            outputDir: importModel.outputFolder?.path,
+            expectedTotal: importModel.assets.count
+        )
+        step = 4
+    }
+
     private var footerBar: some View {
         HStack(spacing: 14) {
             Button {
-                if backEnabled { step -= 1 }
+                if let target = WizardNavigation.backTarget(from: step, phase: runModel.phase) {
+                    step = target
+                }
             } label: {
                 Text("‹ Back")
                     .font(.system(size: 12.5, weight: .semibold))
