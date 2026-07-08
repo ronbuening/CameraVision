@@ -18,7 +18,7 @@ env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 
 ## Test Conventions
 
-- Tests live in `Tests/AISidecarCoreTests`, one file per subject (`FooTests.swift` for `Foo.swift`). Shared helpers use the `*TestSupport.swift` / `*Assertions.swift` pattern (`XMPAssertions`, `VocabularyTestSupport`, `TestImageFixtures`, `Phase3NormalizationTestSupport`).
+- Core/CLI tests live in `Tests/AISidecarCoreTests`; GUI model tests live in `Tests/CupricAspectAppTests` (same offline/deterministic rules; `swift test` runs both). One file per subject (`FooTests.swift` for `Foo.swift`). Shared helpers use the `*TestSupport.swift` / `*Assertions.swift` pattern (`XMPAssertions`, `VocabularyTestSupport`, `TestImageFixtures`, `Phase3NormalizationTestSupport`).
 - Fixtures live in `Tests/AISidecarCoreTests/Fixtures/` (vocabularies, golden sidecars, recorded model responses) and load via `Bundle.module`.
 - **Golden tests** (`GoldenSidecarTests`, report/summary tests) assert serialized artifact output. If your change diffs a golden fixture, that is a deliberate schema/behavior decision — update the fixture explicitly and say so in the PR, never regenerate blindly.
 - **Model behavior** is tested with mock runners and recorded-fixture replay from `ModelRuntime` — never a live model.
@@ -32,6 +32,7 @@ swift run aisidecar analyze --help
 swift run aisidecar write-xmp --help
 swift run aisidecar normalize --help
 swift run aisidecar apply-session --help
+swift run aisidecar explain-session --help
 swift run aisidecar benchmark --help
 swift run aisidecar purge --help
 swift run aisidecar cleanup --help
@@ -71,10 +72,22 @@ swift run aisidecar normalize <image-or-folder> --mode both --output-dir <tmp-ou
 ```bash
 # Kill mid-analyze, resume, CLI parity, no-database check (repeatable):
 Scripts/m8-kill-relaunch-check.sh [count] [model]
-# Synthetic scale fixture for grid/queue checks (M3/M11):
+# Synthetic scale fixture for grid/queue checks (M3/M11); --sidecar-template patches a
+# real pipeline sidecar per image so full review sessions can be fabricated (B0-6):
 swift Scripts/generate-synthetic-fixture.swift <dir> [count]
+# Env-gated review scale test (B0-6; needs a generated fixture dir):
+CUPRIC_SCALE_TESTS=1 CUPRIC_SCALE_DIR=<fixture-dir> swift test
 # GUI dev hooks: CUPRIC_IMPORT_PATH=<folder> auto-imports on launch;
 # CUPRIC_DEBUG_AUTORUN=1 [CUPRIC_DEBUG_ACTION=analyze|write|normalize] runs the wizard flow.
+```
+
+### Packaging checks (B0-1)
+
+```bash
+# Resource-bundle relocation proof (both relocated layouts + negative control):
+Scripts/wi2-relocation-check.sh
+# Assemble dist/CupricAspect.app + DMG (ad-hoc signs by default; --sign <identity> for Developer ID):
+Scripts/build-release.sh
 ```
 
 ## Performance Verification

@@ -1,6 +1,6 @@
 # Architecture Map
 
-What lives where in `AISidecarCore` and `AISidecarCLI`, and which types are the entry points. Read this before changing code in an unfamiliar module; read the phase requirements docs (see AGENTS.md index) before changing behavior.
+What lives where in `AISidecarCore`, `AISidecarCLI`, and `CupricAspectApp`, and which types are the entry points. Read this before changing code in an unfamiliar module; read the phase requirements docs (see AGENTS.md index) before changing behavior.
 
 ## Big Picture
 
@@ -21,22 +21,22 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
 
 | Directory | Owns | Key types |
 |---|---|---|
-| `Configuration/` | Config models, precedence (CLI > env > file > default), invocation validation | `ConfigurationResolver`, `RunConfiguration`/`ResolvedRunConfiguration`, `XMPExportConfiguration`, `NormalizationConfiguration`, `InvocationRules` |
-| `FileScanning/` | Folder scan, supported extensions, source records | `ImageScanner`, `SourceImage`, `ScanResult` |
+| `Configuration/` | Config models, precedence (CLI > env > file > default), invocation validation, config-file editing | `ConfigurationResolver`, `AppConfig`, `ConfigFileEditor`, `RunConfiguration`/`ResolvedRunConfiguration`, `XMPExportConfiguration`, `NormalizationConfiguration`, `InvocationRules` |
+| `FileScanning/` | Folder scan, supported extensions, source records, no-hash inventory scan | `ImageScanner` (+ `inventory(inputPath:recursive:)` → `ScanInventory`, CORE-5), `SourceImage`, `ScanResult` |
 | `Identity/` | Source content identity hashing (fast/sha256 policies) | `SourceIdentity` |
 | `Rendering/` | Model-input profiles, render recipes, whole-image rendering, derivative cache | `ImageRenderer`, `DerivativeCache`, `ModelInputProfileRegistry`, `RenderRecipe` |
 | `SubjectIsolation/` | Apple Vision foreground masks, instance selection, two-resolution subject crops | `SubjectIsolationService`, `AppleVisionForegroundMaskProvider`, `InstanceSelectionPolicy` |
 | `ModelRuntime/` | Ollama HTTP client, prompt/schema registry, schema validation + response repair, mock runners | `OllamaVisionRunner`, `OllamaHTTPTransport`, `VisionModelRunner` (protocol), `PromptRegistry`, `JSONSchemaValidator` |
-| `Sidecars/` | Raw `.ai.json` naming, schema records, schema-evolution rewrites, atomic writes | `RawJSONSidecar`, `RawJSONSidecarWriter/Reader`, `RawJSONSidecarInputResolver`, `AtomicFileWriter`, `SidecarNaming` |
+| `Sidecars/` | Raw `.ai.json` naming, schema records, schema-evolution rewrites, atomic writes, export stamps | `RawJSONSidecar`, `RawJSONSidecarWriter/Reader`, `RawJSONSidecarInputResolver`, `AtomicFileWriter`, `SidecarNaming`, `RawSidecarExportStamp` (CORE-4 `xmp_export` block) |
 | `Metadata/` | Phase 2: candidate extraction, keyword policy, XMP naming/grouping, owned XMP parser/writer engine, backups, merge validation | `CandidateExtractor`, `MetadataWriteEngine` (protocol), `OwnedXMPSidecarEngine`, `XMPDocumentParser/Writer`, `XMPKeywordReader/Merger`, `XMPMetadataSnapshot`, `XMPUnmanagedContentFingerprint`, `XMPBackupManager`, `XMPChangePlan`, `SameBaseNameGroupResolver` |
-| `Normalization/` | Phase 3: vocabulary load/index/validate, canonicalization, affinity graph, consensus, session documents | `VocabularyLoader/Index/Validator`, `VocabularyTextFolder`, `CandidateCanonicalizer`, `AssetAffinityGraph`, `BatchConsensusEngine`, `NormalizationSessionDocument`, `NormalizedXMPChangePlanner` |
+| `Normalization/` | Phase 3: vocabulary load/index/validate, canonicalization, affinity graph, consensus, session documents, decision explainer, GUI review application | `VocabularyLoader/Index/Validator`, `VocabularyTextFolder`, `CandidateCanonicalizer`, `AssetAffinityGraph`, `BatchConsensusEngine`, `NormalizationSessionDocument`, `NormalizedXMPChangePlanner`, `NormalizationDecisionExplainer` (CORE-6), `SessionReview` (CORE-7) |
 | `Pipeline/` | Orchestration of everything above + interruption handling | see entry-point table below |
 | `Reporting/` | Injectable logger, JSONL progress logs, reports, summaries, schema identifiers | `Logger` (injectable sink), `ProgressLog`, `JSONLWriter`, `BatchSummary`, `XMPExportReport`, `NormalizationReport`, `ArtifactNames` |
 | `Cleanup/` | Scoped removal of owned raw sidecars and run artifacts | `ArtifactCleanup` |
 | `Benchmarking/` | Milestone 9a benchmark harness | `Milestone9BenchmarkRunner` |
 | `Errors/` | Project-wide structured error codes (additive only, stable raw strings) | `SidecarError` |
-| `Support/` | Shared JSON encoder/decoder factories, timestamps | `JSONCoding`, `Timestamp` |
-| `Resources/` | Bundled prompts, response schemas, JSON schemas, default vocabulary (~5.8 MB), loaded via `Bundle.module` | — |
+| `Support/` | Shared JSON encoder/decoder factories, timestamps, relocation-safe resource locator, product version | `JSONCoding`, `Timestamp`, `AISidecarResourceBundle`, `AISidecarVersion` |
+| `Resources/` | Bundled prompts, response schemas, JSON schemas, default vocabulary (~5.8 MB) | loaded via `AISidecarResourceBundle.current` (search order: app `Contents/Resources` → executable-adjacent → `../Resources` → `Bundle.module`; invariant 18) |
 
 ## Pipeline Entry Points
 
@@ -44,9 +44,10 @@ All results are `Sendable`; no `@MainActor` coupling; Core never prints directly
 
 | Pipeline | Entry | Async | Purpose |
 |---|---|---|---|
-| `AnalyzePipeline` | `run(inputPath:configuration:interruptionMonitor:)` | yes | Phase 1 full analyze → `.ai.json` |
+| `AnalyzePipeline` | `run(inputPath:configuration:interruptionMonitor:writesBatchArtifacts:progressHandler:)` | yes | Phase 1 full analyze → `.ai.json`; per-asset `ProgressRecord` callback (CORE-1/2) |
 | `XMPExportPipeline` | `runFromJSON(...)` / `runResolvedInputs(...)` | no | Phase 2 export; `writesBatchArtifacts: false` suppresses batch artifact files |
 | `NormalizePipeline` | `runSessionOnly(...)` / `runDryRun(...)` / `runWritePlan(...)` | no | Phase 3 session, dry-run plan, or write plan |
+| `NormalizeAndWritePipeline` | `run(...)` | no | Normalize → export composition |
 | `ApplySessionPipeline` | `run(...)` | no | Re-apply a stored session, no model runs |
 | `AnalyzeAndXMPPipeline` | `run(...)` | yes | analyze + write-xmp in one command |
 | `AnalyzeAndNormalizePipeline` | `run(...)` | yes | analyze + normalize (+ export) in one command |
@@ -55,7 +56,27 @@ All results are `Sendable`; no `@MainActor` coupling; Core never prints directly
 
 ## CLI Layer (Sources/AISidecarCLI)
 
-One file per subcommand (`AnalyzeCommand`, `WriteXMPCommand`, `NormalizeCommand`, `ApplySessionCommand`, `BenchmarkCommand`, `PurgeCommand`, `CleanupCommand`) plus `SharedOptions`. The CLI does argument parsing, invocation-request building, and stdout presentation only — reusable behavior belongs in Core.
+One file per subcommand (`AnalyzeCommand`, `WriteXMPCommand`, `NormalizeCommand`, `ApplySessionCommand`, `ExplainSessionCommand`, `BenchmarkCommand`, `PurgeCommand`, `CleanupCommand`) plus `SharedOptions`. The CLI does argument parsing, invocation-request building, and stdout presentation only — reusable behavior belongs in Core.
+
+## GUI Layer (Sources/CupricAspectApp)
+
+Presentation and state orchestration only (invariant 13); all processing stays in Core. The app has its own `AGENTS.md` in that directory.
+
+| Directory | Owns | Key types |
+|---|---|---|
+| `App/` | `@main` entry, root shell switcher | `CupricAspectApp`, `RootShellView` |
+| `DesignSystem/` | Design tokens (doc 07 §3), aperture component (§5) | `Theme`, `ApertureView` |
+| `Shells/` | Wizard chrome (step rail, footer nav); Studio chrome is M9 | `WizardShellView`, `StudioShellView` |
+| `Features/Import/` | Folder import, sidecar-derived asset queue, grid/list | `FolderImportModel`, `AssetQueue`, `AssetGridView`, `Step1PhotosView` |
+| `Features/Run/` | Analysis job engine, options, run views, runtime guidance | `AnalysisRunModel`, `RuntimeGuidanceModel`, `WizardAction`, Steps 2–5 views |
+| `Features/Preview/` | Thumbnails, asset preview with subject derivative | `ThumbnailStore`, `AssetPreviewDetails`, `AssetPreviewSheet` |
+| `Features/Review/` | Candidate review, verdicts/edits, autosave/recovery | `ReviewModel`, `Step5ReviewView` |
+| `Features/Normalize/` | Normalization Inspector, session context panel | `NormalizationModel`, `NormalizationInspectorView`, `SessionContextPanel` |
+| `Features/Export/` | Change-plan-fronted writes, export reports | `ExportModel`, `ChangePlanSheet`, `Step3ApplyView` |
+| `Features/Settings/` | Settings sheet, config.json write-through, model picker | `SettingsModel`, `SettingsSheet` |
+| `Support/` | File logging (5 MB cap + rotation), state-dir housekeeping | `FileLogSink` (`GUILog.swift`), `StateHousekeeping` |
+
+GUI model tests live in `Tests/CupricAspectAppTests` (offline, deterministic — same rules as Core tests).
 
 ## Artifacts and File Locations
 
@@ -66,4 +87,6 @@ One file per subcommand (`AnalyzeCommand`, `WriteXMPCommand`, `NormalizeCommand`
 | Progress log / report / summary | `*-progress-*.jsonl` / `*-report-*.json` / `*-summary-*.md` (names in `Reporting/ArtifactNames.swift`) |
 | Normalization session | `normalization-session-*.json`, reusable by `apply-session` |
 | Derivative cache | `~/Library/Caches/aisidecar/derivatives` (configurable), manifest JSON + `aisidecar purge` lifecycle |
-| Config file | `~/Library/Application Support/aisidecar/config.json` (configurable) |
+| Config file | `~/Library/Application Support/aisidecar/config.json` (configurable; the GUI Settings sheet writes through to the same file via `ConfigFileEditor`) |
+| GUI state | `~/Library/Application Support/CupricAspect/` — recovery session, per-run artifact dirs (pruned after 7 days by `StateHousekeeping`), `logs/` diagnostic log |
+| Packaged app | `dist/CupricAspect.app` from `Scripts/build-release.sh` — GUI at `Contents/MacOS`, CLI at `Contents/Helpers/aisidecar`, ONE shared resource bundle in `Contents/Resources` |

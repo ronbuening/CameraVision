@@ -212,6 +212,8 @@ The MVP feature flow is complete (M0–M8a). B0 turns it into something that can
 
 **Not in B0:** Studio (M9), the database (M10), vocabulary tooling, embedded-CLI install action (WI-3), Sparkle/auto-update, CI. Beta distribution is a signed DMG handed out directly.
 
+**Post-review gate (2026-07-07):** a full-codebase review after B0 found two GUI ship-blockers (wizard Back dead-state; broken review-recovery flow) plus a Core crash bug and four tester-facing silent failures. Milestone **R1** in `agent_docs/08-post-review-hardening-plan.md` must land before the `v0.1.0-beta.1` tag; B0-5 evidence and signing then proceed as planned. Hardening milestones R2–R4 slot in before M9.
+
 ### M9 — Studio shell (FR4-040, FR4-041, AC4-021)
 
 - Build the Studio chrome per design doc §7: 214px sidebar, centered window title, per-view sticky run bars; embed the existing `Features/` views (they were built shell-agnostic in M1–M8 — this milestone is chrome and navigation, not feature work).
