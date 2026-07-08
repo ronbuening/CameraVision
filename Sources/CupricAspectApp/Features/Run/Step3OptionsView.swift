@@ -266,7 +266,7 @@ struct Step3OptionsView: View {
                     Text("Advanced flags")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(theme.text)
-                    Text("gps · existing sidecars · concurrency")
+                    Text("gps · existing sidecars · existing xmp · concurrency")
                         .font(.system(size: 11))
                         .foregroundStyle(theme.textFaint)
                     Spacer()
@@ -296,6 +296,13 @@ struct Step3OptionsView: View {
                         }
                     }
                     GridRow {
+                        advancedGroup("EXISTING XMP") {
+                            CVSegmentedControl(
+                                options: XMPConflictPolicy.allCases,
+                                selection: $options.xmpConflictPolicy,
+                                label: xmpPolicyLabel
+                            )
+                        }
                         advancedGroup("CONCURRENCY") {
                             HStack(spacing: 0) {
                                 stepButton("−") { options.concurrency = max(1, options.concurrency - 1) }
@@ -308,10 +315,13 @@ struct Step3OptionsView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
                         }
-                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                     }
                 }
                 .padding(EdgeInsets(top: 14, leading: 17, bottom: 18, trailing: 17))
+                Text("Merge keeps keywords already in your .xmp; Backup & Merge writes a .xmp.bak first.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.textFaint)
+                    .padding(EdgeInsets(top: 0, leading: 17, bottom: 16, trailing: 17))
             }
         }
         .background(theme.panel)
@@ -331,6 +341,14 @@ struct Step3OptionsView: View {
             .font(.system(size: 10.5, weight: .semibold))
             .kerning(0.5)
             .foregroundStyle(theme.textFaint)
+    }
+
+    private func xmpPolicyLabel(_ policy: XMPConflictPolicy) -> String {
+        switch policy {
+        case .fail: "Fail"
+        case .merge: "Merge"
+        case .backupAndMerge: "Backup & Merge"
+        }
     }
 
     private func stepButton(_ glyph: String, action: @escaping () -> Void) -> some View {

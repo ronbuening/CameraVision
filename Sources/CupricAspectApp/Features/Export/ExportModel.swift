@@ -26,6 +26,7 @@ final class ExportModel {
     private var pendingSessionPath: String?
     private var pendingSourceRoot: String?
     private var pendingOutputDir: String?
+    private var pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
     private let stateDirectory: URL
 
     init(stateDirectory: URL = ReviewModel.defaultStateDirectory) {
@@ -62,8 +63,28 @@ final class ExportModel {
         phase = .failed(message: error.message)
     }
 
+    nonisolated static func applyConfiguration(
+        sourceRoot: String,
+        outputDir: String?,
+        dryRun: Bool,
+        xmpConflictPolicy: XMPConflictPolicy
+    ) -> ResolvedApplySessionConfiguration {
+        var configuration = ResolvedApplySessionConfiguration.builtInDefaults
+        configuration.sourceRoot = sourceRoot
+        configuration.outputDir = outputDir
+        configuration.dryRun = dryRun
+        configuration.xmpConflictPolicy = xmpConflictPolicy
+        configuration.backupSidecars = true
+        return configuration
+    }
+
     /// FR4-029: dry-run the session and hold the change plan for review.
-    func plan(session: NormalizationSessionDocument, sourceRoot: String, outputDir: String?) {
+    func plan(
+        session: NormalizationSessionDocument,
+        sourceRoot: String,
+        outputDir: String?,
+        xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    ) {
         guard phase != .planning, phase != .writing else { return }
         phase = .planning
         changePlan = nil
@@ -76,10 +97,12 @@ final class ExportModel {
                     try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
                     let sessionPath = sessionDir.appendingPathComponent("export-\(UUID().uuidString).json").path
                     try NormalizationSessionWriter().write(session, to: sessionPath)
-                    var configuration = ResolvedApplySessionConfiguration.builtInDefaults
-                    configuration.sourceRoot = sourceRoot
-                    configuration.outputDir = outputDir
-                    configuration.dryRun = true
+                    let configuration = ExportModel.applyConfiguration(
+                        sourceRoot: sourceRoot,
+                        outputDir: outputDir,
+                        dryRun: true,
+                        xmpConflictPolicy: xmpConflictPolicy
+                    )
                     let result = try ApplySessionPipeline(
                         xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
                     ).run(sessionPath: sessionPath, configuration: configuration)
@@ -89,6 +112,7 @@ final class ExportModel {
                 pendingSessionPath = sessionPath
                 pendingSourceRoot = sourceRoot
                 pendingOutputDir = outputDir
+                pendingXMPConflictPolicy = xmpConflictPolicy
                 phase = .planReady
             } catch {
                 phase = .failed(message: (error as? SidecarError)?.message ?? error.localizedDescription)
@@ -106,13 +130,16 @@ final class ExportModel {
         }
         phase = .writing
         let outputDir = pendingOutputDir
+        let xmpConflictPolicy = pendingXMPConflictPolicy
         Task {
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
-                    var configuration = ResolvedApplySessionConfiguration.builtInDefaults
-                    configuration.sourceRoot = sourceRoot
-                    configuration.outputDir = outputDir
-                    configuration.dryRun = false
+                    let configuration = ExportModel.applyConfiguration(
+                        sourceRoot: sourceRoot,
+                        outputDir: outputDir,
+                        dryRun: false,
+                        xmpConflictPolicy: xmpConflictPolicy
+                    )
                     return try ApplySessionPipeline(
                         xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
                     ).run(sessionPath: sessionPath, configuration: configuration)
@@ -136,5 +163,6 @@ final class ExportModel {
         changePlan = nil
         exportReport = nil
         pendingSessionPath = nil
+        pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
     }
 }

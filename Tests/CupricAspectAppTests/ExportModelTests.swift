@@ -156,6 +156,21 @@ final class ExportModelTests: XCTestCase {
         )
     }
 
+    func testApplyConfigurationCarriesSelectedXMPConflictPolicy() {
+        let configuration = ExportModel.applyConfiguration(
+            sourceRoot: "/source",
+            outputDir: "/out",
+            dryRun: true,
+            xmpConflictPolicy: .fail
+        )
+
+        XCTAssertEqual(configuration.sourceRoot, "/source")
+        XCTAssertEqual(configuration.outputDir, "/out")
+        XCTAssertTrue(configuration.dryRun)
+        XCTAssertEqual(configuration.xmpConflictPolicy, .fail)
+        XCTAssertTrue(configuration.backupSidecars)
+    }
+
     /// The default write path merges into pre-existing XMP: the dry-run plan
     /// carries the merge preview the change-plan sheet reveals (existing
     /// keywords kept, not a new file), and the write preserves them on disk.

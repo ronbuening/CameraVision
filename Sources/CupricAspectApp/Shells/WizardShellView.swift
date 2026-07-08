@@ -335,7 +335,8 @@ struct WizardShellView: View {
         exportModel.plan(
             session: session,
             sourceRoot: source.path,
-            outputDir: importModel.outputFolder?.path
+            outputDir: importModel.outputFolder?.path,
+            xmpConflictPolicy: options.xmpConflictPolicy
         )
     }
 

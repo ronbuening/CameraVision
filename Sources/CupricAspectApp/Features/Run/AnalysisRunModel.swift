@@ -14,6 +14,7 @@ final class AnalysisOptions {
     var concurrency = 1
     var advancedOpen = false
     var modelOverride: String?
+    var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
 
     /// Resolved display values (model tag, endpoint) from the config chain.
     private(set) var resolvedModel = ""

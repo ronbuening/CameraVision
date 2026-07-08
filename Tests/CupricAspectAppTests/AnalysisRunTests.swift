@@ -53,6 +53,16 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(options.modelOverride, "override:model")
     }
 
+    @MainActor
+    func testXMPConflictPolicyDefaultMatchesCoreApplySessionDefault() {
+        let options = AnalysisOptions()
+
+        XCTAssertEqual(
+            options.xmpConflictPolicy,
+            ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+        )
+    }
+
     func testOutcomeReductionCountsStatusesAndAggregatesErrorCodes() {
         func record(_ status: ProgressStatus, codes: [SidecarErrorCode] = []) -> ProgressRecord {
             ProgressRecord(
