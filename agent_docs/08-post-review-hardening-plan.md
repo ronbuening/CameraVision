@@ -20,7 +20,7 @@ Overall verdict: the safety core is genuinely strong — the XMP write chain (pr
 
 | Milestone | Gate | Contents |
 |---|---|---|
-| **R1 — Beta ship-blockers** | must land **before** the `v0.1.0-beta.1` tag | 9 items: GUI dead states, silent failures a tester will hit, one Core crash bug, plus two Options-page alpha fixes (per-run model override, visible XMP conflict policy) |
+| **R1 — Beta ship-blockers** | must land **before** the `v0.1.0-beta.1` tag | 10 items: GUI dead states, silent failures a tester will hit, one Core crash bug, plus three Options/write alpha fixes (per-run model override, visible XMP conflict policy, opt-in post-write cleanup) |
 | *(B0-5 + signing + tag)* | manual, per phase-4 plan | LR/C1 round trip, Developer ID sign/notarize, tag |
 | **R2 — GUI hardening round 2** | first post-beta code milestone | remaining GUI mediums/lows |
 | **R3 — CLI process-boundary hardening** | after R2 (independent, can swap) | exit codes, cancellation, retries, scan robustness |
@@ -33,7 +33,7 @@ Rules for every item: one work item at a time (invariant 17); each item independ
 
 Work strictly top to bottom. Within a milestone, work items in their numbered order unless an item's text says otherwise.
 
-1. **R1-1 → R1-9, in order.** These gate the beta tag; nothing else comes first. R1-1, R1-2, R1-4, R1-5 all touch `WizardShellView.swift` — doing them in order avoids merge churn. R1-3 (Core, `JSONLWriter`) is independent and may be done at any point inside R1. R1-3 also edits the same lines as efficiency-plan P4 (fsync cadence) — R1-3 lands first; P4 waits for its slot in step 7. R1-8 and R1-9 both edit `Step3OptionsView.swift` (Options page); R1-8 also touches `AnalysisOptions`/`AnalysisRunModel` and R1-9 also touches `ExportModel` — do R1-8 then R1-9 to keep the Options-view edits in one line.
+1. **R1-1 → R1-10, in order.** These gate the beta tag; nothing else comes first. R1-1, R1-2, R1-4, R1-5 all touch `WizardShellView.swift` — doing them in order avoids merge churn. R1-3 (Core, `JSONLWriter`) is independent and may be done at any point inside R1. R1-3 also edits the same lines as efficiency-plan P4 (fsync cadence) — R1-3 lands first; P4 waits for its slot in step 7. R1-8 and R1-9 both edit `Step3OptionsView.swift` (Options page); R1-8 also touches `AnalysisOptions`/`AnalysisRunModel` and R1-9 also touches `ExportModel` — do R1-8 then R1-9 to keep the Options-view edits in one line. R1-10 also touches `ExportModel` plus `ChangePlanSheet.swift`; do it right after R1-9 so the two `ExportModel` edits (XMP policy, cleanup flag) land together.
 2. **R1 exit gate** (end of §2): full `swift test`, manual GUI pass over all four flows plus kill-relaunch-restore-export.
 3. **B0-5 + release (manual, Ron):** LR/C1 round-trip evidence per `agent_docs/release-evidence/`, Phase 1 M9 calibration evidence or explicit deferral note, Developer ID signing → notarization → stapling → `spctl --assess` pass, tag `v0.1.0-beta.1`, DMG handout. (Per the phase-4 plan B0 section.) While executing this step, write down the exact sequence as `agent_docs/release-checklist.md` (packaging-plan WI-7, pulled forward: the beta tag is the first real execution of that procedure; roadmap F4-R4 then extends the checklist rather than authoring it).
 4. **R2-1 → R2-7, in order.** First post-beta code milestone.
@@ -130,7 +130,17 @@ Work strictly top to bottom. Within a milestone, work items in their numbered or
 
 **Tests.** Unit-test the export configuration carries the selected `XMPConflictPolicy` (default `.backupAndMerge`) into `ResolvedApplySessionConfiguration`; keep the existing merge-preservation Core tests green (they already assert foreign-keyword retention and backup creation).
 
-**R1 exit gate:** all nine items landed, `swift test` green, one manual GUI pass over analyze/write/normalize/apply + kill-relaunch-restore-export. Then proceed to B0-5 evidence, signing, and the `v0.1.0-beta.1` tag per the phase-4 plan.
+### R1-10 — Offer post-write cleanup of intermediate sidecars and run artifacts (MEDIUM)
+
+**Finding.** After a Write XMP / Write normalized XMP run, the folder is left with the `.ai.json` raw sidecars and the run's `batch-progress-*.jsonl` / `batch-summary-*.json` / `xmp-export-*` / `normalization-*` artifacts alongside the delivered `.xmp` files. The final artifact the user wants is the `.xmp`; the intermediates are clutter once the XMP is written. The CLI already has a hardened, deliberately-narrow `cleanup` (`Sources/AISidecarCore/Cleanup/ArtifactCleanup.swift` — removes owned raw sidecars + progress logs/reports/summaries; never touches source images, `.xmp`, `.xmp.bak` backups, the derivative cache, debug derivatives, or reusable normalization session JSON), but the GUI exposes no way to run it. Alpha testers have no one-click way to tidy a folder after export.
+
+**Fix.** Add an opt-in **"Remove intermediate sidecars & run files after writing"** checkbox in the change-plan confirmation sheet (`ChangePlanSheet.swift`, beside the "Write N sidecars" button — the surface shared by both the review→write and normalize→write flows), **off by default**. When checked, and only after a **fully successful** write (no failed targets), run Core `ArtifactCleanup` over the run's artifact directory — the output directory when set, otherwise the source folder — honoring the import's recursive setting. GUI orchestration only: `ExportModel` gains a `cleanupAfterWrite` input and calls `ArtifactCleanup().run(rootPath:recursive:dryRun: false)`; no cleanup logic moves into the view (invariant 13). Cleanup must be reported (fold the removed count into the written banner: "… · N intermediate files removed") and must be non-fatal — a cleanup error after a successful write is a warning, never a rollback of the delivered XMP. A partial/failed write skips cleanup entirely (never drop provenance for images that didn't export). Add a caption stating the consequence: "Deletes the `.ai.json` sidecars and batch logs this run created — your photos, `.xmp` files, and backups are untouched. You'll need to re-analyze to review these images again." (`.ai.json` removal drops the FR4-049 `xmp_export` provenance and the audit trail — hence off by default and explicit.)
+
+**Acceptance.** With the box checked, a successful write leaves the `.xmp` outputs (and any `.xmp.bak`) in place and removes the run's `.ai.json` sidecars and batch/report/summary artifacts from the artifact directory; the banner reports the count. The normalization **session JSON is preserved** (Apply Prior Session still works afterward). With the box unchecked, nothing is deleted (today's behavior). A write with any failed target performs no cleanup. Unchecking is the default on every new plan.
+
+**Tests.** Model-level: a successful `ExportModel` write with `cleanupAfterWrite == true` invokes `ArtifactCleanup` over the correct root and surfaces the removed count; with a failed target, cleanup does not run; with the flag false, cleanup does not run. Reuse the existing `ArtifactCleanupTests` for the Core deletion semantics (owned-only, session-preserving) — do not duplicate them.
+
+**R1 exit gate:** all ten items landed, `swift test` green, one manual GUI pass over analyze/write/normalize/apply + kill-relaunch-restore-export. Then proceed to B0-5 evidence, signing, and the `v0.1.0-beta.1` tag per the phase-4 plan.
 
 ---
 
@@ -251,6 +261,7 @@ Every R-milestone ends with: `swift test` green; `swift run aisidecar --help`; `
 | GUI H1 (Back dead state) + alpha: re-run data-loss confirmation | R1-1 |
 | Alpha: Options per-run model override (dropdown) | R1-8 |
 | Alpha: Options XMP conflict policy visible, backup-and-merge default | R1-9 |
+| Alpha: opt-in post-write cleanup of intermediate sidecars/artifacts | R1-10 |
 | GUI H2 (recovery flow) | R1-2 |
 | Core #1 (JSONL crash) | R1-3 |
 | GUI M1 (normalize failure invisible) | R1-4 |

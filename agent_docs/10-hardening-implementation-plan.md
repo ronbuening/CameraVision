@@ -20,7 +20,7 @@ Each work item below carries: the goal, the verified current code, the concrete 
 
 | Step | Gate | Detail |
 |---|---|---|
-| R1-1 → R1-9 | gates the `v0.1.0-beta.1` tag | §Milestone R1 below |
+| R1-1 → R1-10 | gates the `v0.1.0-beta.1` tag | §Milestone R1 below |
 | R1 exit gate | manual + `swift test` | end of R1 section |
 | B0-5 + signing + tag | manual (Ron) | §2 below |
 | R2-1 → R2-7 | first post-beta code milestone | §Milestone R2 below |
@@ -46,7 +46,7 @@ Not agent work, but recorded here so the whole sequence lives in one document. P
 
 ## Milestone R1 — Beta ship-blockers
 
-R1 is the nine-item wave that gates the `v0.1.0-beta.1` tag (plan 08 §1.1/§2): four GUI dead-states or silent failures a beta tester will hit in the first hour, one Core crash bug, two review-semantics bugs, and two Options-page alpha fixes (R1-8 per-run model override, R1-9 visible XMP conflict policy). Entry criteria: `swift test` green at the current baseline. Execute **in order R1-1 → R1-9**: R1-1, R1-2, R1-4, and R1-5 all edit `Sources/CupricAspectApp/Shells/WizardShellView.swift`, and R1-2's recovery landing depends on R1-1's `WizardNavigation` helper. R1-3 (Core, `JSONLWriter`) is independent and may land at any point inside the wave. R1-8 and R1-9 both edit `Features/Run/Step3OptionsView.swift`; do them last and in that order (R1-8 → R1-9) to keep the Options-view edits in a single line — R1-8 also touches `AnalysisOptions`/`AnalysisRunModel`, R1-9 also touches `ExportModel`. All items respect invariant 13 (GUI is presentation/state only — no processing moves out of Core) and invariant 16 (each behavior change lands with tests).
+R1 is the ten-item wave that gates the `v0.1.0-beta.1` tag (plan 08 §1.1/§2): four GUI dead-states or silent failures a beta tester will hit in the first hour, one Core crash bug, two review-semantics bugs, and three Options/write alpha fixes (R1-8 per-run model override, R1-9 visible XMP conflict policy, R1-10 opt-in post-write cleanup). Entry criteria: `swift test` green at the current baseline. Execute **in order R1-1 → R1-10**: R1-1, R1-2, R1-4, and R1-5 all edit `Sources/CupricAspectApp/Shells/WizardShellView.swift`, and R1-2's recovery landing depends on R1-1's `WizardNavigation` helper. R1-3 (Core, `JSONLWriter`) is independent and may land at any point inside the wave. R1-8 and R1-9 both edit `Features/Run/Step3OptionsView.swift`; do them last and in that order (R1-8 → R1-9) to keep the Options-view edits in a single line — R1-8 also touches `AnalysisOptions`/`AnalysisRunModel`, R1-9 also touches `ExportModel`. R1-10 follows R1-9 (both touch `ExportModel`) and adds `Features/Export/ChangePlanSheet.swift`. All items respect invariant 13 (GUI is presentation/state only — no processing moves out of Core) and invariant 16 (each behavior change lands with tests).
 
 ### R1-1 — Wizard "Back" from Step 5 lands on a dead Working screen; re-run silently discards analysis (HIGH)
 
@@ -706,13 +706,59 @@ func buildConfiguration(recursive: Bool, outputDir: String?) throws -> ResolvedR
 
 **Commit.** `GUI R1-9: surface XMP conflict policy in Options → Advanced (default backup-and-merge)`
 
+### R1-10 — Opt-in post-write cleanup of intermediate sidecars and run artifacts (MEDIUM)
+
+**Goal.** A checkbox beside the change-plan "Write" button, off by default, that after a fully successful write removes the run's `.ai.json` raw sidecars and batch/report/summary artifacts from the artifact directory — reusing the hardened Core `ArtifactCleanup`, preserving `.xmp`, `.xmp.bak`, the derivative cache, and reusable session JSON. GUI orchestration only.
+
+**Files.**
+- `Sources/CupricAspectApp/Features/Export/ChangePlanSheet.swift:47-74` (footer — add the checkbox next to the Write button)
+- `Sources/CupricAspectApp/Features/Export/ExportModel.swift:97-135` (`confirmWrite` — run cleanup after `phase = .written` on a clean write; hold the flag and the removed count)
+- Reuse: `Sources/AISidecarCore/Cleanup/ArtifactCleanup.swift` (`ArtifactCleanup().run(rootPath:recursive:dryRun:)`) — do not re-implement or widen it
+- The wizard passes the import's `recursive` and the effective artifact root (`pendingOutputDir ?? pendingSourceRoot`) — `ExportModel` already retains `pendingSourceRoot`/`pendingOutputDir`
+
+**Current behavior (verified 2026-07-08).** `confirmWrite()` sets `phase = .written` and stops; nothing cleans the folder. `ArtifactCleanup` exists and is exercised by `ArtifactCleanupTests`, but only the CLI `cleanup` command calls it. The change-plan footer has Cancel + "Write N sidecars" and no other controls.
+
+**Change.**
+1. `ExportModel` gains `var cleanupAfterWrite = false` (bound to the checkbox) and `private(set) var cleanupRemovedCount: Int?`. In `confirmWrite()`, after the write task completes with `phase = .written` **and** the export report shows no failed targets, and only when `cleanupAfterWrite`, run cleanup off the main actor over the artifact root:
+
+```swift
+// after: exportReport = result.exportReport; phase = .written
+if cleanupAfterWrite, (result.exportReport?.failedCount ?? 0) == 0 {
+    let root = pendingOutputDir ?? pendingSourceRoot
+    if let root {
+        let report = try? await Task.detached(priority: .utility) {
+            try ArtifactCleanup().run(rootPath: root, recursive: recursive, dryRun: false)
+        }.value
+        cleanupRemovedCount = report?.removedCount
+        // a cleanup failure is a non-fatal warning; the delivered XMP already succeeded
+    }
+}
+```
+
+(`XMPExportReport.failedCount` is the accessor; thread `recursive` in from the wizard the same way `sourceRoot`/`outputDir` are already threaded into `plan`/`confirmWrite`. If the artifacts can land in both the source and a separate output dir, clean both — but only roots the run actually wrote to.)
+
+2. `ChangePlanSheet` footer: add a `Toggle` bound to `$export.cleanupAfterWrite` to the left of the Write button (or on the row above the summary), label "Remove intermediate sidecars & run files after writing", with a `.help(...)`/caption: "Deletes the `.ai.json` sidecars and batch logs this run created. Your photos, `.xmp` files, and backups are untouched. You'll need to re-analyze to review these images again." Default unchecked on every fresh plan (`ExportModel.reset()`/`cancelPlan()` clear it).
+
+3. The written banner (R1-5's composition function) gains "· N intermediate files removed" when `cleanupRemovedCount` is set and > 0. Keep R1-5's failure-aware tone — cleanup text is additive, never replaces the write summary.
+
+**Invariant/safety note.** Invariant 13: no deletion logic in the view — `ChangePlanSheet` only toggles a flag; `ExportModel` calls Core. `ArtifactCleanup` is already narrow (owned filename patterns only; never source images, `.xmp`, `.xmp.bak`, derivative cache, debug derivatives, or session JSON) — do **not** broaden it for the GUI. Cleanup runs **only** after a clean write (no failed targets) so provenance is never dropped for images that didn't export; it is non-fatal (a delivered XMP is never rolled back by a cleanup error). Off by default because deleting `.ai.json` drops the FR4-049 `xmp_export` provenance and the audit trail.
+
+**Tests.** `Tests/CupricAspectAppTests` — with a stubbed/temp fixture, `confirmWrite` + `cleanupAfterWrite == true` on a clean write invokes `ArtifactCleanup` over the expected root and records the removed count; a report with failed targets performs no cleanup; `cleanupAfterWrite == false` performs no cleanup; a session JSON in the folder survives. Reuse `ArtifactCleanupTests` for the owned-only/session-preserving deletion semantics — do not duplicate.
+
+**Acceptance.**
+- [ ] Change-plan sheet shows an unchecked "Remove intermediate sidecars & run files after writing" box beside Write, with the consequence caption.
+- [ ] Checked + successful write: `.ai.json` and batch/report/summary artifacts gone from the artifact dir; `.xmp`, `.xmp.bak`, and any normalization session JSON remain; banner reports the count.
+- [ ] Any failed target ⇒ no cleanup. Unchecked ⇒ no cleanup. The box is unchecked on every new plan.
+
+**Commit.** `GUI R1-10: opt-in post-write cleanup of intermediate sidecars via Core ArtifactCleanup`
+
 ### R1 exit gate
 
-All nine items landed, then in order:
+All ten items landed, then in order:
 
 1. **Automated:** `swift test` green (full suite). Then `swift run aisidecar --help` and `swift build --product CupricAspect` succeed (the standing R-milestone gate, plan 08 §7).
 2. **Manual GUI pass — analyze:** launch `CupricAspect` (or `CUPRIC_IMPORT_PATH=<fixture> CUPRIC_DEBUG_AUTORUN=1 CUPRIC_DEBUG_ACTION=analyze` per `agent_docs/testing-and-verification.md`) → Step 1 import a folder → Step 2 "Analyze" → Step 3 (the model card is a dropdown of installed vision tags, "this run only"; Advanced shows EXISTING XMP defaulting to Backup & Merge — R1-8/R1-9) → Start → run completes → Step 5 review shows chips. **Back from Step 5 lands on Step 3, primary enabled, review retained (R1-1); pressing Start again prompts "Re-run the analysis? … N review decisions" — Cancel keeps the data, Re-run proceeds (R1-1).** Done with unsaved verdicts asks first (R1-2 sign-off variant permitting).
-3. **Manual GUI pass — write:** same fixture, action "Write" → review → "Write XMP" → plan sheet → confirm → banner counts match the report. Confirm the write honored the Step-3 EXISTING XMP policy (a pre-existing foreign keyword survives; a `.xmp.bak` exists under Backup & Merge — R1-9). Repeat once with a **read-only output dir**: banner shows the warning tone with 0 written (R1-5); "Save session only" with no session is disabled (R1-6).
+3. **Manual GUI pass — write:** same fixture, action "Write" → review → "Write XMP" → plan sheet → confirm → banner counts match the report. Confirm the write honored the Step-3 EXISTING XMP policy (a pre-existing foreign keyword survives; a `.xmp.bak` exists under Backup & Merge — R1-9). Run once more with the plan sheet's **"Remove intermediate sidecars & run files after writing"** box checked: after a clean write the `.ai.json` sidecars and batch/report artifacts are gone, the `.xmp`/`.xmp.bak` and any session JSON remain, and the banner reports "N intermediate files removed" (R1-10). Repeat once with a **read-only output dir**: banner shows the warning tone with 0 written (R1-5), and **no** cleanup runs even if the box was checked (R1-10); "Save session only" with no session is disabled (R1-6).
 4. **Manual GUI pass — normalize:** action "Normalize" → run → Inspector. **Back from the Inspector (Step 5) lands on Step 3, then a re-run prompts before discarding the normalization session (R1-1).** Then set a **nonexistent vocabulary path** in the Inspector context and re-run: Step 3 shows the failure banner with the message (R1-4). "Apply to all photos" on an edited chip reports "Applied to N photos" (R1-7). Pick a non-default vision model in the Step-3 dropdown and confirm `config.json` is untouched afterward (R1-8).
 5. **Manual GUI pass — apply-session:** action "Apply" → Step 3 pick a saved session JSON → "Apply session" → plan sheet → confirm → written banner + report.
 6. **Kill-relaunch-restore-export:** run `Scripts/m8-kill-relaunch-check.sh` (needs Ollama + a vision model) for the SIGKILL/no-temp-file/no-database invariants; then the R1-2-specific manual leg: start a review, record a few verdicts (≥ the autosave threshold or wait for it), `kill -9` CupricAspect, relaunch → recovery banner → Restore → verdicts present, **"Write XMP" available**, export end-to-end → Done (no data-loss prompt after export).
