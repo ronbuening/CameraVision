@@ -14,6 +14,7 @@ struct Step5ReviewView: View {
     @State private var editing: ReviewModel.Chip?
     @State private var editText = ""
     @State private var editEverywhere = false
+    @State private var batchEditNotice: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -28,6 +29,13 @@ struct Step5ReviewView: View {
                 Text(error)
                     .font(.system(size: 12.5))
                     .foregroundStyle(theme.danger)
+                    .padding(.top, 12)
+            }
+
+            if let batchEditNotice {
+                Text(batchEditNotice)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(theme.accent.accent)
                     .padding(.top, 12)
             }
 
@@ -56,13 +64,15 @@ struct Step5ReviewView: View {
             TextField("Keyword", text: $editText)
             Button("Apply") {
                 if let chip = editing {
+                    batchEditNotice = nil
                     review.editKeyword(chip.decisionID, to: editText)
                 }
                 editing = nil
             }
             Button("Apply to all photos with “\(editing?.keyword ?? "")”") {
                 if let chip = editing {
-                    _ = review.editEverywhere(keyword: chip.keyword, to: editText)
+                    let applied = review.editEverywhere(keyword: chip.keyword, to: editText)
+                    batchEditNotice = "Applied to \(applied) photo(s)"
                 }
                 editing = nil
             }
@@ -91,8 +101,14 @@ struct Step5ReviewView: View {
                     .foregroundStyle(theme.textDim)
             }
             Spacer()
-            headerButton("Reject all", enabled: review.canSaveSession) { review.setAllVisible(.rejected) }
-            headerButton("Approve all", enabled: review.canSaveSession) { review.setAllVisible(.approved) }
+            headerButton("Reject all", enabled: review.canSaveSession) {
+                batchEditNotice = nil
+                review.setAllVisible(.rejected)
+            }
+            headerButton("Approve all", enabled: review.canSaveSession) {
+                batchEditNotice = nil
+                review.setAllVisible(.approved)
+            }
             headerButton("Import session…") { importSession() }
             headerButton("Save session only", filled: true, enabled: review.canSaveSession) { saveSession() }
         }
@@ -174,7 +190,10 @@ struct Step5ReviewView: View {
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(theme.textFaint)
                     Spacer()
-                    Button("Accept all") { review.acceptAll(assetID: row.assetID) }
+                    Button("Accept all") {
+                        batchEditNotice = nil
+                        review.acceptAll(assetID: row.assetID)
+                    }
                         .buttonStyle(.plain)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(theme.textDim)
@@ -203,6 +222,7 @@ struct Step5ReviewView: View {
         case .deferred: ("~", theme.accent.accent, theme.accent.soft, theme.accent.accent)
         }
         return Button {
+            batchEditNotice = nil
             review.toggle(chip.decisionID)
         } label: {
             HStack(spacing: 6) {
@@ -225,9 +245,18 @@ struct Step5ReviewView: View {
         .buttonStyle(.plain)
         .help(chip.detail)
         .contextMenu {
-            Button("Approve") { review.setVerdict(.approved, for: chip.decisionID) }
-            Button("Reject") { review.setVerdict(.rejected, for: chip.decisionID) }
-            Button("Defer") { review.setVerdict(.deferred, for: chip.decisionID) }
+            Button("Approve") {
+                batchEditNotice = nil
+                review.setVerdict(.approved, for: chip.decisionID)
+            }
+            Button("Reject") {
+                batchEditNotice = nil
+                review.setVerdict(.rejected, for: chip.decisionID)
+            }
+            Button("Defer") {
+                batchEditNotice = nil
+                review.setVerdict(.deferred, for: chip.decisionID)
+            }
             Divider()
             Button("Edit…") {
                 editText = chip.keyword

@@ -238,11 +238,47 @@ final class ReviewModelTests: XCTestCase {
     @MainActor
     func testEditEverywhereAppliesToMatchingKeywordsOnly() throws {
         let model = makeModel()
-        model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))
-        let applied = model.editEverywhere(keyword: "BIRD", to: "Owl")
+        var session = try makeBaseSession(terms: ["bird", "tree"])
+        let birdDecision = try XCTUnwrap(session.perAssetDecisions.first { $0.flatKeyword == "bird" })
+        var withheldBird = birdDecision
+        withheldBird.decisionID = "decision-withheld-bird"
+        withheldBird.status = .withheld
+        session.perAssetDecisions.append(withheldBird)
+
+        model.adopt(session: session)
+        let applied = model.editEverywhere(keyword: "BIRD", to: " Owl ")
         XCTAssertEqual(applied, 1)
         let chips = try XCTUnwrap(model.assetRows.first?.chips)
         XCTAssertTrue(chips.contains { $0.keyword == "Owl" })
         XCTAssertTrue(chips.contains { $0.keyword == "tree" })
+
+        let reviewed = try XCTUnwrap(model.reviewedSession)
+        let withheld = try XCTUnwrap(reviewed.perAssetDecisions.first { $0.decisionID == "decision-withheld-bird" })
+        XCTAssertEqual(withheld.status, .withheld)
+        XCTAssertEqual(withheld.flatKeyword, "bird")
+    }
+
+    @MainActor
+    func testEditEverywhereMatchesCanonicalAndSourceTextFallbacks() throws {
+        let model = makeModel()
+        var session = try makeBaseSession(terms: ["canonical", "source"])
+        session.perAssetDecisions[0].flatKeyword = nil
+        session.perAssetDecisions[0].canonicalPath = "Subject|Wildlife|Birds"
+        session.perAssetDecisions[0].sourceText = nil
+        session.perAssetDecisions[1].flatKeyword = nil
+        session.perAssetDecisions[1].canonicalPath = nil
+        session.perAssetDecisions[1].sourceText = "visible sign"
+
+        model.adopt(session: session)
+        var chips = try XCTUnwrap(model.assetRows.first?.chips)
+        XCTAssertTrue(chips.contains { $0.keyword == "Subject|Wildlife|Birds" })
+        XCTAssertTrue(chips.contains { $0.keyword == "visible sign" })
+
+        XCTAssertEqual(model.editEverywhere(keyword: "Subject|Wildlife|Birds", to: "Birds"), 1)
+        XCTAssertEqual(model.editEverywhere(keyword: "visible sign", to: "Signage"), 1)
+
+        chips = try XCTUnwrap(model.assetRows.first?.chips)
+        XCTAssertTrue(chips.contains { $0.keyword == "Birds" && $0.originalKeyword == "Subject|Wildlife|Birds" })
+        XCTAssertTrue(chips.contains { $0.keyword == "Signage" && $0.originalKeyword == "visible sign" })
     }
 }

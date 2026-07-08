@@ -81,9 +81,9 @@ final class ReviewModel {
         guard let session else { return [] }
         let assetsByID = Dictionary(uniqueKeysWithValues: session.sourceAssets.map { ($0.assetID, $0) })
         var rows: [String: AssetRow] = [:]
-        for decision in session.perAssetDecisions where decision.status == .accepted || verdicts[decision.decisionID] != nil {
+        for decision in session.perAssetDecisions where isVisibleReviewDecision(decision) {
             let asset = assetsByID[decision.assetID]
-            let keyword = edits[decision.decisionID] ?? decision.flatKeyword ?? decision.canonicalPath ?? decision.sourceText ?? "?"
+            let keyword = displayKeyword(for: decision)
             let observation = decision.observations.first
             var detailParts: [String] = [NormalizationDecisionExplainer.text(for: decision.candidateKind)]
             if let provenance = observation?.provenance {
@@ -96,7 +96,7 @@ final class ReviewModel {
             let chip = Chip(
                 decisionID: decision.decisionID,
                 keyword: keyword,
-                originalKeyword: edits[decision.decisionID] != nil ? (decision.flatKeyword ?? decision.sourceText) : nil,
+                originalKeyword: edits[decision.decisionID] != nil ? baseDisplayKeyword(for: decision) : nil,
                 confidence: observation?.confidence,
                 evidence: observation?.evidence,
                 verdict: verdicts[decision.decisionID] ?? .approved,
@@ -111,6 +111,18 @@ final class ReviewModel {
             )].chips.append(chip)
         }
         return rows.values.sorted { $0.fileName.lowercased() < $1.fileName.lowercased() }
+    }
+
+    private func isVisibleReviewDecision(_ decision: PerAssetNormalizationDecision) -> Bool {
+        decision.status == .accepted || verdicts[decision.decisionID] != nil
+    }
+
+    private func displayKeyword(for decision: PerAssetNormalizationDecision) -> String {
+        edits[decision.decisionID] ?? baseDisplayKeyword(for: decision)
+    }
+
+    private func baseDisplayKeyword(for decision: PerAssetNormalizationDecision) -> String {
+        decision.flatKeyword ?? decision.canonicalPath ?? decision.sourceText ?? "?"
     }
 
     var approvedCount: Int { verdicts.values.count { $0 == .approved } }
@@ -261,11 +273,13 @@ final class ReviewModel {
     /// current folder carrying the same keyword. Callers confirm explicitly.
     func editEverywhere(keyword: String, to text: String) -> Int {
         guard let session else { return 0 }
-        let folded = keyword.lowercased()
+        let folded = keyword.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let replacement = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !folded.isEmpty, !replacement.isEmpty else { return 0 }
         var applied = 0
         for decision in session.perAssetDecisions
-        where (edits[decision.decisionID] ?? decision.flatKeyword ?? "").lowercased() == folded {
-            edits[decision.decisionID] = text
+        where isVisibleReviewDecision(decision) && displayKeyword(for: decision).lowercased() == folded {
+            edits[decision.decisionID] = replacement
             verdicts[decision.decisionID] = .approved
             applied += 1
         }
