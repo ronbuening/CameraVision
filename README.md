@@ -333,20 +333,27 @@ swift run aisidecar benchmark --self-test
 
 ## Documentation Map
 
+Requirements (normative specs, one per phase):
+
 - `agent_docs/01-cli-raw-json-sidecar-requirements.md`: Phase 1 raw JSON sidecar requirements.
-- `agent_docs/phase-1-cli-implementation-plan.md`: Phase 1 implementation plan and benchmark context.
 - `agent_docs/02-cli-xmp-sidecar-requirements-updated.md`: Phase 2 XMP export requirements.
-- `agent_docs/phase-2-cli-implementation-plan(1).md`: Phase 2 implementation plan.
 - `agent_docs/03-cli-normalized-batch-tagger-requirements.md`: Phase 3 normalization requirements.
-- `agent_docs/phase-3-cli-implementation-plan-v0.3.md`: Phase 3 implementation plan and traceability matrix.
 - `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md`: GUI (CupricAspect) requirements.
-- `agent_docs/phase-4-gui-implementation-plan.md`: GUI implementation plan and milestone status.
 - `agent_docs/07-cupricaspect-gui-design.md`: binding GUI visual design spec.
-- `agent_docs/05-efficiency-improvement-plan.md`: Refactoring and performance work items.
-- `agent_docs/06-packaging-single-app-plan.md`: Single-app packaging and distribution plan.
-- `agent_docs/08-post-review-hardening-plan.md`: Active hardening plan — beta ship-blockers and post-review correctness milestones (§1.1 = execution order).
-- `agent_docs/09-post-m11-feature-roadmap.md`: Post-M11 feature roadmap — outlined requirements, approaches, acceptance criteria, and tests.
+
+Plans and roadmap (execution order across all of them: plan 08 §1.1):
+
+- `agent_docs/08-post-review-hardening-plan.md`: **the active plan** — beta ship-blockers and post-review correctness milestones; §1.1 is the single authoritative execution order.
+- `agent_docs/phase-4-gui-implementation-plan.md`: GUI milestone ledger and the remaining M9–M11 work.
+- `agent_docs/05-efficiency-improvement-plan.md`: refactoring and performance work items (scheduled in 08 §1.1).
+- `agent_docs/06-packaging-single-app-plan.md`: as-built packaging reference and signing runbook.
+- `agent_docs/09-post-m11-feature-roadmap.md`: post-M11 feature roadmap — outlined requirements, approaches, acceptance criteria, and tests.
+
+Reference:
+
 - `agent_docs/architecture-map.md`: Module map, key types, and pipeline entry points.
 - `agent_docs/invariants.md`: Binding project rules for any change.
 - `agent_docs/testing-and-verification.md`: Build, test, and smoke-check procedures.
+- `agent_docs/cli-implementation-notes.md`: durable Phase 1–3 implementation details — the open Milestone 9 benchmark plan, shipped defaults, boundary rules, and the live Phase 3 traceability matrix.
 - `agent_docs/release-evidence/`: compatibility smoke notes and release evidence.
+- `agent_docs/archive/`: completed Phase 1–3 implementation plans (historical, not maintained).

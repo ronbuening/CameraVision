@@ -46,16 +46,20 @@ Read only what your task touches.
 - `agent_docs/commenting_guide.md`: before adding or revising substantive comments.
 - `agent_docs/agent-md-best-practices.md`: before changing this file.
 
-**Phase requirements and plans (read before changing that area)**
-- `agent_docs/01-cli-raw-json-sidecar-requirements.md` + `agent_docs/phase-1-cli-implementation-plan.md`: analyze, raw sidecars, benchmark, rendering, model runtime, GPS context.
-- `agent_docs/02-cli-xmp-sidecar-requirements-updated.md` + `agent_docs/phase-2-cli-implementation-plan(1).md`: XMP export pipeline and evidence.
-- `agent_docs/03-cli-normalized-batch-tagger-requirements.md` + `agent_docs/phase-3-cli-implementation-plan-v0.3.md`: normalization.
-- `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` + `agent_docs/phase-4-gui-implementation-plan.md` + `agent_docs/07-cupricaspect-gui-design.md`: GUI work (the CupricAspect app — requirements, milestones, and the binding visual design spec; the design handoff bundle lives in `agent_docs/gui-wrapper-for-cameravision/`).
-- `agent_docs/05-efficiency-improvement-plan.md`: active refactoring/performance work items — pick items from here for efficiency tasks.
-- `agent_docs/06-packaging-single-app-plan.md`: app bundling, signing, distribution.
-- `agent_docs/08-post-review-hardening-plan.md`: **the active plan** — beta ship-blockers (R1, gates the `v0.1.0-beta.1` tag) and post-review hardening milestones R2–R4; §1.1 is the authoritative execution order.
+**Phase requirements (read before changing that area)**
+- `agent_docs/01-cli-raw-json-sidecar-requirements.md`: analyze, raw sidecars, benchmark, rendering, model runtime, GPS context.
+- `agent_docs/02-cli-xmp-sidecar-requirements-updated.md`: XMP export pipeline.
+- `agent_docs/03-cli-normalized-batch-tagger-requirements.md`: normalization.
+- `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` + `agent_docs/phase-4-gui-implementation-plan.md` + `agent_docs/07-cupricaspect-gui-design.md`: GUI work (the CupricAspect app — requirements, milestone ledger + remaining M9–M11, and the binding visual design spec; the design handoff bundle in `agent_docs/gui-wrapper-for-cameravision/` is historical source only).
+- `agent_docs/cli-implementation-notes.md`: durable Phase 1–3 implementation details — open Milestone 9 benchmark plan, shipped defaults, boundary rules, interruption invariants, live Phase 3 traceability matrix.
+
+**Plans (execution order for everything: plan 08 §1.1)**
+- `agent_docs/08-post-review-hardening-plan.md`: **the active plan** — beta ship-blockers (R1, gates the `v0.1.0-beta.1` tag) and post-review hardening milestones R2–R4; §1.1 is the single authoritative execution order across all plans.
+- `agent_docs/05-efficiency-improvement-plan.md`: efficiency backlog — scheduled in plan 08 §1.1 (after R4, before M9), not a parallel active track.
+- `agent_docs/06-packaging-single-app-plan.md`: as-built packaging reference; signing/notarization runbook for the beta tag.
 - `agent_docs/09-post-m11-feature-roadmap.md`: post-M11 feature outlines (requirements, approaches, acceptance criteria, tests) — nothing there starts before M11 closes.
 - `agent_docs/release-evidence/`: recorded compatibility smoke evidence.
+- `agent_docs/archive/`: completed Phase 1–3 implementation plans — historical, not maintained; do not take instructions from them.
 
 ## Housekeeping
 

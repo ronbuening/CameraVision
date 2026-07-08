@@ -7,6 +7,8 @@ Audience: junior engineer or Sonnet-level coding agent executing one work item a
 
 This plan covers two tracks: **performance** (P items — remove wasted runtime work) and **reusability** (R items — eliminate duplicated code). Every item is self-contained: files, exact problem, exact change, acceptance criteria.
 
+**Scheduling:** this plan runs in its slot in `agent_docs/08-post-review-hardening-plan.md` §1.1 (after R4, before M9) — it is not a parallel active track. Two items are pinned there: P2/P3 execute *as part of* plan-08 R4-6 (one `DerivativeCache` manifest redesign, not two), and P4 must wait until plan-08 R1-3 has landed (it rewrites the same `JSONLWriter` lines). File/line anchors below were captured 2026-07-06; expect line drift after plan-08 items touch `JSONLWriter.swift` and `AnalyzePipeline.swift` — the file + symbol references remain authoritative.
+
 ## Ground Rules (read first)
 
 1. Read `AGENTS.md` before starting. The invariants there are binding — especially: stable raw string values for public enums and error codes, the analyze/no-XMP invariant, and config precedence.
@@ -45,7 +47,7 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 
 **Change (Option A, recommended).** Write once. Set `timing.pipelineElapsedMs` immediately before the single write, and record the measured write duration in the per-image `ProgressRecord`/logs rather than inside the sidecar. Set `timing.writeMs` to `0` in the sidecar (the field stays for schema stability).
 
-**Prerequisite check.** Grep `agent_docs/01-cli-raw-json-sidecar-requirements.md` and `agent_docs/phase-1-cli-implementation-plan.md` for `writeMs` / timing requirements. If a requirement mandates an accurate in-sidecar `writeMs`, use **Option B** instead: keep the second write but gate it behind a new resolved-config flag (e.g. `precise_write_timing`, default `false`), following the existing config precedence chain. Option B touches `RunConfiguration`/`ConfigurationResolver` and needs config tests.
+**Prerequisite check.** Grep `agent_docs/01-cli-raw-json-sidecar-requirements.md` and `agent_docs/archive/phase-1-cli-implementation-plan.md` for `writeMs` / timing requirements. If a requirement mandates an accurate in-sidecar `writeMs`, use **Option B** instead: keep the second write but gate it behind a new resolved-config flag (e.g. `precise_write_timing`, default `false`), following the existing config precedence chain. Option B touches `RunConfiguration`/`ConfigurationResolver` and needs config tests.
 
 **Steps (Option A).**
 1. In `AnalyzePipeline` (the `.prepared` case around line 569): set `pipelineElapsedMs` just before the write; delete the `if outcome.status == .written` re-write block.
@@ -59,6 +61,8 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 - Benchmark shows reduced per-image write time.
 
 ### P2. Stop holding the derivative-cache manifest lock during image encode, and stop re-reading files to hash them
+
+> **Scheduling:** execute as part of plan-08 R4-6 (one `DerivativeCache` manifest redesign covering P2 + P3 + R4-6 together).
 
 - **Priority:** HIGH · **Effort:** Medium · **Risk:** Medium
 - **Files:** `Sources/AISidecarCore/Rendering/DerivativeCache.swift:106-147` (`store`), `DerivativeCache.swift` `sha256(of:)` (~line 226), lock at ~line 24, `loadManifest`/`saveManifest`
@@ -79,6 +83,8 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 
 ### P3. Reduce derivative-cache manifest disk churn
 
+> **Scheduling:** execute as part of plan-08 R4-6 (one `DerivativeCache` manifest redesign covering P2 + P3 + R4-6 together).
+
 - **Priority:** MEDIUM · **Effort:** Medium · **Risk:** Medium (multi-instance assumptions)
 - **Files:** `Sources/AISidecarCore/Rendering/DerivativeCache.swift` (`loadManifest`/`saveManifest` call sites), `Sources/AISidecarCore/Pipeline/AnalyzePipeline.swift:465-470`
 
@@ -93,6 +99,8 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 - Add a test: repeated `cachedRecord()` hits do not re-read the manifest file (inject a counting FileManager seam or verify via a stubbed loader).
 
 ### P4. Progress-log fsync cadence (guarded design change)
+
+> **Scheduling:** do this only after plan-08 R1-3 has landed — R1-3 replaces the legacy `FileHandle.write(_:)` calls in the same lines this item rewrites. Expect the line numbers below to have drifted.
 
 - **Priority:** MEDIUM · **Effort:** Small · **Risk:** Medium (weakens durability guarantee)
 - **Files:** `Sources/AISidecarCore/Reporting/JSONLWriter.swift:34-50`

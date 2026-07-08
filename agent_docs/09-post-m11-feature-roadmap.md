@@ -102,8 +102,8 @@ Recommended default order: **F1 → F4 → F2 → F3**, then reassess Tier B by 
 **Requirements (outline).**
 - F4-R1 (WI-3) — GUI menu action "Install Command Line Tool": symlink `Contents/Helpers/aisidecar` into `/usr/local/bin` (create dir if missing); on permission failure show manual `ln -s`/PATH instructions — never escalate privileges. Detect and repair a stale symlink after the app moves. (Packaging plan WI-3 acceptance verbatim.)
 - F4-R2 — Sparkle 2 auto-update: appcast hosted on GitHub releases, EdDSA-signed updates, update check on launch + manual "Check for Updates…", off by default until the user opts in on first run (local-first posture: no silent phone-home).
-- F4-R3 — GitHub Actions CI: `swift test` on every PR (offline by design — invariant 12 means no Ollama in CI); release workflow on tags runs `Scripts/build-release.sh` with signing/notarization secrets; artifacts attached with checksums (packaging plan §7 + WI-7's checklist becomes the workflow).
-- F4-R4 (WI-7) — `agent_docs/release-checklist.md` written as the human-readable mirror of the release workflow.
+- F4-R3 — GitHub Actions CI: `swift test` on every PR (offline by design — invariant 12 means no Ollama in CI); release workflow on tags runs `Scripts/build-release.sh` with signing/notarization secrets; artifacts attached with checksums (packaging plan §7; the release checklist becomes the workflow).
+- F4-R4 (WI-7) — extend `agent_docs/release-checklist.md` into the human-readable mirror of the release workflow. The checklist itself is first written during the beta-tag run (plan 08 §1.1 step 3), so this item revises an existing document rather than authoring one.
 
 **Approach.** F4-R1: small AppKit-interop action in `Features/Settings/` + a Core `CLIInstaller` (testable path logic; the symlink syscall wrapped). F4-R2: SwiftPM dependency on Sparkle 2; `SUUpdater` wiring in the app; appcast generation appended to `build-release.sh`; note Sparkle is the project's first third-party GUI dependency — flag in the requirements pass. F4-R3: two workflow files; keep unit tests offline.
 
