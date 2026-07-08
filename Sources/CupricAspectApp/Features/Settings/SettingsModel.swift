@@ -33,6 +33,7 @@ final class SettingsModel {
     private(set) var mode: AnalysisMode = .both
     private(set) var gps: GPSContextMode = .coarse
     private(set) var existing: ExistingPolicy = .skip
+    private(set) var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
     private(set) var stageConcurrency = min(8, max(1, ResolvedRunConfiguration.defaultStageConcurrency()))
     private(set) var derivativeCachePath = ""
     private(set) var loadError: String?
@@ -61,12 +62,17 @@ final class SettingsModel {
                 environment: environment,
                 defaultConfigPath: configPath
             )
+            let resolvedApply = try ConfigurationResolver.resolveApplySession(
+                environment: environment,
+                defaultConfigPath: configPath
+            )
             model = resolved.model
             endpoint = resolved.modelEndpoint.absoluteString
             endpointDraft = endpoint
             mode = resolved.mode
             gps = resolved.gpsContext
             existing = resolved.existing
+            xmpConflictPolicy = resolvedApply.xmpConflictPolicy
             stageConcurrency = min(8, max(1, resolved.stageConcurrency))
             derivativeCachePath = resolved.derivativeCacheDir
             loadError = nil
@@ -92,6 +98,7 @@ final class SettingsModel {
     func setMode(_ newMode: AnalysisMode) { write("mode", .string(newMode.rawValue)) }
     func setGPS(_ newGPS: GPSContextMode) { write("gps_context", .string(newGPS.rawValue)) }
     func setExisting(_ newExisting: ExistingPolicy) { write("existing", .string(newExisting.rawValue)) }
+    func setXMPConflictPolicy(_ policy: XMPConflictPolicy) { write("xmp_conflict_policy", .string(policy.rawValue)) }
     func setConcurrency(_ value: Int) { write("stage_concurrency", .number(Double(min(8, max(1, value))))) }
 
     func setModel(_ tag: String) {

@@ -295,6 +295,20 @@ struct SettingsSheet: View {
                     )
                 }
                 Divider().overlay(theme.border)
+                settingRow(
+                    "Existing XMP",
+                    caption: "Merge keeps keywords already in your .xmp; Backup & Merge writes a .xmp.bak first."
+                ) {
+                    CVSegmentedControl(
+                        options: XMPConflictPolicy.allCases,
+                        selection: Binding(
+                            get: { settings.xmpConflictPolicy },
+                            set: { settings.setXMPConflictPolicy($0) }
+                        ),
+                        label: xmpPolicyLabel
+                    )
+                }
+                Divider().overlay(theme.border)
                 settingRow("Concurrency", caption: "Lower = less memory pressure.") {
                     HStack(spacing: 0) {
                         settingsStepButton("−") { settings.setConcurrency(settings.stageConcurrency - 1) }
@@ -472,6 +486,14 @@ struct SettingsSheet: View {
             }
             Spacer()
             control()
+        }
+    }
+
+    private func xmpPolicyLabel(_ policy: XMPConflictPolicy) -> String {
+        switch policy {
+        case .fail: "Fail"
+        case .merge: "Merge"
+        case .backupAndMerge: "Backup & Merge"
         }
     }
 

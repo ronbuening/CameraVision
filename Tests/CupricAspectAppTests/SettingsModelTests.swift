@@ -104,6 +104,30 @@ final class SettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testXMPConflictPolicyWriteThroughPreservesUnknownKeys() throws {
+        try Data(#"{"custom_note": "mine"}"#.utf8)
+            .write(to: URL(fileURLWithPath: configPath))
+        let model = makeModel()
+
+        model.setXMPConflictPolicy(.merge)
+
+        let object = try readConfigObject()
+        XCTAssertEqual(object["custom_note"] as? String, "mine")
+        XCTAssertEqual(object["xmp_conflict_policy"] as? String, "merge")
+    }
+
+    @MainActor
+    func testXMPConflictPolicyWritesThroughAndResolvesForExport() throws {
+        let model = makeModel()
+
+        model.setXMPConflictPolicy(.merge)
+
+        XCTAssertEqual(model.xmpConflictPolicy, .merge)
+        let resolved = try ConfigurationResolver.resolveXMPExport(environment: [:], defaultConfigPath: configPath)
+        XCTAssertEqual(resolved.xmpConflictPolicy, .merge)
+    }
+
+    @MainActor
     func testInvalidEndpointIsRejectedWithoutWriting() {
         let model = makeModel()
         model.endpointDraft = "not a url"

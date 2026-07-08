@@ -8,6 +8,9 @@ import Observation
 @MainActor
 @Observable
 final class AnalysisOptions {
+    private let environment: [String: String]
+    private let defaultConfigPath: String?
+
     var mode: AnalysisMode = .both
     var gps: GPSContextMode = .coarse
     var existing: ExistingPolicy = .skip
@@ -20,18 +23,35 @@ final class AnalysisOptions {
     private(set) var resolvedModel = ""
     private(set) var resolvedEndpoint = ""
 
+    init(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaultConfigPath: String? = nil
+    ) {
+        self.environment = environment
+        self.defaultConfigPath = defaultConfigPath
+    }
+
     var effectiveModel: String {
         modelOverride ?? resolvedModel
     }
 
     func loadResolvedDefaults() {
-        guard let resolved = try? ConfigurationResolver.resolve() else { return }
+        guard let resolved = try? ConfigurationResolver.resolve(
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        ) else { return }
         resolvedModel = resolved.model
         resolvedEndpoint = resolved.modelEndpoint.absoluteString
         mode = resolved.mode
         gps = resolved.gpsContext
         existing = resolved.existing
         concurrency = min(8, max(1, resolved.stageConcurrency))
+        if let exportDefaults = try? ConfigurationResolver.resolveApplySession(
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        ) {
+            xmpConflictPolicy = exportDefaults.xmpConflictPolicy
+        }
     }
 
     /// Build the run configuration: UI choices as CLI-equivalent overrides on
@@ -46,7 +66,9 @@ final class AnalysisOptions {
                 model: modelOverride,
                 stageConcurrency: concurrency,
                 gpsContext: gps
-            )
+            ),
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
         )
     }
 }

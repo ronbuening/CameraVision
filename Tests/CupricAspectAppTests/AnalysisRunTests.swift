@@ -63,6 +63,25 @@ final class AnalysisRunTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testLoadResolvedDefaultsSeedsXMPConflictPolicyFromConfig() throws {
+        let configPath = try writeConfig(#"{ "xmp_conflict_policy": "merge" }"#)
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: configPath)
+
+        options.loadResolvedDefaults()
+
+        XCTAssertEqual(options.xmpConflictPolicy, .merge)
+    }
+
+    @MainActor
+    func testLoadResolvedDefaultsFallsBackToCoreXMPConflictPolicyDefault() {
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: missingConfigPath())
+
+        options.loadResolvedDefaults()
+
+        XCTAssertEqual(options.xmpConflictPolicy, .backupAndMerge)
+    }
+
     func testOutcomeReductionCountsStatusesAndAggregatesErrorCodes() {
         func record(_ status: ProgressStatus, codes: [SidecarErrorCode] = []) -> ProgressRecord {
             ProgressRecord(
@@ -94,5 +113,19 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(outcome.failed, 3)
         XCTAssertTrue(outcome.interrupted)
         XCTAssertEqual(outcome.errorSummaries, ["E_UNSUPPORTED_FORMAT × 2", "E_VALIDATION_FAILED × 1"])
+    }
+
+    private func missingConfigPath() -> String {
+        "\(NSTemporaryDirectory())cupric-options-tests/\(UUID().uuidString)/missing-config.json"
+    }
+
+    private func writeConfig(_ contents: String) throws -> String {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("cupric-options-tests")
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent("config.json")
+        try contents.data(using: .utf8)!.write(to: file)
+        return file.path
     }
 }
