@@ -78,6 +78,7 @@ final class NormalizationModel {
     var acceptedTotal: Int { summaries.reduce(0) { $0 + $1.acceptedCount } }
     var withheldTotal: Int { summaries.reduce(0) { $0 + $1.withheldCount } }
     var skippedTotal: Int { summaries.reduce(0) { $0 + $1.skippedCount } }
+    var canSaveSession: Bool { session != nil }
 
     var contextRecords: [NormalizationSessionContextRecord] { session?.sessionContext ?? [] }
 
@@ -170,7 +171,14 @@ final class NormalizationModel {
     }
 
     func saveSession(to url: URL) throws {
-        guard let session else { return }
+        guard let session else {
+            throw SidecarError(
+                code: .validationFailed,
+                stage: .write,
+                message: "No normalization session is loaded; nothing to save.",
+                recoverable: true
+            )
+        }
         try NormalizationSessionWriter().write(session, to: url.path)
     }
 

@@ -116,6 +116,7 @@ final class ReviewModel {
     var approvedCount: Int { verdicts.values.count { $0 == .approved } }
     var rejectedCount: Int { verdicts.values.count { $0 == .rejected } }
     var deferredCount: Int { verdicts.values.count { $0 == .deferred } }
+    var canSaveSession: Bool { session != nil }
 
     /// The exportable document: base session + review verdicts and edits.
     var reviewedSession: NormalizationSessionDocument? {
@@ -194,7 +195,14 @@ final class ReviewModel {
 
     /// "Save session only" — the reviewed session in the Phase 3 format.
     func saveSession(to url: URL) throws {
-        guard let reviewedSession else { return }
+        guard let reviewedSession else {
+            throw SidecarError(
+                code: .validationFailed,
+                stage: .write,
+                message: "No review session is loaded; nothing to save.",
+                recoverable: true
+            )
+        }
         try NormalizationSessionWriter().write(reviewedSession, to: url.path)
         restoredRecoveryDirty = false
     }

@@ -219,6 +219,23 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testSaveWithNoSessionThrowsInsteadOfSilentlySucceeding() throws {
+        let model = makeModel()
+        XCTAssertFalse(model.canSaveSession)
+        let url = root.appendingPathComponent("never-written.json")
+
+        XCTAssertThrowsError(try model.saveSession(to: url)) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .validationFailed)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+
+        model.adopt(session: try makeBaseSession(terms: ["bird"]))
+        XCTAssertTrue(model.canSaveSession)
+        model.completeCleanly()
+        XCTAssertFalse(model.canSaveSession)
+    }
+
+    @MainActor
     func testEditEverywhereAppliesToMatchingKeywordsOnly() throws {
         let model = makeModel()
         model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))

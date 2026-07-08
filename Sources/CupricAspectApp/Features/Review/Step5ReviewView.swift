@@ -91,10 +91,10 @@ struct Step5ReviewView: View {
                     .foregroundStyle(theme.textDim)
             }
             Spacer()
-            headerButton("Reject all") { review.setAllVisible(.rejected) }
-            headerButton("Approve all") { review.setAllVisible(.approved) }
+            headerButton("Reject all", enabled: review.canSaveSession) { review.setAllVisible(.rejected) }
+            headerButton("Approve all", enabled: review.canSaveSession) { review.setAllVisible(.approved) }
             headerButton("Import session…") { importSession() }
-            headerButton("Save session only", filled: true) { saveSession() }
+            headerButton("Save session only", filled: true, enabled: review.canSaveSession) { saveSession() }
         }
     }
 
@@ -107,7 +107,12 @@ struct Step5ReviewView: View {
         return parts.joined(separator: " · ")
     }
 
-    private func headerButton(_ label: String, filled: Bool = false, action: @escaping () -> Void) -> some View {
+    private func headerButton(
+        _ label: String,
+        filled: Bool = false,
+        enabled: Bool = true,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 11.5, weight: .semibold))
@@ -119,6 +124,8 @@ struct Step5ReviewView: View {
                 .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(theme.borderStrong))
         }
         .buttonStyle(.plain)
+        .opacity(enabled ? 1 : 0.4)
+        .disabled(!enabled)
     }
 
     private var recoveryBanner: some View {

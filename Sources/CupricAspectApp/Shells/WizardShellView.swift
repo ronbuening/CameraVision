@@ -315,18 +315,59 @@ struct WizardShellView: View {
     /// Route every write through the FR4-029 dry-run gate (M7): the plan
     /// sheet opens when the dry run completes.
     private func startExport() {
-        guard let source = importModel.sourceFolder else { return }
+        guard let source = importModel.sourceFolder else {
+            let error = exportReadinessError("No source folder is loaded; choose a folder before writing XMP.")
+            reportStartExportError(error)
+            assertionFailure(error.message)
+            return
+        }
         let session: NormalizationSessionDocument? = switch selectedAction {
         case .normalize: normalizationModel.session
         case .apply: applySession
         default: reviewModel.reviewedSession
         }
-        guard let session else { return }
+        guard let session else {
+            let error = exportReadinessError(missingExportSessionMessage)
+            reportStartExportError(error)
+            assertionFailure(error.message)
+            return
+        }
         exportModel.plan(
             session: session,
             sourceRoot: source.path,
             outputDir: importModel.outputFolder?.path
         )
+    }
+
+    private var missingExportSessionMessage: String {
+        switch selectedAction {
+        case .normalize:
+            "No normalization session is loaded; nothing to write."
+        case .apply:
+            "No apply-session document is loaded; nothing to write."
+        default:
+            "No review session is loaded; nothing to write."
+        }
+    }
+
+    private func exportReadinessError(_ message: String) -> SidecarError {
+        SidecarError(
+            code: .validationFailed,
+            stage: .write,
+            message: message,
+            recoverable: true
+        )
+    }
+
+    private func reportStartExportError(_ error: SidecarError) {
+        switch selectedAction {
+        case .normalize:
+            normalizationModel.reportFileError("Write normalized XMP", error)
+        case .apply:
+            exportModel.reportValidationFailure(error)
+        default:
+            reviewModel.reportFileError("Write XMP", error)
+        }
     }
 
     private func rehydrateImportContextFromReviewSession() {

@@ -62,12 +62,17 @@ struct NormalizationInspectorView: View {
             }
             Spacer()
             actionButton("Import session…") { importSession() }
-            actionButton("Save session only") { saveSession() }
-            actionButton("Write normalized XMP", filled: true) { onWrite() }
+            actionButton("Save session only", enabled: model.canSaveSession) { saveSession() }
+            actionButton("Write normalized XMP", filled: true, enabled: model.canSaveSession) { onWrite() }
         }
     }
 
-    private func actionButton(_ label: String, filled: Bool = false, action: @escaping () -> Void) -> some View {
+    private func actionButton(
+        _ label: String,
+        filled: Bool = false,
+        enabled: Bool = true,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 11.5, weight: filled ? .bold : .semibold))
@@ -79,6 +84,8 @@ struct NormalizationInspectorView: View {
                 .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(filled ? .clear : theme.borderStrong))
         }
         .buttonStyle(.plain)
+        .opacity(enabled ? 1 : 0.4)
+        .disabled(!enabled)
     }
 
     // MARK: - Context results (FR3-025 surfacing)

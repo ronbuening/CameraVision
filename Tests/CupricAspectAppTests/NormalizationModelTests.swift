@@ -181,6 +181,26 @@ final class NormalizationModelTests: XCTestCase {
     }
 
     @MainActor
+    func testSaveWithNoSessionThrowsInsteadOfSilentlySucceeding() async throws {
+        let model = NormalizationModel(stateDirectory: root.appendingPathComponent("state"))
+        XCTAssertFalse(model.canSaveSession)
+        let url = root.appendingPathComponent("never-written-normalization.json")
+
+        XCTAssertThrowsError(try model.saveSession(to: url)) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .validationFailed)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+
+        let (jsonRoot, sourceRoot) = try writeFixture(terms: ["bird"])
+        model.run(jsonRoot: jsonRoot, sourceRoot: sourceRoot)
+        try await waitUntil("normalization run") { model.phase == .ready }
+        XCTAssertTrue(model.canSaveSession)
+
+        model.reset()
+        XCTAssertFalse(model.canSaveSession)
+    }
+
+    @MainActor
     func testWriteNormalizedXMPProducesSidecarsFromAcceptedSet() async throws {
         let (jsonRoot, sourceRoot) = try writeFixture(terms: ["bird", "tree"])
         let model = NormalizationModel(stateDirectory: root.appendingPathComponent("state"))

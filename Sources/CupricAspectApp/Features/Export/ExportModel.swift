@@ -58,6 +58,10 @@ final class ExportModel {
         }
     }
 
+    func reportValidationFailure(_ error: SidecarError) {
+        phase = .failed(message: error.message)
+    }
+
     /// FR4-029: dry-run the session and hold the change plan for review.
     func plan(session: NormalizationSessionDocument, sourceRoot: String, outputDir: String?) {
         guard phase != .planning, phase != .writing else { return }
