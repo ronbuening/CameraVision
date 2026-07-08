@@ -34,8 +34,8 @@ final class JSONLWriter<Record: Encodable> {
     func append(_ record: Record) throws {
         do {
             let data = try encoder.encode(record)
-            fileHandle.write(data)
-            fileHandle.write(Data("\n".utf8))
+            try fileHandle.write(contentsOf: data)
+            try fileHandle.write(contentsOf: Data("\n".utf8))
             try fileHandle.synchronize()
         } catch let error as SidecarError {
             throw error
