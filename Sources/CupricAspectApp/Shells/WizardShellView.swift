@@ -1,4 +1,5 @@
 import AISidecarCore
+import AppKit
 import SwiftUI
 
 /// Wizard shell (design doc Section 6): 46px title bar, step rail, content
@@ -20,6 +21,7 @@ struct WizardShellView: View {
     @State private var step = 1
     @State private var showAbout = false
     @State private var showRerunConfirmation = false
+    @State private var showDiscardRestoredReviewConfirmation = false
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @Environment(\.colorScheme) private var colorScheme
 
@@ -64,7 +66,7 @@ struct WizardShellView: View {
             }
             // FR4-046a: offer recovery of an interrupted review on launch.
             if reviewModel.recoveryAvailable {
-                selectedAction = .analyze
+                selectedAction = .write
                 step = 5
             }
             if env["CUPRIC_DEBUG_AUTORUN"] == "1" {
@@ -133,6 +135,9 @@ struct WizardShellView: View {
                 break
             }
         }
+        .onChange(of: reviewModel.session?.session.sessionID) { _, _ in
+            rehydrateImportContextFromReviewSession()
+        }
         .sheet(isPresented: $showPlanSheet) {
             ChangePlanSheet(export: exportModel)
         }
@@ -147,6 +152,21 @@ struct WizardShellView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(rerunConfirmationMessage)
+        }
+        .confirmationDialog(
+            "Discard the restored review?",
+            isPresented: $showDiscardRestoredReviewConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Save session first...") {
+                saveRestoredReviewSessionThenFinish()
+            }
+            Button("Discard review", role: .destructive) {
+                finishCleanly()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Discard the restored review? \(reviewModel.verdicts.count) decisions will be lost.")
         }
     }
 
@@ -305,6 +325,21 @@ struct WizardShellView: View {
         )
     }
 
+    private func rehydrateImportContextFromReviewSession() {
+        guard reviewModel.restoredFromRecovery || selectedAction == .write else {
+            return
+        }
+        guard let root = reviewModel.session?.session.sourceRoot,
+              FileManager.default.fileExists(atPath: root) else {
+            return
+        }
+        if reviewModel.restoredFromRecovery {
+            selectedAction = .write
+        }
+        guard importModel.sourceFolder?.path != root else { return }
+        importModel.chooseSource(URL(fileURLWithPath: root, isDirectory: true))
+    }
+
     private func writtenBanner(targets: Int) -> some View {
         HStack(spacing: 10) {
             ZStack {
@@ -370,6 +405,7 @@ struct WizardShellView: View {
     /// True when Step 5's primary should be a write, not Done (M7).
     private var step5WriteAvailable: Bool {
         guard exportModel.phase != .written else { return false }
+        guard importModel.sourceFolder != nil else { return false }
         switch selectedAction {
         case .write: return reviewModel.session != nil
         case .normalize: return normalizationModel.session != nil
@@ -426,14 +462,15 @@ struct WizardShellView: View {
         case 5 where step5WriteAvailable:
             startExport()
         case 5:
-            reviewModel.completeCleanly()
-            normalizationModel.reset()
-            exportModel.reset()
-            applySession = nil
-            applySessionPath = nil
-            runModel.reset()
-            selectedAction = nil
-            step = 1
+            if WizardNavigation.doneNeedsConfirmation(
+                hasSession: reviewModel.session != nil,
+                restoredRecoveryDirty: reviewModel.restoredRecoveryDirty,
+                exported: exportModel.phase == .written
+            ) {
+                showDiscardRestoredReviewConfirmation = true
+            } else {
+                finishCleanly()
+            }
         default:
             break
         }
@@ -460,6 +497,32 @@ struct WizardShellView: View {
             expectedTotal: importModel.assets.count
         )
         step = 4
+    }
+
+    private func finishCleanly() {
+        reviewModel.completeCleanly()
+        normalizationModel.reset()
+        exportModel.reset()
+        applySession = nil
+        applySessionPath = nil
+        runModel.reset()
+        selectedAction = nil
+        step = 1
+    }
+
+    private func saveRestoredReviewSessionThenFinish() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "review-session.json"
+        panel.allowedContentTypes = [.json]
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try reviewModel.saveSession(to: url)
+                reviewModel.clearFileError()
+                finishCleanly()
+            } catch {
+                reviewModel.reportFileError("Save session", error)
+            }
+        }
     }
 
     private var footerBar: some View {

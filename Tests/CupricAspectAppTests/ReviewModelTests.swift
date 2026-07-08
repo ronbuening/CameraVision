@@ -154,6 +154,34 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testRecoveryRoundTripPreservesSourceRootAndTracksUnsavedRestoredReview() throws {
+        let model = makeModel(decisionLimit: 1)
+        model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))
+        let chips = try XCTUnwrap(model.assetRows.first?.chips)
+
+        model.setVerdict(.rejected, for: chips[0].decisionID)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: model.recoveryURL.path))
+
+        let relaunched = makeModel()
+        try relaunched.restoreFromRecovery()
+        XCTAssertEqual(
+            relaunched.session?.session.sourceRoot,
+            root.appendingPathComponent("source").path,
+            "restored review must carry the source folder so the shell can re-enable export"
+        )
+        XCTAssertTrue(relaunched.restoredFromRecovery)
+        XCTAssertTrue(relaunched.restoredRecoveryDirty)
+
+        let saved = root.appendingPathComponent("saved-restored-session.json")
+        try relaunched.saveSession(to: saved)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: saved.path))
+        XCTAssertFalse(relaunched.restoredRecoveryDirty)
+
+        relaunched.setVerdict(.rejected, for: chips[1].decisionID)
+        XCTAssertTrue(relaunched.restoredRecoveryDirty)
+    }
+
+    @MainActor
     func testAutosaveTriggersOnElapsedTime() throws {
         var fakeNow = Date(timeIntervalSince1970: 1_800_000_000)
         let model = makeModel(clock: { fakeNow }, decisionLimit: 100)

@@ -40,6 +40,8 @@ final class ReviewModel {
     private(set) var building = false
     private(set) var buildError: String?
     private(set) var recoveryAvailable = false
+    private(set) var restoredFromRecovery = false
+    private(set) var restoredRecoveryDirty = false
 
     /// Autosave policy (FR4-046a defaults): every 25 decisions or 5 minutes.
     private let autosaveDecisionLimit: Int
@@ -162,6 +164,8 @@ final class ReviewModel {
         edits = SessionReview.edits(in: sessionDocument)
         changesSinceAutosave = 0
         lastAutosaveAt = now()
+        restoredFromRecovery = false
+        restoredRecoveryDirty = false
     }
 
     /// FR4-059: user-initiated file operations surface failures instead of
@@ -192,6 +196,7 @@ final class ReviewModel {
     func saveSession(to url: URL) throws {
         guard let reviewedSession else { return }
         try NormalizationSessionWriter().write(reviewedSession, to: url.path)
+        restoredRecoveryDirty = false
     }
 
     /// Clean completion: review state is exported or intentionally dropped.
@@ -201,6 +206,8 @@ final class ReviewModel {
         session = nil
         verdicts = [:]
         edits = [:]
+        restoredFromRecovery = false
+        restoredRecoveryDirty = false
     }
 
     // MARK: - Verdicts
@@ -262,6 +269,9 @@ final class ReviewModel {
 
     private func recordChange() {
         changesSinceAutosave += 1
+        if restoredFromRecovery {
+            restoredRecoveryDirty = true
+        }
         let elapsed = now().timeIntervalSince(lastAutosaveAt)
         if changesSinceAutosave >= autosaveDecisionLimit || elapsed >= autosaveInterval {
             autosaveNow()
@@ -286,10 +296,15 @@ final class ReviewModel {
 
     func restoreFromRecovery() throws {
         adopt(session: try NormalizationSessionReader().read(from: recoveryURL.path))
+        recoveryAvailable = true
+        restoredFromRecovery = true
+        restoredRecoveryDirty = true
     }
 
     func discardRecovery() {
         try? FileManager.default.removeItem(at: recoveryURL)
         recoveryAvailable = false
+        restoredFromRecovery = false
+        restoredRecoveryDirty = false
     }
 }

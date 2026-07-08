@@ -34,4 +34,8 @@ enum WizardNavigation {
             hasReview || hasNormalizationSession
         }
     }
+
+    static func doneNeedsConfirmation(hasSession: Bool, restoredRecoveryDirty: Bool, exported: Bool) -> Bool {
+        hasSession && restoredRecoveryDirty && !exported
+    }
 }

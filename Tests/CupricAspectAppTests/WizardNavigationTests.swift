@@ -45,4 +45,27 @@ final class WizardNavigationTests: XCTestCase {
             hasNormalizationSession: false
         ))
     }
+
+    func testDoneConfirmsOnlyForUnsavedRestoredReviews() {
+        XCTAssertTrue(WizardNavigation.doneNeedsConfirmation(
+            hasSession: true,
+            restoredRecoveryDirty: true,
+            exported: false
+        ))
+        XCTAssertFalse(WizardNavigation.doneNeedsConfirmation(
+            hasSession: true,
+            restoredRecoveryDirty: true,
+            exported: true
+        ))
+        XCTAssertFalse(WizardNavigation.doneNeedsConfirmation(
+            hasSession: true,
+            restoredRecoveryDirty: false,
+            exported: false
+        ))
+        XCTAssertFalse(WizardNavigation.doneNeedsConfirmation(
+            hasSession: false,
+            restoredRecoveryDirty: true,
+            exported: false
+        ))
+    }
 }
