@@ -344,6 +344,7 @@ Requirements (normative specs, one per phase):
 Plans and roadmap (execution order across all of them: plan 08 §1.1):
 
 - `agent_docs/08-post-review-hardening-plan.md`: **the active plan** — beta ship-blockers and post-review correctness milestones; §1.1 is the single authoritative execution order.
+- `agent_docs/10-hardening-implementation-plan.md`: execution-level companion to plan 08 — verified code excerpts, proposed changes, test skeletons, and the release-step runbook for R1–R4.
 - `agent_docs/phase-4-gui-implementation-plan.md`: GUI milestone ledger and the remaining M9–M11 work.
 - `agent_docs/05-efficiency-improvement-plan.md`: refactoring and performance work items (scheduled in 08 §1.1).
 - `agent_docs/06-packaging-single-app-plan.md`: as-built packaging reference and signing runbook.

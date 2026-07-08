@@ -4,6 +4,7 @@ Version: 1.0
 Date: 2026-07-07
 Depends on: `agent_docs/phase-4-gui-implementation-plan.md` (B0 complete except B0-5/signing/tag), `agent_docs/invariants.md` (all rules apply)
 Audience: junior engineer or Sonnet-level coding agent. Each work item is self-contained: finding, exact location, fix approach, acceptance criteria, and required tests.
+Execution detail: `agent_docs/10-hardening-implementation-plan.md` carries the code-level companion for every R1–R4 item (verified current-code excerpts, proposed code, test skeletons, per-item commits, and the manual release-step runbook). This document stays the source of truth for findings, scope, and order.
 
 ## 0. Where this plan comes from
 

@@ -55,6 +55,7 @@ Read only what your task touches.
 
 **Plans (execution order for everything: plan 08 §1.1)**
 - `agent_docs/08-post-review-hardening-plan.md`: **the active plan** — beta ship-blockers (R1, gates the `v0.1.0-beta.1` tag) and post-review hardening milestones R2–R4; §1.1 is the single authoritative execution order across all plans.
+- `agent_docs/10-hardening-implementation-plan.md`: execution-level companion to plan 08 — work R1–R4 items from here (code excerpts verified 2026-07-08, proposed changes, test skeletons, commit subjects); plan 08 wins on scope/acceptance conflicts.
 - `agent_docs/05-efficiency-improvement-plan.md`: efficiency backlog — scheduled in plan 08 §1.1 (after R4, before M9), not a parallel active track.
 - `agent_docs/06-packaging-single-app-plan.md`: as-built packaging reference; signing/notarization runbook for the beta tag.
 - `agent_docs/09-post-m11-feature-roadmap.md`: post-M11 feature outlines (requirements, approaches, acceptance criteria, tests) — nothing there starts before M11 closes.
