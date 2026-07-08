@@ -1,5 +1,10 @@
 import Foundation
 
+struct WrittenBannerContent: Equatable {
+    var message: String
+    var isWarning: Bool
+}
+
 /// Pure wizard step-graph decisions kept outside the view for focused tests.
 @MainActor
 enum WizardNavigation {
@@ -37,5 +42,19 @@ enum WizardNavigation {
 
     static func doneNeedsConfirmation(hasSession: Bool, restoredRecoveryDirty: Bool, exported: Bool) -> Bool {
         hasSession && restoredRecoveryDirty && !exported
+    }
+
+    static func writtenBanner(written: Int, failed: Int) -> WrittenBannerContent {
+        if failed == 0 {
+            return WrittenBannerContent(
+                message: "\(written) XMP sidecar\(written == 1 ? "" : "s") written · backups saved · validated — ready to import in Lightroom / Capture One",
+                isWarning: false
+            )
+        }
+        let total = written + failed
+        return WrittenBannerContent(
+            message: "\(written) of \(total) written - \(failed) failed; see the report below.",
+            isWarning: true
+        )
     }
 }

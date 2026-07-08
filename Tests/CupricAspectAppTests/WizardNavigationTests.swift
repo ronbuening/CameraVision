@@ -68,4 +68,22 @@ final class WizardNavigationTests: XCTestCase {
             exported: false
         ))
     }
+
+    func testWrittenBannerCountsOnlySuccessfulTargetsAndWarnsOnFailures() {
+        let clean = WizardNavigation.writtenBanner(written: 4, failed: 0)
+        XCTAssertFalse(clean.isWarning)
+        XCTAssertTrue(clean.message.hasPrefix("4 XMP sidecars written"))
+
+        let singular = WizardNavigation.writtenBanner(written: 1, failed: 0)
+        XCTAssertFalse(singular.isWarning)
+        XCTAssertTrue(singular.message.hasPrefix("1 XMP sidecar written"))
+
+        let mixed = WizardNavigation.writtenBanner(written: 3, failed: 2)
+        XCTAssertTrue(mixed.isWarning)
+        XCTAssertEqual(mixed.message, "3 of 5 written - 2 failed; see the report below.")
+
+        let allFailed = WizardNavigation.writtenBanner(written: 0, failed: 5)
+        XCTAssertTrue(allFailed.isWarning)
+        XCTAssertEqual(allFailed.message, "0 of 5 written - 5 failed; see the report below.")
+    }
 }

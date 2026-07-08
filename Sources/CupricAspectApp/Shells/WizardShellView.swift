@@ -290,12 +290,13 @@ struct WizardShellView: View {
                 if case .failed(let message) = exportModel.phase {
                     failureBanner(message)
                 }
-                if exportModel.phase == .written {
-                    writtenBanner(targets: exportModel.exportReport?.targetReports.count ?? 0)
-                    if let report = exportModel.exportReport {
-                        ExportReportView(report: report)
-                            .padding(EdgeInsets(top: 12, leading: 34, bottom: 0, trailing: 34))
-                    }
+                if exportModel.phase == .written, let report = exportModel.exportReport {
+                    writtenBanner(WizardNavigation.writtenBanner(
+                        written: report.writtenCount,
+                        failed: report.failedCount
+                    ))
+                    ExportReportView(report: report)
+                        .padding(EdgeInsets(top: 12, leading: 34, bottom: 0, trailing: 34))
                 }
                 switch selectedAction {
                 case .normalize:
@@ -343,22 +344,26 @@ struct WizardShellView: View {
         importModel.chooseSource(URL(fileURLWithPath: root, isDirectory: true))
     }
 
-    private func writtenBanner(targets: Int) -> some View {
-        HStack(spacing: 10) {
+    private func writtenBanner(_ content: WrittenBannerContent) -> some View {
+        let tone = content.isWarning ? theme.danger : theme.green
+        let fill = content.isWarning ? theme.danger.opacity(0.12) : theme.greenSoft
+        return HStack(spacing: 10) {
             ZStack {
-                Circle().fill(theme.green)
-                Text("✓").font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                Circle().fill(tone)
+                Text(content.isWarning ? "!" : "✓")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
             }
             .frame(width: 22, height: 22)
-            Text("\(targets) XMP sidecar\(targets == 1 ? "" : "s") written · backups saved · validated — ready to import in Lightroom / Capture One")
+            Text(content.message)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(theme.text)
             Spacer()
         }
         .padding(EdgeInsets(top: 12, leading: 15, bottom: 12, trailing: 15))
-        .background(theme.greenSoft)
+        .background(fill)
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(theme.green.opacity(0.5)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(tone.opacity(0.5)))
         .padding(EdgeInsets(top: 20, leading: 34, bottom: 0, trailing: 34))
     }
 
