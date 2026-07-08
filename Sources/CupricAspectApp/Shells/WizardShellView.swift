@@ -265,6 +265,9 @@ struct WizardShellView: View {
                 if case .failed(let message) = exportModel.phase {
                     failureBanner(message)
                 }
+                if case .failed(let message) = normalizationModel.phase {
+                    failureBanner(message)
+                }
                 if selectedAction == .apply {
                     Step3ApplyView(session: $applySession, sessionPath: $applySessionPath)
                 } else {
