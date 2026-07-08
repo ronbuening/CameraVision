@@ -171,6 +171,91 @@ final class ExportModelTests: XCTestCase {
         XCTAssertTrue(configuration.backupSidecars)
     }
 
+    @MainActor
+    func testCleanupAfterSuccessfulWriteRemovesOwnedArtifactsAndPreservesOutputs() async throws {
+        let (session, sourceRoot) = try makeSession()
+        let rawSidecar = sourceRoot.appendingPathComponent("A.JPG.ai.json")
+        let nested = sourceRoot.appendingPathComponent("nested", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        let nestedArtifact = nested.appendingPathComponent("\(ArtifactNames.batchSummaryPrefix)test.json")
+        try Data("{}".utf8).write(to: nestedArtifact)
+        let reusableSession = sourceRoot.appendingPathComponent("\(ArtifactNames.normalizationSessionPrefix)keep.json")
+        try Data("{}".utf8).write(to: reusableSession)
+
+        let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
+        export.cleanupAfterWrite = true
+        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil, recursive: true)
+        XCTAssertFalse(export.cleanupAfterWrite, "fresh plans default cleanup to off")
+        try await waitUntil("dry-run plan") { export.phase == .planReady }
+
+        export.cleanupAfterWrite = true
+        export.confirmWrite()
+        try await waitUntil("write and cleanup") {
+            export.phase == .written && export.cleanupRemovedCount != nil
+        }
+
+        XCTAssertGreaterThanOrEqual(export.cleanupRemovedCount ?? 0, 2)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: rawSidecar.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: nestedArtifact.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceRoot.appendingPathComponent("A.xmp").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: reusableSession.path))
+        XCTAssertNil(export.cleanupWarning)
+    }
+
+    @MainActor
+    func testCleanupSkippedWhenFlagIsFalse() async throws {
+        let (session, sourceRoot) = try makeSession()
+        let rawSidecar = sourceRoot.appendingPathComponent("A.JPG.ai.json")
+
+        let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
+        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil, recursive: true)
+        try await waitUntil("dry-run plan") { export.phase == .planReady }
+
+        export.confirmWrite()
+        try await waitUntil("write") { export.phase == .written }
+
+        XCTAssertNil(export.cleanupRemovedCount)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: rawSidecar.path))
+    }
+
+    @MainActor
+    func testCleanupSkippedWhenWriteHasFailedTargets() async throws {
+        let (session, sourceRoot) = try makeSession()
+        let rawSidecar = sourceRoot.appendingPathComponent("A.JPG.ai.json")
+        let xmpURL = sourceRoot.appendingPathComponent("A.xmp")
+        try Data("""
+        <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+        <x:xmpmeta xmlns:x="adobe:ns:meta/">
+          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+            <rdf:Description rdf:about="" />
+          </rdf:RDF>
+        </x:xmpmeta>
+        <?xpacket end="w"?>
+        """.utf8).write(to: xmpURL)
+
+        let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
+        export.plan(
+            session: session,
+            sourceRoot: sourceRoot.path,
+            outputDir: nil,
+            recursive: true,
+            xmpConflictPolicy: .fail
+        )
+        try await waitUntil("dry-run plan") { export.phase == .planReady }
+        XCTAssertFalse(export.failedTargets.isEmpty)
+
+        export.cleanupAfterWrite = true
+        export.confirmWrite()
+        try await waitUntil("write with failures") {
+            if export.phase == .written { return true }
+            if case .failed = export.phase { return true }
+            return false
+        }
+
+        XCTAssertNil(export.cleanupRemovedCount)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: rawSidecar.path))
+    }
+
     /// The default write path merges into pre-existing XMP: the dry-run plan
     /// carries the merge preview the change-plan sheet reveals (existing
     /// keywords kept, not a new file), and the write preserves them on disk.

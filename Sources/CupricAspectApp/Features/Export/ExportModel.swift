@@ -22,11 +22,15 @@ final class ExportModel {
     private(set) var phase: Phase = .idle
     private(set) var changePlan: XMPChangePlanDocument?
     private(set) var exportReport: XMPExportReport?
+    private(set) var cleanupRemovedCount: Int?
+    private(set) var cleanupWarning: String?
+    var cleanupAfterWrite = false
 
     private var pendingSessionPath: String?
     private var pendingSourceRoot: String?
     private var pendingOutputDir: String?
     private var pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    private var pendingCleanupRecursive = false
     private let stateDirectory: URL
 
     init(stateDirectory: URL = ReviewModel.defaultStateDirectory) {
@@ -83,12 +87,16 @@ final class ExportModel {
         session: NormalizationSessionDocument,
         sourceRoot: String,
         outputDir: String?,
+        recursive: Bool = false,
         xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
     ) {
         guard phase != .planning, phase != .writing else { return }
         phase = .planning
         changePlan = nil
         exportReport = nil
+        cleanupAfterWrite = false
+        cleanupRemovedCount = nil
+        cleanupWarning = nil
 
         let sessionDir = stateDirectory.appendingPathComponent("export-sessions", isDirectory: true)
         Task {
@@ -113,6 +121,7 @@ final class ExportModel {
                 pendingSourceRoot = sourceRoot
                 pendingOutputDir = outputDir
                 pendingXMPConflictPolicy = xmpConflictPolicy
+                pendingCleanupRecursive = recursive
                 phase = .planReady
             } catch {
                 phase = .failed(message: (error as? SidecarError)?.message ?? error.localizedDescription)
@@ -131,6 +140,9 @@ final class ExportModel {
         phase = .writing
         let outputDir = pendingOutputDir
         let xmpConflictPolicy = pendingXMPConflictPolicy
+        let cleanupAfterWrite = cleanupAfterWrite
+        let cleanupRoot = outputDir ?? sourceRoot
+        let cleanupRecursive = pendingCleanupRecursive
         Task {
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
@@ -146,9 +158,29 @@ final class ExportModel {
                 }.value
                 exportReport = result.exportReport
                 phase = .written
+                if cleanupAfterWrite,
+                   let report = result.exportReport,
+                   report.failedCount == 0 {
+                    await runCleanup(rootPath: cleanupRoot, recursive: cleanupRecursive)
+                }
             } catch {
                 phase = .failed(message: (error as? SidecarError)?.message ?? error.localizedDescription)
             }
+        }
+    }
+
+    private func runCleanup(rootPath: String, recursive: Bool) async {
+        do {
+            let report = try await Task.detached(priority: .utility) {
+                try ArtifactCleanup().run(rootPath: rootPath, recursive: recursive, dryRun: false)
+            }.value
+            cleanupRemovedCount = report.removedCount
+            if report.failedCount > 0 {
+                cleanupWarning = "\(report.failedCount) intermediate file\(report.failedCount == 1 ? "" : "s") could not be removed."
+            }
+        } catch {
+            let message = (error as? SidecarError)?.message ?? error.localizedDescription
+            cleanupWarning = "Cleanup failed: \(message)"
         }
     }
 
@@ -156,13 +188,20 @@ final class ExportModel {
         guard phase == .planReady else { return }
         phase = .idle
         changePlan = nil
+        cleanupAfterWrite = false
+        cleanupRemovedCount = nil
+        cleanupWarning = nil
     }
 
     func reset() {
         phase = .idle
         changePlan = nil
         exportReport = nil
+        cleanupAfterWrite = false
+        cleanupRemovedCount = nil
+        cleanupWarning = nil
         pendingSessionPath = nil
         pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+        pendingCleanupRecursive = false
     }
 }

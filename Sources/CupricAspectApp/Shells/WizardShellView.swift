@@ -290,10 +290,14 @@ struct WizardShellView: View {
                 if case .failed(let message) = exportModel.phase {
                     failureBanner(message)
                 }
+                if let warning = exportModel.cleanupWarning {
+                    failureBanner(warning)
+                }
                 if exportModel.phase == .written, let report = exportModel.exportReport {
                     writtenBanner(WizardNavigation.writtenBanner(
                         written: report.writtenCount,
-                        failed: report.failedCount
+                        failed: report.failedCount,
+                        cleanupRemoved: exportModel.cleanupRemovedCount
                     ))
                     ExportReportView(report: report)
                         .padding(EdgeInsets(top: 12, leading: 34, bottom: 0, trailing: 34))
@@ -336,6 +340,7 @@ struct WizardShellView: View {
             session: session,
             sourceRoot: source.path,
             outputDir: importModel.outputFolder?.path,
+            recursive: importModel.recursive,
             xmpConflictPolicy: options.xmpConflictPolicy
         )
     }

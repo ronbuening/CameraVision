@@ -44,10 +44,16 @@ enum WizardNavigation {
         hasSession && restoredRecoveryDirty && !exported
     }
 
-    static func writtenBanner(written: Int, failed: Int) -> WrittenBannerContent {
+    static func writtenBanner(written: Int, failed: Int, cleanupRemoved: Int? = nil) -> WrittenBannerContent {
         if failed == 0 {
+            let cleanupText: String
+            if let cleanupRemoved, cleanupRemoved > 0 {
+                cleanupText = " · \(cleanupRemoved) intermediate file\(cleanupRemoved == 1 ? "" : "s") removed"
+            } else {
+                cleanupText = ""
+            }
             return WrittenBannerContent(
-                message: "\(written) XMP sidecar\(written == 1 ? "" : "s") written · backups saved · validated — ready to import in Lightroom / Capture One",
+                message: "\(written) XMP sidecar\(written == 1 ? "" : "s") written · backups saved · validated\(cleanupText) — ready to import in Lightroom / Capture One",
                 isWarning: false
             )
         }

@@ -78,6 +78,10 @@ final class WizardNavigationTests: XCTestCase {
         XCTAssertFalse(singular.isWarning)
         XCTAssertTrue(singular.message.hasPrefix("1 XMP sidecar written"))
 
+        let cleaned = WizardNavigation.writtenBanner(written: 2, failed: 0, cleanupRemoved: 3)
+        XCTAssertFalse(cleaned.isWarning)
+        XCTAssertTrue(cleaned.message.contains("3 intermediate files removed"))
+
         let mixed = WizardNavigation.writtenBanner(written: 3, failed: 2)
         XCTAssertTrue(mixed.isWarning)
         XCTAssertEqual(mixed.message, "3 of 5 written - 2 failed; see the report below.")
