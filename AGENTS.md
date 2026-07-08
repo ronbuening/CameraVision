@@ -2,9 +2,9 @@
 
 ## Project Context
 
-CameraVision is a Swift 6, macOS 15, SwiftPM project for local-first AI-assisted photo metadata. The single CLI executable `aisidecar` scans image folders, renders model inputs, runs a local Ollama vision model, writes auditable raw `.ai.json` sidecars (Phase 1), exports accepted keywords to XMP sidecars through a project-owned XMP engine (Phase 2), and performs vocabulary-normalized batch tagging with durable, replayable sessions (Phase 3). The SwiftUI GUI (Phase 4) is the app `CupricAspect` (`Sources/CupricAspectApp`, run via `swift run CupricAspect`): milestone M0 (scaffold, design tokens, aperture component, dual-shell skeleton) is done; feature milestones M1+ are next.
+CameraVision is a Swift 6, macOS 15, SwiftPM project for local-first AI-assisted photo metadata. The single CLI executable `aisidecar` scans image folders, renders model inputs, runs a local Ollama vision model, writes auditable raw `.ai.json` sidecars (Phase 1), exports accepted keywords to XMP sidecars through a project-owned XMP engine (Phase 2), and performs vocabulary-normalized batch tagging with durable, replayable sessions (Phase 3). The SwiftUI GUI (Phase 4) is the app `CupricAspect` (`Sources/CupricAspectApp`, run via `swift run CupricAspect`): milestones M0–M8a and beta-readiness items B0-1–B0-4 and B0-6 are done (v0.1.0-beta.1, packaged via `Scripts/build-release.sh`). Outstanding: B0-5 release evidence, Developer ID signing/notarization, and the beta tag. M9–M11 (Studio shell, database mode, scale) are post-beta.
 
-**Status:** Phase 1 Milestones 0-9a, Phase 2 Milestones 0-10, the GPS-context milestone, and Phase 3 Milestones 0-11 are implemented and released. Overall release signoff still requires Phase 1 Milestone 9 calibration evidence or an explicit deferral. Do not reopen completed milestone work without new acceptance criteria.
+**Status:** Phase 1 Milestones 0-9a, Phase 2 Milestones 0-10, the GPS-context milestone, Phase 3 Milestones 0-11, and Phase 4 GUI milestones M0–M8a plus B0 (minus B0-5 and signing) are implemented. Overall release signoff still requires Phase 1 Milestone 9 calibration evidence or an explicit deferral. Do not reopen completed milestone work without new acceptance criteria.
 
 **The one rule to never forget:** `analyze` and all raw-sidecar paths never create or modify XMP. XMP writes happen only in `aisidecar write-xmp` and Phase 3 normalized export paths that reuse the Phase 2 export pipeline.
 
@@ -19,9 +19,9 @@ CameraVision is a Swift 6, macOS 15, SwiftPM project for local-first AI-assisted
 ## Architecture Rules
 
 - Reusable behavior goes in `Sources/AISidecarCore`; `Sources/AISidecarCLI` is argument parsing, command wiring, and presentation only.
-- Preserve the single executable shape (`aisidecar` + subcommands), Swift 6 strict concurrency, and the macOS 15 minimum. macOS-only — no cross-platform annotations.
+- Preserve the two fixed executable shapes — the single `aisidecar` CLI (+ subcommands) and the `CupricAspect` app — plus Swift 6 strict concurrency and the macOS 15 minimum. macOS-only — no cross-platform annotations.
 - Keep tests deterministic and offline (no Ollama, network, model downloads, or real images).
-- Add or update focused unit tests in `Tests/AISidecarCoreTests` with every behavior change.
+- Add or update focused unit tests in `Tests/AISidecarCoreTests` (Core/CLI) or `Tests/CupricAspectAppTests` (GUI) with every behavior change.
 - Follow `agent_docs/commenting_guide.md` for substantive comments and public API docs.
 - Implement one milestone or work item at a time unless the user explicitly expands scope.
 
@@ -30,6 +30,7 @@ CameraVision is a Swift 6, macOS 15, SwiftPM project for local-first AI-assisted
 ```bash
 swift test                          # build + full offline test suite (must pass)
 swift run aisidecar --help          # CLI wiring check
+swift run CupricAspect              # GUI launch check
 ```
 
 If XCTest is unavailable (Command Line Tools only), prefix with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. Full smoke-check commands (dry runs, benchmark self-test, per-phase manual checks) are in `agent_docs/testing-and-verification.md`.
@@ -52,6 +53,7 @@ Read only what your task touches.
 - `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` + `agent_docs/phase-4-gui-implementation-plan.md` + `agent_docs/07-cupricaspect-gui-design.md`: GUI work (the CupricAspect app — requirements, milestones, and the binding visual design spec; the design handoff bundle lives in `agent_docs/gui-wrapper-for-cameravision/`).
 - `agent_docs/05-efficiency-improvement-plan.md`: active refactoring/performance work items — pick items from here for efficiency tasks.
 - `agent_docs/06-packaging-single-app-plan.md`: app bundling, signing, distribution.
+- `agent_docs/08-post-review-hardening-plan.md`: **the active plan** — beta ship-blockers (R1, gates the `v0.1.0-beta.1` tag) and post-review hardening milestones R2–R4.
 - `agent_docs/release-evidence/`: recorded compatibility smoke evidence.
 
 ## Housekeeping

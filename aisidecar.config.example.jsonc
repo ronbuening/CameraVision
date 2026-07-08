@@ -11,6 +11,9 @@
   //
   // Precedence: CLI flag > AISIDECAR_* environment variable > JSON config >
   // built-in default.
+  //
+  // The CupricAspect app's Settings sheet writes through to this same
+  // config.json, so changes made in the GUI appear here and vice versa.
 
   // Phase 1 analyze input role. Options: "whole", "subject", "both".
   "mode": "both",

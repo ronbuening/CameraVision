@@ -1,8 +1,8 @@
 # CameraVision
 
-CameraVision is a local-first macOS command-line tool for AI-assisted photo metadata workflows. It scans image folders, renders model inputs, asks a local Ollama vision model for metadata candidates, writes auditable `.ai.json` sidecars, and can export accepted or normalized keywords to XMP sidecars for Lightroom Classic and Capture One.
+CameraVision is a local-first macOS toolset for AI-assisted photo metadata workflows. It scans image folders, renders model inputs, asks a local Ollama vision model for metadata candidates, writes auditable `.ai.json` sidecars, and can export accepted or normalized keywords to XMP sidecars for Lightroom Classic and Capture One.
 
-The project is CLI-only today. A GUI is planned separately.
+The project ships two front-ends over one core library: the `aisidecar` CLI (Phases 1–3) and the **CupricAspect** SwiftUI app (Phase 4, in beta preparation). Run the app with `swift run CupricAspect`, or build the packaged `CupricAspect.app` + DMG with `Scripts/build-release.sh`.
 
 ## What It Does
 
@@ -18,6 +18,8 @@ Supported scan extensions are `nef`, `nrw`, `cr3`, `cr2`, `arw`, `raf`, `orf`, `
 ## Current Status
 
 Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, Phase 2 Milestones 0-10, the pre-Phase-3 GPS context milestone, and Phase 3 Milestones 0-11 are implemented.
+
+Phase 4 (the CupricAspect GUI) milestones M0–M8a and beta-readiness items B0-1 through B0-4 and B0-6 are implemented at product version 0.1.0-beta.1. Outstanding before the beta tag: B0-5 manual release evidence (Lightroom Classic / Capture One round trip), Developer ID signing/notarization, and the `v0.1.0-beta.1` tag itself. Milestones M9–M11 (Studio shell, experimental database mode, scale/polish) are post-beta.
 
 Phase 3 release work is complete. Overall release signoff still depends on Phase 1 Milestone 9 calibration and quality review evidence, or an explicit release-note deferral.
 
@@ -165,14 +167,16 @@ swift run aisidecar apply-session \
 | `aisidecar write-xmp` | Export accepted raw-sidecar candidates to XMP sidecars, or run analyze-and-write in one command. |
 | `aisidecar normalize` | Build Phase 3 normalized decisions, sessions, reports, dry-run plans, or normalized XMP writes. |
 | `aisidecar apply-session` | Apply stored normalization decisions without rerunning analysis or recomputing consensus. |
+| `aisidecar explain-session` | Read-only explanation of a saved normalization session's keyword decisions (`--keyword`, `--needs-attention`, `--verbose`). |
 | `aisidecar benchmark` | Run the Phase 1 Milestone 9a benchmark harness. |
 | `aisidecar purge` | Remove derivative-cache artifacts. |
 | `aisidecar cleanup` | Remove owned raw sidecars and run/report artifacts from a folder. |
 
-Every command has help:
+Every command has help, and `aisidecar --version` prints the single-sourced product version:
 
 ```bash
 swift run aisidecar <command> --help
+swift run aisidecar --version
 ```
 
 ## Common Workflows
@@ -218,13 +222,14 @@ swift run aisidecar benchmark --self-test
 
 ## Output Files
 
-- `.ai.json`: raw AI sidecar with source identity, model provenance, prompts/schemas, candidates, and run records.
+- `.ai.json`: raw AI sidecar with source identity, model provenance, prompts/schemas, candidates, and run records, plus an additive `xmp_export` stamp after successful exports.
 - `.xmp`: metadata sidecar written by the owned XMP parser/writer path.
 - `*-progress-*.jsonl`: JSONL progress logs for folder/batch operations.
 - `*-report-*.json`: machine-readable run report.
 - `*-summary-*.md`: human-readable run summary.
 - `normalization-session-*.json`: durable Phase 3 session that `apply-session` can reuse.
 - Derivative cache: regenerable render artifacts under `~/Library/Caches/aisidecar/derivatives` by default.
+- CupricAspect GUI state (recovery session, per-run artifacts) under `~/Library/Application Support/CupricAspect/`, with a size-capped diagnostic log in its `logs/` subdirectory (path shown in Settings → About).
 
 Lightroom Classic and Capture One should read generated XMP sidecars after you import/synchronize metadata according to each application's normal XMP workflow.
 
@@ -304,10 +309,14 @@ Point SwiftPM at a full Xcode install with `DEVELOPER_DIR=/Applications/Xcode.ap
 The package layout is intentionally split:
 
 ```text
-Sources/AISidecarCore/   Reusable scan, render, model, sidecar, XMP, normalization, and pipeline logic.
-Sources/AISidecarCLI/    Argument parsing, command wiring, and user-facing presentation.
-Tests/AISidecarCoreTests/ Offline XCTest coverage and synthetic fixtures.
-agent_docs/             Requirements, implementation plans, release evidence, and agent guidance.
+Sources/AISidecarCore/     Reusable scan, render, model, sidecar, XMP, normalization, and pipeline logic.
+Sources/AISidecarCLI/      Argument parsing, command wiring, and user-facing presentation.
+Sources/CupricAspectApp/   SwiftUI GUI: presentation and state orchestration only; processing stays in Core.
+Tests/AISidecarCoreTests/  Offline XCTest coverage and synthetic fixtures for Core/CLI.
+Tests/CupricAspectAppTests/ Offline GUI model tests (same deterministic rules).
+Scripts/                   Release build, packaging assets, relocation/kill-relaunch checks, fixture generator.
+dist/                      Assembled CupricAspect.app and DMG output (build products).
+agent_docs/                Requirements, implementation plans, release evidence, and agent guidance.
 ```
 
 Build and verification commands:
@@ -318,6 +327,7 @@ swift run aisidecar analyze --help
 swift run aisidecar write-xmp --help
 swift run aisidecar normalize --help
 swift run aisidecar apply-session --help
+swift run aisidecar explain-session --help
 swift run aisidecar benchmark --self-test
 ```
 
@@ -329,10 +339,12 @@ swift run aisidecar benchmark --self-test
 - `agent_docs/phase-2-cli-implementation-plan(1).md`: Phase 2 implementation plan.
 - `agent_docs/03-cli-normalized-batch-tagger-requirements.md`: Phase 3 normalization requirements.
 - `agent_docs/phase-3-cli-implementation-plan-v0.3.md`: Phase 3 implementation plan and traceability matrix.
-- `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md`: Future GUI requirements.
-- `agent_docs/phase-4-gui-implementation-plan.md`: GUI implementation plan.
+- `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md`: GUI (CupricAspect) requirements.
+- `agent_docs/phase-4-gui-implementation-plan.md`: GUI implementation plan and milestone status.
+- `agent_docs/07-cupricaspect-gui-design.md`: binding GUI visual design spec.
 - `agent_docs/05-efficiency-improvement-plan.md`: Refactoring and performance work items.
 - `agent_docs/06-packaging-single-app-plan.md`: Single-app packaging and distribution plan.
+- `agent_docs/08-post-review-hardening-plan.md`: Active hardening plan — beta ship-blockers and post-review correctness milestones.
 - `agent_docs/architecture-map.md`: Module map, key types, and pipeline entry points.
 - `agent_docs/invariants.md`: Binding project rules for any change.
 - `agent_docs/testing-and-verification.md`: Build, test, and smoke-check procedures.

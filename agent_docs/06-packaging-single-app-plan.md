@@ -1,7 +1,9 @@
 # Packaging Plan — Single Distributable Application
 
-Version: 0.1
-Date: 2026-07-06
+Version: 0.2
+Date: 2026-07-07 (status pass after B0-1; original 2026-07-06)
+
+> **Status (2026-07-07, B0-1):** WI-2 ✅, WI-1 ✅ (except Developer ID signing/notarization — the script ad-hoc signs by default and takes `--sign <identity>`; `spctl` acceptance pending the certificate), WI-4 ✅, WI-5 ✅ (B0-3 `RuntimeGuidanceModel`), WI-6 ✅, Section 6 version single-sourcing ✅ (`AISidecarVersion.current` = 0.1.0-beta.1). Outstanding: Developer ID signing/notarization/stapling, WI-3 (post-beta), WI-7 (`agent_docs/release-checklist.md` does not exist yet), Section 7 CI. Per-item notes inline below.
 Depends on: `agent_docs/phase-4-gui-implementation-plan.md` (app target exists after its M0)
 Audience: junior engineer or Sonnet-level coding agent.
 
@@ -32,7 +34,7 @@ SidecarTagger.app/
     ├── Helpers/aisidecar                CLI executable (release build)
     ├── Frameworks/                      (empty today — Core is statically linked into both)
     ├── Resources/
-    │   ├── AISidecarCore_AISidecarCore.bundle   SwiftPM resource bundle (prompts, schemas, vocabulary)
+    │   ├── CameraVision_AISidecarCore.bundle    SwiftPM resource bundle (prompts, schemas, vocabulary)
     │   ├── Assets.car, app icon, etc.
     │   └── (GUI-only resources)
     ├── Info.plist
@@ -41,40 +43,36 @@ SidecarTagger.app/
 
 Notes:
 - `AISidecarCore` is a static SwiftPM library; both executables link it. That duplicates ~ a few MB of code in exchange for zero dylib/rpath complexity — acceptable. Only revisit (dynamic framework in `Contents/Frameworks`) if bundle size becomes a real complaint.
-- The SwiftPM resource bundle must be locatable by **both** executables. `Bundle.module` works per-target; verify the CLI built via `swift build` finds its copied resource bundle when relocated into `Contents/Helpers/` (SwiftPM places `AISidecarCore_AISidecarCore.bundle` beside the executable — copy it into `Helpers/` too, or teach the app's build phase to place one copy where both lookups resolve). This is the single most likely packaging bug; test it first (WI-2).
+- The SwiftPM resource bundle must be locatable by **both** executables. *As implemented (B0-1):* the SwiftPM resource bundle is flat, so codesign rejects a copy under `Helpers/` — the app carries **one** copy in `Contents/Resources`, shared by both executables through `AISidecarResourceBundle` (invariant 18). WI-2 confirmed this was indeed the most likely packaging bug: `Bundle.module`'s generated accessor checks only the main-bundle root and the absolute build-machine path.
 
 ## 3. Work Items
 
-**WI-1 — Release build script (`Scripts/build-release.sh`).**
-Inputs: version string. Steps:
-1. `swift build -c release --product aisidecar` (arm64 + x86_64 via `--arch` flags, `lipo` into a universal binary — or arm64-only if the project decides to drop Intel; make it a flag).
-2. `xcodebuild -scheme SidecarTagger -configuration Release archive`.
-3. Copy the CLI (and its resource bundle if needed per WI-2) into `Contents/Helpers/`.
-4. Codesign **inside-out**: helpers first, then the app, with `--options runtime` (hardened runtime) and the Developer ID Application identity.
-5. `xcrun notarytool submit --wait`, then `xcrun stapler staple`.
-6. Build a DMG (`hdiutil` or `create-dmg`), sign and staple the DMG too.
-*Acceptance:* script runs on a clean machine profile from a tagged checkout; `spctl --assess --type execute` passes on the app; the CLI runs from inside the bundle on a machine that never had Xcode.
+**WI-1 — Release build script (`Scripts/build-release.sh`).** *Status: implemented except Developer ID signing/notarization (steps 4–5 run with `--sign <identity>` once the certificate exists; ad-hoc signing otherwise).*
+As implemented: `swift build -c release` for both products (`--universal` flag for arm64+x86_64 via `--arch`); script-assembles `dist/CupricAspect.app` — `Contents/MacOS/CupricAspect`, `Info.plist` from `Scripts/packaging/Info.plist.template` with `CFBundleShortVersionString` injected from `AISidecarVersion` and cross-checked against the embedded CLI's `--version`, committed `AppIcon.icns` (`Scripts/generate-app-icon.sh`), embedded CLI at `Contents/Helpers/aisidecar` by default (`--no-cli` to skip), one shared resource bundle in `Contents/Resources` — then packs the DMG (`--no-dmg` to skip). Codesign is inside-out with `--options runtime`.
+*Remaining acceptance:* Developer ID sign + `xcrun notarytool submit --wait` + `stapler staple`; `spctl --assess --type execute` passes on the app; script run from a tagged checkout on a clean machine profile.
 
-**WI-2 — Resource-bundle relocation test (do first).**
-Write a small integration test/script: build the CLI, move the binary + resource bundle into a `Helpers/`-like layout, run `aisidecar analyze --help` and one prompt-registry-touching command (e.g. `benchmark --self-test`), confirm resources resolve. If `Bundle.module` fails when relocated, fix by adding a resource-resolution fallback in Core (search order: `Bundle.module` → main bundle → executable-adjacent) — a small, testable change.
+**WI-2 — Resource-bundle relocation test (do first).** *Status: done.*
+`Bundle.module` does fail when relocated (its generated accessor checks only the main-bundle root and the absolute build-machine path). Fixed with `AISidecarResourceBundle` in Core — implemented search order: app `Contents/Resources` → executable-adjacent → `../Resources` (Helpers CLI) → `Bundle.module` (dev/test fallback). Prompts, schemas, and vocabulary all resolve through it (invariant 18). `Scripts/wi2-relocation-check.sh` proves both relocated layouts with the build tree hidden, plus a negative control.
 
-**WI-3 — "Install Command Line Tool" action (GUI).**
+**WI-3 — "Install Command Line Tool" action (GUI).** *Status: not implemented (post-beta by B0 decision; the CLI ships embedded at `Contents/Helpers/aisidecar` only).*
 Menu item that symlinks `Contents/Helpers/aisidecar` to `/usr/local/bin/aisidecar` (create dir if missing; on permission failure, show the manual `ln -s` / `PATH` instructions instead of escalating privileges). Detect and repair a stale symlink after the app moves.
 *Acceptance:* fresh macOS user account → install action → `aisidecar --help` works in a new terminal.
 
 **WI-4 — Info.plist and identity.**
 Bundle id (e.g. `com.ronbuening.sidecartagger`), category `public.app-category.photography`, minimum system version 15.0, `NSHumanReadableCopyright`, and — important for the GUI — `LSApplicationCategoryType` and a proper app icon. No camera/mic/photo-library usage descriptions are needed (the app reads files, not the Photos library); add `NSPhotoLibraryUsageDescription` only if a Photos importer is ever built.
 
-**WI-5 — First-run / dependency experience.** See Section 5; ship it in the same release as WI-1.
+**WI-4 status: done** — `Scripts/packaging/Info.plist.template` (bundle id `com.ronbuening.cupricaspect`, `public.app-category.photography`, minimum 15.0) plus the committed `AppIcon.icns`.
+
+**WI-5 — First-run / dependency experience.** See Section 5; ship it in the same release as WI-1. *Status: done (B0-3) — `RuntimeGuidanceModel` implements the Section 5 state machine: one launch-time check + manual re-check, install/start guidance with a Download Ollama action, and a copyable `ollama pull <resolved tag>` starter command when no vision model exists.*
 
 **WI-6 — Config and cache path policy.**
 Keep the existing shared paths so CLI and GUI see the same world:
 - Config: `~/Library/Application Support/aisidecar/config.json` (existing precedence chain unchanged).
 - Derivative cache: `~/Library/Caches/aisidecar/derivatives` (shared with CLI — cache hits carry over).
-- GUI-only state (window state; the SQLite DB when the experimental database mode is enabled — requirements FR4-046/047): `~/Library/Application Support/SidecarTagger/` (read: `CupricAspect/`). Nothing is ever written inside the app bundle — it is read-only and code-signed.
-Document this in the README and in the app's settings screen.
+- GUI-only state (window state; the SQLite DB when the experimental database mode is enabled — requirements FR4-046/047): `~/Library/Application Support/CupricAspect/`. Nothing is ever written inside the app bundle — it is read-only and code-signed.
+Document this in the README and in the app's settings screen. *Status: done — paths confirmed as implemented; the GUI diagnostic log lives at `~/Library/Application Support/CupricAspect/logs/` (B0-4).*
 
-**WI-7 — Release checklist doc (`agent_docs/release-checklist.md`).**
+**WI-7 — Release checklist doc (`agent_docs/release-checklist.md`).** *Status: outstanding — the doc does not exist yet.*
 Tag → build script → smoke checks (app launch, CLI `--help`, one analyze run against fixtures with Ollama, one export verified in Lightroom/C1 per existing release-evidence pattern) → notarize → staple → DMG → GitHub release with checksums.
 
 ## 4. Signing & Notarization Details
