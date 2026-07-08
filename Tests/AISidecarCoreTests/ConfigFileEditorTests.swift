@@ -60,6 +60,23 @@ final class ConfigFileEditorTests: XCTestCase {
         XCTAssertEqual(resolved.existing, .fail)
     }
 
+    func testIntegralNumbersResolveThroughTheConfigChain() throws {
+        let path = root.appendingPathComponent("config.json").path
+        try ConfigFileEditor.merge(
+            ["stage_concurrency": .number(4)],
+            atPath: path
+        )
+
+        let object = try readObject(path)
+        XCTAssertEqual(object["stage_concurrency"] as? Int, 4)
+
+        let resolved = try ConfigurationResolver.resolve(
+            environment: [:],
+            defaultConfigPath: path
+        )
+        XCTAssertEqual(resolved.stageConcurrency, 4)
+    }
+
     func testMergeRejectsNonObjectConfig() throws {
         let path = root.appendingPathComponent("config.json").path
         try Data("[1,2,3]".utf8).write(to: URL(fileURLWithPath: path))

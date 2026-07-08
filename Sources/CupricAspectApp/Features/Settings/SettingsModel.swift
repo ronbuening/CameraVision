@@ -33,6 +33,7 @@ final class SettingsModel {
     private(set) var mode: AnalysisMode = .both
     private(set) var gps: GPSContextMode = .coarse
     private(set) var existing: ExistingPolicy = .skip
+    private(set) var stageConcurrency = min(8, max(1, ResolvedRunConfiguration.defaultStageConcurrency()))
     private(set) var derivativeCachePath = ""
     private(set) var loadError: String?
     /// AISIDECAR_* variables present in the environment (precedence notice).
@@ -66,6 +67,7 @@ final class SettingsModel {
             mode = resolved.mode
             gps = resolved.gpsContext
             existing = resolved.existing
+            stageConcurrency = min(8, max(1, resolved.stageConcurrency))
             derivativeCachePath = resolved.derivativeCacheDir
             loadError = nil
         } catch {
@@ -90,6 +92,7 @@ final class SettingsModel {
     func setMode(_ newMode: AnalysisMode) { write("mode", .string(newMode.rawValue)) }
     func setGPS(_ newGPS: GPSContextMode) { write("gps_context", .string(newGPS.rawValue)) }
     func setExisting(_ newExisting: ExistingPolicy) { write("existing", .string(newExisting.rawValue)) }
+    func setConcurrency(_ value: Int) { write("stage_concurrency", .number(Double(min(8, max(1, value))))) }
 
     func setModel(_ tag: String) {
         write("model", .string(tag))

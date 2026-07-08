@@ -53,17 +53,23 @@ public enum ConfigFileEditor {
     private static func foundationValue(_ value: JSONValue) -> Any {
         switch value {
         case .object(let dictionary):
-            dictionary.mapValues(foundationValue)
+            return dictionary.mapValues(foundationValue)
         case .array(let array):
-            array.map(foundationValue)
+            return array.map(foundationValue)
         case .string(let string):
-            string
+            return string
         case .number(let number):
-            number
+            if number.isFinite,
+               number.rounded() == number,
+               number >= Double(Int.min),
+               number <= Double(Int.max) {
+                return Int(number)
+            }
+            return number
         case .bool(let bool):
-            bool
+            return bool
         case .null:
-            NSNull()
+            return NSNull()
         }
     }
 }
