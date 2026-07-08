@@ -1,5 +1,7 @@
 # CODING AGENTS: READ THIS FIRST
 
+> **This bundle is superseded for implementation by `agent_docs/07-cupricaspect-gui-design.md`.** That spec extracts everything from these prototypes, resolves known prototype/Core mismatches (its Section 8), and is binding where they disagree — notably, the prototypes' normalize decision table (keep/merge/rename/drop) is void. Treat these files as historical design source only; do not implement from them directly, and ignore the instructions below unless the maintainer says otherwise.
+
 This is a **handoff bundle** from Claude Design (claude.ai/design).
 
 A user mocked up designs in HTML/CSS/JS using an AI design tool, then exported this bundle so a coding agent can implement the designs for real.

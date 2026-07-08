@@ -1,8 +1,9 @@
 # Phase 2 Requirements - CLI XMP Sidecar Writer
 
-Version: 0.5
-Date: 2026-06-15
-Supersedes: 0.4
+Version: 0.6
+Date: 2026-07-08
+Supersedes: 0.5
+Change log: v0.6: removed revision-history and status sections; status now lives in README/AGENTS.
 Builds on: Phase 1 Requirements v0.4 (`01-cli-raw-json-sidecar-requirements.md`)
 Binary: `aisidecar` (subcommand: `write-xmp`)
 Core library: `AISidecarCore`
@@ -12,86 +13,11 @@ Primary output artifact: XMP sidecar file
 
 This document inherits the Project-Wide Conventions of the Phase 1 requirements: binary/subcommand structure, flag glossary, configuration resolution, error taxonomy, schema evolution, provenance principles, and concurrency model. They are not restated except where Phase 2 narrows or clarifies their use.
 
-## 0. Changes from v0.4
+Implementation status lives in README.md and AGENTS.md; this document carries requirements only.
 
-This revision records Phase 2 Milestone 10 compatibility smoke completion and clears the Phase 2 portion of the Phase 3 entry gate.
+Versions v0.1–v0.3 specified an ExifTool-based writer; v0.4 replaced it with the project-owned XMP engine specified in §9. `E_EXIFTOOL_MISSING` remains reserved in the error taxonomy but unused.
 
-1. XMP sidecars written by the owned XMP engine have been manually smoke-verified as readable by both Lightroom Classic and Capture One.
-2. Milestone 10 compatibility evidence is recorded in `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`.
-3. Phase 3 now inherits a compatibility-checked sidecar writer. Remaining release signoff risk is Phase 1 Milestone 9 evidence or explicit deferral, not Phase 2 XMP application readback.
-
-## 0.1 Changes from v0.3
-
-This revision replaces the required ExifTool runtime dependency with a project-owned XMP sidecar implementation.
-
-1. `MetadataWriteEngine` remains the policy boundary, but the required Phase 2 implementation is now `OwnedXMPSidecarEngine`, not ExifTool.
-2. The owned engine is deliberately narrow: it creates, reads, merges, validates, and atomically writes `.xmp` sidecars only. It manages only `XMP-dc:Subject` and `XMP-lr:HierarchicalSubject` in Phase 2.
-3. ExifTool shall not be required at runtime, shall not be packaged with the application, and shall not be part of Phase 2 acceptance. It may remain an optional developer compatibility check outside the shipped product.
-4. Existing XMP preservation is now defined as semantic preservation. The engine may change whitespace, namespace-prefix ordering, attribute ordering, or XML formatting, but it must preserve all unmanaged metadata nodes and attributes in parsed form.
-5. Phase 2 now requires owned XMP modules: `XMPDocumentParser`, `XMPDocumentWriter`, `XMPKeywordReader`, `XMPKeywordMerger`, `XMPMetadataSnapshot`, `XMPUnmanagedContentFingerprint`, and `OwnedXMPSidecarEngine`.
-6. Post-write validation is performed by the owned parser and snapshot/fingerprint comparison, with Lightroom Classic and Capture One compatibility smoke checks retained for release evidence.
-7. Export reports now record the owned XMP engine name/version and XMP writer recipe version instead of an ExifTool version.
-8. Phase 2 adds four error codes to the additive project taxonomy: `E_SOURCE_MISSING`, `E_SOURCE_IDENTITY_MISMATCH`, `E_XMP_PARSE_FAILED`, and `E_XMP_UNSUPPORTED_RDF`.
-9. The prior ExifTool-specific error `E_EXIFTOOL_MISSING` remains in the inherited additive taxonomy for compatibility, but it is not used by the Phase 2 runtime path.
-
-## 0.2 Rereviewed Phase 1 State
-
-Implemented and stable enough to build on:
-
-- the SwiftPM package structure with `AISidecarCore` and `AISidecarCLI`;
-- the shared `aisidecar` binary with `analyze`, `benchmark`, and `purge`;
-- file/folder scanning, relative-path capture, source identity hashing, mirrored raw-sidecar output, atomic writes, existing-output policy, progress logs, summaries, and interruption/resume behavior;
-- orientation-correct sRGB model-input rendering with model profiles, derivative provenance, derivative cache reuse, LRU eviction, debug derivative copies, and purge controls;
-- two-resolution Apple Vision/Core Image subject isolation with deterministic instance selection, merge policy, failure records, and subject-isolation provenance;
-- Ollama model preparation and execution behind `VisionModelRunner`, with mock and recorded-fixture runners;
-- v1.4 prompts and response schemas, including ordinal confidence bands, candidate evidence, conditional biological `species`, GPS-context instructions, and no Phase 1 `visible_text` or GPS output field;
-- raw JSON schema-evolution handling for additive `ai-sidecar-json/1.x` rewrites;
-- no-XMP tests and benchmark checks.
-
-Still pending for final Phase 1 signoff:
-
-- full Milestone 9 benchmark matrix on the target machine;
-- final default decisions for `ModelInputProfile`, `model_keep_alive`, and `stage_concurrency`;
-- foreground-mask failure classification, tag-quality review, and manual multi-subject instance-selection spot checks;
-- rights-cleared HEIC, TIFF, NEF, and RAF timing/format coverage or documented deferral;
-- the final AC1-001 through AC1-015 acceptance pass, including live local-model, Apple Vision, and RAW decoder smoke evidence where required.
-
-Phase 2 implementation shall not reopen Phase 1 rendering, isolation, prompting, or model-runtime design unless a Phase 2 acceptance failure exposes an actual interface defect.
-
-## 0.3 Current Implementation Status
-
-Phase 2 Milestones 0-10 and the pre-Phase-3 GPS context milestone are implemented. The repository now has:
-
-- `aisidecar write-xmp --help` and command-shape validation;
-- Phase 2 export configuration defaults with `CLI > AISIDECAR_* > JSON config > built-in default` precedence;
-- Phase 2 policy enums for source verification, XMP conflict policy, minimum confidence, and pair scope;
-- schema identifiers `ai-sidecar-xmp-export/1.0` and `ai-sidecar-xmp-change-plan/1.0`;
-- additive source-verification and XMP-engine error codes: `E_SOURCE_MISSING`, `E_SOURCE_IDENTITY_MISMATCH`, `E_XMP_PARSE_FAILED`, and `E_XMP_UNSUPPORTED_RDF`;
-- no-XMP regression coverage for `analyze`, `benchmark`, `purge`, and `analyze --export-model-inputs`;
-- `RawJSONSidecarReader` plus `write-xmp --from-json` sidecar scanning and source resolution;
-- source identity verification policies for `fail`, `warn`, and `skip`;
-- `CandidateExtractor`, keyword text normalization, confidence-band filtering, de-duplication, skipped-candidate diagnostics, coordinate/GPS-only evidence guards, and conservative specific-tag filtering;
-- `XMPNaming` for `<base>.xmp` target paths and mirrored `--output-dir` staging paths;
-- `SameBaseNameGroupResolver` for same-base-name source groups, RAW/JPEG pair scope selection, contribution accounting, and case-insensitive target collision detection;
-- `XMPChangePlanner` plus `ai-sidecar-xmp-change-plan/1.0` dry-run JSON output from `write-xmp --from-json --dry-run`;
-- `MetadataWriteEngine` plus deterministic `MockMetadataWriteEngine`;
-- `OwnedXMPSidecarEngine` with engine identity `owned-xmp-sidecar` version `1.0` and writer recipe `owned-xmp-sidecar-writer/1.0`;
-- `XMPDocumentParser`, `XMPDocumentWriter`, `XMPKeywordReader`, `XMPKeywordMerger`, `XMPMetadataSnapshot`, and `XMPUnmanagedContentFingerprint`;
-- `XMPBackupManager` for deterministic `.xmp.bak-<ISO-8601-timestamp>` backups and atomic restore;
-- `XMPMergeValidator` for expected keyword presence, existing keyword preservation, and unmanaged-content fingerprint checks;
-- `XMPExportPipeline` for from-json dry-run/write execution, conflict-policy enforcement, backup/restore, source hash rechecks, per-target progress records, JSON reports, and Markdown summaries;
-- `AnalyzeAndXMPPipeline` for analyze-and-write integration through the same export planner, with `.ai.json` preservation by default and report-ready model/prompt/schema/runtime provenance under `--no-write-ai-json`;
-- SIGINT/SIGTERM-aware `write-xmp` command wiring that lets in-flight target writes finish, restore, or remain unchanged;
-- offline tests for canonical sidecar generation, alternate namespace prefixes, missing managed bags, existing keyword merge, unmanaged semantic preservation, malformed XML, unsupported RDF, backup/restore, validation failure restore, progress/report/summary artifacts, interruption behavior, and analyze-and-write.
-- Phase 2 Milestone 10 compatibility smoke evidence confirming owned-engine XMP keyword sidecars are readable by Lightroom Classic and Capture One.
-
-Phase 2 implementation is now complete through Milestone 10, with GPS context implemented as analysis-quality work before Phase 3. The Phase 2 portion of the Phase 3 entry gate is satisfied by the compatibility evidence recorded in `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`.
-
-Phase 3 entry still depends on a current baseline and Phase 1 release-evidence handling:
-
-- run the no-XMP regression checks for Phase 1 commands after Phase 2 documentation or fixture changes when release evidence is refreshed;
-- archive Phase 1 Milestone 9 calibration/quality evidence, or record an explicit deferral with the reason and residual risk;
-- record the latest `swift test` baseline in the Phase 2 plan before beginning Phase 3 implementation.
+Phase 2 compatibility evidence (Lightroom Classic and Capture One smoke checks) is recorded at `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`.
 
 ## 1. Purpose
 
@@ -430,6 +356,8 @@ FR2-029f - Unsupported but well-formed XMP/RDF shapes that cannot be safely merg
 FR2-029g - The engine wrapper shall expose dry-run rendering of intended changes so dry-run, write, validation, and reporting share one change-plan representation.
 
 FR2-029h - Owned-engine parse, merge, write, and validation failures shall map to structured errors with a bounded diagnostic excerpt retained in the report. Diagnostics shall not include full sidecar contents unless a debug mode is explicitly added later.
+
+FR2-029i - The engine identity recorded in reports (per FR2-034 and AC2-010) is `owned-xmp-sidecar` version `1.0`, and the writer recipe identifier is `owned-xmp-sidecar-writer/1.0`.
 
 ## 10. Output and Reporting Requirements
 
