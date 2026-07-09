@@ -15,6 +15,7 @@ struct AboutView: View {
 
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @AppStorage(PreferenceKeys.accent) private var accentChoice: AccentChoice = .copper
+    @AppStorage(PreferenceKeys.nonlinear) private var nonlinear = false
     @Environment(\.cvTheme) private var theme
     @Environment(\.dismiss) private var dismiss
 
@@ -131,17 +132,18 @@ struct AboutView: View {
                     Text("Nonlinear UI")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(theme.text)
-                    Text("Studio layout — coming soon.")
+                    Text(FeatureFlags.studioUI ? "Switch between the Wizard and Studio layouts." : "Studio layout — coming soon.")
                         .font(.system(size: 11))
                         .foregroundStyle(theme.textFaint)
                 }
                 Spacer()
                 // Studio ships in milestone M9 (FR4-040 v0.6 MVP scoping);
                 // until then the preference is inert and the switch disabled.
-                Toggle("", isOn: .constant(false))
+                // FeatureFlags.studioUI activates the in-progress shell early.
+                Toggle("", isOn: FeatureFlags.studioUI ? $nonlinear : .constant(false))
                     .toggleStyle(.switch)
                     .labelsHidden()
-                    .disabled(true)
+                    .disabled(!FeatureFlags.studioUI)
             }
         }
         .padding(16)

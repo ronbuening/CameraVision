@@ -26,4 +26,12 @@ final class FeatureFlagsTests: XCTestCase {
             XCTAssertFalse(FeatureFlags.isEnabled(key, in: [key: value]), "expected \(value.debugDescription) off")
         }
     }
+
+    /// The Studio gate shares the same parser: absent = off, `1` = on. This
+    /// locks the default-off contract that keeps the app Wizard-only.
+    func testStudioGateDefaultsOffAndOptsInWithEnv() {
+        let studioKey = "CUPRIC_STUDIO_UI"
+        XCTAssertFalse(FeatureFlags.isEnabled(studioKey, in: [:]))
+        XCTAssertTrue(FeatureFlags.isEnabled(studioKey, in: [studioKey: "1"]))
+    }
 }

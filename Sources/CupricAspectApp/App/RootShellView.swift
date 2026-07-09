@@ -16,12 +16,19 @@ enum PreferenceKeys {
 struct RootShellView: View {
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @AppStorage(PreferenceKeys.accent) private var accentChoice: AccentChoice = .copper
+    @AppStorage(PreferenceKeys.nonlinear) private var nonlinear = false
 
     var body: some View {
         // Wizard-first MVP (FR4-040 v0.6 scoping): the Studio shell and the
-        // `cupricaspect.nonlinear` preference activate in milestone M9.
+        // `cupricaspect.nonlinear` preference stay gated behind
+        // FeatureFlags.studioUI until milestone M9 lands. With the flag off the
+        // preference is never read, so the window is always the Wizard.
         ThemedContainer(accent: accentChoice) {
-            WizardShellView()
+            if FeatureFlags.studioUI, nonlinear {
+                StudioShellView()
+            } else {
+                WizardShellView()
+            }
         }
         .preferredColorScheme(themeChoice.preferredColorScheme)
         .frame(minWidth: 1040, minHeight: 720)
