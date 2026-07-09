@@ -28,12 +28,12 @@ jobs:
       security-events: write   # required to upload results to code scanning
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Initialize CodeQL
         # github/codeql-action is GitHub's own action; kept on the v3 major tag.
         # Pin to a commit SHA if you want to eliminate tag drift here too.
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           language: swift
 
@@ -41,4 +41,4 @@ jobs:
         run: swift build --build-tests
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
