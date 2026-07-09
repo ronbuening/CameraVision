@@ -17,6 +17,7 @@ struct Step1PhotosView: View {
     }
 
     @State private var pickTarget: PickTarget?
+    @State private var isPickerPresented = false
     @State private var displayMode: QueueDisplay = .grid
     @State private var previewRecord: AssetRecord?
     @State private var thumbnails = ThumbnailStore()
@@ -63,10 +64,7 @@ struct Step1PhotosView: View {
         }
         .padding(EdgeInsets(top: 26, leading: 34, bottom: 40, trailing: 34))
         .fileImporter(
-            isPresented: Binding(
-                get: { pickTarget != nil },
-                set: { if !$0 { pickTarget = nil } }
-            ),
+            isPresented: $isPickerPresented,
             allowedContentTypes: [.folder]
         ) { result in
             defer { pickTarget = nil }
@@ -122,6 +120,7 @@ struct Step1PhotosView: View {
     private var dropZone: some View {
         Button {
             pickTarget = .source
+            isPickerPresented = true
         } label: {
             VStack(spacing: 0) {
                 ApertureView(size: 64, running: model.scanning, spin: true)
@@ -174,7 +173,10 @@ struct Step1PhotosView: View {
                 if model.outputFolder != nil {
                     smallButton("Same as input") { model.chooseOutput(nil) }
                 }
-                smallButton("Choose…", filled: true) { pickTarget = .output }
+                smallButton("Choose…", filled: true) {
+                    pickTarget = .output
+                    isPickerPresented = true
+                }
             }
         }
         .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
