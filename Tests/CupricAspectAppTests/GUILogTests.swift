@@ -5,6 +5,15 @@ import XCTest
 /// B0-4 (FR4-059, AC4-035): the shared file sink persists structured pipeline
 /// log lines under the state directory and stays size-bounded via rotation.
 final class GUILogTests: XCTestCase {
+    private final class MoveFailingFileManager: FileManager, @unchecked Sendable {
+        private(set) var moveAttempts = 0
+
+        override func moveItem(at srcURL: URL, to dstURL: URL) throws {
+            moveAttempts += 1
+            throw CocoaError(.fileWriteUnknown)
+        }
+    }
+
     private var directory: URL!
 
     override func setUpWithError() throws {
@@ -70,6 +79,27 @@ final class GUILogTests: XCTestCase {
         let contents = try String(contentsOf: sink.logURL, encoding: .utf8)
         XCTAssertTrue(contents.contains("post-rotation line"))
         XCTAssertFalse(contents.contains("pre-cap-change line 0"), "old lines rotated out")
+    }
+
+    func testFailedRotationKeepsSizeAccountingAndRetries() throws {
+        let fileManager = MoveFailingFileManager()
+        let sink = FileLogSink(directory: directory, sizeCapBytes: 100, fileManager: fileManager)
+
+        sink.write(String(repeating: "a", count: 80))
+        sink.write(String(repeating: "b", count: 30))
+        XCTAssertEqual(fileManager.moveAttempts, 1)
+        let oversized = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: sink.logURL.path)[.size] as? Int
+        )
+        XCTAssertGreaterThan(oversized, 100)
+
+        sink.write("c")
+
+        XCTAssertEqual(fileManager.moveAttempts, 2, "failed rotation must be retried on the next write")
+        let contents = try String(contentsOf: sink.logURL, encoding: .utf8)
+        XCTAssertTrue(contents.contains(String(repeating: "a", count: 80)))
+        XCTAssertTrue(contents.contains(String(repeating: "b", count: 30)))
+        XCTAssertTrue(contents.contains("c"))
     }
 
     func testStoredSizeCapReadsPreferenceWithDefaultFallback() throws {

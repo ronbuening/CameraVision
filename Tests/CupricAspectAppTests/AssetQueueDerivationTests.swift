@@ -66,6 +66,25 @@ final class AssetQueueDerivationTests: XCTestCase {
         XCTAssertEqual(derive("a.nef"), .xmpMissingWasExported)
     }
 
+    func testHasXMPExportBlockViaPartialDecode() throws {
+        let withBlock = try write("with.ai.json", #"{"schema_version":"1","xmp_export":{"target":"a.xmp"}}"#)
+        let withoutBlock = try write("without.ai.json", #"{"schema_version":"1"}"#)
+        let malformed = try write("malformed.ai.json", "not json")
+
+        XCTAssertTrue(AssetQueueDerivation.hasXMPExportBlock(rawSidecarPath: withBlock))
+        XCTAssertFalse(AssetQueueDerivation.hasXMPExportBlock(rawSidecarPath: withoutBlock))
+        XCTAssertFalse(AssetQueueDerivation.hasXMPExportBlock(rawSidecarPath: malformed))
+    }
+
+    func testHasXMPExportBlockIgnoresKeyNestedInStrings() throws {
+        let sidecar = try write(
+            "nested.ai.json",
+            #"{"schema_version":"1","raw_response_text":"{\"xmp_export\":{\"target\":\"a.xmp\"}}"}"#
+        )
+
+        XCTAssertFalse(AssetQueueDerivation.hasXMPExportBlock(rawSidecarPath: sidecar))
+    }
+
     func testOutputDirMirrorsCoreNaming() throws {
         let out = root.appendingPathComponent("staging").path
         _ = try write("sub/a.nef")

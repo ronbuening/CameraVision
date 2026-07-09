@@ -197,6 +197,37 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testAutosaveNowFlushesPendingVerdictsBelowCadenceThreshold() throws {
+        let model = makeModel(decisionLimit: 25)
+        model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))
+        let chips = try XCTUnwrap(model.assetRows.first?.chips)
+
+        model.setVerdict(.rejected, for: chips[0].decisionID)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: model.recoveryURL.path), "below the cadence threshold")
+
+        model.autosaveNow()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: model.recoveryURL.path))
+        let restored = makeModel()
+        try restored.restoreFromRecovery()
+        XCTAssertEqual(restored.verdicts[chips[0].decisionID], .rejected)
+    }
+
+    @MainActor
+    func testTerminationFlushRunsRegisteredActions() {
+        TerminationFlush._resetForTesting()
+        defer { TerminationFlush._resetForTesting() }
+        var flushed = false
+
+        TerminationFlush.register(id: "test") {
+            flushed = true
+        }
+        TerminationFlush.runAll()
+
+        XCTAssertTrue(flushed)
+    }
+
+    @MainActor
     func testSaveAndImportRoundTripPreservesVerdictsAndEdits() throws {
         let model = makeModel()
         model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))

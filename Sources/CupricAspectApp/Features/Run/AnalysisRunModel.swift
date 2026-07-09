@@ -22,6 +22,7 @@ final class AnalysisOptions {
     /// Resolved display values (model tag, endpoint) from the config chain.
     private(set) var resolvedModel = ""
     private(set) var resolvedEndpoint = ""
+    private(set) var defaultsLoaded = false
 
     init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -42,6 +43,8 @@ final class AnalysisOptions {
         ) else { return }
         resolvedModel = resolved.model
         resolvedEndpoint = resolved.modelEndpoint.absoluteString
+        guard !defaultsLoaded else { return }
+        defaultsLoaded = true
         mode = resolved.mode
         gps = resolved.gpsContext
         existing = resolved.existing
@@ -52,6 +55,11 @@ final class AnalysisOptions {
         ) {
             xmpConflictPolicy = exportDefaults.xmpConflictPolicy
         }
+    }
+
+    func resetToResolvedDefaults() {
+        defaultsLoaded = false
+        loadResolvedDefaults()
     }
 
     /// Build the run configuration: UI choices as CLI-equivalent overrides on
@@ -123,7 +131,7 @@ final class AnalysisRunModel {
     private var preflightGeneration = 0
 
     var progressFraction: Double {
-        total > 0 ? Double(done) / Double(total) : 0
+        total > 0 ? min(1, Double(done) / Double(total)) : 0
     }
 
     var isRunning: Bool { phase == .running || phase == .cancelling }
@@ -177,6 +185,7 @@ final class AnalysisRunModel {
         Task {
             for await record in stream {
                 done += 1
+                reconcileProgressTotal()
                 if record.status == .written { writtenCount += 1 }
                 if let relativePath = record.relativePath { currentFile = relativePath }
                 onRecord?(record)
@@ -219,6 +228,18 @@ final class AnalysisRunModel {
         writtenCount = 0
         currentFile = ""
         startedAt = nil
+    }
+
+    func applyProgressForTesting(done: Int, total: Int) {
+        self.done = done
+        self.total = total
+        reconcileProgressTotal()
+    }
+
+    private func reconcileProgressTotal() {
+        if done > total {
+            total = done
+        }
     }
 
     /// Reduce a run's progress records to the Step 5 summary. Pure so tests

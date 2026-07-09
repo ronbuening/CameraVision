@@ -51,8 +51,13 @@ final class FileLogSink: @unchecked Sendable {
         do {
             if currentSize + data.count > sizeCapBytes {
                 try? fileManager.removeItem(at: previousLogURL)
-                try? fileManager.moveItem(at: logURL, to: previousLogURL)
-                currentSize = 0
+                do {
+                    try fileManager.moveItem(at: logURL, to: previousLogURL)
+                    currentSize = 0
+                } catch {
+                    // Keep accounting for the oversized current file; the
+                    // next write will retry rotation instead of growing blind.
+                }
             }
             if !fileManager.fileExists(atPath: logURL.path) {
                 try fileManager.createDirectory(

@@ -9,6 +9,40 @@ import XCTest
 /// decoding. The fixture is an unmodified `.ai.json` written by
 /// `AnalyzePipeline` (mode `both`), so decode drift from Core fails here.
 final class AssetPreviewTests: XCTestCase {
+    private final class DecodeCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _count = 0
+
+        var count: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return _count
+        }
+
+        func increment() {
+            lock.lock()
+            _count += 1
+            lock.unlock()
+        }
+    }
+
+    private final class UnreadableSidecarFileManager: FileManager, @unchecked Sendable {
+        let unreadablePath: String
+
+        init(unreadablePath: String) {
+            self.unreadablePath = unreadablePath
+            super.init()
+        }
+
+        override func fileExists(atPath path: String) -> Bool {
+            path == unreadablePath || super.fileExists(atPath: path)
+        }
+
+        override func contents(atPath path: String) -> Data? {
+            path == unreadablePath ? nil : super.contents(atPath: path)
+        }
+    }
+
     private var root: URL!
 
     override func setUpWithError() throws {
@@ -107,6 +141,36 @@ final class AssetPreviewTests: XCTestCase {
         XCTAssertNotNil(details.fullImage)
         XCTAssertNil(details.instanceCount)
         XCTAssertEqual(details.modelRunCount, 0)
+        XCTAssertEqual(details.sidecarErrors, [])
+    }
+
+    func testPreviewReportsMalformedSidecar() throws {
+        let sourceURL = try writeJPEG("malformed.jpg")
+        let sidecarURL = root.appendingPathComponent("malformed.jpg.ai.json")
+        try Data("not json".utf8).write(to: sidecarURL)
+
+        let details = AssetPreviewDetails.load(
+            sourcePath: sourceURL.path,
+            rawSidecarPath: sidecarURL.path
+        )
+
+        XCTAssertNotNil(details.fullImage)
+        XCTAssertTrue(details.sidecarErrors.first?.hasPrefix("sidecar malformed:") == true)
+    }
+
+    func testPreviewReportsUnreadableSidecar() throws {
+        let sourceURL = try writeJPEG("unreadable.jpg")
+        let sidecarURL = root.appendingPathComponent("unreadable.jpg.ai.json")
+        let fileManager = UnreadableSidecarFileManager(unreadablePath: sidecarURL.path)
+
+        let details = AssetPreviewDetails.load(
+            sourcePath: sourceURL.path,
+            rawSidecarPath: sidecarURL.path,
+            fileManager: fileManager
+        )
+
+        XCTAssertNotNil(details.fullImage)
+        XCTAssertEqual(details.sidecarErrors, ["sidecar unreadable: unreadable.jpg.ai.json"])
     }
 
     func testThumbnailDecodeRespectsMaxPixelAndFailsCleanly() throws {
@@ -118,5 +182,22 @@ final class AssetPreviewTests: XCTestCase {
         XCTAssertLessThanOrEqual(max(thumbnail.image.width, thumbnail.image.height), 128)
 
         XCTAssertNil(ThumbnailStore.decodeThumbnail(path: root.appendingPathComponent("nope.jpg").path, maxPixel: 128))
+    }
+
+    @MainActor
+    func testUndecodableThumbnailIsNegativelyCachedAndNotRedecoded() async throws {
+        let counter = DecodeCounter()
+        let store = ThumbnailStore(decodeProvider: { _, _ in
+            counter.increment()
+            return nil
+        })
+        let path = root.appendingPathComponent("garbage.jpg").path
+
+        let first = await store.thumbnail(for: path)
+        let second = await store.thumbnail(for: path)
+
+        XCTAssertNil(first)
+        XCTAssertNil(second)
+        XCTAssertEqual(counter.count, 1)
     }
 }

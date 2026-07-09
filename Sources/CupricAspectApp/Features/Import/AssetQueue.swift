@@ -103,11 +103,22 @@ enum AssetQueueDerivation {
     /// "XMP present (external)" — correct by construction.
     static func hasXMPExportBlock(rawSidecarPath: String, fileManager: FileManager = .default) -> Bool {
         guard let data = fileManager.contents(atPath: rawSidecarPath),
-              let object = try? JSONSerialization.jsonObject(with: data),
-              let dictionary = object as? [String: Any] else {
+              let probe = try? JSONDecoder().decode(XMPExportProbe.self, from: data) else {
             return false
         }
-        return dictionary["xmp_export"] != nil
+        return probe.xmpExport != nil
+    }
+
+    private struct XMPExportProbe: Decodable {
+        struct Present: Decodable {
+            init(from decoder: Decoder) throws {}
+        }
+
+        var xmpExport: Present?
+
+        enum CodingKeys: String, CodingKey {
+            case xmpExport = "xmp_export"
+        }
     }
 
     /// Derive the between-launch state for one asset from disk (plan M1 table).

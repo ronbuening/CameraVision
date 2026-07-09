@@ -48,12 +48,21 @@ final class FolderImportModel {
     private(set) var assets: [AssetRecord] = []
     private(set) var scanErrors: [ScanIssue] = []
     var errorCodeFilter: String?
+    var inventoryProvider: @Sendable (String, Bool) throws -> ScanInventory = {
+        try ImageScanner().inventory(inputPath: $0, recursive: $1)
+    }
+    private var scanGeneration = 0
 
     struct ScanIssue: Identifiable, Equatable, Sendable {
         var path: String
         var code: String
         var message: String
         var id: String { path }
+    }
+
+    private struct RescanOutcome: Sendable {
+        var records: [AssetRecord]
+        var issues: [ScanIssue]
     }
 
     var filteredAssets: [AssetRecord] {
@@ -118,53 +127,71 @@ final class FolderImportModel {
     /// the same folder yields the same rows.
     func rescan() async {
         guard let sourceFolder else { return }
+        scanGeneration += 1
+        let generation = scanGeneration
         scanning = true
-        defer { scanning = false }
+        defer {
+            if generation == scanGeneration {
+                scanning = false
+            }
+        }
 
         let inputPath = sourceFolder.path
         let outputDir = outputFolder?.path
         let recursive = recursive
+        let inventoryProvider = inventoryProvider
 
-        let outcome: (records: [AssetRecord], issues: [ScanIssue])? = await Task.detached(priority: .userInitiated) {
-            guard let inventory = try? ImageScanner().inventory(inputPath: inputPath, recursive: recursive) else {
-                return nil
-            }
-            let records = inventory.entries.map { entry in
-                AssetRecord(
-                    path: entry.path,
-                    relativePath: entry.relativePath,
-                    fileName: entry.fileName,
-                    fileExtension: entry.fileExtension,
-                    fileSize: entry.fileSize,
-                    stateKind: AssetQueueDerivation.deriveState(
-                        sourcePath: entry.path,
+        let outcome: RescanOutcome = await Task.detached(priority: .userInitiated) {
+            do {
+                let inventory = try inventoryProvider(inputPath, recursive)
+                let records = inventory.entries.map { entry in
+                    AssetRecord(
+                        path: entry.path,
                         relativePath: entry.relativePath,
-                        outputDir: outputDir
-                    ),
-                    failureCode: nil,
-                    failureMessage: nil
-                )
+                        fileName: entry.fileName,
+                        fileExtension: entry.fileExtension,
+                        fileSize: entry.fileSize,
+                        stateKind: AssetQueueDerivation.deriveState(
+                            sourcePath: entry.path,
+                            relativePath: entry.relativePath,
+                            outputDir: outputDir
+                        ),
+                        failureCode: nil,
+                        failureMessage: nil
+                    )
+                }
+                let issues = inventory.errors.map { record in
+                    ScanIssue(
+                        path: record.path,
+                        code: record.error.code.rawValue,
+                        message: record.error.message
+                    )
+                }
+                return RescanOutcome(records: records, issues: issues)
+            } catch {
+                return RescanOutcome(records: [], issues: [
+                    Self.scanIssue(for: inputPath, error: error)
+                ])
             }
-            let issues = inventory.errors.map { record in
-                ScanIssue(
-                    path: record.path,
-                    code: record.error.code.rawValue,
-                    message: record.error.message
-                )
-            }
-            return (records, issues)
         }.value
 
-        guard let outcome else {
-            assets = []
-            scanErrors = [ScanIssue(
-                path: inputPath,
-                code: "validation_failed",
-                message: "Unable to scan the selected folder."
-            )]
-            return
-        }
+        guard generation == scanGeneration else { return }
         assets = outcome.records
         scanErrors = outcome.issues
+    }
+
+    nonisolated private static func scanIssue(for path: String, error: Error) -> ScanIssue {
+        if let sidecarError = error as? SidecarError {
+            return ScanIssue(
+                path: path,
+                code: sidecarError.code.rawValue,
+                message: sidecarError.message
+            )
+        }
+        return ScanIssue(
+            path: path,
+            code: SidecarErrorCode.validationFailed.rawValue,
+            message: error.localizedDescription
+        )
     }
 }

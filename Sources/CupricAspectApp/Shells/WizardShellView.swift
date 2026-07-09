@@ -51,6 +51,9 @@ struct WizardShellView: View {
             runModel.onRecord = { [weak importModel] record in
                 importModel?.apply(record)
             }
+            TerminationFlush.register(id: "review") { [weak reviewModel] in
+                reviewModel?.autosaveNow()
+            }
             // Dev/UI-test hooks: auto-import a folder / jump to a step via
             // environment. No effect in normal launches; not preferences.
             let env = ProcessInfo.processInfo.environment
@@ -116,8 +119,6 @@ struct WizardShellView: View {
             switch phase {
             case .ready where step == 4:
                 step = 5
-            case .written:
-                Task { await importModel.rescan() }
             case .failed where step == 4:
                 step = 3
             default:
@@ -137,6 +138,11 @@ struct WizardShellView: View {
         }
         .onChange(of: reviewModel.session?.session.sessionID) { _, _ in
             rehydrateImportContextFromReviewSession()
+        }
+        .onChange(of: importModel.sourceFolder?.path) { oldPath, newPath in
+            guard newPath != nil, newPath != oldPath else { return }
+            options.resetToResolvedDefaults()
+            options.modelOverride = nil
         }
         .sheet(isPresented: $showPlanSheet) {
             ChangePlanSheet(export: exportModel)

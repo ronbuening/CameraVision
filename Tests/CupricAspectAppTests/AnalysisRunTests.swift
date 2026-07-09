@@ -54,6 +54,44 @@ final class AnalysisRunTests: XCTestCase {
     }
 
     @MainActor
+    func testUserEditedOptionsSurviveRepeatedDefaultLoadsAndResetReseeds() throws {
+        let configPath = try writeConfig(#"{ "existing": "fail", "stage_concurrency": 2 }"#)
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: configPath)
+
+        options.loadResolvedDefaults()
+        XCTAssertEqual(options.existing, .fail)
+        XCTAssertEqual(options.concurrency, 2)
+
+        options.existing = .overwrite
+        options.concurrency = 4
+        options.loadResolvedDefaults()
+
+        XCTAssertEqual(options.existing, .overwrite)
+        XCTAssertEqual(options.concurrency, 4)
+
+        options.resetToResolvedDefaults()
+
+        XCTAssertEqual(options.existing, .fail)
+        XCTAssertEqual(options.concurrency, 2)
+    }
+
+    @MainActor
+    func testRepeatedDefaultLoadsStillRefreshDisplayConfiguration() throws {
+        let configPath = try writeConfig(#"{ "model": "first:model" }"#)
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: configPath)
+
+        options.loadResolvedDefaults()
+        XCTAssertEqual(options.resolvedModel, "first:model")
+        options.existing = .overwrite
+
+        try #"{ "model": "second:model" }"#.data(using: .utf8)!.write(to: URL(fileURLWithPath: configPath))
+        options.loadResolvedDefaults()
+
+        XCTAssertEqual(options.resolvedModel, "second:model")
+        XCTAssertEqual(options.existing, .overwrite)
+    }
+
+    @MainActor
     func testXMPConflictPolicyDefaultMatchesCoreApplySessionDefault() {
         let options = AnalysisOptions()
 
@@ -87,6 +125,23 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 0.25, done: 10), 0)
         XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 60, done: 30), 2.0, accuracy: 0.001)
         XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 60, done: 20), 3.0, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testProgressFractionClampsToOneAndReconcilesStaleTotal() {
+        let model = AnalysisRunModel()
+
+        model.applyProgressForTesting(done: 12, total: 10)
+
+        XCTAssertEqual(model.progressFraction, 1.0)
+        XCTAssertEqual(model.total, 12)
+    }
+
+    @MainActor
+    func testProgressFractionIsZeroWhenNoProgressExists() {
+        let model = AnalysisRunModel()
+
+        XCTAssertEqual(model.progressFraction, 0)
     }
 
     func testOutcomeReductionCountsStatusesAndAggregatesErrorCodes() {
