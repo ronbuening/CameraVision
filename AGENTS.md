@@ -31,6 +31,8 @@ CameraVision is a Swift 6, macOS 15, SwiftPM project for local-first AI-assisted
 swift test                          # build + full offline test suite (must pass)
 swift run aisidecar --help          # CLI wiring check
 swift run CupricAspect              # GUI launch check
+Scripts/format.sh                   # auto-format Sources/ and Tests/ (.swift-format: 4-space, 120-col)
+Scripts/format.sh --lint            # style check only; CI runs this as an advisory job
 ```
 
 If XCTest is unavailable (Command Line Tools only), prefix with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`. Full smoke-check commands (dry runs, benchmark self-test, per-phase manual checks) are in `agent_docs/testing-and-verification.md`.

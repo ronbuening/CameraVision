@@ -77,14 +77,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
+      - name: Register swift-format problem matcher
+        # Surfaces each violation as an inline annotation on the PR's
+        # "Files changed" diff, so findings are visible without opening logs.
+        run: echo "::add-matcher::.github/problem-matchers/swift-format.json"
+
       - name: swift format lint
-        # Advisory for now. The existing tree predates swift-format, so this
-        # is expected to report style violations initially; it does NOT block
-        # merges (only "Build and test (macOS)" is the required check).
-        # To adopt it: run `swift format --in-place --recursive Sources Tests`
-        # once, commit the result, then remove `continue-on-error` below and
-        # add this job to the required status checks. A `.swift-format` file
-        # at the repo root can tune the rules.
+        # Advisory for now. Style is defined by the repo-root .swift-format
+        # (4-space indent, 120-col), which swift-format auto-discovers. This
+        # does NOT block merges (only "Build and test (macOS)" is required).
+        # To adopt it: run `Scripts/format.sh` once, commit the result, then
+        # remove `continue-on-error` below and add this job to the required
+        # status checks.
         continue-on-error: true
         run: |
           swift format --version
