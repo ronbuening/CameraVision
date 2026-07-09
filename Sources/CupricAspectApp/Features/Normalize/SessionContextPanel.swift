@@ -24,8 +24,9 @@ struct SessionContextPanel: View {
             contextField("EVENT", text: $model.event, propagation: $model.allowEventPropagation)
 
             // Vocabulary surface (custom-vocabulary picker + unknown-policy)
-            // is gated until the vocabulary tooling ships; when hidden the run
-            // uses the bundled vocabulary and the built-in unknown policy.
+            // is gated until the vocabulary tooling ships; when hidden no file
+            // can be chosen, so the run keeps the built-in defaults (the
+            // observed-tags catalog and the built-in unknown policy).
             if FeatureFlags.vocabularyUI {
                 Divider().overlay(theme.border)
 

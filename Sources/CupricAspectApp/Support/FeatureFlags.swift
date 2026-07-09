@@ -12,13 +12,17 @@ import Foundation
 enum FeatureFlags {
     /// Controlled-vocabulary UI surface: the custom vocabulary-file picker and
     /// "if not in vocabulary" policy in the normalize session-context panel,
-    /// the vocabulary-file stale banner, and every "vocabulary" mention in the
-    /// normalize/export copy. Hidden until the vocabulary tooling ships (post
-    /// M11, roadmap F1); enable with `CUPRIC_VOCABULARY_UI=1`.
+    /// the vocabulary-file stale banner, and the "vocabulary" mentions in the
+    /// wizard/normalize/export step copy. Decision-audit text from the shared
+    /// Core explainer (the Inspector's WHY column, review-chip tooltips) is
+    /// deliberately NOT gated: it must stay truthful to what the engine did
+    /// and match `explain-session` output. Hidden until the vocabulary tooling
+    /// ships (post M11, roadmap F1); enable with `CUPRIC_VOCABULARY_UI=1`.
     ///
-    /// When off, normalization still runs on the bundled starter vocabulary
-    /// with its built-in `unknownSessionContextPolicy` default — the same
-    /// configuration a fresh run uses today.
+    /// When off, no vocabulary file can be chosen, so normalization keeps its
+    /// built-in defaults — the observed-tags catalog generated from the batch
+    /// and the built-in `unknownSessionContextPolicy` — the same configuration
+    /// a fresh run uses today.
     static let vocabularyUI: Bool = isEnabled("CUPRIC_VOCABULARY_UI")
 
     /// The Studio (nonlinear) shell and its "Nonlinear UI" preference. The
@@ -28,8 +32,8 @@ enum FeatureFlags {
     /// `CUPRIC_STUDIO_UI=1`.
     ///
     /// When off, the app is Wizard-only exactly as today: the `nonlinear`
-    /// preference is never read, so no shell switch or persisted value can
-    /// change what the window shows.
+    /// preference is never consulted for the shell choice, so no persisted
+    /// value can change what the window shows, and the toggle stays disabled.
     static let studioUI: Bool = isEnabled("CUPRIC_STUDIO_UI")
 
     /// Truthy-parse a hidden gate from the given environment (defaults to the

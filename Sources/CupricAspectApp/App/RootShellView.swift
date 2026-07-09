@@ -22,7 +22,7 @@ struct RootShellView: View {
         // Wizard-first MVP (FR4-040 v0.6 scoping): the Studio shell and the
         // `cupricaspect.nonlinear` preference stay gated behind
         // FeatureFlags.studioUI until milestone M9 lands. With the flag off the
-        // preference is never read, so the window is always the Wizard.
+        // preference is never consulted, so the window is always the Wizard.
         ThemedContainer(accent: accentChoice) {
             if FeatureFlags.studioUI, nonlinear {
                 StudioShellView()
