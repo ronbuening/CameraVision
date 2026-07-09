@@ -33,7 +33,7 @@ jobs:
       - name: Initialize CodeQL
         # github/codeql-action is GitHub's own action; kept on the v3 major tag.
         # Pin to a commit SHA if you want to eliminate tag drift here too.
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           language: swift
 
@@ -41,4 +41,4 @@ jobs:
         run: swift build --build-tests
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
