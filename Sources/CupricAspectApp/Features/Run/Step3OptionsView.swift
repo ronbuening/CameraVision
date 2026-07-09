@@ -266,7 +266,7 @@ struct Step3OptionsView: View {
                     Text("Advanced flags")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(theme.text)
-                    Text("gps · existing .ai.json · existing xmp · concurrency")
+                    Text("gps · existing .ai.json · existing xmp · concurrency · image size · context window")
                         .font(.system(size: 11))
                         .foregroundStyle(theme.textFaint)
                     Spacer()
@@ -316,11 +316,25 @@ struct Step3OptionsView: View {
                             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
                         }
                     }
+                    GridRow {
+                        advancedGroup("MODEL IMAGE SIZE") {
+                            CVSegmentedControl(
+                                options: ModelTuning.profileNamesBySize,
+                                selection: $options.profile,
+                                label: { ModelTuning.imageSizeLabel(forProfileNamed: $0) }
+                            )
+                        }
+                        advancedGroup("MODEL CONTEXT WINDOW") {
+                            contextWindowMenu
+                        }
+                    }
                 }
                 .padding(EdgeInsets(top: 14, leading: 17, bottom: 18, trailing: 17))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Existing .ai.json: the tool's own analysis files, not your .xmp.")
                     Text("Merge keeps keywords already in your .xmp; Backup & Merge writes a .xmp.bak first.")
+                    Text("Image size: longest edge of the render sent to the model — smaller is faster, larger keeps fine detail.")
+                    Text("Context window: Ollama num_ctx tokens per call — match it to what the model supports.")
                 }
                 .font(.system(size: 11))
                 .foregroundStyle(theme.textFaint)
@@ -337,6 +351,37 @@ struct Step3OptionsView: View {
             sectionLabel(label)
             content()
         }
+    }
+
+    private var contextWindowMenu: some View {
+        Menu {
+            ForEach(ModelTuning.contextWindowChoices, id: \.self) { tokens in
+                Button {
+                    options.contextWindow = tokens
+                } label: {
+                    if tokens == options.contextWindow {
+                        Label("\(tokens)", systemImage: "checkmark")
+                    } else {
+                        Text("\(tokens)")
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text("\(options.contextWindow)")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                Text("▾").font(.system(size: 9))
+            }
+            .foregroundStyle(theme.text)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 11)
+            .background(theme.panel2)
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(theme.border))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Ollama num_ctx tokens requested per model call")
     }
 
     private func sectionLabel(_ text: String) -> some View {

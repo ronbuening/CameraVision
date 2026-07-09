@@ -35,6 +35,8 @@ final class SettingsModel {
     private(set) var existing: ExistingPolicy = .skip
     private(set) var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
     private(set) var stageConcurrency = min(8, max(1, ResolvedRunConfiguration.defaultStageConcurrency()))
+    private(set) var profile = ModelInputProfile.defaultProfile.name
+    private(set) var modelContextWindow = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
     private(set) var derivativeCachePath = ""
     private(set) var loadError: String?
     /// AISIDECAR_* variables present in the environment (precedence notice).
@@ -74,6 +76,8 @@ final class SettingsModel {
             existing = resolved.existing
             xmpConflictPolicy = resolvedApply.xmpConflictPolicy
             stageConcurrency = min(8, max(1, resolved.stageConcurrency))
+            profile = resolved.profile
+            modelContextWindow = resolved.modelContextWindow
             derivativeCachePath = resolved.derivativeCacheDir
             loadError = nil
         } catch {
@@ -100,6 +104,8 @@ final class SettingsModel {
     func setExisting(_ newExisting: ExistingPolicy) { write("existing", .string(newExisting.rawValue)) }
     func setXMPConflictPolicy(_ policy: XMPConflictPolicy) { write("xmp_conflict_policy", .string(policy.rawValue)) }
     func setConcurrency(_ value: Int) { write("stage_concurrency", .number(Double(min(8, max(1, value))))) }
+    func setProfile(_ name: String) { write("profile", .string(name)) }
+    func setModelContextWindow(_ tokens: Int) { write("model_context_window", .number(Double(tokens))) }
 
     func setModel(_ tag: String) {
         write("model", .string(tag))
