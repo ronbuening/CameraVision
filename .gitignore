@@ -219,7 +219,7 @@ __marimo__/
 
 # Swift / Xcode
 .build/
-.swiftpm/xcode/
+.swiftpm/
 DerivedData/
 *.xcuserstate
 *.xcscmblueprint
