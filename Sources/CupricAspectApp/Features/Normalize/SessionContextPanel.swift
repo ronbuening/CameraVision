@@ -23,42 +23,47 @@ struct SessionContextPanel: View {
             contextField("HABITAT", text: $model.habitat, propagation: $model.allowHabitatPropagation)
             contextField("EVENT", text: $model.event, propagation: $model.allowEventPropagation)
 
-            Divider().overlay(theme.border)
+            // Vocabulary surface (custom-vocabulary picker + unknown-policy)
+            // is gated until the vocabulary tooling ships; when hidden the run
+            // uses the bundled vocabulary and the built-in unknown policy.
+            if FeatureFlags.vocabularyUI {
+                Divider().overlay(theme.border)
 
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("IF NOT IN VOCABULARY")
-                        .font(.system(size: 10, weight: .semibold))
-                        .kerning(0.5)
-                        .foregroundStyle(theme.textFaint)
-                    CVSegmentedControl(
-                        options: UnknownSessionContextPolicy.allCases,
-                        selection: $model.unknownPolicy,
-                        label: { $0 == .reject ? "Reject" : "Write unnormalized" }
-                    )
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 6) {
-                    Text("VOCABULARY")
-                        .font(.system(size: 10, weight: .semibold))
-                        .kerning(0.5)
-                        .foregroundStyle(theme.textFaint)
-                    HStack(spacing: 8) {
-                        Text(model.vocabularyPath.map { ($0 as NSString).lastPathComponent } ?? "bundled starter vocabulary")
-                            .font(.system(size: 11.5, weight: .medium, design: .monospaced))
-                            .foregroundStyle(model.vocabularyPath == nil ? theme.textDim : theme.text)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        if model.vocabularyPath != nil {
-                            Button("Bundled") { model.vocabularyPath = nil }
+                HStack(spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("IF NOT IN VOCABULARY")
+                            .font(.system(size: 10, weight: .semibold))
+                            .kerning(0.5)
+                            .foregroundStyle(theme.textFaint)
+                        CVSegmentedControl(
+                            options: UnknownSessionContextPolicy.allCases,
+                            selection: $model.unknownPolicy,
+                            label: { $0 == .reject ? "Reject" : "Write unnormalized" }
+                        )
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text("VOCABULARY")
+                            .font(.system(size: 10, weight: .semibold))
+                            .kerning(0.5)
+                            .foregroundStyle(theme.textFaint)
+                        HStack(spacing: 8) {
+                            Text(model.vocabularyPath.map { ($0 as NSString).lastPathComponent } ?? "bundled starter vocabulary")
+                                .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                                .foregroundStyle(model.vocabularyPath == nil ? theme.textDim : theme.text)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            if model.vocabularyPath != nil {
+                                Button("Bundled") { model.vocabularyPath = nil }
+                                    .buttonStyle(.plain)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(theme.textDim)
+                            }
+                            Button("Choose…") { pickVocabulary() }
                                 .buttonStyle(.plain)
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(theme.textDim)
+                                .foregroundStyle(theme.accent.accent)
                         }
-                        Button("Choose…") { pickVocabulary() }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(theme.accent.accent)
                     }
                 }
             }

@@ -28,7 +28,7 @@ struct NormalizationInspectorView: View {
                     .padding(.top, 14)
             }
 
-            if model.vocabularyIsStale {
+            if FeatureFlags.vocabularyUI, model.vocabularyIsStale {
                 staleBanner
                     .padding(.top, 12)
             }
@@ -56,7 +56,7 @@ struct NormalizationInspectorView: View {
                     .font(.system(size: 20, weight: .bold))
                     .kerning(-0.3)
                     .foregroundStyle(theme.text)
-                Text("\(model.acceptedTotal) accepted · \(model.withheldTotal) withheld · \(model.skippedTotal) skipped — the engine decided; inspect and adjust vocabulary or context, then re-run.")
+                Text("\(model.acceptedTotal) accepted · \(model.withheldTotal) withheld · \(model.skippedTotal) skipped — the engine decided; \(FeatureFlags.vocabularyUI ? "inspect and adjust vocabulary or context" : "inspect and adjust context"), then re-run.")
                     .font(.system(size: 13))
                     .foregroundStyle(theme.textDim)
             }
