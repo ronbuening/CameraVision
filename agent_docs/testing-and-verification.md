@@ -79,6 +79,10 @@ swift Scripts/generate-synthetic-fixture.swift <dir> [count]
 CUPRIC_SCALE_TESTS=1 CUPRIC_SCALE_DIR=<fixture-dir> swift test
 # GUI dev hooks: CUPRIC_IMPORT_PATH=<folder> auto-imports on launch;
 # CUPRIC_DEBUG_AUTORUN=1 [CUPRIC_DEBUG_ACTION=analyze|write|normalize] runs the wizard flow.
+# Hidden feature-flag previews (off by default; see Support/FeatureFlags.swift):
+# CUPRIC_VOCABULARY_UI=1 reveals the controlled-vocabulary UI (custom vocab picker,
+#   "if not in vocabulary" policy, stale banner, and "vocabulary" copy in normalize/export);
+# CUPRIC_STUDIO_UI=1 activates the in-progress Studio shell (makes "Nonlinear UI" live).
 ```
 
 ### Packaging checks (B0-1)

@@ -94,7 +94,7 @@ The remaining pre-tag and post-beta sequence (R1 blockers → B0-5 + signing + t
 ### M9 — Studio shell (FR4-040, FR4-041, AC4-021)
 
 - Build the Studio chrome per design doc §7: 214px sidebar, centered window title, per-view sticky run bars; embed the existing `Features/` views (they were built shell-agnostic in M1–M8 — this milestone is chrome and navigation, not feature work).
-- Enable the "Nonlinear UI" toggle (remove "coming soon"); FR4-041 state survival across shell switches; the Studio views map to the same feature state the Wizard steps use.
+- Enable the "Nonlinear UI" toggle (remove "coming soon"); FR4-041 state survival across shell switches; the Studio views map to the same feature state the Wizard steps use. (A hidden `CUPRIC_STUDIO_UI=1` preview flag — `Support/FeatureFlags.swift` — already activates the in-progress shell and makes the toggle live for development; this milestone makes it the default, unflagged behavior.)
 - **Not in this milestone:** no database anything; no new feature behavior — if a feature view needs changes to embed cleanly, that's a `Features/` refactor ticket, not Studio scope creep.
 - **Done when:** AC4-021 passes (switch off→on→off with in-flight state, relaunch restores shell choice), and the M1–M8 golden-path walkthroughs pass identically in Studio.
 

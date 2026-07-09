@@ -31,7 +31,7 @@ The app has **two switchable shells over the same feature state**:
 | Navigation | Footer bar: Back · hint · primary button | Sidebar: Analyze / Normalize / Write XMP / Apply Prior Session / Settings |
 | Audience intent | First-run and casual use | Power use, direct access to each pipeline |
 
-- **MVP scoping (requirements v0.6):** the Wizard is the MVP; Studio arrives in plan milestone M9, after the feature flow and before the experimental database. Until then the "Nonlinear UI" toggle renders disabled with the caption "Studio layout — coming soon."
+- **MVP scoping (requirements v0.6):** the Wizard is the MVP; Studio arrives in plan milestone M9, after the feature flow and before the experimental database. Until then the "Nonlinear UI" toggle renders disabled with the caption "Studio layout — coming soon" — unless the hidden `CUPRIC_STUDIO_UI=1` preview flag (`Support/FeatureFlags.swift`) is set, which makes the toggle live and the Studio shell reachable for development.
 - The app is single-window (FR4-050): one main window, sheets/panels for auxiliary content, no ⌘N second window.
 - The toggle lives in Settings → Interface → "Nonlinear UI" (a switch). On = Studio, Off = Wizard. Copy: "On: jump freely between commands (Studio). Off: return to the guided step-by-step Wizard."
 - The choice persists across launches (prototype key `cupricaspect.nonlinear`; use `UserDefaults` key `cupricaspect.nonlinear` in the app).
@@ -170,7 +170,7 @@ Footer (always visible): "‹ Back" bordered button (hidden-ish at 35% opacity a
 - Three selectable action cards (2px border, radius 13; selected = accent border + `accent-soft` fill + accent radio dot with "✓"; hover = accent border). Each: 26px accent line icon, title (700 15), description (12.5, `text-dim`):
   1. **Analyze only** — "Write auditable `.ai.json` sidecars. No XMP is created — safest first pass."
   2. **Analyze & write XMP** — "Analyze, then export accepted keywords straight to `.xmp` for Lightroom Classic & Capture One."
-  3. **Analyze, Normalize, and Write XMP** — "The full pipeline — reconcile keywords batch-wide under your vocabulary and consensus rules, then write normalized XMP." (Copy amended per resolution 10 — the prototypes' "merge, rename, drop" implies per-keyword decisions the engine does not have.)
+  3. **Analyze, Normalize, and Write XMP** — "The full pipeline — reconcile keywords batch-wide under your vocabulary and consensus rules, then write normalized XMP." (Copy amended per resolution 10 — the prototypes' "merge, rename, drop" implies per-keyword decisions the engine does not have.) The "vocabulary" wording, plus the session-context panel's custom-vocabulary picker and "if not in vocabulary" policy, are gated behind the hidden `CUPRIC_VOCABULARY_UI=1` flag (`Support/FeatureFlags.swift`); with it off, the copy reads "…under your consensus rules…" and normalization runs on the bundled starter vocabulary with the built-in unknown policy.
 - Centered link below: "Already have a saved plan? **Apply a normalization session →**" — selects the `apply` action and jumps straight to step 3.
 - Primary "Continue" enabled once an action is picked; hint shows "{action} selected".
 
