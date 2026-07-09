@@ -1,0 +1,44 @@
+name: CodeQL
+
+on:
+  # Schedule-only: Swift CodeQL is a build-based, macOS-runner scan that is
+  # several times slower than the CI build, so it is kept out of the per-PR
+  # loop. The required merge gate is the CI "Build and test (macOS)" job.
+  # workflow_dispatch allows an on-demand run from the Actions tab.
+  schedule:
+    # Weekly re-scan (Mondays 04:27 UTC) so newly disclosed query patterns
+    # catch already-merged code.
+    - cron: "27 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze Swift
+    # Swift CodeQL analysis is build-based and macOS-only.
+    runs-on: macos-15
+    permissions:
+      contents: read
+      security-events: write   # required to upload results to code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Initialize CodeQL
+        # github/codeql-action is GitHub's own action; kept on the v3 major tag.
+        # Pin to a commit SHA if you want to eliminate tag drift here too.
+        uses: github/codeql-action/init@v3
+        with:
+          language: swift
+
+      - name: Build
+        run: swift build --build-tests
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3

@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege: CI only needs to read the repository contents.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pin the toolchain. macos-15 also ships Xcode 26.x, so if GitHub changes
+  # the image default our Swift 6 diagnostics (e.g. strict-concurrency
+  # isolation checks) could shift without any code change. 16.4 is the image
+  # default today and the toolchain this suite is verified against. Change
+  # this one line to move toolchains deliberately.
+  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+
+jobs:
+  build-test:
+    name: Build and test (macOS)
+    # macOS 15 runner matches the project's macOS 15 deployment target and
+    # has a full Xcode (so XCTest is available).
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2, pinned to a commit SHA to remove
+        # supply-chain drift from a moving tag.
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Verify pinned toolchain
+        run: |
+          if [ ! -d "$DEVELOPER_DIR" ]; then
+            echo "::error::Pinned Xcode not found at $DEVELOPER_DIR."
+            echo "Installed Xcodes on this runner:"
+            ls -d /Applications/Xcode*.app || true
+            echo "Update DEVELOPER_DIR in .github/workflows/ci.yml to one of the above."
+            exit 1
+          fi
+          swift --version
+          xcodebuild -version
+
+      - name: Build
+        run: swift build --build-tests
+
+      - name: Test
+        # The suite is deliberately offline and deterministic (no Ollama,
+        # network, model downloads, or real images), so it runs unchanged
+        # in CI.
+        run: swift test
+
+      - name: CLI smoke (command wiring + version)
+        # Catches integration/wiring breakage that unit tests miss: every
+        # subcommand must resolve and its help must render, and --version must
+        # print the single-sourced product version. --help has no side effects.
+        run: |
+          swift run aisidecar --version
+          for cmd in "" analyze write-xmp normalize apply-session explain-session benchmark purge cleanup; do
+            echo "== aisidecar $cmd --help =="
+            swift run aisidecar $cmd --help
+          done
+
+      - name: Benchmark self-test
+        # The project's own offline self-check for the Milestone 9a harness.
+        run: swift run aisidecar benchmark --self-test
+
+  format-lint:
+    name: Format lint (advisory)
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: swift format lint
+        # Advisory for now. The existing tree predates swift-format, so this
+        # is expected to report style violations initially; it does NOT block
+        # merges (only "Build and test (macOS)" is the required check).
+        # To adopt it: run `swift format --in-place --recursive Sources Tests`
+        # once, commit the result, then remove `continue-on-error` below and
+        # add this job to the required status checks. A `.swift-format` file
+        # at the repo root can tune the rules.
+        continue-on-error: true
+        run: |
+          swift format --version
+          swift format lint --strict --recursive Sources Tests
