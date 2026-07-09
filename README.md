@@ -1,257 +1,315 @@
 # CameraVision
 
-CameraVision is a local-first macOS toolset for AI-assisted photo metadata workflows. It scans image folders, renders model inputs, asks a local Ollama vision model for metadata candidates, writes auditable `.ai.json` sidecars, and can export accepted or normalized keywords to XMP sidecars for Lightroom Classic and Capture One.
+**Local-first, AI-assisted photo keyword tagging for macOS.**
 
-The project ships two front-ends over one core library: the `aisidecar` CLI (Phases 1–3) and the **CupricAspect** SwiftUI app (Phase 4, in beta preparation). Run the app with `swift run CupricAspect`, or build the packaged `CupricAspect.app` + DMG with `Scripts/build-release.sh`.
+CameraVision analyzes your photos with a local vision model and writes clean,
+reviewable keyword metadata to XMP sidecar files that Lightroom Classic, Capture
+One, and other XMP-aware tools read directly. Nothing leaves your machine: images
+and their derivatives are sent only to a local [Ollama](https://ollama.com) model
+you run yourself.
+
+It ships as two front-ends over one shared engine, so both produce identical,
+auditable results:
+
+| | What it is | Best for |
+|---|---|---|
+| **CupricAspect** | A native macOS SwiftUI app with a guided, five-step workflow | Reviewing and correcting tags visually before you write anything |
+| **aisidecar** | A single command-line tool with subcommands | Scripting, batch runs, and automation |
+
+> **Status:** CupricAspect is in beta (`0.1.0-beta.1`). The `aisidecar` CLI is
+> feature-complete for its analyze → export → normalize workflows. Everything in
+> this README reflects the tools as they ship today.
+
+---
 
 ## What It Does
 
-- Runs local image analysis through Ollama; source images and derivatives are not uploaded by this tool.
-- Writes Phase 1 raw AI sidecars as `<image-name>.<ext>.ai.json`.
-- Exports keywords to safe XMP sidecars through `aisidecar write-xmp`.
-- Builds Phase 3 normalization sessions with batch-aware keyword decisions through `aisidecar normalize`.
-- Re-applies a saved normalization session without rerunning the model through `aisidecar apply-session`.
-- Keeps analyze mode XMP-silent: only `write-xmp` and normalized export paths create or modify XMP files.
+- **Analyzes images locally.** Runs each photo (whole-frame and/or subject-isolated)
+  through a local Ollama vision model to propose subject and scene keywords.
+- **Keeps an audit trail.** Writes a raw `.ai.json` sidecar per image recording the
+  model, prompts, schema, candidate keywords, confidence, evidence, and provenance.
+- **Writes safe XMP sidecars.** Exports the keywords you accept to `.xmp` sidecars
+  through a project-owned XMP engine — with backups, semantic merge, and post-write
+  validation. **Source image files are never modified.**
+- **Normalizes keywords across a batch.** Optionally reconciles a folder's keywords
+  against a controlled vocabulary, propagating confident tags and explaining every
+  decision.
+- **Replays decisions.** Saves a durable normalization session you can re-apply later
+  without re-running the model.
 
-Supported scan extensions are `nef`, `nrw`, `cr3`, `cr2`, `arw`, `raf`, `orf`, `rw2`, `dng`, `jpg`, `jpeg`, `tif`, `tiff`, `heic`, and `png`.
+**Supported image formats:** `nef`, `nrw`, `cr3`, `cr2`, `arw`, `raf`, `orf`, `rw2`,
+`dng`, `jpg`, `jpeg`, `tif`, `tiff`, `heic`, `png`.
 
-## Current Status
+**Private by design:** photos, derivatives, metadata, sidecars, and model output are
+never uploaded anywhere. The only network call is to your local Ollama endpoint.
 
-Phase 1 Milestones 0-8, the Milestone 9a benchmark harness, Phase 2 Milestones 0-10, the pre-Phase-3 GPS context milestone, and Phase 3 Milestones 0-11 are implemented.
-
-Phase 4 (the CupricAspect GUI) milestones M0–M8a and beta-readiness items B0-1 through B0-4 and B0-6 are implemented at product version 0.1.0-beta.1. Outstanding before the beta tag: B0-5 manual release evidence (Lightroom Classic / Capture One round trip), Developer ID signing/notarization, and the `v0.1.0-beta.1` tag itself. Milestones M9–M11 (Studio shell, experimental database mode, scale/polish) are post-beta.
-
-Phase 3 release work is complete. Overall release signoff still depends on Phase 1 Milestone 9 calibration and quality review evidence, or an explicit release-note deferral.
-
-Compatibility evidence:
-
-- Phase 2 XMP compatibility: `agent_docs/release-evidence/phase-2-milestone-10-compatibility-smoke.md`
-- Phase 3 normalized XMP compatibility: `agent_docs/release-evidence/phase-3-milestone-11-compatibility-smoke.md`
+---
 
 ## Prerequisites
 
-- macOS 15 target environment.
-- Xcode with Swift 6 / Swift Package Manager support.
-- [Ollama](https://ollama.com/download) installed and running locally.
-- A local Ollama model that supports image input. The [Ollama CLI docs](https://docs.ollama.com/cli) use `ollama pull <model>` for downloads, and the [Gemma 4 model page](https://ollama.com/library/gemma4) lists current multimodal tags such as `gemma4:26b`.
+- **macOS 15** or later.
+- **[Ollama](https://ollama.com/download)** installed and running locally.
+- **A vision-capable Ollama model** (see [Setup](#setup)).
+- **To build from source:** Xcode with Swift 6 / Swift Package Manager support.
 
-The code default is currently `gemma4:26b-a4b-it-qat` with model input profile `gemma4-26b-default`. If that exact tag is not available in your Ollama install, download a current vision-capable tag and pass it with `--model`, or set it in config.
+---
 
 ## Setup
 
-Install Ollama from the [macOS download page](https://ollama.com/download), then verify it is available:
+### 1. Install and start Ollama
+
+Install Ollama from the [macOS download page](https://ollama.com/download), then
+confirm it is available:
 
 ```bash
 ollama --version
 ollama list
 ```
 
-Download a local vision model. For a current public Gemma 4 workstation model:
-
-```bash
-ollama pull gemma4:26b
-```
-
-If you already use the project default tag and it is available to your Ollama install:
-
-```bash
-ollama pull gemma4:26b-a4b-it-qat
-```
-
-Make sure the Ollama service is running. The desktop app normally starts it; from a terminal you can also run:
+The Ollama desktop app starts the local service automatically. From a terminal you
+can also start it manually:
 
 ```bash
 ollama serve
 ```
 
-Build and test the project:
+### 2. Pull a vision model
+
+CameraVision needs a model that accepts image input. To pull a current public
+Gemma 4 workstation model:
 
 ```bash
-swift test
-swift run aisidecar --help
+ollama pull gemma4:26b
 ```
 
-If `xcode-select` points at Command Line Tools and XCTest is unavailable, run SwiftPM through the installed Xcode developer directory:
+The built-in default tag is `gemma4:26b-a4b-it-qat` (render profile
+`gemma4-26b-default`). If that exact tag is available to your Ollama install, pull
+it; otherwise pull any current vision-capable tag and select it with `--model` (CLI)
+or in **Settings** (app).
 
 ```bash
-env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test
+ollama pull gemma4:26b-a4b-it-qat
 ```
 
-## Quick Start
+### 3. Build CameraVision
 
-Use `--output-dir` while investigating so generated sidecars and reports go into a staging folder instead of beside original photos.
+During the beta, CameraVision is distributed as source. Clone the repo, then run the
+app directly:
 
-First, inspect what the scanner sees:
+```bash
+swift run CupricAspect
+```
+
+To install it as a normal `.app`, produce a packaged build and drag it to
+Applications:
+
+```bash
+Scripts/build-release.sh
+```
+
+The release script writes `CupricAspect.app` and a DMG into `dist/` (a local,
+untracked folder). During the beta the build is not yet Developer ID–signed, so on
+first launch you may need to allow it in **System Settings → Privacy & Security**.
+See [Building From Source](#building-from-source) for the full command set.
+
+---
+
+## CupricAspect (the app)
+
+CupricAspect walks you through tagging a folder of photos in five guided steps. Each
+step maps onto the same engine the CLI uses, so what you review is exactly what gets
+written — and nothing touches XMP until you approve it.
+
+### 1. Photos
+
+Choose one root folder; nested folders are included via the **Include subfolders**
+toggle (on by default). Detected images appear in a thumbnail grid, and you can send
+output to a separate folder instead of writing beside the originals.
+
+<p align="center"><img src="DocImages/Step01.png" alt="Step 1, Photos: choosing a source folder, with a grid of detected images below" width="820"></p>
+
+### 2. What to do
+
+Pick the path: **Analyze only** (write auditable `.ai.json`, no XMP — the safest
+first pass), **Analyze & write XMP** (export accepted keywords straight to `.xmp` for
+Lightroom Classic and Capture One), or **Analyze, Normalize, and Write XMP** (the full
+pipeline — reconcile keywords batch-wide under your vocabulary and consensus rules,
+then write normalized XMP). A previously saved normalization session can also be
+applied from here.
+
+<p align="center"><img src="DocImages/Step02.png" alt="Step 2, What to do: three action cards — Analyze only, Analyze and write XMP, Analyze Normalize and Write XMP" width="820"></p>
+
+### 3. Options
+
+Confirm the run: **render mode** (Whole Image / Subject Only / Both) and the **vision
+model**, which shows a live connectivity indicator and acts as a per-run override that
+does not change your saved default. An **Advanced flags** disclosure covers GPS
+context, existing-sidecar handling, and concurrency.
+
+<p align="center"><img src="DocImages/Step03.png" alt="Step 3, Options: render mode selector, vision model with a ready indicator, and an Advanced flags disclosure" width="820"></p>
+
+### 4. Working
+
+Progress runs locally with a live count, elapsed time, and per-image rate; the copper
+aperture "breathes" while the job runs. You can **Cancel** at any point — analyzed
+photos stay done, so starting again resumes where you left off.
+
+<p align="center"><img src="DocImages/Step04.png" alt="Step 4, Working: the animated copper aperture above a progress bar showing 8 of 22 images processed" width="820"></p>
+
+### 5. Review
+
+Approve, reject, edit, or defer each candidate keyword — per image or in bulk — with
+confidence bands and provenance visible. **Save session only** preserves your review
+for later; **Write XMP** shows the change plan first and can optionally clean up
+intermediate files after a successful write.
+
+<p align="center"><img src="DocImages/Step05.png" alt="Step 5, Review: per-image cards of approved keyword chips with high and medium confidence badges" width="820"></p>
+
+### Other things to know
+
+- **Normalization Inspector.** For batch normalization, a read-only inspector
+  explains every keyword decision — outcome, originating stage, governing rule,
+  support, and skip reasons — with a "needs attention" filter for conflicts and
+  requires-review tags. A session-context panel lets you provide Subject / Habitat /
+  Event hints before a run.
+- **Nothing is written until you say so.** Analysis produces only `.ai.json`; XMP is
+  written only when you export, and a dry-run change plan is always available first.
+- **Settings** persist to the shared `config.json` (so the CLI sees the same
+  defaults), let you pick the vision model and endpoint with a connectivity
+  indicator, and choose Light / Dark / Auto themes with copper, brass, or patina
+  accents.
+- **Studio shell** (nonlinear, sidebar navigation) is planned for a later release;
+  its toggle is visible but disabled ("coming soon") during the beta.
+
+---
+
+## aisidecar (the CLI)
+
+Run the CLI with `swift run aisidecar <command>` from the repo, or invoke the built
+binary directly. Every command has `--help`, and `aisidecar --version` prints the
+product version.
+
+### Commands
+
+| Command | Purpose |
+|---|---|
+| `analyze` | Scan images, render model inputs, call Ollama, and write raw `.ai.json` sidecars. |
+| `write-xmp` | Export accepted candidates to XMP sidecars — or analyze-and-write in one command. |
+| `normalize` | Build normalized batch decisions, sessions, reports, dry-run plans, or normalized XMP writes. |
+| `apply-session` | Re-apply stored normalization decisions without rerunning analysis. |
+| `explain-session` | Read-only explanation of a saved session's keyword decisions. |
+| `benchmark` | Run the benchmark harness. |
+| `purge` | Remove derivative-cache artifacts. |
+| `cleanup` | Remove owned raw sidecars and run/report artifacts from a folder. |
+
+> **Tip:** While experimenting, always pass `--output-dir` so generated sidecars and
+> reports land in a staging folder instead of beside your original photos.
+
+### Quick start
+
+Inspect what the scanner sees, without running the model:
 
 ```bash
 swift run aisidecar analyze /path/to/photos --recursive --dry-scan
 ```
 
-Run analysis and write raw `.ai.json` sidecars:
+Analyze and write raw `.ai.json` sidecars:
 
 ```bash
 swift run aisidecar analyze /path/to/photos \
-  --recursive \
-  --mode both \
-  --model gemma4:26b \
+  --recursive --mode both --model gemma4:26b \
   --output-dir /tmp/aisidecar-ai
 ```
 
-Preview XMP export from those raw sidecars:
+Preview the XMP export as a change plan (writes nothing):
 
 ```bash
 swift run aisidecar write-xmp \
-  --from-json /tmp/aisidecar-ai \
-  --recursive \
-  --source-root /path/to/photos \
-  --dry-run \
+  --from-json /tmp/aisidecar-ai --recursive \
+  --source-root /path/to/photos --dry-run \
   --output-dir /tmp/aisidecar-xmp-preview
 ```
 
-Write XMP sidecars after reviewing the dry-run plan:
+Write XMP sidecars after reviewing the plan:
 
 ```bash
 swift run aisidecar write-xmp \
-  --from-json /tmp/aisidecar-ai \
-  --recursive \
+  --from-json /tmp/aisidecar-ai --recursive \
   --source-root /path/to/photos \
   --output-dir /tmp/aisidecar-xmp
 ```
 
-Build a Phase 3 normalization session without writing XMP:
+### Common workflows
+
+**Analyze only** — auditable AI output, no XMP:
 
 ```bash
-swift run aisidecar normalize \
-  --from-json /tmp/aisidecar-ai \
-  --recursive \
-  --source-root /path/to/photos \
-  --session-only \
+swift run aisidecar analyze /path/to/photos --mode both --recursive \
+  --model gemma4:26b --output-dir /tmp/aisidecar-ai
+```
+
+**Analyze and write XMP in one command:**
+
+```bash
+swift run aisidecar write-xmp /path/to/photos --recursive --mode both \
+  --model gemma4:26b --output-dir /tmp/aisidecar-xmp
+```
+
+**Analyze and normalize in one command** (batch-aware keyword decisions):
+
+```bash
+swift run aisidecar normalize /path/to/photos --recursive --mode both \
+  --model gemma4:26b --output-dir /tmp/aisidecar-normalized-xmp
+```
+
+**Build a normalization session without writing XMP:**
+
+```bash
+swift run aisidecar normalize --from-json /tmp/aisidecar-ai --recursive \
+  --source-root /path/to/photos --session-only \
   --output-dir /tmp/aisidecar-normalization
 ```
 
-Preview normalized XMP output:
-
-```bash
-swift run aisidecar normalize \
-  --from-json /tmp/aisidecar-ai \
-  --recursive \
-  --source-root /path/to/photos \
-  --dry-run \
-  --output-dir /tmp/aisidecar-normalized-preview
-```
-
-Write normalized XMP sidecars:
-
-```bash
-swift run aisidecar normalize \
-  --from-json /tmp/aisidecar-ai \
-  --recursive \
-  --source-root /path/to/photos \
-  --output-dir /tmp/aisidecar-normalized-xmp
-```
-
-Apply an existing normalization session later without model runs:
+**Apply a saved session later, no model runs:**
 
 ```bash
 swift run aisidecar apply-session \
   /tmp/aisidecar-normalization/normalization-session-<timestamp>.json \
-  --dry-run \
-  --output-dir /tmp/aisidecar-apply-preview
+  --dry-run --output-dir /tmp/aisidecar-apply-preview
 ```
 
-## Main Commands
-
-| Command | Purpose |
-|---|---|
-| `aisidecar analyze` | Scan images, render model inputs, call Ollama, and write raw `.ai.json` sidecars. |
-| `aisidecar write-xmp` | Export accepted raw-sidecar candidates to XMP sidecars, or run analyze-and-write in one command. |
-| `aisidecar normalize` | Build Phase 3 normalized decisions, sessions, reports, dry-run plans, or normalized XMP writes. |
-| `aisidecar apply-session` | Apply stored normalization decisions without rerunning analysis or recomputing consensus. |
-| `aisidecar explain-session` | Read-only explanation of a saved normalization session's keyword decisions (`--keyword`, `--needs-attention`, `--verbose`). |
-| `aisidecar benchmark` | Run the Phase 1 Milestone 9a benchmark harness. |
-| `aisidecar purge` | Remove derivative-cache artifacts. |
-| `aisidecar cleanup` | Remove owned raw sidecars and run/report artifacts from a folder. |
-
-Every command has help, and `aisidecar --version` prints the single-sourced product version:
+**Inspect the exact model inputs** before a real run:
 
 ```bash
-swift run aisidecar <command> --help
-swift run aisidecar --version
+swift run aisidecar analyze /path/to/photos --mode both \
+  --export-model-inputs /tmp/aisidecar-model-inputs
 ```
 
-## Common Workflows
-
-**Analyze only**
-
-Use this when you want auditable AI output but no XMP sidecars:
-
-```bash
-swift run aisidecar analyze /path/to/photo-or-folder --mode both --recursive --model gemma4:26b --output-dir /tmp/aisidecar-ai
-```
-
-**Analyze and write XMP in one command**
-
-Use this after you are comfortable with the export behavior:
-
-```bash
-swift run aisidecar write-xmp /path/to/photos --recursive --mode both --model gemma4:26b --output-dir /tmp/aisidecar-xmp
-```
-
-**Analyze and normalize in one command**
-
-Use this for the current Phase 3 batch-aware path:
-
-```bash
-swift run aisidecar normalize /path/to/photos --recursive --mode both --model gemma4:26b --output-dir /tmp/aisidecar-normalized-xmp
-```
-
-**Inspect exact model inputs**
-
-Use this before a real model run when you want to see what the model will receive:
-
-```bash
-swift run aisidecar analyze /path/to/photos --mode both --export-model-inputs /tmp/aisidecar-model-inputs
-```
-
-**Run offline checks**
-
-```bash
-swift test
-swift run aisidecar benchmark --self-test
-```
-
-## Output Files
-
-- `.ai.json`: raw AI sidecar with source identity, model provenance, prompts/schemas, candidates, and run records, plus an additive `xmp_export` stamp after successful exports.
-- `.xmp`: metadata sidecar written by the owned XMP parser/writer path.
-- `*-progress-*.jsonl`: JSONL progress logs for folder/batch operations.
-- `*-report-*.json`: machine-readable run report.
-- `*-summary-*.md`: human-readable run summary.
-- `normalization-session-*.json`: durable Phase 3 session that `apply-session` can reuse.
-- Derivative cache: regenerable render artifacts under `~/Library/Caches/aisidecar/derivatives` by default.
-- CupricAspect GUI state (recovery session, per-run artifacts) under `~/Library/Application Support/CupricAspect/`, with a size-capped diagnostic log in its `logs/` subdirectory (path shown in Settings → About).
-
-Lightroom Classic and Capture One should read generated XMP sidecars after you import/synchronize metadata according to each application's normal XMP workflow.
+---
 
 ## Configuration
 
-Configuration precedence is:
+Both tools share one config file. Precedence, highest to lowest:
 
 ```text
-CLI flag > AISIDECAR_* environment variable > JSON config file > built-in default
+CLI flag  >  AISIDECAR_* environment variable  >  JSON config file  >  built-in default
 ```
 
-Default config path:
+Default config path (the app's **Settings** sheet writes through to this same file):
 
 ```text
 ~/Library/Application Support/aisidecar/config.json
 ```
 
-Use `--config <path>` or `AISIDECAR_CONFIG` to point at another file.
+Point at a different file with `--config <path>` or `AISIDECAR_CONFIG`.
 
-The reference template is [aisidecar.config.example.jsonc](aisidecar.config.example.jsonc). It is commented JSONC for humans; the real loader accepts strict JSON only, so remove comments and unused keys before saving it as a config file.
+The commented reference template is
+[aisidecar.config.example.jsonc](aisidecar.config.example.jsonc). It is JSONC for
+readability; the loader accepts **strict JSON only**, so strip comments and unused
+keys before saving it as a config. Unknown keys are rejected, so a typo can't
+silently change future runs.
 
-Minimal example for using the current public Gemma 4 26B tag:
+A minimal config:
 
 ```json
 {
@@ -263,107 +321,113 @@ Minimal example for using the current public Gemma 4 26B tag:
 }
 ```
 
-Useful knobs:
+Frequently used knobs:
 
-- `--model <tag>` or `"model"`: choose the installed Ollama vision model.
-- `--model-endpoint <url>` or `"model_endpoint"`: point at a non-default Ollama endpoint.
-- `--stage-concurrency 1`: lower memory pressure by making render/isolation preparation serial.
-- `--gps-context off|coarse|exact`: control prompt-only GPS context. GPS is never exported as an XMP keyword by itself.
-- `--existing skip|overwrite|fail`: choose how raw sidecar collisions are handled.
-- `--pair-scope union|raw-only|jpeg-only`: choose RAW/JPEG same-base-name grouping behavior.
+- `--model <tag>` / `"model"` — choose the installed Ollama vision model.
+- `--model-endpoint <url>` / `"model_endpoint"` — point at a non-default Ollama endpoint.
+- `--mode whole|subject|both` / `"mode"` — analysis input role.
+- `--stage-concurrency 1` / `"stage_concurrency"` — lower memory pressure by preparing renders serially.
+- `--gps-context off|coarse|exact` / `"gps_context"` — prompt-only GPS context. GPS is never exported as a keyword.
+- `--existing skip|overwrite|fail` / `"existing"` — how raw `.ai.json` collisions are handled.
+- `--pair-scope union|raw-only|jpeg-only` / `"pair_scope"` — RAW/JPEG same-base-name grouping.
 
-## Safety Notes
+---
 
-- `analyze` writes raw `.ai.json` only; it does not create or modify XMP.
-- `--export-model-inputs` writes only rendered diagnostic inputs and a manifest. It does not call the model or write sidecars.
-- `--dry-run` on XMP and normalization paths writes plans/reports but does not modify XMP sidecars.
-- XMP writes use the project-owned parser/writer, deterministic backups, source hash checks, and post-write validation.
-- GPS context can influence prompts and raw-sidecar provenance, but coordinates and GPS-only evidence are guarded from keyword export.
-- `cleanup` does not remove source images, `.xmp` sidecars, XMP backups, model-input exports, debug derivative copies, derivative-cache files, or normalization session JSON.
+## Where Files Go
+
+| File / location | What it is |
+|---|---|
+| `<image>.<ext>.ai.json` | Raw AI sidecar: source identity, model provenance, prompts, candidates, run records, plus an `xmp_export` stamp after a successful export. |
+| `<image>.xmp` | Metadata sidecar written by the owned XMP engine. |
+| `*-progress-*.jsonl` | Progress log for folder/batch operations. |
+| `*-report-*.json` | Machine-readable run report. |
+| `*-summary-*.md` | Human-readable run summary. |
+| `normalization-session-*.json` | Durable session that `apply-session` can reuse. |
+| `~/Library/Caches/aisidecar/derivatives` | Regenerable render/derivative cache (default location). |
+| `~/Library/Application Support/CupricAspect/` | App state (recovery session, per-run artifacts) and a size-capped diagnostic log (path shown in **Settings → About**). |
+
+After a write, import or synchronize metadata in Lightroom Classic or Capture One
+using each app's normal XMP workflow to pick up the new keywords.
+
+---
+
+## Safety & Privacy Notes
+
+- **Analysis never touches XMP.** `analyze` and all raw-sidecar paths write only
+  `.ai.json`. XMP is created or modified only by `write-xmp` and normalized export.
+- **Source images are never modified** — including RAW, JPEG, TIFF, HEIC, PNG, and DNG.
+- **Dry-run is real.** `--dry-run` on XMP and normalization paths writes plans and
+  reports but never modifies sidecars.
+- **XMP writes are careful:** owned parser/writer, deterministic backups, source-hash
+  checks, and post-write semantic validation.
+- **GPS stays out of keywords.** GPS context can influence prompts and provenance, but
+  coordinates and GPS-only evidence are guarded from keyword export.
+- **`cleanup` is conservative.** It never removes source images, `.xmp` sidecars, XMP
+  backups, model-input exports, debug derivatives, the derivative cache, or
+  normalization session JSON.
+
+---
 
 ## Troubleshooting
 
-**`E_MODEL_TAG_NOT_FOUND`**
-
-The configured model is not installed, is named differently, or is not reported by Ollama as a vision-capable model. Check installed models and pass a known tag:
+**`E_MODEL_TAG_NOT_FOUND`** — The configured model isn't installed, is named
+differently, or isn't reported by Ollama as vision-capable. Check and pass a known tag:
 
 ```bash
 ollama list
 swift run aisidecar analyze /path/to/photo.jpg --model gemma4:26b --output-dir /tmp/aisidecar-ai
 ```
 
-**Cannot connect to Ollama**
+**Cannot connect to Ollama** — Start the desktop app or run `ollama serve`, then
+confirm the endpoint. CameraVision defaults to `http://localhost:11434`.
 
-Start the app or run `ollama serve`, then confirm the endpoint. CameraVision defaults to `http://localhost:11434`.
+**Memory pressure during analysis** — Use a smaller vision model, set
+`--stage-concurrency 1`, avoid `--mode both` on the first pass, and write to a staging
+`--output-dir`.
 
-**Memory pressure during analysis**
+**Running two copies at once** — Not supported. Two CupricAspect instances, or the app
+and the CLI, working the same folders share the review recovery file, diagnostic log,
+and `config.json`; the last writer wins and can silently overwrite the other's autosave
+or settings. Quit one before working in the other.
 
-Use a smaller vision model, set `--stage-concurrency 1`, avoid `--mode both` for the first pass, and write to a staging `--output-dir`.
-
-**Running two copies at once**
-
-Running two CupricAspect instances, or the app and the `aisidecar` CLI, against the same folders at the same time is not supported.
-XMP and sidecar writes are atomic, but the instances share the review recovery file, diagnostic log, and `config.json`;
-the last writer wins, so one instance's review autosave or settings change can silently replace the other's.
-
-Quit one copy before working in the other.
-A single-instance lock is tracked as possible M11 scope.
-
-**XCTest unavailable**
-
-Point SwiftPM at a full Xcode install with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
-
-## Development Notes
-
-The package layout is intentionally split:
-
-```text
-Sources/AISidecarCore/     Reusable scan, render, model, sidecar, XMP, normalization, and pipeline logic.
-Sources/AISidecarCLI/      Argument parsing, command wiring, and user-facing presentation.
-Sources/CupricAspectApp/   SwiftUI GUI: presentation and state orchestration only; processing stays in Core.
-Tests/AISidecarCoreTests/  Offline XCTest coverage and synthetic fixtures for Core/CLI.
-Tests/CupricAspectAppTests/ Offline GUI model tests (same deterministic rules).
-Scripts/                   Release build, packaging assets, relocation/kill-relaunch checks, fixture generator.
-dist/                      Assembled CupricAspect.app and DMG output (build products).
-agent_docs/                Requirements, implementation plans, release evidence, and agent guidance.
-```
-
-Build and verification commands:
+**XCTest unavailable** (Command Line Tools only) — Point SwiftPM at a full Xcode
+install:
 
 ```bash
-swift test
-swift run aisidecar analyze --help
-swift run aisidecar write-xmp --help
-swift run aisidecar normalize --help
-swift run aisidecar apply-session --help
-swift run aisidecar explain-session --help
-swift run aisidecar benchmark --self-test
+env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test
 ```
 
-## Documentation Map
+---
 
-Requirements (normative specs, one per phase):
+## Building From Source
 
-- `agent_docs/01-cli-raw-json-sidecar-requirements.md`: Phase 1 raw JSON sidecar requirements.
-- `agent_docs/02-cli-xmp-sidecar-requirements-updated.md`: Phase 2 XMP export requirements.
-- `agent_docs/03-cli-normalized-batch-tagger-requirements.md`: Phase 3 normalization requirements.
-- `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md`: GUI (CupricAspect) requirements.
-- `agent_docs/07-cupricaspect-gui-design.md`: binding GUI visual design spec.
+```bash
+# Build and test
+swift test
 
-Plans and roadmap (execution order across all of them: plan 08 §1.1):
+# Run the CLI
+swift run aisidecar --help
 
-- `agent_docs/08-post-review-hardening-plan.md`: **the active plan** — beta ship-blockers and post-review correctness milestones; §1.1 is the single authoritative execution order.
-- `agent_docs/10-hardening-implementation-plan.md`: execution-level companion to plan 08 — verified code excerpts, proposed changes, test skeletons, and the release-step runbook for R1–R4.
-- `agent_docs/phase-4-gui-implementation-plan.md`: GUI milestone ledger and the remaining M9–M11 work.
-- `agent_docs/05-efficiency-improvement-plan.md`: refactoring and performance work items (scheduled in 08 §1.1).
-- `agent_docs/06-packaging-single-app-plan.md`: as-built packaging reference and signing runbook.
-- `agent_docs/09-post-m11-feature-roadmap.md`: post-M11 feature roadmap — outlined requirements, approaches, acceptance criteria, and tests.
+# Run the app
+swift run CupricAspect
 
-Reference:
+# Build the packaged CupricAspect.app + DMG
+Scripts/build-release.sh
+```
 
-- `agent_docs/architecture-map.md`: Module map, key types, and pipeline entry points.
-- `agent_docs/invariants.md`: Binding project rules for any change.
-- `agent_docs/testing-and-verification.md`: Build, test, and smoke-check procedures.
-- `agent_docs/cli-implementation-notes.md`: durable Phase 1–3 implementation details — the open Milestone 9 benchmark plan, shipped defaults, boundary rules, and the live Phase 3 traceability matrix.
-- `agent_docs/release-evidence/`: compatibility smoke notes and release evidence.
-- `agent_docs/archive/`: completed Phase 1–3 implementation plans (historical, not maintained).
+### Project layout
+
+```text
+Sources/AISidecarCore/       Shared scan, render, model, sidecar, XMP, normalization, and pipeline logic.
+Sources/AISidecarCLI/        Argument parsing, command wiring, and CLI presentation.
+Sources/CupricAspectApp/     SwiftUI GUI: presentation and state orchestration; all processing stays in Core.
+Tests/AISidecarCoreTests/    Offline tests and synthetic fixtures for Core/CLI.
+Tests/CupricAspectAppTests/  Offline GUI model tests.
+Scripts/                     Release build, packaging assets, and fixture generator.
+dist/                        Assembled CupricAspect.app and DMG output (local, git-ignored).
+```
+
+Reusable behavior lives in `AISidecarCore`; the CLI and GUI targets are thin
+front-ends over it, which is why both produce identical results. Tests are
+deterministic and offline (no Ollama, network, or real images).
