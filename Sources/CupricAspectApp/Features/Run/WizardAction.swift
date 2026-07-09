@@ -45,6 +45,7 @@ enum WizardAction: String, CaseIterable, Sendable {
 /// Wizard Step 2 — "What should CupricAspect do?" (design doc §6 Step 2).
 struct Step2ActionView: View {
     @Binding var selection: WizardAction?
+    var onApplySession: () -> Void
     @Environment(\.cvTheme) private var theme
 
     var body: some View {
@@ -70,7 +71,7 @@ struct Step2ActionView: View {
                 Text("Already have a saved plan?")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(theme.textFaint)
-                Button("Apply a normalization session →") { selection = .apply }
+                Button("Apply a normalization session →") { onApplySession() }
                     .buttonStyle(.plain)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(theme.accent.accent)
