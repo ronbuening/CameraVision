@@ -36,7 +36,7 @@ final class ExportModelTests: XCTestCase {
         CGImageDestinationFinalize(destination)
     }
 
-    private func makeSession() throws -> (session: NormalizationSessionDocument, sourceRoot: URL) {
+    private func makeRawSidecarSource(terms: [String] = ["bird"]) throws -> URL {
         let sourceRoot = root.appendingPathComponent("source")
         try writeJPEG("A.JPG", in: sourceRoot)
         let scan = try ImageScanner().scan(
@@ -59,9 +59,9 @@ final class ExportModelTests: XCTestCase {
             inputDerivativeSHA256: String(repeating: "b", count: 64),
             rawResponseText: "{}",
             parsedResponseJSON: .object([
-                "proposed_keywords": .array([
-                    .object(["term": .string("bird"), "confidence": .string("high"), "evidence": .string("visible")])
-                ])
+                "proposed_keywords": .array(terms.map { term in
+                    .object(["term": .string(term), "confidence": .string("high"), "evidence": .string("visible")])
+                })
             ]),
             jsonValid: true,
             durationMs: 1,
@@ -76,7 +76,11 @@ final class ExportModelTests: XCTestCase {
         // Raw sidecar beside the source, exactly like a beside-source analyze.
         try RawJSONSidecarDocument(sidecar: sidecar).encodedData()
             .write(to: sourceRoot.appendingPathComponent("A.JPG.ai.json"))
+        return sourceRoot
+    }
 
+    private func makeSession(terms: [String] = ["bird"]) throws -> (session: NormalizationSessionDocument, sourceRoot: URL) {
+        let sourceRoot = try makeRawSidecarSource(terms: terms)
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
         configuration.vocabularyMode = .observedTags
         configuration.normalizationMode = .singleImage
@@ -325,5 +329,61 @@ final class ExportModelTests: XCTestCase {
         export.cancelPlan()
         XCTAssertEqual(export.phase, .idle)
         XCTAssertFalse(FileManager.default.fileExists(atPath: sourceRoot.appendingPathComponent("A.xmp").path))
+    }
+
+    @MainActor
+    func testNormalizationSessionExportsThroughDryRunGateWithAcceptedSet() async throws {
+        let sourceRoot = try makeRawSidecarSource(terms: ["bird", "tree"])
+        let normalization = NormalizationModel(stateDirectory: root.appendingPathComponent("normalize-state"))
+
+        normalization.run(jsonRoot: sourceRoot.path, sourceRoot: sourceRoot.path)
+        try await waitUntil("normalization run") {
+            switch normalization.phase {
+            case .ready, .failed:
+                return true
+            default:
+                return false
+            }
+        }
+        guard normalization.phase == .ready, let session = normalization.session else {
+            return XCTFail("normalization failed: \(normalization.phase)")
+        }
+        XCTAssertEqual(normalization.acceptedTotal, 2)
+
+        let outputDir = root.appendingPathComponent("xmp-out")
+        let xmpURL = outputDir.appendingPathComponent("A.xmp")
+        let export = ExportModel(stateDirectory: root.appendingPathComponent("export-state"))
+        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: outputDir.path)
+        try await waitUntil("dry-run plan") {
+            switch export.phase {
+            case .planReady, .failed:
+                return true
+            default:
+                return false
+            }
+        }
+
+        guard export.phase == .planReady else {
+            return XCTFail("dry-run plan failed: \(export.phase)")
+        }
+        XCTAssertEqual(export.writableTargets.count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: xmpURL.path), "dry run must not write XMP")
+
+        export.confirmWrite()
+        try await waitUntil("write") {
+            if export.phase == .written { return true }
+            if case .failed = export.phase { return true }
+            return false
+        }
+        guard export.phase == .written else {
+            return XCTFail("write failed: \(export.phase)")
+        }
+
+        let xmpFiles = try FileManager.default.contentsOfDirectory(atPath: outputDir.path)
+            .filter { $0.hasSuffix(".xmp") }
+        XCTAssertEqual(xmpFiles.count, 1)
+        let written = try String(contentsOf: xmpURL, encoding: .utf8)
+        XCTAssertTrue(written.contains("bird"))
+        XCTAssertTrue(written.contains("tree"))
     }
 }

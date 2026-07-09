@@ -4,8 +4,9 @@ import Foundation
 import Observation
 
 /// Shell-agnostic normalization state (M6): session context inputs, the
-/// model-free normalization run, CORE-6 summaries for the Inspector, and the
-/// accepted-only write path via `ApplySessionPipeline` (FR4-052–055).
+/// model-free normalization run, and CORE-6 summaries for the Inspector
+/// (FR4-052–055). XMP writes are routed through `ExportModel` so the
+/// dry-run change-plan gate stays mandatory.
 @MainActor
 @Observable
 final class NormalizationModel {
@@ -31,8 +32,6 @@ final class NormalizationModel {
         case idle
         case running
         case ready
-        case writing
-        case written(targets: Int, backups: Bool)
         case failed(message: String)
     }
 
@@ -186,32 +185,4 @@ final class NormalizationModel {
         adopt(session: try NormalizationSessionReader().read(from: url.path))
     }
 
-    // MARK: - Write (FR4-053; accepted set only, via the frozen-session writer)
-
-    func writeNormalizedXMP(sourceRoot: String, outputDir: String?) {
-        guard let session, phase == .ready else { return }
-        phase = .writing
-        let sessionDir = stateDirectory.appendingPathComponent("normalize-artifacts", isDirectory: true)
-        Task {
-            do {
-                let result = try await Task.detached(priority: .userInitiated) {
-                    try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
-                    let sessionPath = sessionDir.appendingPathComponent("write-\(UUID().uuidString).json").path
-                    try NormalizationSessionWriter().write(session, to: sessionPath)
-
-                    var configuration = ResolvedApplySessionConfiguration.builtInDefaults
-                    configuration.sourceRoot = sourceRoot
-                    configuration.outputDir = outputDir
-                    configuration.dryRun = false
-                    return try ApplySessionPipeline(
-                        xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
-                    ).run(sessionPath: sessionPath, configuration: configuration)
-                }.value
-                let targets = result.changePlan.targetPlans.count
-                phase = .written(targets: targets, backups: true)
-            } catch {
-                phase = .failed(message: (error as? SidecarError)?.message ?? error.localizedDescription)
-            }
-        }
-    }
 }

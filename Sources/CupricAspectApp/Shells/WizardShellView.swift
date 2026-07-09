@@ -119,8 +119,6 @@ struct WizardShellView: View {
             switch phase {
             case .ready where step == 4:
                 step = 5
-            case .written:
-                Task { await importModel.rescan() }
             case .failed where step == 4:
                 step = 3
             default:

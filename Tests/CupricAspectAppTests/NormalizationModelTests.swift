@@ -200,28 +200,4 @@ final class NormalizationModelTests: XCTestCase {
         XCTAssertFalse(model.canSaveSession)
     }
 
-    @MainActor
-    func testWriteNormalizedXMPProducesSidecarsFromAcceptedSet() async throws {
-        let (jsonRoot, sourceRoot) = try writeFixture(terms: ["bird", "tree"])
-        let model = NormalizationModel(stateDirectory: root.appendingPathComponent("state"))
-
-        model.run(jsonRoot: jsonRoot, sourceRoot: sourceRoot)
-        try await waitUntil("normalization run") { model.phase == .ready }
-
-        let xmpOut = root.appendingPathComponent("xmp-out").path
-        model.writeNormalizedXMP(sourceRoot: sourceRoot, outputDir: xmpOut)
-        try await waitUntil("XMP write") {
-            if case .written = model.phase { return true }
-            if case .failed = model.phase { return true }
-            return false
-        }
-
-        guard case .written(let targets, _) = model.phase else {
-            return XCTFail("write failed: \(model.phase)")
-        }
-        XCTAssertEqual(targets, 1)
-        let xmpFiles = try FileManager.default.contentsOfDirectory(atPath: xmpOut)
-            .filter { $0.hasSuffix(".xmp") }
-        XCTAssertEqual(xmpFiles.count, 1)
-    }
 }
