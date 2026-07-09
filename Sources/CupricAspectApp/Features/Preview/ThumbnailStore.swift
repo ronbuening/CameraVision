@@ -21,10 +21,15 @@ final class ThumbnailStore {
     nonisolated static let pixelSize = 256
 
     private let cache = NSCache<NSString, ThumbnailBox>()
+    private let decodeProvider: @Sendable (String, Int) -> Thumbnail?
     private var inFlight: [String: Task<Thumbnail?, Never>] = [:]
 
-    init(costLimitBytes: Int = 256 * 1024 * 1024) {
+    init(
+        costLimitBytes: Int = 256 * 1024 * 1024,
+        decodeProvider: @escaping @Sendable (String, Int) -> Thumbnail? = ThumbnailStore.decodeThumbnail
+    ) {
         cache.totalCostLimit = costLimitBytes
+        self.decodeProvider = decodeProvider
     }
 
     func cachedThumbnail(for path: String) -> Thumbnail? {
@@ -34,25 +39,24 @@ final class ThumbnailStore {
     /// Load (or await the already-loading) thumbnail for a file. Concurrent
     /// requests for the same path share one decode.
     func thumbnail(for path: String) async -> Thumbnail? {
-        if let cached = cachedThumbnail(for: path) {
-            return cached
+        if let cached = cache.object(forKey: path as NSString) {
+            return cached.thumbnail
         }
         if let task = inFlight[path] {
             return await task.value
         }
+        let decodeProvider = decodeProvider
         let task = Task.detached(priority: .utility) {
-            Self.decodeThumbnail(path: path, maxPixel: Self.pixelSize)
+            decodeProvider(path, Self.pixelSize)
         }
         inFlight[path] = task
         let thumbnail = await task.value
         inFlight[path] = nil
-        if let thumbnail {
-            cache.setObject(
-                ThumbnailBox(thumbnail),
-                forKey: path as NSString,
-                cost: thumbnail.image.bytesPerRow * thumbnail.image.height
-            )
-        }
+        cache.setObject(
+            ThumbnailBox(thumbnail),
+            forKey: path as NSString,
+            cost: thumbnail.map { $0.image.bytesPerRow * $0.image.height } ?? 1_024
+        )
         return thumbnail
     }
 
@@ -75,6 +79,6 @@ final class ThumbnailStore {
 }
 
 private final class ThumbnailBox {
-    let thumbnail: Thumbnail
-    init(_ thumbnail: Thumbnail) { self.thumbnail = thumbnail }
+    let thumbnail: Thumbnail?
+    init(_ thumbnail: Thumbnail?) { self.thumbnail = thumbnail }
 }

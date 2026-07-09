@@ -32,10 +32,16 @@ struct AssetPreviewDetails: @unchecked Sendable, Equatable {
         var details = AssetPreviewDetails()
 
         var wholeDerivativePath: String?
-        if let data = fileManager.contents(atPath: rawSidecarPath) {
+        if fileManager.fileExists(atPath: rawSidecarPath) {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            if let sidecar = try? decoder.decode(RawJSONSidecar.self, from: data) {
+            guard let data = fileManager.contents(atPath: rawSidecarPath) else {
+                details.sidecarErrors.append("sidecar unreadable: \(URL(fileURLWithPath: rawSidecarPath).lastPathComponent)")
+                details.fullImage = decodeImage(path: sourcePath, maxPixel: maxPixel)
+                return details
+            }
+            do {
+                let sidecar = try decoder.decode(RawJSONSidecar.self, from: data)
                 details.modelRunCount = sidecar.modelRuns.count
                 details.sidecarErrors = sidecar.errors.map { "\($0.code.rawValue): \($0.message)" }
                 if let isolation = sidecar.subjectIsolation {
@@ -53,6 +59,8 @@ struct AssetPreviewDetails: @unchecked Sendable, Equatable {
                         break
                     }
                 }
+            } catch {
+                details.sidecarErrors.append("sidecar malformed: \(error.localizedDescription)")
             }
         }
 
