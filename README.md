@@ -300,6 +300,15 @@ Start the app or run `ollama serve`, then confirm the endpoint. CameraVision def
 
 Use a smaller vision model, set `--stage-concurrency 1`, avoid `--mode both` for the first pass, and write to a staging `--output-dir`.
 
+**Running two copies at once**
+
+Running two CupricAspect instances, or the app and the `aisidecar` CLI, against the same folders at the same time is not supported.
+XMP and sidecar writes are atomic, but the instances share the review recovery file, diagnostic log, and `config.json`;
+the last writer wins, so one instance's review autosave or settings change can silently replace the other's.
+
+Quit one copy before working in the other.
+A single-instance lock is tracked as possible M11 scope.
+
 **XCTest unavailable**
 
 Point SwiftPM at a full Xcode install with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
