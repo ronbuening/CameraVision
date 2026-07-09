@@ -219,7 +219,7 @@ __marimo__/
 
 # Swift / Xcode
 .build/
-.swiftpm/xcode/
+.swiftpm/
 DerivedData/
 *.xcuserstate
 *.xcscmblueprint
@@ -250,3 +250,6 @@ Carthage/Build/
 # Local benchmark output and scratch caches
 benchmarks/milestone9a-*/
 benchmarks/milestone9a-self-test-*/
+
+# Claude Code local settings/skills
+.claude/

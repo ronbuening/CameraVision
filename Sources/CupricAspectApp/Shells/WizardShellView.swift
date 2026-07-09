@@ -256,7 +256,10 @@ struct WizardShellView: View {
         case 1:
             Step1PhotosView(model: importModel)
         case 2:
-            Step2ActionView(selection: $selectedAction)
+            Step2ActionView(selection: $selectedAction, onApplySession: {
+                selectedAction = .apply
+                step = 3
+            })
         case 3:
             VStack(spacing: 0) {
                 if case .failed(let message) = runModel.phase {
