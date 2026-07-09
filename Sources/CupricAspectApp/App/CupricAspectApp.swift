@@ -19,6 +19,26 @@ struct CupricAspectApp: App {
 /// Promotes the process to a regular foreground app so `swift run CupricAspect`
 /// (a bare SwiftPM binary with no .app bundle) shows a window and takes focus.
 /// Harmless once the packaging script wraps the binary in a real bundle.
+@MainActor
+enum TerminationFlush {
+    private static var actions: [String: () -> Void] = [:]
+
+    static func register(id: String, _ action: @escaping () -> Void) {
+        actions[id] = action
+    }
+
+    static func runAll() {
+        for action in actions.values {
+            action()
+        }
+    }
+
+    static func _resetForTesting() {
+        actions.removeAll()
+    }
+}
+
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -33,5 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        TerminationFlush.runAll()
+        return .terminateNow
     }
 }

@@ -51,6 +51,9 @@ struct WizardShellView: View {
             runModel.onRecord = { [weak importModel] record in
                 importModel?.apply(record)
             }
+            TerminationFlush.register(id: "review") { [weak reviewModel] in
+                reviewModel?.autosaveNow()
+            }
             // Dev/UI-test hooks: auto-import a folder / jump to a step via
             // environment. No effect in normal launches; not preferences.
             let env = ProcessInfo.processInfo.environment
