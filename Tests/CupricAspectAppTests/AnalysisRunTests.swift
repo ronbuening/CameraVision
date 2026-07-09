@@ -127,6 +127,23 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(AnalysisRunModel.secondsPerImage(elapsed: 60, done: 20), 3.0, accuracy: 0.001)
     }
 
+    @MainActor
+    func testProgressFractionClampsToOneAndReconcilesStaleTotal() {
+        let model = AnalysisRunModel()
+
+        model.applyProgressForTesting(done: 12, total: 10)
+
+        XCTAssertEqual(model.progressFraction, 1.0)
+        XCTAssertEqual(model.total, 12)
+    }
+
+    @MainActor
+    func testProgressFractionIsZeroWhenNoProgressExists() {
+        let model = AnalysisRunModel()
+
+        XCTAssertEqual(model.progressFraction, 0)
+    }
+
     func testOutcomeReductionCountsStatusesAndAggregatesErrorCodes() {
         func record(_ status: ProgressStatus, codes: [SidecarErrorCode] = []) -> ProgressRecord {
             ProgressRecord(
