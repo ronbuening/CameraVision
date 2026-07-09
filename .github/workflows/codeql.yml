@@ -1,0 +1,42 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly re-scan so newly disclosed query patterns catch already-merged code.
+    - cron: "27 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze Swift
+    # Swift CodeQL analysis is build-based and macOS-only.
+    runs-on: macos-15
+    permissions:
+      contents: read
+      security-events: write   # required to upload results to code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Initialize CodeQL
+        # github/codeql-action is GitHub's own action; kept on the v3 major tag.
+        # Pin to a commit SHA if you want to eliminate tag drift here too.
+        uses: github/codeql-action/init@v3
+        with:
+          language: swift
+
+      - name: Build
+        run: swift build --build-tests
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3

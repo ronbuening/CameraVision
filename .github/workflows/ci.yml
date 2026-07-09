@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege: CI only needs to read the repository contents.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build and test (macOS)
+    # macOS 15 runner matches the project's macOS 15 deployment target and
+    # ships an Xcode with Swift 6 by default, so no extra toolchain setup is
+    # needed. XCTest is available because the runner has a full Xcode install.
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2, pinned to a commit SHA to remove
+        # supply-chain drift from a moving tag.
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Show Swift toolchain
+        run: swift --version
+
+      - name: Build
+        run: swift build --build-tests
+
+      - name: Test
+        # The suite is deliberately offline and deterministic (no Ollama,
+        # network, model downloads, or real images), so it runs unchanged
+        # in CI.
+        run: swift test

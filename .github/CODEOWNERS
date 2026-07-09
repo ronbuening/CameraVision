@@ -1,0 +1,4 @@
+# Every change requires review from the repository owner.
+# When branch protection requires review from Code Owners, opening any PR
+# automatically requests @ronbuening.
+* @ronbuening
