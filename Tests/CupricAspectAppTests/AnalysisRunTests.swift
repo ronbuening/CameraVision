@@ -54,6 +54,44 @@ final class AnalysisRunTests: XCTestCase {
     }
 
     @MainActor
+    func testUserEditedOptionsSurviveRepeatedDefaultLoadsAndResetReseeds() throws {
+        let configPath = try writeConfig(#"{ "existing": "fail", "stage_concurrency": 2 }"#)
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: configPath)
+
+        options.loadResolvedDefaults()
+        XCTAssertEqual(options.existing, .fail)
+        XCTAssertEqual(options.concurrency, 2)
+
+        options.existing = .overwrite
+        options.concurrency = 4
+        options.loadResolvedDefaults()
+
+        XCTAssertEqual(options.existing, .overwrite)
+        XCTAssertEqual(options.concurrency, 4)
+
+        options.resetToResolvedDefaults()
+
+        XCTAssertEqual(options.existing, .fail)
+        XCTAssertEqual(options.concurrency, 2)
+    }
+
+    @MainActor
+    func testRepeatedDefaultLoadsStillRefreshDisplayConfiguration() throws {
+        let configPath = try writeConfig(#"{ "model": "first:model" }"#)
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: configPath)
+
+        options.loadResolvedDefaults()
+        XCTAssertEqual(options.resolvedModel, "first:model")
+        options.existing = .overwrite
+
+        try #"{ "model": "second:model" }"#.data(using: .utf8)!.write(to: URL(fileURLWithPath: configPath))
+        options.loadResolvedDefaults()
+
+        XCTAssertEqual(options.resolvedModel, "second:model")
+        XCTAssertEqual(options.existing, .overwrite)
+    }
+
+    @MainActor
     func testXMPConflictPolicyDefaultMatchesCoreApplySessionDefault() {
         let options = AnalysisOptions()
 

@@ -138,6 +138,11 @@ struct WizardShellView: View {
         .onChange(of: reviewModel.session?.session.sessionID) { _, _ in
             rehydrateImportContextFromReviewSession()
         }
+        .onChange(of: importModel.sourceFolder?.path) { oldPath, newPath in
+            guard newPath != nil, newPath != oldPath else { return }
+            options.resetToResolvedDefaults()
+            options.modelOverride = nil
+        }
         .sheet(isPresented: $showPlanSheet) {
             ChangePlanSheet(export: exportModel)
         }

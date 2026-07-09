@@ -22,6 +22,7 @@ final class AnalysisOptions {
     /// Resolved display values (model tag, endpoint) from the config chain.
     private(set) var resolvedModel = ""
     private(set) var resolvedEndpoint = ""
+    private(set) var defaultsLoaded = false
 
     init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -42,6 +43,8 @@ final class AnalysisOptions {
         ) else { return }
         resolvedModel = resolved.model
         resolvedEndpoint = resolved.modelEndpoint.absoluteString
+        guard !defaultsLoaded else { return }
+        defaultsLoaded = true
         mode = resolved.mode
         gps = resolved.gpsContext
         existing = resolved.existing
@@ -52,6 +55,11 @@ final class AnalysisOptions {
         ) {
             xmpConflictPolicy = exportDefaults.xmpConflictPolicy
         }
+    }
+
+    func resetToResolvedDefaults() {
+        defaultsLoaded = false
+        loadResolvedDefaults()
     }
 
     /// Build the run configuration: UI choices as CLI-equivalent overrides on
