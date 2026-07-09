@@ -39,7 +39,15 @@
   // There is no current CLI flag for this key.
   "model_keep_alive": "30m",
 
-  // Model input rendering profile. Options:
+  // Ollama num_ctx token window requested for every model call. The default
+  // leaves headroom for the prompt, image tokens, and the full JSON response;
+  // raise it for models with larger windows or lower it to save memory.
+  // Environment-only equivalent: AISIDECAR_MODEL_CONTEXT_WINDOW.
+  // There is no current CLI flag for this key.
+  "model_context_window": 8192,
+
+  // Model input rendering profile: controls the rendered image size sent to
+  // the model (long edge 2048, 1024, or 1536 pixels). Options:
   // "gemma4-26b-default", "gemma4-26b-benchmark-1024", "gemma4-26b-benchmark-1536".
   "profile": "gemma4-26b-default",
 

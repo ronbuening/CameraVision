@@ -138,7 +138,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertNil(record.error)
         XCTAssertEqual(record.rawResponseText, rawResponse)
         XCTAssertEqual(record.inputDerivativeSHA256, "image-sha")
-        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.4.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.5.0")
         XCTAssertEqual(record.runtimeMetrics?.totalDurationNs, 21_000_000)
         XCTAssertEqual(record.runtimeMetrics?.loadDurationNs, 2_000_000)
         XCTAssertEqual(record.runtimeMetrics?.promptEvalCount, 31)
@@ -403,7 +403,7 @@ final class ModelRuntimeTests: XCTestCase {
 
         XCTAssertTrue(record.jsonValid)
         XCTAssertNil(record.error)
-        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.4.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.5.0")
         let attempts = try XCTUnwrap(record.responseAttempts)
         XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
         XCTAssertEqual(attempts.first?.rawResponseText, malformed)

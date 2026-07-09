@@ -725,6 +725,7 @@ public struct AnalyzePipeline {
         var options = ModelRunOptions.default
         options.keepAlive = configuration.modelKeepAlive
         options.responseRepairAttempts = configuration.modelResponseRepairAttempts
+        options.contextWindow = configuration.modelContextWindow
         do {
             let prompt = try PromptRegistry.prompt(for: role, context: modelInputContext)
             let schema = try ResponseSchemas.schema(for: role)

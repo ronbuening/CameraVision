@@ -73,6 +73,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var modelResponseRepairAttempts: Int?
     /// Controls whether EXIF GPS coordinates are attached to model prompts.
     public var gpsContext: GPSContextMode?
+    /// Ollama `num_ctx` token window requested for every model call.
+    public var modelContextWindow: Int?
 
     public init(
         mode: AnalysisMode? = nil,
@@ -97,7 +99,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         subjectMergeDominanceThreshold: Double? = nil,
         stageConcurrency: Int? = nil,
         modelResponseRepairAttempts: Int? = nil,
-        gpsContext: GPSContextMode? = nil
+        gpsContext: GPSContextMode? = nil,
+        modelContextWindow: Int? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -122,6 +125,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.stageConcurrency = stageConcurrency
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
         self.gpsContext = gpsContext
+        self.modelContextWindow = modelContextWindow
     }
 }
 
@@ -186,6 +190,11 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var modelResponseRepairAttempts: Int
     /// GPS context policy for model prompts; coordinates are never written to XMP.
     public var gpsContext: GPSContextMode
+    /// Ollama `num_ctx` token window requested for every model call. The
+    /// default leaves headroom for the prompt, image tokens, and a full
+    /// evidence-bearing JSON response instead of relying on Ollama's
+    /// smaller runtime default.
+    public var modelContextWindow: Int
 
     enum CodingKeys: String, CodingKey {
         case mode
@@ -210,6 +219,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case stageConcurrency = "stage_concurrency"
         case modelResponseRepairAttempts = "model_response_repair_attempts"
         case gpsContext = "gps_context"
+        case modelContextWindow = "model_context_window"
     }
 
     public init(
@@ -234,7 +244,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         subjectMergeDominanceThreshold: Double = 0.8,
         stageConcurrency: Int = Self.defaultStageConcurrency(),
         modelResponseRepairAttempts: Int = 1,
-        gpsContext: GPSContextMode = .coarse
+        gpsContext: GPSContextMode = .coarse,
+        modelContextWindow: Int = 8_192
     ) {
         self.mode = mode
         self.existing = existing
@@ -258,6 +269,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.stageConcurrency = stageConcurrency
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
         self.gpsContext = gpsContext
+        self.modelContextWindow = modelContextWindow
     }
 
     /// Default bounded render/isolation worker count for PW-015.
@@ -296,7 +308,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         subjectMergeDominanceThreshold: 0.8,
         stageConcurrency: ResolvedRunConfiguration.defaultStageConcurrency(),
         modelResponseRepairAttempts: 1,
-        gpsContext: .coarse
+        gpsContext: .coarse,
+        modelContextWindow: 8_192
     )
 
     public init(from decoder: Decoder) throws {
@@ -332,5 +345,9 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
             GPSContextMode.self,
             forKey: .gpsContext
         ) ?? Self.builtInDefaults.gpsContext
+        self.modelContextWindow = try container.decodeIfPresent(
+            Int.self,
+            forKey: .modelContextWindow
+        ) ?? Self.builtInDefaults.modelContextWindow
     }
 }

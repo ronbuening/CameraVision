@@ -177,6 +177,22 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testInvalidModelContextWindowFailsAsConfigInvalid() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "model_context_window": 0 }"#)
+            )
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_MODEL_CONTEXT_WINDOW": "huge"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     func testInvalidXMPExportEnumFailsAsConfigInvalid() throws {
         for json in [
             #"{ "source_verification": "maybe" }"#,

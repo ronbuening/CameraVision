@@ -303,6 +303,10 @@ public enum ConfigurationResolver {
                 GPSContextMode.self,
                 from: environment["AISIDECAR_GPS_CONTEXT"],
                 key: "AISIDECAR_GPS_CONTEXT"
+            ),
+            modelContextWindow: try intValue(
+                from: environment["AISIDECAR_MODEL_CONTEXT_WINDOW"],
+                key: "AISIDECAR_MODEL_CONTEXT_WINDOW"
             )
         )
     }
@@ -609,6 +613,7 @@ private struct ConfigurationBuilder {
     private var stageConcurrency: Int
     private var modelResponseRepairAttempts: Int
     private var gpsContext: GPSContextMode
+    private var modelContextWindow: Int
 
     init(defaults: ResolvedRunConfiguration) {
         self.mode = defaults.mode
@@ -633,6 +638,7 @@ private struct ConfigurationBuilder {
         self.stageConcurrency = defaults.stageConcurrency
         self.modelResponseRepairAttempts = defaults.modelResponseRepairAttempts
         self.gpsContext = defaults.gpsContext
+        self.modelContextWindow = defaults.modelContextWindow
     }
 
     mutating func apply(config: AppConfig) {
@@ -658,6 +664,7 @@ private struct ConfigurationBuilder {
         merge(&stageConcurrency, config.stageConcurrency)
         merge(&modelResponseRepairAttempts, config.modelResponseRepairAttempts)
         merge(&gpsContext, config.gpsContext)
+        merge(&modelContextWindow, config.modelContextWindow)
     }
 
     mutating func apply(overrides: RunConfigurationOverrides) {
@@ -683,6 +690,7 @@ private struct ConfigurationBuilder {
         merge(&stageConcurrency, overrides.stageConcurrency)
         merge(&modelResponseRepairAttempts, overrides.modelResponseRepairAttempts)
         merge(&gpsContext, overrides.gpsContext)
+        merge(&modelContextWindow, overrides.modelContextWindow)
     }
 
     func resolved() throws -> ResolvedRunConfiguration {
@@ -715,6 +723,9 @@ private struct ConfigurationBuilder {
         guard modelResponseRepairAttempts >= 0 else {
             throw SidecarError.configInvalid("model_response_repair_attempts must be zero or greater")
         }
+        guard modelContextWindow > 0 else {
+            throw SidecarError.configInvalid("model_context_window must be greater than zero")
+        }
 
         return ResolvedRunConfiguration(
             mode: mode,
@@ -738,7 +749,8 @@ private struct ConfigurationBuilder {
             subjectMergeDominanceThreshold: subjectMergeDominanceThreshold,
             stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
-            gpsContext: gpsContext
+            gpsContext: gpsContext,
+            modelContextWindow: modelContextWindow
         )
     }
 }
@@ -1010,7 +1022,8 @@ private extension RunConfigurationOverrides {
             subjectMergeDominanceThreshold: subjectMergeDominanceThreshold,
             stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
-            gpsContext: gpsContext
+            gpsContext: gpsContext,
+            modelContextWindow: modelContextWindow
         )
     }
 }

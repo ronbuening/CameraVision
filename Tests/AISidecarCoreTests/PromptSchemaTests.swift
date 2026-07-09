@@ -8,8 +8,8 @@ final class PromptSchemaTests: XCTestCase {
         let whole = try PromptRegistry.prompt(for: .wholeImage)
         let subject = try PromptRegistry.prompt(for: .subjectIsolated)
 
-        XCTAssertEqual(whole.version, "aisidecar.prompt.whole_image/1.4.0")
-        XCTAssertEqual(subject.version, "aisidecar.prompt.subject_isolated/1.4.0")
+        XCTAssertEqual(whole.version, "aisidecar.prompt.whole_image/1.5.0")
+        XCTAssertEqual(subject.version, "aisidecar.prompt.subject_isolated/1.5.0")
         XCTAssertTrue(whole.text.hasPrefix("PROMPT_VERSION: \(whole.version)\n"))
         XCTAssertTrue(subject.text.hasPrefix("PROMPT_VERSION: \(subject.version)\n"))
         XCTAssertTrue(whole.text.hasSuffix("\n"))
@@ -44,8 +44,8 @@ final class PromptSchemaTests: XCTestCase {
         let whole = try ResponseSchemas.schema(for: .wholeImage)
         let subject = try ResponseSchemas.schema(for: .subjectIsolated)
 
-        XCTAssertEqual(whole.version, "urn:aisidecar:response:whole-image:1.4.0")
-        XCTAssertEqual(subject.version, "urn:aisidecar:response:subject-isolated:1.4.0")
+        XCTAssertEqual(whole.version, "urn:aisidecar:response:whole-image:1.5.0")
+        XCTAssertEqual(subject.version, "urn:aisidecar:response:subject-isolated:1.5.0")
         let wholeProperties = try XCTUnwrap(whole.schema.objectValue?["properties"]?.objectValue)
         XCTAssertNotNil(wholeProperties["species"])
         XCTAssertNotNil(wholeProperties["scene_context"])
@@ -124,18 +124,34 @@ final class PromptSchemaTests: XCTestCase {
         }, against: schema)
     }
 
-    func testNonTargetGenresRejectSpeciesEvenWhenEmpty() throws {
+    func testNonTargetGenresStillRequireSpeciesField() throws {
+        // Schema 1.5.0 requires `species` unconditionally because Ollama's
+        // grammar conversion ignores if/then/else; non-biological genres
+        // carry an empty array and CandidateExtractor enforces the genre
+        // precondition downstream.
         let schema = try ResponseSchemas.schema(for: .wholeImage)
 
         try JSONSchemaValidator.validate(wholeImageMutating { response in
             response["genre_or_photography_type"] = .array([genreCandidate("landscape")])
-            response.removeValue(forKey: "species")
+            response["species"] = .array([])
         }, against: schema)
 
         assertInvalid(wholeImageMutating { response in
             response["genre_or_photography_type"] = .array([genreCandidate("landscape")])
-            response["species"] = .array([])
+            response.removeValue(forKey: "species")
         }, against: schema)
+    }
+
+    func testBasePromptsCarryNoGPSOrExternalContextLanguage() throws {
+        // GPS guidance lives only in the injected MODEL INPUT CONTEXT block,
+        // so runs without GPS context never mention it.
+        for role in ModelInputRole.allCases {
+            let prompt = try PromptRegistry.prompt(for: role)
+            XCTAssertFalse(prompt.text.contains("GPS"), "\(role.rawValue) prompt mentions GPS")
+            XCTAssertFalse(prompt.text.contains("EXIF"), "\(role.rawValue) prompt mentions EXIF")
+            XCTAssertFalse(prompt.text.contains("MODEL INPUT CONTEXT"), "\(role.rawValue) prompt mentions the context block")
+            XCTAssertFalse(prompt.text.lowercased().contains("coordinate"), "\(role.rawValue) prompt mentions coordinates")
+        }
     }
 
     func testSpeciesUsesCandidateWithEvidenceShape() throws {
