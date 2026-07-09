@@ -1,13 +1,15 @@
 name: CodeQL
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # Schedule-only: Swift CodeQL is a build-based, macOS-runner scan that is
+  # several times slower than the CI build, so it is kept out of the per-PR
+  # loop. The required merge gate is the CI "Build and test (macOS)" job.
+  # workflow_dispatch allows an on-demand run from the Actions tab.
   schedule:
-    # Weekly re-scan so newly disclosed query patterns catch already-merged code.
+    # Weekly re-scan (Mondays 04:27 UTC) so newly disclosed query patterns
+    # catch already-merged code.
     - cron: "27 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
