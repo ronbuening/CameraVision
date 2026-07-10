@@ -80,8 +80,9 @@ E_UNSUPPORTED_FORMAT            E_DECODE_FAILED
 E_RENDER_FAILED                 E_ORIENTATION_UNRESOLVED
 E_SUBJECT_ISOLATION_NO_FOREGROUND
 E_SUBJECT_ISOLATION_FAILED
-E_MODEL_ENDPOINT_UNREACHABLE    E_MODEL_TAG_NOT_FOUND
-E_MODEL_TIMEOUT                 E_MODEL_INVALID_JSON
+E_MODEL_ENDPOINT_UNREACHABLE    E_MODEL_RESPONSE_INVALID
+E_MODEL_TAG_NOT_FOUND           E_MODEL_TIMEOUT
+E_MODEL_INVALID_JSON
 E_MODEL_SCHEMA_VIOLATION
 E_SIDECAR_EXISTS                E_SIDECAR_COLLISION
 E_WRITE_FAILED                  E_VALIDATION_FAILED
@@ -90,7 +91,10 @@ E_SESSION_STALE                 E_CONFIG_INVALID
 E_EXIFTOOL_MISSING              E_INTERRUPTED
 ```
 
-`E_MODEL_INVALID_JSON` means the final response was not parseable JSON. `E_MODEL_SCHEMA_VIOLATION` means it parsed but failed the response schema. Both preserve raw response text, including attempted repair responses when repair is enabled.
+`E_MODEL_RESPONSE_INVALID` means Ollama returned an HTTP-success response whose API envelope was malformed after
+one decode retry. `E_MODEL_INVALID_JSON` means the final model-authored structured output was not parseable JSON.
+`E_MODEL_SCHEMA_VIOLATION` means that output parsed but failed the response schema. The latter two preserve raw
+response text, including attempted repair responses when repair is enabled.
 
 ### 1.5 Schema Evolution
 
@@ -269,7 +273,14 @@ FR1-030c - Thinking mode shall be explicitly disabled for tagging runs and the s
 
 FR1-030d - `keep_alive` shall default to a duration that keeps the model resident for the whole batch (initial default: `30m`, refreshed per request), avoiding a per-image reload tax.
 
-FR1-030e - Requests shall have a timeout (default 180 s) and bounded transport retries (default 2), retrying only on timeout and transport errors. `E_MODEL_INVALID_JSON` and `E_MODEL_SCHEMA_VIOLATION` shall not be silently accepted; by default the runtime performs one no-image, schema-constrained repair call using the original raw output and validation error, then records the final failure if repair still does not produce schema-valid JSON. `model_response_repair_attempts = 0` preserves the strict one-shot behavior.
+FR1-030e - Requests shall have a timeout (default 180 s) and bounded transport retries (default 2), retrying only
+on timeout, transport errors, and HTTP 5xx responses. HTTP 4xx responses shall fail immediately. When Ollama
+returns a JSON `error` message for a non-success response, the diagnostic shall be included in the bounded error
+message. A malformed HTTP-success API envelope shall be retried exactly once on an independent decode-retry budget,
+then fail with `E_MODEL_RESPONSE_INVALID`. `E_MODEL_INVALID_JSON` and `E_MODEL_SCHEMA_VIOLATION` shall not be
+silently accepted; by default the runtime performs one no-image, schema-constrained repair call using the original
+raw output and validation error, then records the final failure if repair still does not produce schema-valid JSON.
+`model_response_repair_attempts = 0` preserves the strict one-shot behavior.
 
 FR1-030f - Request options shall record temperature, seed, thinking setting, `keep_alive`, and any context override, per PW-013.
 

@@ -1648,10 +1648,10 @@ func testAnalyzeRetriesHTTP5xxAndMalformed200Once() async throws {
 ```
 
 **Acceptance.**
-- [ ] Ollama error body included in thrown error messages (plan 08 verbatim)
-- [ ] Retry only timeouts, transport errors, and 5xx; fail fast on 4xx (plan 08 verbatim)
-- [ ] Malformed 200 → decode-class error, retried once, `E_MODEL_RESPONSE_INVALID` additive (plan 08 verbatim)
-- [ ] Existing `testAnalyzeRetriesTimeoutsAndTransportErrorsOnly` still green; 4xx non-retry now actually pinned
+- [x] Ollama error body included in thrown error messages (plan 08 verbatim)
+- [x] Retry only timeouts, transport errors, and 5xx; fail fast on 4xx (plan 08 verbatim)
+- [x] Malformed 200 → decode-class error, retried once, `E_MODEL_RESPONSE_INVALID` additive (plan 08 verbatim)
+- [x] Existing `testAnalyzeRetriesTimeoutsAndTransportErrorsOnly` still green; 4xx non-retry now actually pinned
 
 **Commit.** `Classify Ollama retries: fail fast on 4xx, surface error bodies, retry malformed 200 once`
 
