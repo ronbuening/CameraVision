@@ -164,7 +164,9 @@ FR1-003 - Supported extensions shall include at least `NEF`, `NRW`, `CR3`, `CR2`
 
 FR1-004 - Unsupported files shall be skipped with a structured `E_UNSUPPORTED_FORMAT` error entry rather than crashing the batch.
 
-FR1-005 - Hidden files, macOS resource forks, `.DS_Store`, and existing `.ai.json` and `.xmp` sidecar files shall be ignored by default.
+FR1-005 - Hidden files, macOS resource forks, `.DS_Store`, existing `.ai.json` and `.xmp` sidecar files, and
+AISidecar-owned progress/report/summary/session/manifest artifacts shall be ignored by default. Ignoring protected
+normalization sessions and model-input export manifests shall not make them eligible for cleanup.
 
 FR1-006 - The program shall process each input image independently. It shall not try to merge RAW+JPEG pairs in Phase 1.
 

@@ -8,6 +8,7 @@ import Foundation
 public enum ArtifactNames {
     public static let batchProgressPrefix = "batch-progress-"
     public static let batchSummaryPrefix = "batch-summary-"
+    public static let modelInputExportManifestPrefix = "model-input-export-"
     public static let xmpExportProgressPrefix = "xmp-export-progress-"
     public static let xmpExportReportPrefix = "xmp-export-report-"
     public static let xmpExportSummaryPrefix = "xmp-export-summary-"

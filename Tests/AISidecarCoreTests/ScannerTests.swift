@@ -107,6 +107,36 @@ final class ScannerTests: XCTestCase {
         XCTAssertTrue(failure.error.recoverable)
     }
 
+    func testScanIgnoresOwnedRunArtifactsWithoutExpandingCleanupScope() throws {
+        let root = try temporaryDirectory()
+        _ = try writeFile("Bird.NEF", data: Data("raw".utf8), in: root)
+        let artifactNames = [
+            "batch-progress-2026-07-10T120000Z.jsonl",
+            "batch-summary-2026-07-10T120000Z.json",
+            "xmp-export-progress-2026-07-10T120000Z.jsonl",
+            "xmp-export-report-2026-07-10T120000Z.json",
+            "xmp-export-summary-2026-07-10T120000Z.md",
+            "normalization-progress-2026-07-10T120000Z.jsonl",
+            "normalization-report-2026-07-10T120000Z.json",
+            "normalization-summary-2026-07-10T120000Z.md",
+            "normalization-session-2026-07-10T120000Z.json",
+            "normalization-apply-progress-2026-07-10T120000Z.jsonl",
+            "normalization-apply-report-2026-07-10T120000Z.json",
+            "normalization-apply-summary-2026-07-10T120000Z.md",
+            "model-input-export-2026-07-10T120000Z.json"
+        ]
+        for name in artifactNames {
+            _ = try writeFile(name, data: Data("{}".utf8), in: root)
+        }
+
+        let result = try ImageScanner().scan(inputPath: root.path, recursive: false, identityPolicy: .fast)
+
+        XCTAssertEqual(result.images.map(\.relativePath), ["Bird.NEF"])
+        XCTAssertTrue(result.errors.isEmpty)
+        XCTAssertNil(ArtifactCleanup.classify(fileName: "normalization-session-2026-07-10T120000Z.json"))
+        XCTAssertNil(ArtifactCleanup.classify(fileName: "model-input-export-2026-07-10T120000Z.json"))
+    }
+
     func testNonRecursiveUnreadableFolderThrowsStructuredValidationError() throws {
         try XCTSkipIf(getuid() == 0, "chmod 000 is not enforced for root")
         let root = try temporaryDirectory()

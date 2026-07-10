@@ -617,6 +617,47 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(try cacheContents(at: cacheDir), [])
     }
 
+    func testOwnedBatchArtifactsDoNotBlockPostSuccessCacheClearOnRerun() async throws {
+        let root = try temporaryDirectory()
+        let cacheRoot = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: cacheRoot)
+        }
+        _ = try writeTestImage("A.JPG", in: root)
+        let cacheDir = cacheRoot.appendingPathComponent("cache")
+        let baseConfiguration = config(
+            recursive: false,
+            outputDir: nil,
+            existing: .skip,
+            mode: .whole,
+            cacheDir: cacheDir.path
+        )
+
+        let first = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: baseConfiguration
+        )
+
+        XCTAssertEqual(first.records.map(\.status), [.written])
+        XCTAssertFalse(try cacheContents(at: cacheDir).isEmpty)
+        XCTAssertFalse(
+            try FileManager.default.contentsOfDirectory(atPath: root.path)
+                .filter { $0.hasPrefix(ArtifactNames.batchProgressPrefix) }.isEmpty
+        )
+
+        var rerunConfiguration = baseConfiguration
+        rerunConfiguration.clearDerivativeCacheAfterSuccess = true
+        let rerun = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: rerunConfiguration
+        )
+
+        XCTAssertEqual(rerun.records.map(\.status), [.skippedExisting])
+        XCTAssertTrue(rerun.scanResult.errors.isEmpty)
+        XCTAssertEqual(try cacheContents(at: cacheDir), [])
+    }
+
     func testClearDerivativeCacheAfterSuccessDoesNotRunForFailedAnalysis() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()

@@ -397,7 +397,8 @@ public struct ModelInputExportPipeline {
             records: records,
             summary: summary
         )
-        let manifestPath = "\(exportDirectory)/model-input-export-\(timestampString(for: startedAt)).json"
+        let manifestPath =
+            "\(exportDirectory)/\(ArtifactNames.modelInputExportManifestPrefix)\(timestampString(for: startedAt)).json"
         try writeManifest(manifest, to: manifestPath)
 
         if configuration.clearDerivativeCacheAfterSuccess,

@@ -1860,9 +1860,9 @@ func testScanIgnoresOwnedRunArtifacts() throws {
 (Note `normalization-session-*` files: `classify` recognizes prefixes via `ArtifactNames` but has **no** `normalizationSessionPrefix` branch — sessions are deliberately not cleanup-deletable. The scanner must still ignore them; cover via a direct prefix check like the export manifest. **Discrepancy:** plan 08 implies `classify` covers all owned patterns; sessions and export manifests are exceptions.)
 
 **Acceptance.**
-- [ ] Scan of a folder containing each owned artifact type → no failure records (plan 08 verbatim)
-- [ ] `clearDerivativeCacheAfterSuccess` fires again on a clean rerun over a previously-analyzed folder
-- [ ] `cleanup` scope unchanged (invariant 6) — ignoring ≠ deleting
+- [x] Scan of a folder containing each owned artifact type → no failure records (plan 08 verbatim)
+- [x] `clearDerivativeCacheAfterSuccess` fires again on a clean rerun over a previously-analyzed folder
+- [x] `cleanup` scope unchanged (invariant 6) — ignoring ≠ deleting
 
 **Commit.** `Ignore owned run artifacts during scans so reruns stop reporting them as failures`
 

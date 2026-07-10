@@ -31,7 +31,7 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
 | `Metadata/` | Phase 2: candidate extraction, keyword policy, XMP naming/grouping, owned XMP parser/writer engine, backups, merge validation | `CandidateExtractor`, `MetadataWriteEngine` (protocol), `OwnedXMPSidecarEngine`, `XMPDocumentParser/Writer`, `XMPKeywordReader/Merger`, `XMPMetadataSnapshot`, `XMPUnmanagedContentFingerprint`, `XMPBackupManager`, `XMPChangePlan`, `SameBaseNameGroupResolver` |
 | `Normalization/` | Phase 3: vocabulary load/index/validate, canonicalization, affinity graph, consensus, session documents, decision explainer, GUI review application | `VocabularyLoader/Index/Validator`, `VocabularyTextFolder`, `CandidateCanonicalizer`, `AssetAffinityGraph`, `BatchConsensusEngine`, `NormalizationSessionDocument`, `NormalizedXMPChangePlanner`, `NormalizationDecisionExplainer` (CORE-6), `SessionReview` (CORE-7) |
 | `Pipeline/` | Orchestration of everything above + interruption handling | see entry-point table below |
-| `Reporting/` | Injectable logger, JSONL progress logs, reports, summaries, schema identifiers | `Logger` (injectable sink), `ProgressLog`, `JSONLWriter`, `BatchSummary`, `XMPExportReport`, `NormalizationReport`, `ArtifactNames` |
+| `Reporting/` | Injectable logger, JSONL progress logs, reports, summaries, schema identifiers, shared owned-artifact prefixes | `Logger` (injectable sink), `ProgressLog`, `JSONLWriter`, `BatchSummary`, `XMPExportReport`, `NormalizationReport`, `ArtifactNames` |
 | `Cleanup/` | Scoped removal of owned raw sidecars and run artifacts | `ArtifactCleanup` |
 | `Benchmarking/` | Milestone 9a benchmark harness | `Milestone9BenchmarkRunner` |
 | `Errors/` | Project-wide structured error codes (additive only, stable raw strings) | `SidecarError` |
@@ -86,6 +86,7 @@ GUI model tests live in `Tests/CupricAspectAppTests` (offline, deterministic —
 | XMP sidecar | owned parser/writer output, target naming in `Metadata/XMPNaming.swift` |
 | Progress log / report / summary | `*-progress-*.jsonl` / `*-report-*.json` / `*-summary-*.md` (names in `Reporting/ArtifactNames.swift`) |
 | Normalization session | `normalization-session-*.json`, reusable by `apply-session` |
+| Model-input export manifest | `model-input-export-*.json`, protected diagnostic manifest |
 | Derivative cache | `~/Library/Caches/aisidecar/derivatives` (configurable), manifest JSON + `aisidecar purge` lifecycle |
 | Config file | `~/Library/Application Support/aisidecar/config.json` (configurable; the GUI Settings sheet writes through to the same file via `ConfigFileEditor`) |
 | GUI state | `~/Library/Application Support/CupricAspect/` — recovery session, per-run artifact dirs (pruned after 7 days by `StateHousekeeping`), `logs/` diagnostic log |

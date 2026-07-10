@@ -316,6 +316,21 @@ public struct ImageScanner {
             // source images to analyze or unsupported files to report.
             || lowercasedName.hasSuffix(".ai.json")
             || lowercasedName.hasSuffix(".xmp")
+            || ArtifactCleanup.classify(fileName: fileName) != nil
+            // Sessions and diagnostic manifests are owned artifacts but are
+            // intentionally protected from cleanup; scans still ignore them.
+            || matchesOwnedJSON(
+                lowercasedName,
+                prefix: ArtifactNames.normalizationSessionPrefix
+            )
+            || matchesOwnedJSON(
+                lowercasedName,
+                prefix: ArtifactNames.modelInputExportManifestPrefix
+            )
+    }
+
+    private func matchesOwnedJSON(_ lowercasedName: String, prefix: String) -> Bool {
+        lowercasedName.hasPrefix(prefix) && lowercasedName.hasSuffix(".json")
     }
 
     private func isRegularFile(_ url: URL) -> Bool {
