@@ -40,7 +40,7 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
 
 ## Pipeline Entry Points
 
-All results are `Sendable`; no `@MainActor` coupling; Core never prints directly (the `Logger` sink is injectable, default stderr). Cancellation: pass an `InterruptionMonitor` and call `requestInterruption()`; pipelines check it between assets.
+All results are `Sendable`; no `@MainActor` coupling; Core never prints directly (the `Logger` sink is injectable, default stderr). Cancellation: pass an `InterruptionMonitor` and call `requestInterruption()`; pipelines check it between assets, while `AnalyzePipeline` also checks between model roles/retries and cancels its in-flight model request.
 
 | Pipeline | Entry | Async | Purpose |
 |---|---|---|---|

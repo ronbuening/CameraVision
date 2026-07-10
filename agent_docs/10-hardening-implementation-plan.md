@@ -1553,17 +1553,17 @@ for (role, derivative) in modelInputs(derivatives: derivatives, mode: configurat
 ```
 
 **Change.** (Do R3-4 first or together — cancellation propagation through the transport is shared.)
-1. Plumb `interruptionMonitor` from `finishPrepared` into `runModelRuns`/`runModel`. At the top of the role loop: `if interruptionMonitor?.isInterrupted == true { break }` — partial `runs` flow back and the pipeline's existing fail-closed boundary handling marks the file interrupted (no sidecar written, `E_INTERRUPTED` on the record, consistent with the between-files path).
+1. Plumb `interruptionMonitor` from `finishPrepared` into `runModelRuns`/`runModel`. At the top of the role loop, stop through an explicit internal interrupted outcome rather than returning partial model runs. The processing loop then writes no sidecar and emits no partial per-file progress record; the batch result and summary carry the interruption, matching the established between-files behavior. (The original plan assumed this fail-closed outcome already existed; `finishPrepared` previously wrote partial runs, so the explicit outcome is required.)
 2. Runner gains a per-call interruption check: add `isInterrupted: (@Sendable () -> Bool)?` to the `analyze` signature (defaulted `nil` — mock runners unaffected). In `sendChatWithRetries`, check it (and `Task.isCancelled`, R3-4) at the top of each attempt and after each failure; when set, throw `SidecarError(code: .interrupted, stage: .model, ...)` instead of starting the next attempt.
 3. Cancel in-flight requests: `AnalyzePipeline.runModel` wraps the `runner.analyze` call in a child `Task`; the pipeline registers a handler on the monitor that calls `task.cancel()`. Add to `InterruptionMonitor`:
 
 ```swift
 /// Register a callback fired once when interruption is requested.
-/// Fires immediately if already interrupted. Returns after removal-safe registration.
-public func onInterruption(_ handler: @escaping @Sendable () -> Void)
+/// Fires immediately if already interrupted. Returns a removable lifetime token.
+public func onInterruption(_ handler: @escaping @Sendable () -> Void) -> InterruptionRegistration
 ```
-   (Store handlers under the existing lock; `requestInterruption()` drains them.) The transport-level cancellation behavior is R3-4.
-4. Escalation: in `installSignalHandlers`, when the SIGINT event handler sees `interrupted` already `true`, restore default disposition (`signal(SIGINT, SIG_DFL)`) so the *third* Ctrl+C genuinely kills the process. Second press = "cancel in-flight + arm escalation", third = kill.
+   (Store handlers under the existing lock; `requestInterruption()` drains them. Registrations must unregister completed requests so a long successful batch retains no historical tasks.) The transport-level task-only cancellation behavior is R3-4.
+4. Escalation: in `installSignalHandlers`, when the SIGINT event handler sees `interrupted` already `true`, restore default disposition (`signal(SIGINT, SIG_DFL)`) so the *third* Ctrl+C genuinely kills the process. Second press = "cancel in-flight + arm escalation", third = kill. Account for `DispatchSourceSignal.data` so rapidly coalesced signals preserve the same sequence.
 
 **Tests.** Extend `Tests/AISidecarCoreTests/ModelRuntimeTests.swift` (runner behavior) and `AnalyzePipelineTests.swift` (role-boundary stop):
 
@@ -1578,7 +1578,7 @@ func testAnalyzeStopsRetryingWhenInterruptedBetweenAttempts() async throws {
     let record = await runner.analyze(
         /* image/prompt/schema/runtime per existing helpers */
         options: ModelRunOptions(retryLimit: 2),
-        isInterrupted: { true }
+        isInterrupted: { monitor.isInterrupted }
     )
     XCTAssertEqual(record.error?.code, .interrupted)
     XCTAssertEqual(await transport.capturedRequests().count, 1)
@@ -1587,15 +1587,15 @@ func testAnalyzeStopsRetryingWhenInterruptedBetweenAttempts() async throws {
 // AnalyzePipelineTests.swift
 func testInterruptionBetweenRolesSkipsSecondRoleAndFailsClosed() async throws {
     // mock runner flips monitor.requestInterruption() during the first role;
-    // assert: one model call, record interrupted, no sidecar file written.
+    // assert: one model call, no per-file record, summary interrupted, no sidecar.
 }
 ```
 
 **Acceptance.**
-- [ ] Monitor checked between roles and between retry attempts (plan 08 verbatim)
-- [ ] In-flight `URLSession` request cancelled on interruption (with R3-4)
-- [ ] Second SIGINT restores default disposition; third kills (plan 08 verbatim)
-- [ ] Files stay fail-closed at boundaries (existing behavior preserved)
+- [x] Monitor checked between roles and between retry attempts (plan 08 verbatim)
+- [x] In-flight `URLSession` request cancelled on interruption (with R3-4)
+- [x] Second SIGINT restores default disposition; third kills (plan 08 verbatim)
+- [x] Files stay fail-closed at boundaries (existing behavior preserved)
 - [ ] Manual: Ctrl+C during a batch stops within one attempt, exits 130 (R3-1)
 
 **Commit.** `Check interruption between roles and attempts and cancel in-flight model requests`

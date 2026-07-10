@@ -52,7 +52,9 @@ batch with a failed item exits `1`; and an interrupted batch exits `130`.
 swift run aisidecar analyze <unsupported-file> --dry-scan; echo $?   # 0
 swift run aisidecar analyze <unsupported-file> --dry-run; echo $?    # 1
 swift run aisidecar analyze <image-or-folder> --output-dir <tmp-output>
-# Press Ctrl+C, then run: echo $?                                    # 130
+# First Ctrl+C requests a graceful stop and cancels the live model request.
+# A second Ctrl+C arms default SIGINT handling; a third force-terminates.
+# After a graceful stop, run: echo $?                                # 130
 ```
 
 ## Offline Smoke Checks (no Ollama required)
