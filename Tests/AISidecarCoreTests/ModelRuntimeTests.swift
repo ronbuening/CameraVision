@@ -84,6 +84,33 @@ final class ModelRuntimeTests: XCTestCase {
         }
     }
 
+    func testPrepareTagDiagnosticDistinguishesUnprobedInstalledModels() async throws {
+        let transport = RecordingOllamaTransport([
+            .success(jsonResponse("""
+            {
+              "models": [
+                {"name":"vision:model","model":"vision:model","digest":"111"},
+                {"name":"flaky:model","model":"flaky:model","digest":"222"}
+              ]
+            }
+            """)),
+            .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
+            .failure(OllamaHTTPTransportError.unreachable("probe failed"))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+        var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.model = "missing:model"
+
+        do {
+            _ = try await runner.prepare(configuration: configuration)
+            XCTFail("Expected E_MODEL_TAG_NOT_FOUND")
+        } catch let error as SidecarError {
+            XCTAssertEqual(error.code, .modelTagNotFound)
+            XCTAssertTrue(error.message.contains("vision:model"))
+            XCTAssertTrue(error.message.contains("1 installed tag(s) could not be probed"))
+        }
+    }
+
     func testPrepareEndpointFailureMapsToStructuredError() async {
         let transport = RecordingOllamaTransport([
             .failure(OllamaHTTPTransportError.unreachable("connection refused"))

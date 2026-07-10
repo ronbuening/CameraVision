@@ -290,7 +290,11 @@ FR1-030 - The initial runtime target shall be Ollama over the local HTTP API.
 
 FR1-030a - The client shall use `POST /api/chat` with the image supplied as base64 in the user message's `images` array and the response JSON Schema supplied via the `format` field. One image and one prompt per request.
 
-FR1-030b - At startup, the configured tag shall be resolved against `GET /api/tags`. An unresolvable tag shall fail fast with `E_MODEL_TAG_NOT_FOUND` and a listing of locally installed vision-capable tags. The runtime version from `GET /api/version` and the model digest shall be recorded in provenance (PW-013/014).
+FR1-030b - At startup, the configured tag shall be resolved against `GET /api/tags`. An unresolvable tag shall fail
+fast with `E_MODEL_TAG_NOT_FOUND` and a listing of locally installed vision-capable tags. If one or more installed
+tags could not be probed through `/api/show`, the diagnostic shall report that count rather than classifying them as
+confirmed non-vision models. The runtime version from `GET /api/version` and the model digest shall be recorded in
+provenance (PW-013/014).
 
 FR1-030c - Thinking mode shall be explicitly disabled for tagging runs and the setting recorded in `request_options`. Reasoning traces multiply latency across large batches and can interfere with strict structured output; tagging is not a reasoning workload.
 

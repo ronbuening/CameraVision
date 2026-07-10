@@ -19,13 +19,17 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 endpoint: configuration.modelEndpoint,
                 timeoutSeconds: configuration.modelTimeoutSeconds
             )
-            let visionTags = await installedVisionTags(
+            let visionProbe = await installedVisionTags(
                 from: tags,
                 endpoint: configuration.modelEndpoint,
                 timeoutSeconds: configuration.modelTimeoutSeconds
             )
             guard let model = tags.models.first(where: { $0.name == configuration.model || $0.model == configuration.model }) else {
-                throw tagNotFound(configuration.model, visionTags: visionTags)
+                throw tagNotFound(
+                    configuration.model,
+                    visionTags: visionProbe.tags,
+                    probeFailureCount: visionProbe.failureCount
+                )
             }
 
             let show = try await showModel(
@@ -34,7 +38,11 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 timeoutSeconds: configuration.modelTimeoutSeconds
             )
             guard show.capabilities.contains("vision") else {
-                throw tagNotFound(configuration.model, visionTags: visionTags)
+                throw tagNotFound(
+                    configuration.model,
+                    visionTags: visionProbe.tags,
+                    probeFailureCount: visionProbe.failureCount
+                )
             }
 
             let version = try await getVersion(
@@ -46,7 +54,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 modelDigest: Self.normalizedDigest(model.digest),
                 runtimeVersion: version.version,
                 endpoint: configuration.modelEndpoint,
-                installedVisionTags: visionTags
+                installedVisionTags: visionProbe.tags
             )
         } catch let error as SidecarError {
             throw error
@@ -274,7 +282,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
     /// requiring any particular tag to exist. Serial per invariant 15.
     public func listInstalledVisionTags(endpoint: URL) async throws -> [String] {
         let tags = try await getTags(endpoint: endpoint)
-        return await installedVisionTags(from: tags, endpoint: endpoint)
+        return await installedVisionTags(from: tags, endpoint: endpoint).tags
     }
 
     private func getTags(
@@ -316,24 +324,29 @@ public struct OllamaVisionRunner: VisionModelRunner {
         from tags: OllamaTagsResponse,
         endpoint: URL,
         timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
-    ) async -> [String] {
+    ) async -> (tags: [String], failureCount: Int) {
         // Probe capabilities serially so the `/api/show` request sequence stays deterministic. The
         // preflight runs once per invocation; concurrent probing saved only marginal latency and made
         // the external-call order nondeterministic.
         var visionTags: [String] = []
+        var failureCount = 0
         for model in tags.models {
-            guard let show = try? await showModel(
-                model.name,
-                endpoint: endpoint,
-                timeoutSeconds: timeoutSeconds
-            ),
-                  show.capabilities.contains("vision")
-            else {
+            let show: OllamaShowResponse
+            do {
+                show = try await showModel(
+                    model.name,
+                    endpoint: endpoint,
+                    timeoutSeconds: timeoutSeconds
+                )
+            } catch {
+                failureCount += 1
                 continue
             }
-            visionTags.append(model.name)
+            if show.capabilities.contains("vision") {
+                visionTags.append(model.name)
+            }
         }
-        return visionTags.sorted()
+        return (visionTags.sorted(), failureCount)
     }
 
     private func requestJSON<T: Decodable>(
@@ -676,12 +689,19 @@ public struct OllamaVisionRunner: VisionModelRunner {
         )
     }
 
-    private func tagNotFound(_ model: String, visionTags: [String]) -> SidecarError {
+    private func tagNotFound(
+        _ model: String,
+        visionTags: [String],
+        probeFailureCount: Int
+    ) -> SidecarError {
         let installed = visionTags.isEmpty ? "none" : visionTags.joined(separator: ", ")
+        let probeDetail = probeFailureCount == 0
+            ? ""
+            : ". \(probeFailureCount) installed tag(s) could not be probed"
         return SidecarError(
             code: .modelTagNotFound,
             stage: .model,
-            message: "Ollama model tag not found or not vision-capable: \(model). Installed vision-capable tags: \(installed)",
+            message: "Ollama model tag not found or not vision-capable: \(model). Installed vision-capable tags: \(installed)\(probeDetail)",
             recoverable: false
         )
     }

@@ -2092,7 +2092,7 @@ func testDuplicateSessionTargetThrowsSessionStaleNamingTheKey() throws {
 - [x] b: recoverable record for folder-scan symlinks; direct input stats the target (plan 08 verbatim)
 - [x] c: NFC folded in collision keys (plan 08 verbatim)
 - [x] d: unreadable-vs-absent distinguished; parse errors → `E_CONFIG_INVALID` (plan 08 verbatim)
-- [ ] e: probe errors distinguished in the `modelTagNotFound` diagnostic (plan 08 verbatim)
+- [x] e: probe errors distinguished in the `modelTagNotFound` diagnostic (plan 08 verbatim)
 - [ ] f: age-gated temp cleanup; young temps never removed (plan 08 verbatim)
 
 ### R3 exit gate
