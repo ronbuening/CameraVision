@@ -2033,6 +2033,11 @@ func uniqueLookup<K: Hashable, V>(
 3. `CandidateObservationBuilder.build`: helper with `.validationFailed` naming the duplicate sidecar path / the asset ID present in two groups; `build` becomes `throws` (callers adapt — mechanical).
 4. `XMPChangePlanner.plan` (`XMPChangePlan.swift:286`) is the batch-tolerant surface: rather than failing the whole plan, detect duplicates first and record an `XMPChangePlanInputFailure` (`validationFailed`, "Duplicate source sidecar in input batch") for the extras, keeping the first deterministically — matches the planner's existing per-input failure model at `:290-296`.
 
+Implementation audit correction: edited sessions reach two additional trapping lookups in `NormalizedXMPChangePlanner`
+before `ApplySessionPipeline.annotateWritePlans`, and the GUI review model had another duplicate-asset lookup. Session
+reading now rejects duplicate asset identities as `sessionStale`; normalized planning throws `validationFailed` for
+programmatic malformed inputs; review-row derivation uses a nontrapping first-wins defense after the reader boundary.
+
 **Tests.** Extend `Tests/AISidecarCoreTests/ApplySessionPipelineTests.swift`, `NormalizedXMPChangePlanTests.swift` (or `XMPChangePlan`'s suite), and the observation-builder suite, each with a malformed fixture:
 
 ```swift
@@ -2047,9 +2052,9 @@ func testDuplicateSessionTargetThrowsSessionStaleNamingTheKey() throws {
 ```
 
 **Acceptance.**
-- [ ] `Dictionary(_:uniquingKeysWith:)`-style explicit duplicate detection throwing `validationFailed`/`sessionStale` with the offending key named (plan 08 verbatim)
-- [ ] Malformed session fixtures for each site (plan 08 verbatim)
-- [ ] No new error codes; existing codes reused appropriately (invariant 7)
+- [x] `Dictionary(_:uniquingKeysWith:)`-style explicit duplicate detection throwing `validationFailed`/`sessionStale` with the offending key named (plan 08 verbatim)
+- [x] Malformed session fixtures for each site (plan 08 verbatim)
+- [x] No new error codes; existing codes reused appropriately (invariant 7)
 
 **Commit.** `Replace trapping uniqueKeysWithValues lookups with structured duplicate-key errors`
 

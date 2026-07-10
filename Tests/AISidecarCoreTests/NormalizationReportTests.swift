@@ -63,7 +63,7 @@ final class NormalizationReportTests: XCTestCase {
             input: input,
             configuration: phase3Configuration()
         )
-        let writePlans = NormalizedXMPChangePlanner().plan(
+        let writePlans = try NormalizedXMPChangePlanner().plan(
             input: input,
             decisions: consensus.perAssetDecisions,
             candidateSkips: [],

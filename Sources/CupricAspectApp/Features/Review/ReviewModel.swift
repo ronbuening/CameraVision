@@ -79,7 +79,11 @@ final class ReviewModel {
 
     var assetRows: [AssetRow] {
         guard let session else { return [] }
-        let assetsByID = Dictionary(uniqueKeysWithValues: session.sourceAssets.map { ($0.assetID, $0) })
+        var assetsByID: [String: NormalizationSourceAsset] = [:]
+        // Disk imports reject duplicate IDs; first-wins here keeps an invalid in-memory document from trapping UI redraw.
+        for asset in session.sourceAssets where assetsByID[asset.assetID] == nil {
+            assetsByID[asset.assetID] = asset
+        }
         var rows: [String: AssetRow] = [:]
         for decision in session.perAssetDecisions where isVisibleReviewDecision(decision) {
             let asset = assetsByID[decision.assetID]

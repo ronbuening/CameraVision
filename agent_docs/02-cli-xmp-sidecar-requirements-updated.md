@@ -215,6 +215,10 @@ target shall fail closed rather than silently omitting the source from verificat
 
 FR2-013 - The program shall extract candidate terms from Phase 1 model JSON using the Phase 1 response schema, including conditional `species` candidates when present, and respecting schema evolution under PW-012.
 
+FR2-013a - If an input batch contains more than one extraction result for the same source-sidecar path, planning
+shall keep the first result deterministically and record each later occurrence as a recoverable `E_VALIDATION_FAILED`
+input failure naming the path. Duplicate results shall never trap the process.
+
 FR2-013a - Candidate-bearing fields in Phase 1 v1.3+ responses are:
 
 ```text

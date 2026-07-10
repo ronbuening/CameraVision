@@ -60,6 +60,24 @@ final class XMPChangePlanTests: XCTestCase {
         XCTAssertTrue(encoded?.contains("\"validation_plan\"") == true)
     }
 
+    func testDuplicateExtractionSidecarBecomesInputFailureAndKeepsFirstResult() throws {
+        let input = try resolvedInput(warnings: [])
+        let first = extraction(for: input)
+
+        let document = XMPChangePlanner().plan(
+            inputBatch: RawJSONSidecarInputBatch(inputs: [input], failures: []),
+            extractionResults: [first, first],
+            configuration: .builtInDefaults
+        )
+
+        let failure = try XCTUnwrap(document.inputFailures.first)
+        XCTAssertEqual(failure.sidecarPath, first.sourceSidecar)
+        XCTAssertEqual(failure.error.code, .validationFailed)
+        XCTAssertTrue(failure.error.message.contains(first.sourceSidecar))
+        XCTAssertEqual(document.targetPlans.count, 1)
+        XCTAssertEqual(document.targetPlans.first?.flatKeywordsToAdd.map(\.term), ["wading bird"])
+    }
+
     private func resolvedInput(warnings: [SidecarError]) throws -> ResolvedRawSidecarInput {
         let source = SourceImage(
             path: "/photos/Bird.JPG",

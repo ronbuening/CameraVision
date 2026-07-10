@@ -722,6 +722,11 @@ FR3-030g - Each propagated per-asset decision shall record local weighted agreem
 
 FR3-030h - `apply-session` shall consume stored decisions and shall not rerun model analysis, re-extract candidates, reload the vocabulary to change decisions, or recompute affinity to change propagation decisions unless a future schema explicitly defines that behavior.
 
+FR3-030i - Session import and apply shall reject duplicate source asset IDs, source-sidecar asset IDs, same-base-name
+target paths, and stored XMP write-plan target paths as `E_SESSION_STALE`, naming the duplicate key. Normalization
+input construction shall reject duplicate sidecar mappings and assets assigned to multiple groups as
+`E_VALIDATION_FAILED`. These structural failures shall never trap the process.
+
 FR3-030i - The session file shall record deterministic policy metadata: score rounding precision, score-band thresholds, edge sorting order, neighbor truncation rule, decision tie-break order, and whether exact affinity input persistence was enabled.
 
 FR3-030j - The session file shall record artifact outputs and planned outputs in a stable `artifacts` object: session path, report path, summary path, progress path, dry-run change-plan path or stream, and XMP target root. This object is required even when some artifacts are intentionally suppressed.

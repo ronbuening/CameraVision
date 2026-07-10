@@ -736,7 +736,9 @@ public struct NormalizationSessionReader {
             try Self.validateSchemaVersion(schemaVersion)
 
             let decoder = JSONCoding.decoder()
-            return try decoder.decode(NormalizationSessionDocument.self, from: data)
+            let document = try decoder.decode(NormalizationSessionDocument.self, from: data)
+            try Self.validateStructuralUniqueness(document)
+            return document
         } catch let error as SidecarError {
             throw error
         } catch {
@@ -762,6 +764,31 @@ public struct NormalizationSessionReader {
         guard let majorText, let major = Int(majorText), major == 1 else {
             throw unsupportedSchema(schemaVersion)
         }
+    }
+
+    private static func validateStructuralUniqueness(_ document: NormalizationSessionDocument) throws {
+        _ = try uniqueLookup(
+            document.sourceAssets.map { ($0.assetID, $0) },
+            onDuplicate: { assetID in
+                SidecarError(
+                    code: .sessionStale,
+                    stage: .normalize,
+                    message: "Duplicate source asset ID in session document: \(assetID)",
+                    recoverable: false
+                )
+            }
+        )
+        _ = try uniqueLookup(
+            document.sourceAISidecars.map { ($0.sourceAssetID, $0) },
+            onDuplicate: { assetID in
+                SidecarError(
+                    code: .sessionStale,
+                    stage: .normalize,
+                    message: "Duplicate source-sidecar asset ID in session document: \(assetID)",
+                    recoverable: false
+                )
+            }
+        )
     }
 
     private static func unsupportedSchema(_ schemaVersion: String) -> SidecarError {

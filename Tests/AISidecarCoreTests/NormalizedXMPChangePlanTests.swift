@@ -2,6 +2,46 @@ import XCTest
 @testable import AISidecarCore
 
 final class NormalizedXMPChangePlanTests: XCTestCase {
+    func testDuplicateSourceAssetIDThrowsStructuredValidationError() throws {
+        var input = phase3InputBatch(["Bird.JPG"])
+        let duplicate = try XCTUnwrap(input.sourceAssets.first)
+        input.sourceAssets.append(duplicate)
+
+        XCTAssertThrowsError(
+            try NormalizedXMPChangePlanner().plan(
+                input: input,
+                decisions: [],
+                candidateSkips: [],
+                configuration: phase3Configuration()
+            )
+        ) { error in
+            let sidecarError = error as? SidecarError
+            XCTAssertEqual(sidecarError?.code, .validationFailed)
+            XCTAssertEqual(sidecarError?.stage, .normalize)
+            XCTAssertTrue(sidecarError?.message.contains(duplicate.assetID) == true)
+        }
+    }
+
+    func testDuplicateSourceSidecarAssetIDThrowsStructuredValidationError() throws {
+        var input = phase3InputBatch(["Bird.JPG"])
+        let duplicate = try XCTUnwrap(input.sourceAISidecars.first)
+        input.sourceAISidecars.append(duplicate)
+
+        XCTAssertThrowsError(
+            try NormalizedXMPChangePlanner().plan(
+                input: input,
+                decisions: [],
+                candidateSkips: [],
+                configuration: phase3Configuration()
+            )
+        ) { error in
+            let sidecarError = error as? SidecarError
+            XCTAssertEqual(sidecarError?.code, .validationFailed)
+            XCTAssertEqual(sidecarError?.stage, .normalize)
+            XCTAssertTrue(sidecarError?.message.contains(duplicate.sourceAssetID) == true)
+        }
+    }
+
     func testPlanDeduplicatesTermsAndRetainsDecisionProvenance() throws {
         let input = phase3InputBatch(["Bird.JPG"])
         var configuration = phase3Configuration(normalizationMode: .singleImage)
@@ -23,7 +63,7 @@ final class NormalizedXMPChangePlanTests: XCTestCase {
             unnormalizedContextDecision()
         ]
 
-        let result = NormalizedXMPChangePlanner().plan(
+        let result = try NormalizedXMPChangePlanner().plan(
             input: input,
             decisions: decisions,
             candidateSkips: [],
@@ -68,7 +108,7 @@ final class NormalizedXMPChangePlanTests: XCTestCase {
         var configuration = phase3Configuration(normalizationMode: .singleImage)
         configuration.outputDir = "/tmp/normalized"
         configuration.pairScope = .rawOnly
-        let result = NormalizedXMPChangePlanner().plan(
+        let result = try NormalizedXMPChangePlanner().plan(
             input: phase3InputBatch(assets: [raw, jpeg], groups: [group]),
             decisions: [
                 phase3DirectDecision(
@@ -91,13 +131,13 @@ final class NormalizedXMPChangePlanTests: XCTestCase {
         XCTAssertEqual(plan.flatKeywordsToAdd.map(\.term), ["Birds"])
     }
 
-    func testCaseInsensitiveTargetCollisionsFailAffectedPlans() {
+    func testCaseInsensitiveTargetCollisionsFailAffectedPlans() throws {
         let upper = phase3Asset(index: 1, relativePath: "Bird.JPG")
         let lower = phase3Asset(index: 2, relativePath: "bird.JPG")
         var configuration = phase3Configuration(normalizationMode: .singleImage)
         configuration.outputDir = "/tmp/normalized"
 
-        let result = NormalizedXMPChangePlanner().plan(
+        let result = try NormalizedXMPChangePlanner().plan(
             input: phase3InputBatch(assets: [upper, lower]),
             decisions: [
                 phase3DirectDecision(assetID: upper.assetID, canonicalPath: "Subject|Wildlife|Birds"),

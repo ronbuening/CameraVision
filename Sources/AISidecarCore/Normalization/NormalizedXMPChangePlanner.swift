@@ -25,9 +25,19 @@ public struct NormalizedXMPChangePlanner {
         decisions: [PerAssetNormalizationDecision],
         candidateSkips: [NormalizationCandidateSkip],
         configuration: ResolvedNormalizationConfiguration
-    ) -> NormalizedXMPChangePlanResult {
-        let assetsByID = Dictionary(uniqueKeysWithValues: input.sourceAssets.map { ($0.assetID, $0) })
-        let sidecarsByAssetID = Dictionary(uniqueKeysWithValues: input.sourceAISidecars.map { ($0.sourceAssetID, $0) })
+    ) throws -> NormalizedXMPChangePlanResult {
+        let assetsByID = try uniqueLookup(
+            input.sourceAssets.map { ($0.assetID, $0) },
+            onDuplicate: { assetID in
+                duplicateInputError(kind: "source asset ID", key: assetID)
+            }
+        )
+        let sidecarsByAssetID = try uniqueLookup(
+            input.sourceAISidecars.map { ($0.sourceAssetID, $0) },
+            onDuplicate: { assetID in
+                duplicateInputError(kind: "source-sidecar asset ID", key: assetID)
+            }
+        )
         let targetInfos = targetInfos(
             groups: input.sameBaseNameGroups,
             assetsByID: assetsByID,
@@ -61,6 +71,15 @@ public struct NormalizedXMPChangePlanner {
             }
         )
         return NormalizedXMPChangePlanResult(changePlan: changePlan, writePlans: writePlans)
+    }
+
+    private func duplicateInputError(kind: String, key: String) -> SidecarError {
+        SidecarError(
+            code: .validationFailed,
+            stage: .normalize,
+            message: "Duplicate \(kind) in normalization input: \(key)",
+            recoverable: false
+        )
     }
 
     private func writePlan(

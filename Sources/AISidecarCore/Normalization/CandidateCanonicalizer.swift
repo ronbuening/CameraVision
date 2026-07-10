@@ -92,7 +92,7 @@ public struct CandidateCanonicalizer {
         input: NormalizationResolvedInputBatch,
         configuration: ResolvedNormalizationConfiguration
     ) throws -> CandidateCanonicalizationResult {
-        let observationExtraction = observationBuilder.build(
+        let observationExtraction = try observationBuilder.build(
             extractionResults: extractionResults,
             input: input
         )

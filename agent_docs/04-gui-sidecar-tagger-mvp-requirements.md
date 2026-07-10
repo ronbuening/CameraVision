@@ -150,6 +150,9 @@ FR4-012a - The user shall be able to refresh metadata snapshots without running 
 
 FR4-012b - The user shall be able to import an existing Phase 3 normalization session and continue review/export from it.
 
+FR4-012c - A structurally corrupt imported or recovery session with duplicate asset identities shall surface the
+Core `E_SESSION_STALE` error and shall not crash review-row derivation.
+
 ## 6. Review UI Requirements
 
 FR4-013 - The review screen shall show the full image.

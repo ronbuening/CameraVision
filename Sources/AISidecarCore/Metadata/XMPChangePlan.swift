@@ -283,9 +283,6 @@ public struct XMPChangePlanner {
         extractionResults: [CandidateExtractionResult],
         configuration: ResolvedXMPExportConfiguration
     ) -> XMPChangePlanDocument {
-        let extractionBySidecar = Dictionary(uniqueKeysWithValues: extractionResults.map {
-            ($0.sourceSidecar, $0)
-        })
         var entries: [XMPNamingEntry] = []
         var inputFailures = inputBatch.failures.map { failure in
             XMPChangePlanInputFailure(
@@ -293,6 +290,26 @@ public struct XMPChangePlanner {
                 relativePath: failure.relativePath,
                 error: failure.error
             )
+        }
+        var extractionBySidecar: [String: CandidateExtractionResult] = [:]
+        extractionBySidecar.reserveCapacity(extractionResults.count)
+        for result in extractionResults {
+            guard extractionBySidecar[result.sourceSidecar] == nil else {
+                inputFailures.append(
+                    XMPChangePlanInputFailure(
+                        sidecarPath: result.sourceSidecar,
+                        relativePath: nil,
+                        error: SidecarError(
+                            code: .validationFailed,
+                            stage: .write,
+                            message: "Duplicate source sidecar in input batch: \(result.sourceSidecar)",
+                            recoverable: true
+                        )
+                    )
+                )
+                continue
+            }
+            extractionBySidecar[result.sourceSidecar] = result
         }
 
         for input in inputBatch.inputs {

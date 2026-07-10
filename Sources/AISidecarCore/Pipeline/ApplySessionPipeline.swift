@@ -89,13 +89,13 @@ public struct ApplySessionPipeline {
             warnings: sourceResolution.allWarnings,
             failures: []
         )
-        let normalizedPlans = NormalizedXMPChangePlanner(fileManager: fileManager).plan(
+        let normalizedPlans = try NormalizedXMPChangePlanner(fileManager: fileManager).plan(
             input: input,
             decisions: session.perAssetDecisions,
             candidateSkips: session.candidateSkips,
             configuration: planningConfiguration
         )
-        let preparedWritePlans = annotateWritePlans(
+        let preparedWritePlans = try annotateWritePlans(
             normalizedPlans.writePlans,
             storedWritePlans: session.xmpWritePlans,
             groups: session.sameBaseNameGroups,
@@ -248,11 +248,23 @@ public struct ApplySessionPipeline {
         storedWritePlans: [NormalizedXMPWritePlan],
         groups: [NormalizationSourceGroup],
         sourceResolution: ApplySessionSourceResolution
-    ) -> [NormalizedXMPWritePlan] {
-        let groupsByTarget = Dictionary(uniqueKeysWithValues: groups.map { ($0.targetRelativePath, $0) })
-        let storedByTarget = Dictionary(uniqueKeysWithValues: storedWritePlans.map {
-            ($0.xmpChangePlan.targetRelativePath, $0)
-        })
+    ) throws -> [NormalizedXMPWritePlan] {
+        let duplicateTargetError: (String) -> SidecarError = { target in
+            SidecarError(
+                code: .sessionStale,
+                stage: .normalize,
+                message: "Duplicate target in session document: \(target)",
+                recoverable: false
+            )
+        }
+        let groupsByTarget = try uniqueLookup(
+            groups.map { ($0.targetRelativePath, $0) },
+            onDuplicate: duplicateTargetError
+        )
+        let storedByTarget = try uniqueLookup(
+            storedWritePlans.map { ($0.xmpChangePlan.targetRelativePath, $0) },
+            onDuplicate: duplicateTargetError
+        )
         return writePlans.map { writePlan in
             var updated = writePlan
             var plan = updated.xmpChangePlan

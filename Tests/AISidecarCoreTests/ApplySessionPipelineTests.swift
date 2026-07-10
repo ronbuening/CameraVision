@@ -187,6 +187,88 @@ final class ApplySessionPipelineTests: XCTestCase {
         }
     }
 
+    func testApplySessionRejectsDuplicateGroupTargetWithoutTrapping() throws {
+        let fixture = try makeSessionFixture(dryRun: false)
+        var session = try NormalizationSessionReader().read(from: fixture.sessionPath)
+        let duplicate = try XCTUnwrap(session.sameBaseNameGroups.first)
+        session.sameBaseNameGroups.append(duplicate)
+        try NormalizationSessionWriter().write(session, to: fixture.sessionPath)
+
+        XCTAssertThrowsError(
+            try applyPipeline().run(
+                sessionPath: fixture.sessionPath,
+                configuration: applyConfiguration(outputDir: try temporaryDirectory())
+            )
+        ) { error in
+            let sidecarError = error as? SidecarError
+            XCTAssertEqual(sidecarError?.code, .sessionStale)
+            XCTAssertEqual(sidecarError?.stage, .normalize)
+            XCTAssertTrue(sidecarError?.message.contains(duplicate.targetRelativePath) == true)
+        }
+    }
+
+    func testApplySessionRejectsDuplicateStoredWritePlanTargetWithoutTrapping() throws {
+        let fixture = try makeSessionFixture(dryRun: true)
+        var session = try NormalizationSessionReader().read(from: fixture.sessionPath)
+        let duplicate = try XCTUnwrap(session.xmpWritePlans.first)
+        session.xmpWritePlans.append(duplicate)
+        try NormalizationSessionWriter().write(session, to: fixture.sessionPath)
+
+        XCTAssertThrowsError(
+            try applyPipeline().run(
+                sessionPath: fixture.sessionPath,
+                configuration: applyConfiguration(outputDir: try temporaryDirectory())
+            )
+        ) { error in
+            let sidecarError = error as? SidecarError
+            XCTAssertEqual(sidecarError?.code, .sessionStale)
+            XCTAssertEqual(sidecarError?.stage, .normalize)
+            XCTAssertTrue(
+                sidecarError?.message.contains(duplicate.xmpChangePlan.targetRelativePath) == true
+            )
+        }
+    }
+
+    func testApplySessionRejectsDuplicateSourceAssetIDWithoutTrapping() throws {
+        let fixture = try makeSessionFixture(dryRun: false)
+        var session = try NormalizationSessionReader().read(from: fixture.sessionPath)
+        let duplicate = try XCTUnwrap(session.sourceAssets.first)
+        session.sourceAssets.append(duplicate)
+        try NormalizationSessionWriter().write(session, to: fixture.sessionPath)
+
+        XCTAssertThrowsError(
+            try applyPipeline().run(
+                sessionPath: fixture.sessionPath,
+                configuration: applyConfiguration(outputDir: try temporaryDirectory())
+            )
+        ) { error in
+            let sidecarError = error as? SidecarError
+            XCTAssertEqual(sidecarError?.code, .sessionStale)
+            XCTAssertEqual(sidecarError?.stage, .normalize)
+            XCTAssertTrue(sidecarError?.message.contains(duplicate.assetID) == true)
+        }
+    }
+
+    func testApplySessionRejectsDuplicateSourceSidecarAssetIDWithoutTrapping() throws {
+        let fixture = try makeSessionFixture(dryRun: false)
+        var session = try NormalizationSessionReader().read(from: fixture.sessionPath)
+        let duplicate = try XCTUnwrap(session.sourceAISidecars.first)
+        session.sourceAISidecars.append(duplicate)
+        try NormalizationSessionWriter().write(session, to: fixture.sessionPath)
+
+        XCTAssertThrowsError(
+            try applyPipeline().run(
+                sessionPath: fixture.sessionPath,
+                configuration: applyConfiguration(outputDir: try temporaryDirectory())
+            )
+        ) { error in
+            let sidecarError = error as? SidecarError
+            XCTAssertEqual(sidecarError?.code, .sessionStale)
+            XCTAssertEqual(sidecarError?.stage, .normalize)
+            XCTAssertTrue(sidecarError?.message.contains(duplicate.sourceAssetID) == true)
+        }
+    }
+
     private func makeSessionFixture(
         dryRun: Bool,
         normalizationOutput: URL? = nil

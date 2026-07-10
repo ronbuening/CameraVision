@@ -130,6 +130,18 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testAssetRowsDoesNotTrapOnDuplicateAssetIDInInMemorySession() throws {
+        let model = makeModel()
+        var session = try makeBaseSession(terms: ["bird"])
+        session.sourceAssets.append(try XCTUnwrap(session.sourceAssets.first))
+
+        model.adopt(session: session)
+
+        XCTAssertEqual(model.assetRows.count, 1)
+        XCTAssertEqual(model.assetRows.first?.assetID, session.sourceAssets.first?.assetID)
+    }
+
+    @MainActor
     func testAutosaveTriggersOnDecisionLimitAndRecoveryRestores() throws {
         let model = makeModel(decisionLimit: 3)
         model.adopt(session: try makeBaseSession(terms: ["bird", "tree", "water", "rock"]))
