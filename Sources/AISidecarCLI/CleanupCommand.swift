@@ -5,7 +5,8 @@ import AISidecarCore
 struct CleanupCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "cleanup",
-        abstract: "Remove AISidecar raw JSON sidecars and run log/report artifacts from a folder."
+        abstract: "Remove AISidecar raw JSON sidecars and run log/report artifacts from a folder.",
+        discussion: BatchExitHelp.discussion
     )
 
     @Argument(help: "Folder containing AISidecar artifacts to clean.")
@@ -28,12 +29,7 @@ struct CleanupCommand: ParsableCommand {
         FileHandle.standardOutput.write(Data(message.utf8))
 
         if report.failedCount > 0 {
-            throw SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Cleanup failed for \(report.failedCount) artifacts.",
-                recoverable: true
-            )
+            throw ExitCode(BatchExitPolicy.failureStatus)
         }
     }
 }

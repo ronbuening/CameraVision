@@ -112,6 +112,7 @@ final class ApplySessionPipelineTests: XCTestCase {
         )
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.xmp").path))
+        XCTAssertTrue(result.interrupted)
         XCTAssertEqual(result.exportReport?.inputFailures.map(\.error.code), [.interrupted])
         XCTAssertEqual(result.report.errors.map(\.code), [.interrupted])
         XCTAssertEqual(try Data(contentsOf: fixture.sourceURL), originalSourceData)

@@ -5,7 +5,8 @@ import AISidecarCore
 struct AnalyzeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "analyze",
-        abstract: "Analyze one image file or a folder of image files."
+        abstract: "Analyze one image file or a folder of image files.",
+        discussion: BatchExitHelp.discussion
     )
 
     @Argument(help: "Image file or folder to analyze.")
@@ -55,20 +56,32 @@ struct AnalyzeCommand: AsyncParsableCommand {
         if let exportModelInputs {
             try ModelInputExportPipeline.validate(configuration: resolved)
             let pipeline = ModelInputExportPipeline(logger: logger)
-            _ = try await pipeline.run(
-                inputPath: inputPath,
-                exportDirectoryPath: exportModelInputs,
-                configuration: resolved,
-                interruptionMonitor: interruptionMonitor
+            let result = try await withBatchInterruptionExit {
+                try await pipeline.run(
+                    inputPath: inputPath,
+                    exportDirectoryPath: exportModelInputs,
+                    configuration: resolved,
+                    interruptionMonitor: interruptionMonitor
+                )
+            }
+            try enforceBatchExitPolicy(
+                failureCount: result.records.filter { $0.status == .failed }.count,
+                interrupted: result.interrupted
             )
             return
         }
 
         let pipeline = AnalyzePipeline(logger: logger, runner: OllamaVisionRunner())
-        _ = try await pipeline.run(
-            inputPath: inputPath,
-            configuration: resolved,
-            interruptionMonitor: interruptionMonitor
+        let result = try await withBatchInterruptionExit {
+            try await pipeline.run(
+                inputPath: inputPath,
+                configuration: resolved,
+                interruptionMonitor: interruptionMonitor
+            )
+        }
+        try enforceBatchExitPolicy(
+            failureCount: result.records.filter { $0.status == .failed }.count,
+            interrupted: result.interrupted
         )
     }
 }

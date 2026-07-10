@@ -1,6 +1,32 @@
 import ArgumentParser
 import AISidecarCore
 
+enum BatchExitHelp {
+    static let discussion = "Batch exit statuses: 0 for success, 1 when one or more items fail, and 130 when interrupted."
+}
+
+func enforceBatchExitPolicy(failureCount: Int, interrupted: Bool) throws {
+    if let status = BatchExitPolicy.exitStatus(failureCount: failureCount, interrupted: interrupted) {
+        throw ExitCode(status)
+    }
+}
+
+func withBatchInterruptionExit<T>(_ operation: () throws -> T) throws -> T {
+    do {
+        return try operation()
+    } catch let error as SidecarError where error.code == .interrupted {
+        throw ExitCode(BatchExitPolicy.interruptedStatus)
+    }
+}
+
+func withBatchInterruptionExit<T>(_ operation: () async throws -> T) async throws -> T {
+    do {
+        return try await operation()
+    } catch let error as SidecarError where error.code == .interrupted {
+        throw ExitCode(BatchExitPolicy.interruptedStatus)
+    }
+}
+
 extension AnalysisMode: ExpressibleByArgument {
     public init?(argument: String) {
         self.init(rawValue: argument)

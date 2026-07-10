@@ -6,17 +6,20 @@ public struct ApplySessionPipelineResult: Sendable, Equatable {
     public var report: NormalizationReport
     public var changePlan: XMPChangePlanDocument
     public var exportReport: XMPExportReport?
+    public var interrupted: Bool
 
     public init(
         session: NormalizationSessionDocument,
         report: NormalizationReport,
         changePlan: XMPChangePlanDocument,
-        exportReport: XMPExportReport?
+        exportReport: XMPExportReport?,
+        interrupted: Bool = false
     ) {
         self.session = session
         self.report = report
         self.changePlan = changePlan
         self.exportReport = exportReport
+        self.interrupted = interrupted
     }
 }
 
@@ -155,7 +158,8 @@ public struct ApplySessionPipeline {
             session: session,
             report: report,
             changePlan: exportResult.changePlan,
-            exportReport: exportResult.report
+            exportReport: exportResult.report,
+            interrupted: exportResult.interrupted
         )
     }
 
