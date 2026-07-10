@@ -207,6 +207,10 @@ FR2-003 - Detected groups shall produce a warning in the report. The warning is 
 
 FR2-004 - Phase 2 shall not modify source image files. Proprietary RAW file hashes shall be verifiably unchanged after any run, and the same non-modification rule shall also hold for JPEG, TIFF, HEIC, PNG, and DNG during the sidecar-only MVP.
 
+FR2-004a - Every selected source shall retain a before/after hash-check record. If the pre-write hash cannot be
+computed, the record shall contain a nil `before_sha256`, `unchanged: false`, and a structured validation error; the
+target shall fail closed rather than silently omitting the source from verification.
+
 ## 7. Candidate Extraction Requirements
 
 FR2-013 - The program shall extract candidate terms from Phase 1 model JSON using the Phase 1 response schema, including conditional `species` candidates when present, and respecting schema evolution under PW-012.

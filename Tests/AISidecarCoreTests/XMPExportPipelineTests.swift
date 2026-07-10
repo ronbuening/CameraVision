@@ -41,6 +41,36 @@ final class XMPExportPipelineTests: XCTestCase {
         XCTAssertTrue(summary.contains("Capture One"))
     }
 
+    func testUnreadableSourceAtExportStartRecordsFailedHashCheckAndFailsTarget() throws {
+        try XCTSkipIf(getuid() == 0, "chmod 000 is not enforced for root")
+        let fixture = try makeFromJSONFixture()
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o644],
+                ofItemAtPath: fixture.source.path
+            )
+        }
+        let configuration = exportConfiguration(outputDir: fixture.output.path)
+
+        let result = try XMPExportPipeline(
+            engine: SourceLockingEngine(sourcePath: fixture.source.path),
+            logger: Logger(sink: { _ in }),
+            filenameSuffix: { "a3f2" }
+        ).runFromJSON(fromJSONPath: fixture.jsonRoot.path, configuration: configuration)
+
+        let report = try XCTUnwrap(result.report?.targetReports.first)
+        let check = try XCTUnwrap(report.sourceHashChecks.first)
+        XCTAssertEqual(report.status, .failed)
+        XCTAssertEqual(report.errors.map(\.code), [.validationFailed])
+        XCTAssertEqual(check.sourcePath, fixture.source.path)
+        XCTAssertNil(check.beforeSHA256)
+        XCTAssertNil(check.afterSHA256)
+        XCTAssertFalse(check.unchanged)
+        XCTAssertEqual(check.error?.code, .validationFailed)
+        XCTAssertTrue(check.error?.message.contains("Unable to read source image before XMP export") == true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.output.appendingPathComponent("Bird.xmp").path))
+    }
+
     func testDryRunAddsPreviewWithoutWritingXMP() throws {
         let fixture = try makeFromJSONFixture(existingXMP: existingDevelopSettingsXMP)
         var configuration = exportConfiguration(outputDir: fixture.output.path)
@@ -261,6 +291,41 @@ private final class CountingSuffixProvider: @unchecked Sendable {
             defer { index += 1 }
             return values[min(index, values.count - 1)]
         }
+    }
+}
+
+private struct SourceLockingEngine: MetadataWriteEngine {
+    private let sourcePath: String
+    private let engine = OwnedXMPSidecarEngine()
+
+    init(sourcePath: String) {
+        self.sourcePath = sourcePath
+    }
+
+    func prepare(configuration: ResolvedXMPExportConfiguration) throws -> MetadataWriteEngineContext {
+        try engine.prepare(configuration: configuration)
+    }
+
+    func readSnapshot(at targetXMPPath: String) throws -> XMPMetadataSnapshot {
+        try engine.readSnapshot(at: targetXMPPath)
+    }
+
+    func preview(_ request: XMPWriteRequest) throws -> XMPWritePreview {
+        let preview = try engine.preview(request)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: sourcePath)
+        return preview
+    }
+
+    func apply(_ request: XMPWriteRequest) throws -> XMPWriteResult {
+        try engine.apply(request)
+    }
+
+    func validateReadable(at targetXMPPath: String) throws -> XMPMetadataSnapshot {
+        try engine.validateReadable(at: targetXMPPath)
+    }
+
+    func shutdown() throws {
+        try engine.shutdown()
     }
 }
 

@@ -433,23 +433,42 @@ public struct XMPExportPipeline {
         }
     }
 
-    private func sourceHashesBeforeWrite(for plan: XMPChangePlan) -> [String: String] {
-        var hashes: [String: String] = [:]
+    private func sourceHashesBeforeWrite(for plan: XMPChangePlan) -> [String: String?] {
+        var hashes: [String: String?] = [:]
         for path in selectedSourcePaths(for: plan) {
-            hashes[path] = try? SourceIdentityCalculator.compute(
+            let hash = try? SourceIdentityCalculator.compute(
                 for: URL(fileURLWithPath: path),
                 policy: .sha256,
                 fileManager: fileManager
             ).sha256
+            hashes.updateValue(hash, forKey: path)
         }
         return hashes
     }
 
-    private func sourceHashChecks(afterWriteFor before: [String: String]) -> (checks: [XMPSourceHashCheck], errors: [SidecarError]) {
+    private func sourceHashChecks(afterWriteFor before: [String: String?]) -> (checks: [XMPSourceHashCheck], errors: [SidecarError]) {
         var checks: [XMPSourceHashCheck] = []
         var errors: [SidecarError] = []
         for path in before.keys.sorted(by: comparePaths) {
-            let beforeHash = before[path]
+            guard let beforeHash = before[path] ?? nil else {
+                let sidecarError = SidecarError(
+                    code: .validationFailed,
+                    stage: .write,
+                    message: "Unable to read source image before XMP export: \(path)",
+                    recoverable: true
+                )
+                errors.append(sidecarError)
+                checks.append(
+                    XMPSourceHashCheck(
+                        sourcePath: path,
+                        beforeSHA256: nil,
+                        afterSHA256: nil,
+                        unchanged: false,
+                        error: sidecarError
+                    )
+                )
+                continue
+            }
             do {
                 let afterHash = try SourceIdentityCalculator.compute(
                     for: URL(fileURLWithPath: path),

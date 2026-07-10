@@ -1983,9 +1983,9 @@ func testUnreadableSourceAtExportStartRecordsFailedHashCheckAndFailsTarget() thr
 ```
 
 **Acceptance.**
-- [ ] Check entry recorded with nil `beforeSHA256` and the error (plan 08 verbatim)
-- [ ] Treated as failed verification for reporting; target fails (plan 08 verbatim, conservative default)
-- [ ] Invariant 4 guard chain unchanged otherwise
+- [x] Check entry recorded with nil `beforeSHA256` and the error (plan 08 verbatim)
+- [x] Treated as failed verification for reporting; target fails (plan 08 verbatim, conservative default)
+- [x] Invariant 4 guard chain unchanged otherwise
 
 **Commit.** `Record failed before-hash computations as failed XMP source-hash checks`
 
