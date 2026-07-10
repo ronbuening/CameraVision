@@ -22,11 +22,44 @@ registry pointer change.
 ## The constraint that shapes everything: Ollama's grammar
 
 Every model call sends a response schema through Ollama's `format` field,
-which compiles it to a token-level grammar (llama.cpp GBNF). The grammar can
-force structure the model physically cannot violate — but only for a subset of
-JSON Schema, and **one unsupported keyword silently disables enforcement for
-the whole schema**. Established by live probing Ollama 0.30.10 + gemma4 with
-progressively reduced schemas (2026-07-09):
+which compiles it to a token-level grammar (llama.cpp GBNF).
+
+**How enforcement actually works.** This is constrained *sampling*, not
+post-hoc filtering: at every generation step, the grammar computes the set of
+tokens that keep the output structurally valid, and every other token's
+probability is zeroed before sampling. After `"confidence": ` the only legal
+continuations are `"high"`, `"medium"`, or `"low"`; once the root object's
+closing brace is emitted, only end-of-sequence is legal. That last property is
+a diagnostic tool: output *after* a closed root object (e.g. a `#`-separated
+repeated object) is proof that enforcement was off for that call, because the
+grammar makes it impossible.
+
+What the grammar can guarantee is structure. What it cannot do:
+
+- **Force completion.** If generation stops early — the
+  `model_max_response_tokens` cap or a filled context window — the result is a
+  syntactically valid *prefix*, not a complete document. Truncation is the one
+  invalid-JSON path that survives grammar enforcement; the repair call exists
+  for it.
+- **Judge semantics.** Nothing about a grammar makes a species real or an
+  evidence string visual. That is the prompt's and the downstream guards' job.
+
+The full enforcement stack, in order, so a failure at any layer is caught by
+the next:
+
+1. Grammar (wire schema via `format`) — structure, required keys, enums,
+   item/length bounds, at token level.
+2. `JSONSchemaValidator` — the full authoritative contract, including the
+   `pattern` rules the wire schema drops.
+3. Repair call — truncated/invalid responses, re-generated under the same
+   grammar with no image attached.
+4. `CandidateExtractor` guards — semantics (GPS evidence, coordinate terms,
+   species without a biological genre) that no schema can express.
+
+The grammar supports only a subset of JSON Schema, and **one unsupported
+keyword silently disables enforcement for the whole schema**. Established by
+live probing Ollama 0.30.10 + gemma4 with progressively reduced schemas
+(2026-07-09):
 
 **Enforced at generation time:** `type`, `properties`, `required`,
 `additionalProperties: false`, `enum`, `items`, array `minItems`/`maxItems`,
@@ -99,15 +132,6 @@ is the scarcest resource in the pipeline:
   leaving the repair call ~90 tokens to answer in — the repair then truncated
   and failed too.
 
-`model_context_window` (config key, `AISIDECAR_MODEL_CONTEXT_WINDOW`, GUI
-controls in Settings and Step 3, choices up to 262144 for 256k models) is sent
-as Ollama `num_ctx`. The built-in default is `0` — the "model default"
-sentinel: no `num_ctx` is sent and Ollama sizes the window itself. Pin a
-positive value when a model's own default is too small for the prompt, image
-tokens, and full JSON response; the KV cache grows with the window, so bigger
-is not free. The bounded repair prompt and the `model_max_response_tokens`
-cap are what keep small model-default windows workable.
-
 Prompt-writing rules that follow from the budget:
 
 - Sectioned, deduplicated, positive phrasing. One statement of each rule, in
@@ -116,6 +140,47 @@ Prompt-writing rules that follow from the budget:
   *injected* (see GPS below), never carried as dead weight.
 - Concrete one-line examples beat paragraphs ("Good evidence: … Bad
   evidence: …").
+
+## Runtime option tuning: `num_ctx` and `num_predict`
+
+**`model_context_window`** (config key, `AISIDECAR_MODEL_CONTEXT_WINDOW`, GUI
+controls in Settings and Step 3, choices up to 262144 for 256k models) is sent
+as Ollama `num_ctx`. The built-in default is `0` — the "model default"
+sentinel: no `num_ctx` is sent and Ollama sizes the window itself. Pin a
+positive value when a model's own default is too small for the prompt, image
+tokens, and full JSON response; the KV cache grows with the window, so bigger
+is not free.
+
+History, for anyone wondering why the default is what it is: before 2026-07,
+the pipeline never sent `num_ctx` at all — the option existed but nothing set
+it, so window sizing was invisibly left to Ollama. When the runaway-repair
+failure was found, the default briefly became a pinned 8192 for headroom. Once
+the wire schema restored grammar enforcement, the repair prompt was bounded,
+and `num_predict` capped runaways, the pinned default was no longer needed and
+`0` (model default) became the shipped default — the same wire behavior as the
+original code, but now explicit, recorded in provenance
+(`run_configuration.model_context_window`), and overridable per run.
+
+**`model_max_response_tokens`** (config key,
+`AISIDECAR_MODEL_MAX_RESPONSE_TOKENS`, default 2048) is sent as Ollama
+`num_predict`. Two facts govern tuning it:
+
+- The model cannot see it. It is not in the prompt or the grammar, so it has
+  zero influence on response quality or richness — it is purely a guillotine
+  that decides where a *runaway* generation gets cut. Raising it cannot invite
+  better output; it only lets a failure burn more time before repair.
+- Measured across 133 schema-valid runs on the TestingFileSet (gemma4 26B,
+  whole + subject roles, 2026-07-09): median 577 output tokens, p90 700,
+  p99 796, maximum 811, none over 1024. A realistically maxed-out legitimate
+  response (every array at its item cap, normal evidence lengths) is roughly
+  1,300–1,600 tokens. 2048 therefore has ~2.5× headroom over anything real
+  ever produced; the only responses that approached it were repetition loops,
+  where an early cut is the point.
+
+Retuning signal: every sidecar records `runtime_metrics.eval_count` per model
+run. If valid responses start trending toward the cap — or a `json_valid:
+false` run stops at exactly the cap without being a loop — raise the config
+value; do not raise it speculatively for a new model, measure first.
 
 ## GPS / external context
 
