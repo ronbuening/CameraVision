@@ -130,10 +130,24 @@ public struct ImageScanner {
         var errors: [ScanErrorRecord] = []
 
         if recursive {
+            let enumerationErrors = SynchronousScanErrorAccumulator<ScanErrorRecord>()
             guard let enumerator = fileManager.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-                options: [.skipsPackageDescendants]
+                options: [.skipsPackageDescendants],
+                errorHandler: { url, error in
+                    enumerationErrors.append(
+                        ScanErrorRecord(
+                            path: url.standardizedFileURL.path,
+                            relativePath: relativePath(for: url, root: root),
+                            error: validationError(
+                                "Unable to read directory during scan: \(url.path): \(error.localizedDescription)",
+                                recoverable: true
+                            )
+                        )
+                    )
+                    return true
+                }
             ) else {
                 throw validationError("Unable to enumerate input folder: \(root.path)")
             }
@@ -146,15 +160,21 @@ public struct ImageScanner {
                     enumerator.skipDescendants()
                 }
             }
+            errors.append(contentsOf: enumerationErrors.values)
 
             return (entries, errors)
         }
 
-        let urls = try fileManager.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-            options: [.skipsPackageDescendants]
-        )
+        let urls: [URL]
+        do {
+            urls = try fileManager.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                options: [.skipsPackageDescendants]
+            )
+        } catch {
+            throw validationError("Unable to read input folder: \(root.path): \(error.localizedDescription)")
+        }
 
         for url in urls {
             _ = autoreleasepool {
@@ -329,8 +349,18 @@ public struct ImageScanner {
         attributes[.modificationDate] as? Date ?? Date(timeIntervalSince1970: 0)
     }
 
-    private func validationError(_ message: String) -> SidecarError {
-        SidecarError(code: .validationFailed, stage: .scan, message: message, recoverable: false)
+    private func validationError(_ message: String, recoverable: Bool = false) -> SidecarError {
+        SidecarError(code: .validationFailed, stage: .scan, message: message, recoverable: recoverable)
+    }
+}
+
+/// FileManager enumeration invokes its error callback synchronously. This box
+/// gives that callback reference semantics without suggesting cross-task use.
+private final class SynchronousScanErrorAccumulator<Value>: @unchecked Sendable {
+    private(set) var values: [Value] = []
+
+    func append(_ value: Value) {
+        values.append(value)
     }
 }
 

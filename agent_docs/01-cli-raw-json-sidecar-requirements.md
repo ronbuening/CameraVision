@@ -156,6 +156,9 @@ The default mode shall be `both`.
 FR1-001 - The program shall accept either one image file path or one folder path.
 
 FR1-002 - Folder input shall support recursive scanning with `--recursive` and non-recursive scanning by default.
+Recursive scans shall record a recoverable `E_VALIDATION_FAILED` for each unreadable directory and continue with
+readable siblings; a non-recursive input folder that cannot be read shall fail with structured
+`E_VALIDATION_FAILED` rather than a raw filesystem error.
 
 FR1-003 - Supported extensions shall include at least `NEF`, `NRW`, `CR3`, `CR2`, `ARW`, `RAF`, `ORF`, `RW2`, `DNG`, `JPG`, `JPEG`, `TIF`, `TIFF`, `HEIC`, and `PNG`, subject to macOS decoder support.
 

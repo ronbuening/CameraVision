@@ -101,11 +101,11 @@ public struct RawJSONSidecarInputResolver {
         configuration: ResolvedXMPExportConfiguration
     ) throws -> RawJSONSidecarInputBatch {
         let root = root.standardizedFileURL
-        let candidates = try candidateSidecars(in: root, recursive: configuration.recursive)
+        let discovery = try candidateSidecars(in: root, recursive: configuration.recursive)
         var inputs: [ResolvedRawSidecarInput] = []
-        var failures: [RawJSONSidecarInputFailure] = []
+        var failures = discovery.failures
 
-        for candidate in candidates {
+        for candidate in discovery.urls {
             let relativePath = relativePath(for: candidate, root: root)
             do {
                 inputs.append(
@@ -118,6 +118,9 @@ public struct RawJSONSidecarInputResolver {
             }
         }
 
+        failures.sort {
+            comparePaths($0.relativePath ?? $0.sidecarPath.path, $1.relativePath ?? $1.sidecarPath.path)
+        }
         return RawJSONSidecarInputBatch(inputs: inputs, failures: failures)
     }
 
@@ -235,12 +238,30 @@ public struct RawJSONSidecarInputResolver {
         return (.matched, [])
     }
 
-    private func candidateSidecars(in root: URL, recursive: Bool) throws -> [URL] {
+    private func candidateSidecars(
+        in root: URL,
+        recursive: Bool
+    ) throws -> (urls: [URL], failures: [RawJSONSidecarInputFailure]) {
         if recursive {
+            let enumerationFailures = SynchronousInputFailureAccumulator()
             guard let enumerator = fileManager.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-                options: [.skipsPackageDescendants]
+                options: [.skipsPackageDescendants],
+                errorHandler: { url, error in
+                    let url = url.standardizedFileURL
+                    enumerationFailures.append(
+                        RawJSONSidecarInputFailure(
+                            sidecarPath: url,
+                            relativePath: relativePath(for: url, root: root),
+                            error: validationError(
+                                "Unable to read directory during raw sidecar scan: \(url.path): \(error.localizedDescription)",
+                                recoverable: true
+                            )
+                        )
+                    )
+                    return true
+                }
             ) else {
                 throw validationError("Unable to enumerate raw sidecar folder: \(root.path)", recoverable: false)
             }
@@ -258,7 +279,7 @@ public struct RawJSONSidecarInputResolver {
                     urls.append(url)
                 }
             }
-            return sorted(urls, root: root)
+            return (sorted(urls, root: root), enumerationFailures.values)
         }
 
         let urls: [URL]
@@ -274,12 +295,15 @@ public struct RawJSONSidecarInputResolver {
                 recoverable: false
             )
         }
-        return sorted(
-            urls
-                .map(\.standardizedFileURL)
-                .filter { !shouldIgnore(url: $0, root: root) }
-                .filter { isRegularFile($0) && isRawSidecar($0) },
-            root: root
+        return (
+            sorted(
+                urls
+                    .map(\.standardizedFileURL)
+                    .filter { !shouldIgnore(url: $0, root: root) }
+                    .filter { isRegularFile($0) && isRawSidecar($0) },
+                root: root
+            ),
+            []
         )
     }
 
@@ -347,6 +371,16 @@ public struct RawJSONSidecarInputResolver {
 
     private func sourceIdentityMismatch(_ message: String) -> SidecarError {
         SidecarError(code: .sourceIdentityMismatch, stage: .scan, message: message, recoverable: true)
+    }
+}
+
+/// FileManager enumeration invokes its error callback synchronously. This box
+/// gives that callback reference semantics without suggesting cross-task use.
+private final class SynchronousInputFailureAccumulator: @unchecked Sendable {
+    private(set) var values: [RawJSONSidecarInputFailure] = []
+
+    func append(_ value: RawJSONSidecarInputFailure) {
+        values.append(value)
     }
 }
 

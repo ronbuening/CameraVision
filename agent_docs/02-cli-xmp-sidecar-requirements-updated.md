@@ -153,7 +153,9 @@ FR2-CLI-004 - In `write-xmp`, `--existing` governs raw `.ai.json` output produce
 
 ## 5. Input and Source Verification Requirements
 
-FR2-000 - `--from-json <json-file>` shall read one Phase 1 raw sidecar. `--from-json <folder>` shall scan for `.ai.json` files, recursively only when `--recursive` is supplied.
+FR2-000 - `--from-json <json-file>` shall read one Phase 1 raw sidecar. `--from-json <folder>` shall scan for
+`.ai.json` files, recursively only when `--recursive` is supplied. Recursive scans shall report each unreadable
+directory as a recoverable input failure and continue with readable siblings.
 
 FR2-000a - Raw JSON sidecars shall be read under PW-012. Readers shall accept `ai-sidecar-json/1.x`, preserve unknown fields when rewriting a raw sidecar, and refuse unsupported major versions with `E_SCHEMA_UNSUPPORTED`.
 

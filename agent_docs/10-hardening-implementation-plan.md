@@ -1808,9 +1808,9 @@ func testNonRecursiveUnreadableFolderThrowsSidecarError() throws {
 ```
 
 **Acceptance.**
-- [ ] `errorHandler` records a `ScanErrorRecord` (scanner) / input-failure record (resolver) per failed directory and continues (plan 08 verbatim)
-- [ ] R3-6b: non-recursive unreadable-folder throw wrapped as `validationError` (plan 08 verbatim)
-- [ ] chmod-000 fixture tests skip under root (plan 08 verbatim)
+- [x] `errorHandler` records a `ScanErrorRecord` (scanner) / input-failure record (resolver) per failed directory and continues (plan 08 verbatim)
+- [x] R3-6b: non-recursive unreadable-folder throw wrapped as `validationError` (plan 08 verbatim)
+- [x] chmod-000 fixture tests skip under root (plan 08 verbatim)
 
 **Commit.** `Record unreadable subdirectories as scan failures instead of silently skipping them`
 
