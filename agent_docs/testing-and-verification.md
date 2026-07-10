@@ -38,6 +38,23 @@ swift run aisidecar purge --help
 swift run aisidecar cleanup --help
 ```
 
+The batch-command help for `analyze`, `write-xmp`, `normalize`, `apply-session`,
+and `cleanup` documents the stable process statuses: `0` for success, `1` for one
+or more item failures, and `130` for interruption.
+
+## CLI Exit Status Checks
+
+Use a disposable input/output location for these checks. A completed diagnostic
+scan remains exit `0` even when its JSON contains unsupported-file records; a real
+batch with a failed item exits `1`; and an interrupted batch exits `130`.
+
+```bash
+swift run aisidecar analyze <unsupported-file> --dry-scan; echo $?   # 0
+swift run aisidecar analyze <unsupported-file> --dry-run; echo $?    # 1
+swift run aisidecar analyze <image-or-folder> --output-dir <tmp-output>
+# Press Ctrl+C, then run: echo $?                                    # 130
+```
+
 ## Offline Smoke Checks (no Ollama required)
 
 ```bash

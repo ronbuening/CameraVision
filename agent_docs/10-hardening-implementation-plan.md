@@ -1526,9 +1526,9 @@ final class BatchExitPolicyTests: XCTestCase {
 ```
 
 **Acceptance.**
-- [ ] Exit nonzero when any per-file failure or an interruption occurred (plan 08 verbatim)
-- [ ] Policy defined once and applied to all batch commands; documented in `--help` and README
-- [ ] `E_*` error codes untouched (invariant 7); exit codes documented as stable once shipped
+- [x] Exit nonzero when any per-file failure or an interruption occurred (plan 08 verbatim)
+- [x] Policy defined once and applied to all batch commands; documented in `--help` and README
+- [x] `E_*` error codes untouched (invariant 7); exit codes documented as stable once shipped
 - [ ] `echo $?` manual checks in the exit gate pass
 
 **Commit.** `Exit nonzero for failed or interrupted batch runs via shared BatchExitPolicy`
@@ -2690,4 +2690,3 @@ The hardening waves are complete when:
 6. `agent_docs/08-post-review-hardening-plan.md` §1.1 step 7 (efficiency plan) is unblocked: R4-6 landed with P2/P3 inside it, and R1-3 landed ahead of P4.
 
 After this plan closes, execution continues at plan 08 §1.1 step 7 (remaining efficiency items), then step 8 (M9–M11, per `agent_docs/phase-4-gui-implementation-plan.md` — note its "Decisions required before M9/M10a" sections), then step 9 (roadmap 09).
-
