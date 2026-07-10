@@ -395,6 +395,10 @@ read-modify-write that preserves unknown keys. Model timeout shall be finite and
 limit shall be zero or greater. The precedence chain is unchanged; Settings shall disclose active `AISIDECAR_*`
 environment overrides.
 
+FR4-056a - Settings write-through shall distinguish a missing config file from an existing unreadable file. An
+unreadable, malformed, empty, or non-object config shall fail as `E_CONFIG_INVALID` and remain byte-for-byte
+unmodified; only a missing file may be created from the edited keys.
+
 FR4-057 - **Vision model picker (v0.8).** Settings shall list installed Ollama models reporting the `vision` capability (Core `listInstalledVisionTags`, the preflight's own probing), let the user pick one (persisted per FR4-056), flag a configured-but-unavailable model, and offer an editable, validated endpoint with a connectivity indicator under the FR4-051 no-polling policy.
 
 FR4-058 - **First-run and missing-runtime guidance (v0.9).** When Ollama is unreachable at launch or before a run, the GUI shall present the install/start guidance (mirroring the README troubleshooting) rather than a bare failure. When Ollama is reachable but no installed model reports the `vision` capability, the GUI shall say so and suggest a starter vision model with its `ollama pull` command.
