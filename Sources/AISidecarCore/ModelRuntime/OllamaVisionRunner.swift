@@ -36,6 +36,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
             )
         } catch let error as SidecarError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw endpointUnreachable(error)
         }
@@ -197,6 +199,25 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 startedAt: startedAt,
                 error: finalAttempt.error,
                 responseAttempts: attempts.count > 1 ? attempts : nil
+            )
+        } catch is CancellationError {
+            return record(
+                image: image,
+                inputRole: inputRole,
+                prompt: prompt,
+                schema: schema,
+                options: options,
+                runtime: runtime,
+                rawResponseText: "",
+                parsedResponseJSON: nil,
+                jsonValid: false,
+                startedAt: startedAt,
+                error: SidecarError(
+                    code: .interrupted,
+                    stage: .model,
+                    message: "Model request cancelled.",
+                    recoverable: true
+                )
             )
         } catch let error as SidecarError {
             return record(
@@ -375,6 +396,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
         var lastError: Error?
 
         for attempt in 1...maxAttempts {
+            try Task.checkCancellation()
             try Self.checkInterruption(isInterrupted)
             do {
                 let response = try await transport.send(request, endpoint: endpoint)
@@ -383,6 +405,9 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 }
                 return response
             } catch {
+                if error is CancellationError {
+                    throw error
+                }
                 try Self.checkInterruption(isInterrupted)
                 if let transportError = error as? OllamaHTTPTransportError,
                     case .clientError = transportError {

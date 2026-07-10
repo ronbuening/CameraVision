@@ -68,6 +68,10 @@ public struct URLSessionOllamaHTTPTransport: OllamaHTTPTransport {
             return OllamaHTTPResponse(statusCode: httpResponse.statusCode, data: data)
         } catch let error as OllamaHTTPTransportError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch let error as URLError where error.code == .timedOut {
             throw OllamaHTTPTransportError.timeout(error.localizedDescription)
         } catch {

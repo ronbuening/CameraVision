@@ -479,6 +479,29 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertTrue(requests.isEmpty)
     }
 
+    func testAnalyzeMapsTransportCancellationToInterruptionWithoutRetrying() async throws {
+        let imageURL = try writeModelInput()
+        let transport = RecordingOllamaTransport([
+            .failure(CancellationError()),
+            .success(chatResponse(content: #"{"summary":"never reached"}"#))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: 2),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertEqual(record.error?.code, .interrupted)
+        XCTAssertEqual(record.error?.message, "Model request cancelled.")
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 1)
+    }
+
     func testInFlightRequestCancellationStopsHangingTransport() async throws {
         let imageURL = try writeModelInput()
         let monitor = InterruptionMonitor()

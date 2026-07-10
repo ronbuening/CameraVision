@@ -792,7 +792,11 @@ public struct AnalyzePipeline {
                 task.cancel()
             }
             defer { registration?.cancel() }
-            var record = await task.value
+            var record = await withTaskCancellationHandler {
+                await task.value
+            } onCancel: {
+                task.cancel()
+            }
             record.modelInputContext = modelInputContext?.isEmpty == false ? modelInputContext : nil
             return record
         } catch {

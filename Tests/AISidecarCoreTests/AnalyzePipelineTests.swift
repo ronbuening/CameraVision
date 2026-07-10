@@ -206,6 +206,58 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertTrue(cancellationObserved)
     }
 
+    func testCancelledModelRunWritesNoSidecarAndCanBeRetriedWithExistingSkip() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Bird.JPG", in: root)
+        let runner = CancellationAwareVisionModelRunner()
+        let configuration = config(
+            recursive: false,
+            outputDir: output.path,
+            existing: .skip,
+            mode: .whole,
+            cacheDir: output.appendingPathComponent("cache").path
+        )
+        let inputPath = image.path
+        let task = Task {
+            let analysisPipeline = AnalyzePipeline(
+                logger: Logger(sink: { _ in }),
+                runner: runner,
+                now: { Date(timeIntervalSince1970: 1_800_002_000) }
+            )
+            return try await analysisPipeline.run(
+                inputPath: inputPath,
+                configuration: configuration
+            )
+        }
+
+        await runner.waitUntilStarted()
+        task.cancel()
+        let cancelledResult = try await task.value
+
+        XCTAssertTrue(cancelledResult.interrupted)
+        XCTAssertTrue(cancelledResult.records.isEmpty)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.JPG.ai.json").path)
+        )
+        let cancellationObserved = await runner.observedCancellation()
+        XCTAssertTrue(cancellationObserved)
+
+        let retryResult = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: image.path,
+            configuration: configuration,
+            writesBatchArtifacts: false
+        )
+        XCTAssertEqual(retryResult.records.map(\.status), [.written])
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.JPG.ai.json").path)
+        )
+    }
+
     func testStageConcurrencyOneDoesNotRenderAheadDuringModelCall() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -592,7 +644,7 @@ final class AnalyzePipelineTests: XCTestCase {
 
     private func pipeline(
         maskProvider: (any ForegroundMaskProvider)? = nil,
-        runner: RecordingVisionModelRunner
+        runner: any VisionModelRunner
     ) -> AnalyzePipeline {
         AnalyzePipeline(
             logger: Logger(sink: { _ in }),
@@ -1064,6 +1116,82 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
             jsonValid: repairIsValid,
             error: repairIsValid ? nil : finalError,
             responseAttempts: attempts
+        )
+    }
+}
+
+private actor CancellationAwareVisionModelRunner: VisionModelRunner {
+    private var started = false
+    private var cancelled = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func waitUntilStarted() async {
+        if started {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func observedCancellation() -> Bool {
+        cancelled
+    }
+
+    func prepare(configuration _: ResolvedRunConfiguration) async throws -> ModelRuntimeContext {
+        ModelRuntimeContext(
+            model: "test:model",
+            modelDigest: "sha256:testdigest",
+            runtime: "test-runtime",
+            runtimeVersion: "1.0",
+            endpoint: URL(string: "http://localhost:11434")!,
+            installedVisionTags: ["test:model"]
+        )
+    }
+
+    func analyze(
+        image: DerivativeRecord,
+        inputRole: ModelInputRole,
+        prompt: VersionedPrompt,
+        schema: JSONSchemaDocument,
+        options: ModelRunOptions,
+        runtime: ModelRuntimeContext,
+        isInterrupted _: (@Sendable () -> Bool)? = nil
+    ) async -> ModelRunRecord {
+        started = true
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: 60_000_000_000)
+        } catch is CancellationError {
+            cancelled = true
+        } catch {}
+
+        return ModelRunRecord(
+            inputRole: inputRole,
+            model: runtime.model,
+            modelDigest: runtime.modelDigest,
+            runtime: runtime.runtime,
+            runtimeVersion: runtime.runtimeVersion,
+            promptVersion: prompt.version,
+            promptSHA256: prompt.sha256,
+            responseSchemaVersion: schema.version,
+            requestOptions: options,
+            inputDerivativeSHA256: image.sha256,
+            rawResponseText: "",
+            parsedResponseJSON: nil,
+            jsonValid: false,
+            durationMs: 0,
+            error: SidecarError(
+                code: .interrupted,
+                stage: .model,
+                message: "Model request cancelled.",
+                recoverable: true
+            )
         )
     }
 }
