@@ -191,7 +191,10 @@ FR1-012 - Folder runs shall write a batch summary JSON named `batch-summary-<ISO
 
 FR1-012a - Folder runs shall additionally write an append-only JSONL progress log (one self-contained record per completed file, flushed before the batch advances). The batch summary shall be derived from this log.
 
-FR1-012b - Interruption contract: on `SIGINT`/`SIGTERM`, the in-flight file's sidecar shall be either complete or absent — never partial — by virtue of atomic writes; the progress log shall reflect everything finished; the summary, when writable, shall carry `E_INTERRUPTED`.
+FR1-012b - Interruption contract: on `SIGINT`/`SIGTERM` or task cancellation, the in-flight file's sidecar shall be
+either complete or absent — never partial — by virtue of atomic writes; the progress log shall reflect everything
+finished; the summary, when writable, shall carry `E_INTERRUPTED`. Cancellation of an in-flight model request shall
+not be retried or recorded as an endpoint failure.
 
 FR1-012c - Re-running an interrupted batch with `--existing skip` shall process only the remainder. This is the Phase 1 resume mechanism; no separate checkpoint format shall be introduced.
 

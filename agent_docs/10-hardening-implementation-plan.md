@@ -1702,9 +1702,9 @@ func testCancelledModelRunWritesNoFailureSidecarAndRecordsInterruption() async t
 ```
 
 **Acceptance.**
-- [ ] Cancellation rethrown without writing a failure sidecar; run records interruption (plan 08 verbatim)
-- [ ] `Task.isCancelled` checked in the retry loop (plan 08 verbatim)
-- [ ] Rerun with `--existing skip` after a GUI cancel re-attempts the file
+- [x] Cancellation rethrown without writing a failure sidecar; run records interruption (plan 08 verbatim)
+- [x] `Task.isCancelled` checked in the retry loop (plan 08 verbatim)
+- [x] Rerun with `--existing skip` after a GUI cancel re-attempts the file
 
 **Commit.** `Propagate task cancellation through the model runtime instead of writing failure sidecars`
 
