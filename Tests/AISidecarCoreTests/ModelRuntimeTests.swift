@@ -14,7 +14,9 @@ final class ModelRuntimeTests: XCTestCase {
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
-        let context = try await runner.prepare(configuration: .builtInDefaults)
+        var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.modelTimeoutSeconds = 42
+        let context = try await runner.prepare(configuration: configuration)
 
         XCTAssertEqual(context.model, "gemma4:26b-a4b-it-qat")
         XCTAssertEqual(context.modelDigest, "sha256:abc123")
@@ -23,6 +25,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(context.installedVisionTags, ["gemma4:26b-a4b-it-qat"])
         let requests = await transport.capturedRequests()
         XCTAssertEqual(requests.map(\.path), ["/api/tags", "/api/show", "/api/show", "/api/version"])
+        XCTAssertEqual(requests.map(\.timeoutSeconds), [42, 42, 42, 42])
     }
 
     func testPrepareMissingTagFailsWithVisionCapableSuggestions() async throws {
@@ -259,6 +262,27 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertTrue(record.jsonValid)
         let requests = await transport.capturedRequests()
         XCTAssertEqual(requests.count, 3)
+    }
+
+    func testAnalyzeAcceptsMaximumRetryLimitWithoutOverflowingAttemptCount() async throws {
+        let imageURL = try writeModelInput()
+        let transport = RecordingOllamaTransport([
+            .success(chatResponse(content: #"{"summary":"Immediate success"}"#))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: .max),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertTrue(record.jsonValid)
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 1)
     }
 
     func testAnalyzeDoesNotRetryHTTP4xxAndIncludesOllamaErrorBody() async throws {

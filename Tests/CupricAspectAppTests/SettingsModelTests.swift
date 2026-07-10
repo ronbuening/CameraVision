@@ -53,16 +53,28 @@ final class SettingsModelTests: XCTestCase {
         let model = makeModel()
         XCTAssertEqual(model.profile, ModelInputProfile.defaultProfile.name, "built-in default")
         XCTAssertEqual(model.modelContextWindow, ResolvedRunConfiguration.builtInDefaults.modelContextWindow)
+        XCTAssertEqual(model.modelTimeoutSeconds, ModelRunOptions.default.timeoutSeconds)
+        XCTAssertEqual(model.modelRetryLimit, ModelRunOptions.default.retryLimit)
 
         model.setProfile("gemma4-26b-benchmark-1024")
         model.setModelContextWindow(16_384)
+        model.setModelTimeoutSeconds(300)
+        model.setModelRetryLimit(4)
 
         XCTAssertEqual(model.profile, "gemma4-26b-benchmark-1024")
         XCTAssertEqual(model.modelContextWindow, 16_384)
+        XCTAssertEqual(model.modelTimeoutSeconds, 300)
+        XCTAssertEqual(model.modelRetryLimit, 4)
 
         let resolved = try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath)
         XCTAssertEqual(resolved.profile, "gemma4-26b-benchmark-1024")
         XCTAssertEqual(resolved.modelContextWindow, 16_384)
+        XCTAssertEqual(resolved.modelTimeoutSeconds, 300)
+        XCTAssertEqual(resolved.modelRetryLimit, 4)
+
+        let object = try readConfigObject()
+        XCTAssertEqual(object["model_timeout_seconds"] as? Double, 300)
+        XCTAssertEqual(object["model_retry_limit"] as? Int, 4)
     }
 
     @MainActor
@@ -151,6 +163,19 @@ final class SettingsModelTests: XCTestCase {
         model.applyEndpoint()
         XCTAssertNotNil(model.loadError)
         XCTAssertFalse(FileManager.default.fileExists(atPath: configPath), "nothing written")
+    }
+
+    @MainActor
+    func testInvalidModelRequestLimitsAreRejectedWithoutWriting() {
+        let model = makeModel()
+
+        model.setModelTimeoutSeconds(0)
+        XCTAssertNotNil(model.loadError)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: configPath), "invalid timeout is not persisted")
+
+        model.setModelRetryLimit(-1)
+        XCTAssertNotNil(model.loadError)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: configPath), "invalid retry limit is not persisted")
     }
 
     @MainActor

@@ -769,6 +769,8 @@ public struct AnalyzePipeline {
     ) async -> ModelRunRecord {
         var options = ModelRunOptions.default
         options.keepAlive = configuration.modelKeepAlive
+        options.timeoutSeconds = configuration.modelTimeoutSeconds
+        options.retryLimit = configuration.modelRetryLimit
         options.responseRepairAttempts = configuration.modelResponseRepairAttempts
         // 0 means "model default": send no num_ctx and let Ollama size the window.
         options.contextWindow = configuration.modelContextWindow > 0 ? configuration.modelContextWindow : nil

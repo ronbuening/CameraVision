@@ -41,6 +41,8 @@ swift run aisidecar cleanup --help
 The batch-command help for `analyze`, `write-xmp`, `normalize`, `apply-session`,
 and `cleanup` documents the stable process statuses: `0` for success, `1` for one
 or more item failures, and `130` for interruption.
+The `analyze`, `write-xmp`, and `normalize` help must also list `--model-timeout`
+and `--model-retry-limit`; the latter two commands accept them only in their analyze modes.
 
 ## CLI Exit Status Checks
 

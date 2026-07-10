@@ -37,6 +37,8 @@ PW-004 - The following flags shall have identical names, types, and semantics in
 --output-dir <path>                  Redirect outputs; mirrors the relative scan tree.
 --model <tag>                        Ollama model tag. Default: gemma4:26b-a4b-it-qat.
 --model-endpoint <url>               Ollama endpoint. Default: http://localhost:11434.
+--model-timeout <seconds>            Timeout for each Ollama request. Default: 180.
+--model-retry-limit <n>              Additional attempts for retryable model failures. Default: 2.
 --profile <name>                     Model input profile name.
 --config <path>                      Alternate configuration file.
 --log-level <error|warn|info|debug>  Default: info.
@@ -284,8 +286,11 @@ then fail with `E_MODEL_RESPONSE_INVALID`. `E_MODEL_INVALID_JSON` and `E_MODEL_S
 silently accepted; by default the runtime performs one no-image, schema-constrained repair call using the original
 raw output and validation error, then records the final failure if repair still does not produce schema-valid JSON.
 `model_response_repair_attempts = 0` preserves the strict one-shot behavior.
+The timeout and retry limit shall resolve through `model_timeout_seconds` / `model_retry_limit`,
+`AISIDECAR_MODEL_TIMEOUT_SECONDS` / `AISIDECAR_MODEL_RETRY_LIMIT`, and the matching CLI flags under PW-007.
 
-FR1-030f - Request options shall record temperature, seed, thinking setting, `keep_alive`, and any context override, per PW-013.
+FR1-030f - Request options shall record temperature, seed, thinking setting, `keep_alive`, timeout, retry limit, and
+any context override, per PW-013.
 
 FR1-031 - The model client shall be implemented behind a `VisionModelRunner` protocol so later phases can support other Ollama tags, llama.cpp, MLX, or a direct library backend. A mock runner and a recorded-fixture replay runner shall be implemented alongside the live runner so the full pipeline is testable without a network.
 

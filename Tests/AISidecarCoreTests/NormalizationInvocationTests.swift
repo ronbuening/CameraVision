@@ -25,6 +25,8 @@ final class NormalizationInvocationTests: XCTestCase {
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", existing: .overwrite),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", model: "custom:model"),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", modelEndpoint: "http://localhost:11434"),
+            NormalizationInvocationRequest(fromJSONPath: "A.ai.json", modelTimeoutSeconds: 180),
+            NormalizationInvocationRequest(fromJSONPath: "A.ai.json", modelRetryLimit: 2),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", profile: "gemma4-26b-default"),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", debugDerivatives: true),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", clearDerivativeCacheOnStart: true),

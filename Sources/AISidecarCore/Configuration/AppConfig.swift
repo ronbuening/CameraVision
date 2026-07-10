@@ -9,6 +9,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var model: String?
     public var modelEndpoint: String?
     public var modelKeepAlive: String?
+    public var modelTimeoutSeconds: Double?
+    public var modelRetryLimit: Int?
     public var profile: String?
     public var logLevel: LogLevel?
     public var logFormat: LogFormat?
@@ -67,6 +69,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case model
         case modelEndpoint = "model_endpoint"
         case modelKeepAlive = "model_keep_alive"
+        case modelTimeoutSeconds = "model_timeout_seconds"
+        case modelRetryLimit = "model_retry_limit"
         case profile
         case logLevel = "log_level"
         case logFormat = "log_format"
@@ -121,6 +125,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         model: String? = nil,
         modelEndpoint: String? = nil,
         modelKeepAlive: String? = nil,
+        modelTimeoutSeconds: Double? = nil,
+        modelRetryLimit: Int? = nil,
         profile: String? = nil,
         logLevel: LogLevel? = nil,
         logFormat: LogFormat? = nil,
@@ -173,6 +179,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.model = model
         self.modelEndpoint = modelEndpoint
         self.modelKeepAlive = modelKeepAlive
+        self.modelTimeoutSeconds = modelTimeoutSeconds
+        self.modelRetryLimit = modelRetryLimit
         self.profile = profile
         self.logLevel = logLevel
         self.logFormat = logFormat
@@ -245,6 +253,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
         self.modelEndpoint = try container.decodeIfPresent(String.self, forKey: .modelEndpoint)
         self.modelKeepAlive = try container.decodeIfPresent(String.self, forKey: .modelKeepAlive)
+        self.modelTimeoutSeconds = try container.decodeIfPresent(Double.self, forKey: .modelTimeoutSeconds)
+        self.modelRetryLimit = try container.decodeIfPresent(Int.self, forKey: .modelRetryLimit)
         self.profile = try container.decodeIfPresent(String.self, forKey: .profile)
         self.logLevel = try container.decodeIfPresent(LogLevel.self, forKey: .logLevel)
         self.logFormat = try container.decodeIfPresent(LogFormat.self, forKey: .logFormat)
@@ -327,6 +337,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(model, forKey: .model)
         try container.encodeIfPresent(modelEndpoint, forKey: .modelEndpoint)
         try container.encodeIfPresent(modelKeepAlive, forKey: .modelKeepAlive)
+        try container.encodeIfPresent(modelTimeoutSeconds, forKey: .modelTimeoutSeconds)
+        try container.encodeIfPresent(modelRetryLimit, forKey: .modelRetryLimit)
         try container.encodeIfPresent(profile, forKey: .profile)
         try container.encodeIfPresent(logLevel, forKey: .logLevel)
         try container.encodeIfPresent(logFormat, forKey: .logFormat)

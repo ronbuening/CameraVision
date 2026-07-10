@@ -86,6 +86,8 @@ Accepted project-wide flags in analyze-and-write mode:
 --output-dir <path>
 --model <tag>
 --model-endpoint <url>
+--model-timeout <seconds>
+--model-retry-limit <n>
 --profile <name>
 --config <path>
 --log-level <error|warn|info|debug>

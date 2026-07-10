@@ -18,6 +18,8 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
     public var existing: ExistingPolicy?
     public var model: String?
     public var modelEndpoint: String?
+    public var modelTimeoutSeconds: Double?
+    public var modelRetryLimit: Int?
     public var profile: String?
     public var debugDerivatives: Bool
     public var clearDerivativeCacheOnStart: Bool
@@ -44,6 +46,8 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
         existing: ExistingPolicy? = nil,
         model: String? = nil,
         modelEndpoint: String? = nil,
+        modelTimeoutSeconds: Double? = nil,
+        modelRetryLimit: Int? = nil,
         profile: String? = nil,
         debugDerivatives: Bool = false,
         clearDerivativeCacheOnStart: Bool = false,
@@ -69,6 +73,8 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
         self.existing = existing
         self.model = model
         self.modelEndpoint = modelEndpoint
+        self.modelTimeoutSeconds = modelTimeoutSeconds
+        self.modelRetryLimit = modelRetryLimit
         self.profile = profile
         self.debugDerivatives = debugDerivatives
         self.clearDerivativeCacheOnStart = clearDerivativeCacheOnStart
@@ -150,6 +156,8 @@ public enum NormalizationInvocationValidator {
             ("existing", request.existing != nil),
             ("model", request.model != nil),
             ("model-endpoint", request.modelEndpoint != nil),
+            ("model-timeout", request.modelTimeoutSeconds != nil),
+            ("model-retry-limit", request.modelRetryLimit != nil),
             ("profile", request.profile != nil),
             ("debug-derivatives", request.debugDerivatives),
             ("clear-derivative-cache-on-start", request.clearDerivativeCacheOnStart),

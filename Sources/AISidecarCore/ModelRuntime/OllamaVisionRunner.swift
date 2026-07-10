@@ -15,18 +15,32 @@ public struct OllamaVisionRunner: VisionModelRunner {
 
     public func prepare(configuration: ResolvedRunConfiguration) async throws -> ModelRuntimeContext {
         do {
-            let tags = try await getTags(endpoint: configuration.modelEndpoint)
-            let visionTags = await installedVisionTags(from: tags, endpoint: configuration.modelEndpoint)
+            let tags = try await getTags(
+                endpoint: configuration.modelEndpoint,
+                timeoutSeconds: configuration.modelTimeoutSeconds
+            )
+            let visionTags = await installedVisionTags(
+                from: tags,
+                endpoint: configuration.modelEndpoint,
+                timeoutSeconds: configuration.modelTimeoutSeconds
+            )
             guard let model = tags.models.first(where: { $0.name == configuration.model || $0.model == configuration.model }) else {
                 throw tagNotFound(configuration.model, visionTags: visionTags)
             }
 
-            let show = try await showModel(model.name, endpoint: configuration.modelEndpoint)
+            let show = try await showModel(
+                model.name,
+                endpoint: configuration.modelEndpoint,
+                timeoutSeconds: configuration.modelTimeoutSeconds
+            )
             guard show.capabilities.contains("vision") else {
                 throw tagNotFound(configuration.model, visionTags: visionTags)
             }
 
-            let version = try await getVersion(endpoint: configuration.modelEndpoint)
+            let version = try await getVersion(
+                endpoint: configuration.modelEndpoint,
+                timeoutSeconds: configuration.modelTimeoutSeconds
+            )
             return ModelRuntimeContext(
                 model: model.name,
                 modelDigest: Self.normalizedDigest(model.digest),
@@ -263,38 +277,56 @@ public struct OllamaVisionRunner: VisionModelRunner {
         return await installedVisionTags(from: tags, endpoint: endpoint)
     }
 
-    private func getTags(endpoint: URL) async throws -> OllamaTagsResponse {
+    private func getTags(
+        endpoint: URL,
+        timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
+    ) async throws -> OllamaTagsResponse {
         try await requestJSON(
             OllamaTagsResponse.self,
-            request: OllamaHTTPRequest(method: "GET", path: "/api/tags", timeoutSeconds: ModelRunOptions.default.timeoutSeconds),
+            request: OllamaHTTPRequest(method: "GET", path: "/api/tags", timeoutSeconds: timeoutSeconds),
             endpoint: endpoint
         )
     }
 
-    private func getVersion(endpoint: URL) async throws -> OllamaVersionResponse {
+    private func getVersion(
+        endpoint: URL,
+        timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
+    ) async throws -> OllamaVersionResponse {
         try await requestJSON(
             OllamaVersionResponse.self,
-            request: OllamaHTTPRequest(method: "GET", path: "/api/version", timeoutSeconds: ModelRunOptions.default.timeoutSeconds),
+            request: OllamaHTTPRequest(method: "GET", path: "/api/version", timeoutSeconds: timeoutSeconds),
             endpoint: endpoint
         )
     }
 
-    private func showModel(_ model: String, endpoint: URL) async throws -> OllamaShowResponse {
+    private func showModel(
+        _ model: String,
+        endpoint: URL,
+        timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
+    ) async throws -> OllamaShowResponse {
         let body = try Self.encoder().encode(OllamaShowRequest(model: model))
         return try await requestJSON(
             OllamaShowResponse.self,
-            request: OllamaHTTPRequest(method: "POST", path: "/api/show", body: body, timeoutSeconds: ModelRunOptions.default.timeoutSeconds),
+            request: OllamaHTTPRequest(method: "POST", path: "/api/show", body: body, timeoutSeconds: timeoutSeconds),
             endpoint: endpoint
         )
     }
 
-    private func installedVisionTags(from tags: OllamaTagsResponse, endpoint: URL) async -> [String] {
+    private func installedVisionTags(
+        from tags: OllamaTagsResponse,
+        endpoint: URL,
+        timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
+    ) async -> [String] {
         // Probe capabilities serially so the `/api/show` request sequence stays deterministic. The
         // preflight runs once per invocation; concurrent probing saved only marginal latency and made
         // the external-call order nondeterministic.
         var visionTags: [String] = []
         for model in tags.models {
-            guard let show = try? await showModel(model.name, endpoint: endpoint),
+            guard let show = try? await showModel(
+                model.name,
+                endpoint: endpoint,
+                timeoutSeconds: timeoutSeconds
+            ),
                   show.capabilities.contains("vision")
             else {
                 continue
@@ -392,7 +424,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
         options: ModelRunOptions,
         isInterrupted: (@Sendable () -> Bool)?
     ) async throws -> OllamaHTTPResponse {
-        let maxAttempts = max(0, options.retryLimit) + 1
+        let (incrementedAttempts, overflowed) = max(0, options.retryLimit).addingReportingOverflow(1)
+        let maxAttempts = overflowed ? Int.max : incrementedAttempts
         var lastError: Error?
 
         for attempt in 1...maxAttempts {

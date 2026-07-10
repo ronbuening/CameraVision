@@ -39,6 +39,12 @@ struct WriteXMPCommand: AsyncParsableCommand {
     @Option(help: "Ollama endpoint URL for analyze-and-write.")
     var modelEndpoint: String?
 
+    @Option(help: "Model request timeout in seconds for analyze-and-write.")
+    var modelTimeout: Double?
+
+    @Option(help: "Model request retry limit for retryable analyze-and-write failures.")
+    var modelRetryLimit: Int?
+
     @Option(help: "Model input profile name for analyze-and-write.")
     var profile: String?
 
@@ -183,6 +189,8 @@ struct WriteXMPCommand: AsyncParsableCommand {
             existing: existing,
             model: model,
             modelEndpoint: modelEndpoint,
+            modelTimeoutSeconds: modelTimeout,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             debugDerivatives: debugDerivatives,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
@@ -233,6 +241,8 @@ struct WriteXMPCommand: AsyncParsableCommand {
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,
+            modelTimeoutSeconds: modelTimeout,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             configPath: config,
             logLevel: logLevel,

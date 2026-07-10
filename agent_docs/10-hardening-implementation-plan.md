@@ -1732,9 +1732,9 @@ options.responseRepairAttempts = configuration.modelResponseRepairAttempts
 1. `AppConfig`: add `modelTimeoutSeconds: Double?` (`model_timeout_seconds`) and `modelRetryLimit: Int?` (`model_retry_limit`) — decode/encode-if-present like `modelKeepAlive` (:237/:317).
 2. `ConfigurationResolver`: env keys `AISIDECAR_MODEL_TIMEOUT_SECONDS`, `AISIDECAR_MODEL_RETRY_LIMIT` beside :259; merge in the same CLI > env > file > default order (invariant 9); validate `timeout > 0`, `retryLimit >= 0` → `SidecarError.configInvalid` otherwise.
 3. `RunConfigurationOverrides` + `ResolvedRunConfiguration`: new fields with defaults `ModelRunOptions.default.timeoutSeconds` / `.retryLimit`; snake_case coding keys (`model_timeout_seconds`, `model_retry_limit`).
-4. `SharedOptions`: `@Option(help: "Model request timeout in seconds.") var modelTimeout: Double?` and `@Option(help: "Model request retry limit for retryable failures.") var modelRetryLimit: Int?`; wire into `overrides` (both `SharedOptions.swift` and the duplicated `overrides` builder in `WriteXMPCommand.swift:200-227`).
+4. `SharedOptions`: `@Option(help: "Model request timeout in seconds.") var modelTimeout: Double?` and `@Option(help: "Model request retry limit for retryable failures.") var modelRetryLimit: Int?`; wire into `overrides` in `SharedOptions.swift` and the duplicated analyze-mode builders in `WriteXMPCommand.swift` and `NormalizeCommand.swift`; add both fields to their invocation validators so model-free modes reject them.
 5. `AnalyzePipeline.runModel` (:725-727): `options.timeoutSeconds = configuration.modelTimeoutSeconds; options.retryLimit = configuration.modelRetryLimit`.
-6. Add both keys to `aisidecar.config.example.jsonc` with comments; add to the GUI Settings sheet per the M8a `ConfigFileEditor.merge` write-through pattern.
+6. Add both keys to `aisidecar.config.example.jsonc` with comments; add to the GUI Settings sheet per the M8a `ConfigFileEditor.merge` write-through pattern. Apply the configured timeout to Ollama preflight requests as well as `/api/chat`.
 
 **Tests.** Extend `Tests/AISidecarCoreTests/ConfigResolutionTests.swift` per the existing keep-alive precedence pattern (asserted at :15/:85/:185/:338):
 
@@ -1751,9 +1751,9 @@ func testModelTimeoutRejectsNonPositiveValues() throws {
 ```
 
 **Acceptance.**
-- [ ] Full chain: `AppConfig` + example JSONC, `AISIDECAR_*` env, `--model-timeout` flag, `ResolvedRunConfiguration`, GUI Settings (plan 08 verbatim)
-- [ ] Resolver precedence tests per the existing pattern (plan 08 verbatim; invariant 9)
-- [ ] `purge` still resolves without model config validity (invariant 9, second clause)
+- [x] Full chain: `AppConfig` + example JSONC, `AISIDECAR_*` env, `--model-timeout` flag, `ResolvedRunConfiguration`, GUI Settings (plan 08 verbatim)
+- [x] Resolver precedence tests per the existing pattern (plan 08 verbatim; invariant 9)
+- [x] `purge` still resolves without model config validity (invariant 9, second clause)
 
 **Commit.** `Plumb model_timeout_seconds and model_retry_limit through the config chain`
 

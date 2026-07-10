@@ -45,7 +45,7 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertTrue(sidecar.errors.isEmpty)
     }
 
-    func testPipelineUsesConfiguredKeepAliveAndKeepsThinkingDisabled() async throws {
+    func testPipelineUsesConfiguredModelRequestOptionsAndKeepsThinkingDisabled() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         addTeardownBlock {
@@ -62,7 +62,9 @@ final class AnalyzePipelineTests: XCTestCase {
                 outputDir: output.path,
                 mode: .whole,
                 cacheDir: output.appendingPathComponent("cache").path,
-                modelKeepAlive: "5m"
+                modelKeepAlive: "5m",
+                modelTimeoutSeconds: 90,
+                modelRetryLimit: 4
             )
         )
 
@@ -71,7 +73,13 @@ final class AnalyzePipelineTests: XCTestCase {
         let captured = try XCTUnwrap(capturedCalls.first)
         XCTAssertEqual(sidecar.runConfiguration.modelKeepAlive, "5m")
         XCTAssertEqual(sidecar.modelRuns.first?.requestOptions.keepAlive, "5m")
+        XCTAssertEqual(sidecar.runConfiguration.modelTimeoutSeconds, 90)
+        XCTAssertEqual(sidecar.runConfiguration.modelRetryLimit, 4)
+        XCTAssertEqual(sidecar.modelRuns.first?.requestOptions.timeoutSeconds, 90)
+        XCTAssertEqual(sidecar.modelRuns.first?.requestOptions.retryLimit, 4)
         XCTAssertEqual(captured.keepAlive, "5m")
+        XCTAssertEqual(captured.timeoutSeconds, 90)
+        XCTAssertEqual(captured.retryLimit, 4)
         XCTAssertFalse(captured.thinkingEnabled)
     }
 
@@ -662,6 +670,8 @@ final class AnalyzePipelineTests: XCTestCase {
         cacheDir: String,
         stageConcurrency: Int = 2,
         modelKeepAlive: String = ModelRunOptions.default.keepAlive,
+        modelTimeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds,
+        modelRetryLimit: Int = ModelRunOptions.default.retryLimit,
         clearDerivativeCacheOnStart: Bool = false,
         clearDerivativeCacheAfterSuccess: Bool = false,
         modelContextWindow: Int = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
@@ -674,6 +684,8 @@ final class AnalyzePipelineTests: XCTestCase {
             model: ResolvedRunConfiguration.builtInDefaults.model,
             modelEndpoint: ResolvedRunConfiguration.builtInDefaults.modelEndpoint,
             modelKeepAlive: modelKeepAlive,
+            modelTimeoutSeconds: modelTimeoutSeconds,
+            modelRetryLimit: modelRetryLimit,
             profile: ResolvedRunConfiguration.builtInDefaults.profile,
             logLevel: .debug,
             logFormat: .json,
@@ -873,6 +885,8 @@ private struct CapturedModelCall: Sendable, Equatable {
     var promptText: String
     var schemaVersion: String
     var keepAlive: String
+    var timeoutSeconds: Double
+    var retryLimit: Int
     var thinkingEnabled: Bool
     var contextWindow: Int?
 }
@@ -954,6 +968,8 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
                 promptText: prompt.text,
                 schemaVersion: schema.version,
                 keepAlive: options.keepAlive,
+                timeoutSeconds: options.timeoutSeconds,
+                retryLimit: options.retryLimit,
                 thinkingEnabled: options.thinkingEnabled,
                 contextWindow: options.contextWindow
             )

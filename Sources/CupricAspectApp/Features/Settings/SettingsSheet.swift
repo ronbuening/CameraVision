@@ -331,6 +331,51 @@ struct SettingsSheet: View {
                     contextWindowMenu
                 }
                 Divider().overlay(theme.border)
+                settingRow(
+                    "Model request timeout",
+                    caption: "Seconds allowed for each Ollama request; increase this for slower cold starts."
+                ) {
+                    HStack(spacing: 0) {
+                        settingsStepButton("−") {
+                            settings.setModelTimeoutSeconds(max(1, settings.modelTimeoutSeconds - 30))
+                        }
+                        Text(modelTimeoutLabel)
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(theme.text)
+                            .frame(width: 62)
+                        settingsStepButton("+") {
+                            settings.setModelTimeoutSeconds(settings.modelTimeoutSeconds + 30)
+                        }
+                    }
+                    .background(theme.panel2)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
+                }
+                Divider().overlay(theme.border)
+                settingRow(
+                    "Model retry limit",
+                    caption: "Additional attempts for timeouts, transport errors, and HTTP 5xx responses."
+                ) {
+                    HStack(spacing: 0) {
+                        settingsStepButton("−") {
+                            settings.setModelRetryLimit(max(0, settings.modelRetryLimit - 1))
+                        }
+                        Text("\(settings.modelRetryLimit)")
+                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(theme.text)
+                            .frame(width: 32)
+                        settingsStepButton("+") {
+                            let (next, overflowed) = settings.modelRetryLimit.addingReportingOverflow(1)
+                            if !overflowed {
+                                settings.setModelRetryLimit(next)
+                            }
+                        }
+                    }
+                    .background(theme.panel2)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
+                }
+                Divider().overlay(theme.border)
                 settingRow("Concurrency", caption: "Lower = less memory pressure.") {
                     HStack(spacing: 0) {
                         settingsStepButton("−") { settings.setConcurrency(settings.stageConcurrency - 1) }
@@ -551,6 +596,10 @@ struct SettingsSheet: View {
         case .merge: "Merge"
         case .backupAndMerge: "Backup & Merge"
         }
+    }
+
+    private var modelTimeoutLabel: String {
+        "\(settings.modelTimeoutSeconds.formatted(.number.precision(.fractionLength(0...3)))) s"
     }
 
     private func settingsStepButton(_ glyph: String, action: @escaping () -> Void) -> some View {

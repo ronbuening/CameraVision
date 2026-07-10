@@ -130,6 +130,12 @@ struct SharedOptions: ParsableArguments {
     @Option(help: "Ollama endpoint URL.")
     var modelEndpoint: String?
 
+    @Option(help: "Model request timeout in seconds.")
+    var modelTimeout: Double?
+
+    @Option(help: "Model request retry limit for retryable failures.")
+    var modelRetryLimit: Int?
+
     @Option(help: "Model input profile name.")
     var profile: String?
 
@@ -171,6 +177,8 @@ struct SharedOptions: ParsableArguments {
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,
+            modelTimeoutSeconds: modelTimeout,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             configPath: config,
             logLevel: logLevel,

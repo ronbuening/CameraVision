@@ -37,6 +37,8 @@ final class SettingsModel {
     private(set) var stageConcurrency = min(8, max(1, ResolvedRunConfiguration.defaultStageConcurrency()))
     private(set) var profile = ModelInputProfile.defaultProfile.name
     private(set) var modelContextWindow = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
+    private(set) var modelTimeoutSeconds = ResolvedRunConfiguration.builtInDefaults.modelTimeoutSeconds
+    private(set) var modelRetryLimit = ResolvedRunConfiguration.builtInDefaults.modelRetryLimit
     private(set) var derivativeCachePath = ""
     private(set) var loadError: String?
     /// AISIDECAR_* variables present in the environment (precedence notice).
@@ -78,6 +80,8 @@ final class SettingsModel {
             stageConcurrency = min(8, max(1, resolved.stageConcurrency))
             profile = resolved.profile
             modelContextWindow = resolved.modelContextWindow
+            modelTimeoutSeconds = resolved.modelTimeoutSeconds
+            modelRetryLimit = resolved.modelRetryLimit
             derivativeCachePath = resolved.derivativeCacheDir
             loadError = nil
         } catch {
@@ -106,6 +110,22 @@ final class SettingsModel {
     func setConcurrency(_ value: Int) { write("stage_concurrency", .number(Double(min(8, max(1, value))))) }
     func setProfile(_ name: String) { write("profile", .string(name)) }
     func setModelContextWindow(_ tokens: Int) { write("model_context_window", .number(Double(tokens))) }
+
+    func setModelTimeoutSeconds(_ seconds: Double) {
+        guard seconds > 0, seconds.isFinite else {
+            loadError = "Model timeout must be a finite value greater than zero."
+            return
+        }
+        write("model_timeout_seconds", .number(seconds))
+    }
+
+    func setModelRetryLimit(_ limit: Int) {
+        guard limit >= 0 else {
+            loadError = "Model retry limit must be zero or greater."
+            return
+        }
+        write("model_retry_limit", .number(Double(limit)))
+    }
 
     func setModel(_ tag: String) {
         write("model", .string(tag))

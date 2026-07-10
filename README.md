@@ -175,9 +175,9 @@ intermediate files after a successful write.
 - **Nothing is written until you say so.** Analysis produces only `.ai.json`; XMP is
   written only when you export, and a dry-run change plan is always available first.
 - **Settings** persist to the shared `config.json` (so the CLI sees the same
-  defaults), let you pick the vision model and endpoint with a connectivity
-  indicator, and choose Light / Dark / Auto themes with copper, brass, or patina
-  accents.
+  defaults), let you pick the vision model and endpoint, tune model timeout and
+  retry limits, show a connectivity indicator, and choose Light / Dark / Auto
+  themes with copper, brass, or patina accents.
 - **Studio shell** (nonlinear, sidebar navigation) is planned for a later release;
   its toggle is visible but disabled ("coming soon") during the beta.
 
@@ -313,8 +313,10 @@ A minimal config:
 
 ```json
 {
-  "model": "gemma4:26b",
+  "model": "gemma4:26b-a4b-it-qat",
   "model_endpoint": "http://localhost:11434",
+  "model_timeout_seconds": 180,
+  "model_retry_limit": 2,
   "profile": "gemma4-26b-default",
   "gps_context": "coarse",
   "stage_concurrency": 1
@@ -325,6 +327,8 @@ Frequently used knobs:
 
 - `--model <tag>` / `"model"` — choose the installed Ollama vision model.
 - `--model-endpoint <url>` / `"model_endpoint"` — point at a non-default Ollama endpoint.
+- `--model-timeout <seconds>` / `"model_timeout_seconds"` — allow slower model requests or cold starts.
+- `--model-retry-limit <n>` / `"model_retry_limit"` — set additional attempts for retryable failures.
 - `--mode whole|subject|both` / `"mode"` — analysis input role.
 - `--stage-concurrency 1` / `"stage_concurrency"` — lower memory pressure by preparing renders serially.
 - `--gps-context off|coarse|exact` / `"gps_context"` — prompt-only GPS context. GPS is never exported as a keyword.

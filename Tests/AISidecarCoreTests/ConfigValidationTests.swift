@@ -307,6 +307,47 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testInvalidModelTimeoutFailsAsConfigInvalid() throws {
+        for json in [
+            #"{ "model_timeout_seconds": 0 }"#,
+            #"{ "model_timeout_seconds": -5 }"#
+        ] {
+            try assertConfigInvalid {
+                _ = try ConfigurationResolver.resolve(
+                    environment: [:],
+                    defaultConfigPath: writeConfig(json)
+                )
+            }
+        }
+
+        for value in ["0", "-5", "nan", "forever"] {
+            try assertConfigInvalid {
+                _ = try ConfigurationResolver.resolve(
+                    environment: ["AISIDECAR_MODEL_TIMEOUT_SECONDS": value],
+                    defaultConfigPath: missingConfigPath()
+                )
+            }
+        }
+    }
+
+    func testInvalidModelRetryLimitFailsAsConfigInvalid() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "model_retry_limit": -1 }"#)
+            )
+        }
+
+        for value in ["-1", "many"] {
+            try assertConfigInvalid {
+                _ = try ConfigurationResolver.resolve(
+                    environment: ["AISIDECAR_MODEL_RETRY_LIMIT": value],
+                    defaultConfigPath: missingConfigPath()
+                )
+            }
+        }
+    }
+
     private func assertConfigInvalid(_ operation: () throws -> Void) throws {
         do {
             try operation()

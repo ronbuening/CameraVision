@@ -42,6 +42,12 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Option(help: "Ollama endpoint URL for analyze-and-normalize.")
     var modelEndpoint: String?
 
+    @Option(help: "Model request timeout in seconds for analyze-and-normalize.")
+    var modelTimeout: Double?
+
+    @Option(help: "Model request retry limit for retryable analyze-and-normalize failures.")
+    var modelRetryLimit: Int?
+
     @Option(help: "Model input profile name for analyze-and-normalize.")
     var profile: String?
 
@@ -252,6 +258,8 @@ struct NormalizeCommand: AsyncParsableCommand {
             existing: existing,
             model: model,
             modelEndpoint: modelEndpoint,
+            modelTimeoutSeconds: modelTimeout,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             debugDerivatives: debugDerivatives,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
@@ -318,6 +326,8 @@ struct NormalizeCommand: AsyncParsableCommand {
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,
+            modelTimeoutSeconds: modelTimeout,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             configPath: config,
             logLevel: logLevel,
