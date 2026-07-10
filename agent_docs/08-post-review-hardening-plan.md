@@ -27,6 +27,10 @@ Overall verdict: the safety core is genuinely strong — the XMP write chain (pr
 | **R4 — Normalization/XMP semantic fixes** | after R3 (independent, can swap) | vocabulary ambiguity, session-context policy, GPS regex, session hardening |
 | M9–M11 | unchanged | per `phase-4-gui-implementation-plan.md` |
 
+**Implementation status (2026-07-10):** R3-1 through R3-11 are implemented and committed. The automated R3 exit
+gate is green; environment-dependent Ctrl+C, live-model timeout, and exFAT checks remain manual release evidence as
+recorded in the companion plan.
+
 Rules for every item: one work item at a time (invariant 17); each item independently committable with `swift test` green; behavior changes ship with focused unit tests (invariant 16); commit at each passing breakpoint, docs and code in separate commits.
 
 ### 1.1 Execution order at a glance

@@ -2097,6 +2097,12 @@ func testDuplicateSessionTargetThrowsSessionStaleNamingTheKey() throws {
 
 ### R3 exit gate
 
+**Automated verification (2026-07-10):** `swift test` passed 516 tests with 2 expected opt-in/live skips;
+`swift build --product CupricAspect` passed; all nine CLI help checks passed with the R3-1 exit-status text and R3-5
+timeout/retry flags present; benchmark self-test and `source-identity-fast` (one hash copy) passed; recursive dry-scan
+and cleanup dry-run smokes passed. The environment-dependent Ctrl+C/live-model timeout/exFAT checks below remain
+manual release evidence rather than automated unit coverage.
+
 1. `swift test` green (all suites; new fixtures deterministic and offline — invariant 12); `swift build --product CupricAspect` (R3-5 Settings work compiles).
 2. CLI help checks (all nine, per `agent_docs/testing-and-verification.md`): `swift run aisidecar --help`, plus `analyze`, `write-xmp`, `normalize`, `apply-session`, `explain-session`, `benchmark`, `purge`, `cleanup` `--help` — confirm exit-code documentation (R3-1) and `--model-timeout`/`--model-retry-limit` (R3-5) appear.
 3. Offline smoke checks: `swift run aisidecar benchmark --self-test`; `swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --output-dir <tmp>`; `swift run aisidecar analyze <folder> --recursive --dry-scan`; `swift run aisidecar cleanup <folder> --recursive --dry-run`.
