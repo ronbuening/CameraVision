@@ -73,6 +73,10 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var modelResponseRepairAttempts: Int?
     /// Controls whether EXIF GPS coordinates are attached to model prompts.
     public var gpsContext: GPSContextMode?
+    /// Ollama `num_ctx` token window requested for every model call.
+    public var modelContextWindow: Int?
+    /// Ollama `num_predict` output-token cap for every model call.
+    public var modelMaxResponseTokens: Int?
 
     public init(
         mode: AnalysisMode? = nil,
@@ -97,7 +101,9 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         subjectMergeDominanceThreshold: Double? = nil,
         stageConcurrency: Int? = nil,
         modelResponseRepairAttempts: Int? = nil,
-        gpsContext: GPSContextMode? = nil
+        gpsContext: GPSContextMode? = nil,
+        modelContextWindow: Int? = nil,
+        modelMaxResponseTokens: Int? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -122,6 +128,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.stageConcurrency = stageConcurrency
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
         self.gpsContext = gpsContext
+        self.modelContextWindow = modelContextWindow
+        self.modelMaxResponseTokens = modelMaxResponseTokens
     }
 }
 
@@ -186,6 +194,16 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var modelResponseRepairAttempts: Int
     /// GPS context policy for model prompts; coordinates are never written to XMP.
     public var gpsContext: GPSContextMode
+    /// Ollama `num_ctx` token window requested for every model call. Zero —
+    /// the built-in default — means "model default": no `num_ctx` is sent and
+    /// Ollama sizes the window itself. Set a positive value to pin the window
+    /// when the model's default is too small for the prompt, image tokens,
+    /// and full JSON response.
+    public var modelContextWindow: Int
+    /// Ollama `num_predict` output-token cap; healthy responses run a few
+    /// hundred tokens, so the default stops runaway generation early instead
+    /// of letting it fill the whole context window.
+    public var modelMaxResponseTokens: Int
 
     enum CodingKeys: String, CodingKey {
         case mode
@@ -210,6 +228,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case stageConcurrency = "stage_concurrency"
         case modelResponseRepairAttempts = "model_response_repair_attempts"
         case gpsContext = "gps_context"
+        case modelContextWindow = "model_context_window"
+        case modelMaxResponseTokens = "model_max_response_tokens"
     }
 
     public init(
@@ -234,7 +254,9 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         subjectMergeDominanceThreshold: Double = 0.8,
         stageConcurrency: Int = Self.defaultStageConcurrency(),
         modelResponseRepairAttempts: Int = 1,
-        gpsContext: GPSContextMode = .coarse
+        gpsContext: GPSContextMode = .coarse,
+        modelContextWindow: Int = 0,
+        modelMaxResponseTokens: Int = 2_048
     ) {
         self.mode = mode
         self.existing = existing
@@ -258,6 +280,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.stageConcurrency = stageConcurrency
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
         self.gpsContext = gpsContext
+        self.modelContextWindow = modelContextWindow
+        self.modelMaxResponseTokens = modelMaxResponseTokens
     }
 
     /// Default bounded render/isolation worker count for PW-015.
@@ -296,7 +320,9 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         subjectMergeDominanceThreshold: 0.8,
         stageConcurrency: ResolvedRunConfiguration.defaultStageConcurrency(),
         modelResponseRepairAttempts: 1,
-        gpsContext: .coarse
+        gpsContext: .coarse,
+        modelContextWindow: 0,
+        modelMaxResponseTokens: 2_048
     )
 
     public init(from decoder: Decoder) throws {
@@ -332,5 +358,13 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
             GPSContextMode.self,
             forKey: .gpsContext
         ) ?? Self.builtInDefaults.gpsContext
+        self.modelContextWindow = try container.decodeIfPresent(
+            Int.self,
+            forKey: .modelContextWindow
+        ) ?? Self.builtInDefaults.modelContextWindow
+        self.modelMaxResponseTokens = try container.decodeIfPresent(
+            Int.self,
+            forKey: .modelMaxResponseTokens
+        ) ?? Self.builtInDefaults.modelMaxResponseTokens
     }
 }

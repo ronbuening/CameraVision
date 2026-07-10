@@ -131,6 +131,8 @@ public enum NormalizationDecisionExplainer {
             "the term looks like coordinates, which are never exported"
         case .gpsOnlyEvidence:
             "the only evidence is GPS context, which never becomes a keyword"
+        case .speciesWithoutBiologicalGenre:
+            "the model listed a species without a wildlife, bird, or plant genre"
         case .unknownSessionContextRejected:
             "session context did not match the vocabulary and the policy is reject"
         case .unknownSessionContextFlatOnly:

@@ -39,7 +39,25 @@
   // There is no current CLI flag for this key.
   "model_keep_alive": "30m",
 
-  // Model input rendering profile. Options:
+  // Ollama num_ctx token window requested for every model call. 0 — the
+  // built-in default — sends no num_ctx and lets Ollama's own model default
+  // apply. Set a positive value (up to the model's limit, e.g. 262144 for
+  // 256k models) to pin the window when the model default is too small for
+  // the prompt, image tokens, and full JSON response — the KV cache grows
+  // with the window.
+  // Environment-only equivalent: AISIDECAR_MODEL_CONTEXT_WINDOW.
+  // There is no current CLI flag for this key.
+  "model_context_window": 0,
+
+  // Ollama num_predict output-token cap for every model call. Healthy
+  // responses run a few hundred tokens; the cap stops a runaway generation
+  // loop early instead of letting it fill the whole context window.
+  // Environment-only equivalent: AISIDECAR_MODEL_MAX_RESPONSE_TOKENS.
+  // There is no current CLI flag for this key.
+  "model_max_response_tokens": 2048,
+
+  // Model input rendering profile: controls the rendered image size sent to
+  // the model (long edge 2048, 1024, or 1536 pixels). Options:
   // "gemma4-26b-default", "gemma4-26b-benchmark-1024", "gemma4-26b-benchmark-1536".
   "profile": "gemma4-26b-default",
 

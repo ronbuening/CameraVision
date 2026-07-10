@@ -104,6 +104,10 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
     public var timeoutSeconds: Double
     public var retryLimit: Int
     public var contextWindow: Int?
+    /// Ollama `num_predict` output-token cap. A grammar or prompt failure can
+    /// otherwise loop until the context window fills; healthy responses run a
+    /// few hundred tokens, so the default leaves generous headroom.
+    public var maxResponseTokens: Int?
     public var responseRepairAttempts: Int
 
     enum CodingKeys: String, CodingKey {
@@ -114,6 +118,7 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
         case timeoutSeconds = "timeout_seconds"
         case retryLimit = "retry_limit"
         case contextWindow = "context_window"
+        case maxResponseTokens = "max_response_tokens"
         case responseRepairAttempts = "response_repair_attempts"
     }
 
@@ -125,6 +130,7 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
         timeoutSeconds: Double = 180,
         retryLimit: Int = 2,
         contextWindow: Int? = nil,
+        maxResponseTokens: Int? = 2_048,
         responseRepairAttempts: Int = 1
     ) {
         self.temperature = temperature
@@ -134,6 +140,7 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
         self.timeoutSeconds = timeoutSeconds
         self.retryLimit = retryLimit
         self.contextWindow = contextWindow
+        self.maxResponseTokens = maxResponseTokens
         self.responseRepairAttempts = responseRepairAttempts
     }
 
@@ -148,6 +155,8 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
         self.timeoutSeconds = try container.decode(Double.self, forKey: .timeoutSeconds)
         self.retryLimit = try container.decode(Int.self, forKey: .retryLimit)
         self.contextWindow = try container.decodeIfPresent(Int.self, forKey: .contextWindow)
+        // Absent in pre-1.5.1 records, whose runs genuinely had no cap.
+        self.maxResponseTokens = try container.decodeIfPresent(Int.self, forKey: .maxResponseTokens)
         self.responseRepairAttempts = try container.decodeIfPresent(
             Int.self,
             forKey: .responseRepairAttempts

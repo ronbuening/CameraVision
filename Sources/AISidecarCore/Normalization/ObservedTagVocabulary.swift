@@ -98,7 +98,7 @@ public enum ObservedTagVocabulary {
                     continue
                 }
                 switch skipped.reason {
-                case .coordinateLikeTerm, .gpsOnlyEvidence, .specificTagPolicy:
+                case .coordinateLikeTerm, .gpsOnlyEvidence, .speciesWithoutBiologicalGenre, .specificTagPolicy:
                     blocked.insert(CandidateObservationKey(candidate: candidate))
                 default:
                     continue

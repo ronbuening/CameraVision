@@ -437,6 +437,8 @@ private extension SkippedCandidateReason {
             self = .coordinateLikeTerm
         case .gpsOnlyEvidence:
             self = .gpsOnlyEvidence
+        case .speciesWithoutBiologicalGenre:
+            self = .speciesWithoutBiologicalGenre
         case .unknownSessionContextRejected:
             self = .unknownSessionContextRejected
         case .unknownSessionContextFlatOnly:
