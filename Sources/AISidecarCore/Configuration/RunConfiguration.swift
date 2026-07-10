@@ -194,10 +194,11 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var modelResponseRepairAttempts: Int
     /// GPS context policy for model prompts; coordinates are never written to XMP.
     public var gpsContext: GPSContextMode
-    /// Ollama `num_ctx` token window requested for every model call. The
-    /// default leaves headroom for the prompt, image tokens, and a full
-    /// evidence-bearing JSON response instead of relying on Ollama's
-    /// smaller runtime default.
+    /// Ollama `num_ctx` token window requested for every model call. Zero —
+    /// the built-in default — means "model default": no `num_ctx` is sent and
+    /// Ollama sizes the window itself. Set a positive value to pin the window
+    /// when the model's default is too small for the prompt, image tokens,
+    /// and full JSON response.
     public var modelContextWindow: Int
     /// Ollama `num_predict` output-token cap; healthy responses run a few
     /// hundred tokens, so the default stops runaway generation early instead
@@ -254,7 +255,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         stageConcurrency: Int = Self.defaultStageConcurrency(),
         modelResponseRepairAttempts: Int = 1,
         gpsContext: GPSContextMode = .coarse,
-        modelContextWindow: Int = 8_192,
+        modelContextWindow: Int = 0,
         modelMaxResponseTokens: Int = 2_048
     ) {
         self.mode = mode
@@ -320,7 +321,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         stageConcurrency: ResolvedRunConfiguration.defaultStageConcurrency(),
         modelResponseRepairAttempts: 1,
         gpsContext: .coarse,
-        modelContextWindow: 8_192,
+        modelContextWindow: 0,
         modelMaxResponseTokens: 2_048
     )
 

@@ -325,7 +325,7 @@ struct SettingsSheet: View {
                 Divider().overlay(theme.border)
                 settingRow(
                     "Model context window",
-                    caption: "Ollama num_ctx tokens per call — match it to what the model supports."
+                    caption: "Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
                 ) {
                     contextWindowMenu
                 }
@@ -517,15 +517,15 @@ struct SettingsSheet: View {
                     settings.setModelContextWindow(tokens)
                 } label: {
                     if tokens == settings.modelContextWindow {
-                        Label("\(tokens)", systemImage: "checkmark")
+                        Label(ModelTuning.contextWindowLabel(tokens), systemImage: "checkmark")
                     } else {
-                        Text("\(tokens)")
+                        Text(ModelTuning.contextWindowLabel(tokens))
                     }
                 }
             }
         } label: {
             HStack(spacing: 6) {
-                Text("\(settings.modelContextWindow)")
+                Text(ModelTuning.contextWindowLabel(settings.modelContextWindow))
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 Text("▾").font(.system(size: 9))
             }

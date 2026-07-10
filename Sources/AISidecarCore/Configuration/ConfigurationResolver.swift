@@ -304,7 +304,7 @@ public enum ConfigurationResolver {
                 from: environment["AISIDECAR_GPS_CONTEXT"],
                 key: "AISIDECAR_GPS_CONTEXT"
             ),
-            modelContextWindow: try intValue(
+            modelContextWindow: try nonNegativeIntValue(
                 from: environment["AISIDECAR_MODEL_CONTEXT_WINDOW"],
                 key: "AISIDECAR_MODEL_CONTEXT_WINDOW"
             ),
@@ -731,8 +731,8 @@ private struct ConfigurationBuilder {
         guard modelResponseRepairAttempts >= 0 else {
             throw SidecarError.configInvalid("model_response_repair_attempts must be zero or greater")
         }
-        guard modelContextWindow > 0 else {
-            throw SidecarError.configInvalid("model_context_window must be greater than zero")
+        guard modelContextWindow >= 0 else {
+            throw SidecarError.configInvalid("model_context_window must be zero (model default) or greater")
         }
         guard modelMaxResponseTokens > 0 else {
             throw SidecarError.configInvalid("model_max_response_tokens must be greater than zero")

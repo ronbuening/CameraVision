@@ -334,7 +334,7 @@ struct Step3OptionsView: View {
                     Text("Existing .ai.json: the tool's own analysis files, not your .xmp.")
                     Text("Merge keeps keywords already in your .xmp; Backup & Merge writes a .xmp.bak first.")
                     Text("Image size: longest edge of the render sent to the model — smaller is faster, larger keeps fine detail.")
-                    Text("Context window: Ollama num_ctx tokens per call — match it to what the model supports.")
+                    Text("Context window: Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide.")
                 }
                 .font(.system(size: 11))
                 .foregroundStyle(theme.textFaint)
@@ -360,15 +360,15 @@ struct Step3OptionsView: View {
                     options.contextWindow = tokens
                 } label: {
                     if tokens == options.contextWindow {
-                        Label("\(tokens)", systemImage: "checkmark")
+                        Label(ModelTuning.contextWindowLabel(tokens), systemImage: "checkmark")
                     } else {
-                        Text("\(tokens)")
+                        Text(ModelTuning.contextWindowLabel(tokens))
                     }
                 }
             }
         } label: {
             HStack(spacing: 6) {
-                Text("\(options.contextWindow)")
+                Text(ModelTuning.contextWindowLabel(options.contextWindow))
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 Text("▾").font(.system(size: 9))
             }

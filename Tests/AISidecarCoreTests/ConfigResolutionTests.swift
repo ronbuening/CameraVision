@@ -15,7 +15,9 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.modelKeepAlive, "30m")
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 1)
         XCTAssertEqual(resolved.gpsContext, .coarse)
-        XCTAssertEqual(resolved.modelContextWindow, 8_192)
+        // 0 = "model default": the pipeline sends no num_ctx until a positive
+        // value is configured.
+        XCTAssertEqual(resolved.modelContextWindow, 0)
         XCTAssertEqual(resolved.modelMaxResponseTokens, 2_048)
     }
 

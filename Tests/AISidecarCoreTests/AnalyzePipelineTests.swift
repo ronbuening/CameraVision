@@ -75,6 +75,47 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertFalse(captured.thinkingEnabled)
     }
 
+    func testContextWindowZeroSendsNoNumCtxAndPositivePinsIt() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("A.JPG", in: root)
+
+        // Built-in default (0) means "model default": no num_ctx reaches the runner.
+        let defaultRunner = RecordingVisionModelRunner()
+        _ = try await pipeline(runner: defaultRunner).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+        let defaultCalls = await defaultRunner.capturedCalls()
+        let defaultCall = try XCTUnwrap(defaultCalls.first)
+        XCTAssertNil(defaultCall.contextWindow)
+
+        let pinnedRunner = RecordingVisionModelRunner()
+        _ = try await pipeline(runner: pinnedRunner).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                existing: .overwrite,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path,
+                modelContextWindow: 16_384
+            )
+        )
+        let pinnedCalls = await pinnedRunner.capturedCalls()
+        let pinnedCall = try XCTUnwrap(pinnedCalls.first)
+        XCTAssertEqual(pinnedCall.contextWindow, 16_384)
+    }
+
     func testBothModeWritesTwoRunsPerImageAndSerializesModelCalls() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -525,7 +566,8 @@ final class AnalyzePipelineTests: XCTestCase {
         stageConcurrency: Int = 2,
         modelKeepAlive: String = ModelRunOptions.default.keepAlive,
         clearDerivativeCacheOnStart: Bool = false,
-        clearDerivativeCacheAfterSuccess: Bool = false
+        clearDerivativeCacheAfterSuccess: Bool = false,
+        modelContextWindow: Int = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
     ) -> ResolvedRunConfiguration {
         ResolvedRunConfiguration(
             mode: mode,
@@ -545,7 +587,8 @@ final class AnalyzePipelineTests: XCTestCase {
             derivativeCacheSizeBytes: 20 * 1024 * 1024,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess,
-            stageConcurrency: stageConcurrency
+            stageConcurrency: stageConcurrency,
+            modelContextWindow: modelContextWindow
         )
     }
 
@@ -734,6 +777,7 @@ private struct CapturedModelCall: Sendable, Equatable {
     var schemaVersion: String
     var keepAlive: String
     var thinkingEnabled: Bool
+    var contextWindow: Int?
 }
 
 private struct RoleFailure: Sendable {
@@ -811,7 +855,8 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
                 promptText: prompt.text,
                 schemaVersion: schema.version,
                 keepAlive: options.keepAlive,
-                thinkingEnabled: options.thinkingEnabled
+                thinkingEnabled: options.thinkingEnabled,
+                contextWindow: options.contextWindow
             )
         )
         await onAnalyze?(inputRole)

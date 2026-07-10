@@ -113,9 +113,11 @@ final class GoldenSidecarTests: XCTestCase {
         let prompt = try PromptRegistry.prompt(for: role)
         let schema = try ResponseSchemas.schema(for: role)
         // Mirror the options AnalyzePipeline derives from built-in defaults so
-        // the golden sidecar matches what a real run records.
+        // the golden sidecar matches what a real run records (0 = "model
+        // default" sends no num_ctx).
         var requestOptions = ModelRunOptions.default
-        requestOptions.contextWindow = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
+        let configuredWindow = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
+        requestOptions.contextWindow = configuredWindow > 0 ? configuredWindow : nil
         return ModelRunRecord(
             inputRole: role,
             model: context.model,

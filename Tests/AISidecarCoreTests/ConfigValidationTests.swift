@@ -178,10 +178,23 @@ final class ConfigValidationTests: XCTestCase {
     }
 
     func testInvalidModelContextWindowFailsAsConfigInvalid() throws {
+        // 0 is the valid "model default" sentinel; only negatives are invalid.
+        let zero = try ConfigurationResolver.resolve(
+            environment: [:],
+            defaultConfigPath: writeConfig(#"{ "model_context_window": 0 }"#)
+        )
+        XCTAssertEqual(zero.modelContextWindow, 0)
+
+        let zeroEnv = try ConfigurationResolver.resolve(
+            environment: ["AISIDECAR_MODEL_CONTEXT_WINDOW": "0"],
+            defaultConfigPath: missingConfigPath()
+        )
+        XCTAssertEqual(zeroEnv.modelContextWindow, 0)
+
         try assertConfigInvalid {
             _ = try ConfigurationResolver.resolve(
                 environment: [:],
-                defaultConfigPath: writeConfig(#"{ "model_context_window": 0 }"#)
+                defaultConfigPath: writeConfig(#"{ "model_context_window": -1 }"#)
             )
         }
 

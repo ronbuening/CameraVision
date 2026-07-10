@@ -124,7 +124,6 @@
       "prompt_version" : "aisidecar.prompt.whole_image/1.5.0",
       "raw_response_text" : "{\"behavior_or_action\":[{\"confidence\":\"high\",\"term\":\"standing\"}],\"genre_or_photography_type\":[{\"confidence\":\"high\",\"evidence\":\"bird is the primary subject\",\"term\":\"bird_photography\"}],\"habitat_or_setting\":[{\"confidence\":\"medium\",\"term\":\"wetland\"}],\"main_subjects\":[{\"confidence\":\"high\",\"evidence\":\"large gray-blue wading bird with long legs\",\"term\":\"great blue heron\"}],\"proposed_keywords\":[{\"confidence\":\"high\",\"evidence\":\"long legs and shallow water\",\"term\":\"wading bird\"}],\"scene_context\":[{\"confidence\":\"high\",\"term\":\"outdoor wildlife scene\"}],\"secondary_subjects\":[{\"confidence\":\"medium\",\"evidence\":\"water surrounds the bird's legs\",\"term\":\"shallow water\"}],\"species\":[{\"confidence\":\"high\",\"evidence\":\"large gray-blue wading bird with long legs\",\"term\":\"great blue heron\"}],\"summary\":\"A great blue heron stands in shallow wetland water.\",\"uncertainty_notes\":\"\"}",
       "request_options" : {
-        "context_window" : 8192,
         "keep_alive" : "30m",
         "max_response_tokens" : 2048,
         "response_repair_attempts" : 1,
@@ -195,7 +194,6 @@
       "prompt_version" : "aisidecar.prompt.subject_isolated/1.5.0",
       "raw_response_text" : "{\"behavior_or_action\":[{\"confidence\":\"medium\",\"term\":\"standing\"}],\"genre_or_photography_type\":[{\"confidence\":\"high\",\"evidence\":\"bird body and field marks dominate the crop\",\"term\":\"bird_photography\"}],\"main_subjects\":[{\"confidence\":\"high\",\"evidence\":\"long legs, long neck, and pointed bill\",\"term\":\"heron\"}],\"proposed_keywords\":[{\"confidence\":\"high\",\"evidence\":\"straight pointed bill is visible\",\"term\":\"long bill\"}],\"secondary_subjects\":[{\"confidence\":\"medium\",\"evidence\":\"visible cool-toned feathering\",\"term\":\"gray-blue plumage\"}],\"species\":[{\"confidence\":\"high\",\"evidence\":\"long legs, long neck, and pointed bill\",\"term\":\"heron\"}],\"summary\":\"An isolated heron shows long legs, a pointed bill, and gray-blue plumage.\",\"uncertainty_notes\":\"\"}",
       "request_options" : {
-        "context_window" : 8192,
         "keep_alive" : "30m",
         "max_response_tokens" : 2048,
         "response_repair_attempts" : 1,
@@ -223,7 +221,7 @@
     "log_level" : "debug",
     "mode" : "both",
     "model" : "gemma4:26b-a4b-it-qat",
-    "model_context_window" : 8192,
+    "model_context_window" : 0,
     "model_endpoint" : "http://localhost:11434",
     "model_keep_alive" : "30m",
     "model_max_response_tokens" : 2048,

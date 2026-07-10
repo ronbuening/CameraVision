@@ -39,13 +39,15 @@
   // There is no current CLI flag for this key.
   "model_keep_alive": "30m",
 
-  // Ollama num_ctx token window requested for every model call. The default
-  // leaves headroom for the prompt, image tokens, and the full JSON response;
-  // raise it (up to the model's limit, e.g. 262144 for 256k models) or lower
-  // it to save memory — the KV cache grows with the window.
+  // Ollama num_ctx token window requested for every model call. 0 — the
+  // built-in default — sends no num_ctx and lets Ollama's own model default
+  // apply. Set a positive value (up to the model's limit, e.g. 262144 for
+  // 256k models) to pin the window when the model default is too small for
+  // the prompt, image tokens, and full JSON response — the KV cache grows
+  // with the window.
   // Environment-only equivalent: AISIDECAR_MODEL_CONTEXT_WINDOW.
   // There is no current CLI flag for this key.
-  "model_context_window": 8192,
+  "model_context_window": 0,
 
   // Ollama num_predict output-token cap for every model call. Healthy
   // responses run a few hundred tokens; the cap stops a runaway generation
