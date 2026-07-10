@@ -10,6 +10,7 @@ struct SettingsSheet: View {
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @AppStorage(PreferenceKeys.accent) private var accentChoice: AccentChoice = .copper
     @AppStorage(PreferenceKeys.logSizeCapMB) private var logSizeCapMB = GUILog.defaultSizeCapMB
+    @AppStorage(PreferenceKeys.nonlinear) private var nonlinear = false
 
     @Environment(\.cvTheme) private var theme
     @Environment(\.dismiss) private var dismiss
@@ -406,11 +407,14 @@ struct SettingsSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("INTERFACE")
             card {
-                settingRow("Nonlinear UI", caption: "Studio layout — coming soon.") {
-                    Toggle("", isOn: .constant(false))
+                settingRow(
+                    "Nonlinear UI",
+                    caption: FeatureFlags.studioUI ? "Switch between the Wizard and Studio layouts." : "Studio layout — coming soon."
+                ) {
+                    Toggle("", isOn: FeatureFlags.studioUI ? $nonlinear : .constant(false))
                         .toggleStyle(.switch)
                         .labelsHidden()
-                        .disabled(true)
+                        .disabled(!FeatureFlags.studioUI)
                 }
             }
         }

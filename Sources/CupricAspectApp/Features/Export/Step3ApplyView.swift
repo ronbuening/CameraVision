@@ -46,7 +46,9 @@ struct Step3ApplyView: View {
                         stat("\(session.sourceAssets.count) images")
                         stat("\(session.perAssetDecisions.count) keyword decisions")
                         stat("\(session.perAssetDecisions.count { $0.status == .accepted }) accepted")
-                        stat("vocabulary \(String(session.vocabulary.sha256.prefix(8)))…")
+                        if FeatureFlags.vocabularyUI {
+                            stat("vocabulary \(String(session.vocabulary.sha256.prefix(8)))…")
+                        }
                     }
                 }
                 if let loadError {

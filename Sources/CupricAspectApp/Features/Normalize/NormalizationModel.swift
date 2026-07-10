@@ -129,6 +129,11 @@ final class NormalizationModel {
         configuration.outputDir = outputDir
         if let vocabularyPath {
             configuration.vocabularyPath = vocabularyPath
+            // An explicit vocabulary file requires controlled-vocabulary mode
+            // (the resolver rejects the pair otherwise, and the pipeline's
+            // observed-tags loader ignores `vocabularyPath` entirely) — mirror
+            // the resolver's inference here since the GUI bypasses it.
+            configuration.vocabularyMode = .controlledVocabulary
         }
         configuration.sessionSubject = subject.isEmpty ? nil : subject
         configuration.sessionHabitat = habitat.isEmpty ? nil : habitat

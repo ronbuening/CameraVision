@@ -113,7 +113,22 @@ final class NormalizationModelTests: XCTestCase {
         XCTAssertFalse(configuration.allowSessionHabitatPropagation)
         XCTAssertEqual(configuration.unknownSessionContextPolicy, .writeUnnormalized)
         XCTAssertEqual(configuration.vocabularyPath, "/tmp/vocab.json")
+        XCTAssertEqual(
+            configuration.vocabularyMode, .controlledVocabulary,
+            "an explicit vocabulary file implies controlled-vocabulary mode; in observed-tags mode the pipeline ignores the path"
+        )
         XCTAssertEqual(configuration.sourceRoot, "/src")
+    }
+
+    /// The vocabulary-UI-hidden default (and any run without a chosen file):
+    /// built-in defaults all the way — observed-tags catalog, reject policy.
+    @MainActor
+    func testNoVocabularyFileKeepsBuiltInDefaults() {
+        let model = NormalizationModel(stateDirectory: root)
+        let configuration = model.buildConfiguration(sourceRoot: "/src", outputDir: "/out")
+        XCTAssertNil(configuration.vocabularyPath)
+        XCTAssertEqual(configuration.vocabularyMode, .observedTags)
+        XCTAssertEqual(configuration.unknownSessionContextPolicy, .reject)
     }
 
     @MainActor

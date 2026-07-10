@@ -13,3 +13,4 @@ Rules specific to this target:
 - Option controls map to Core enums (`AnalysisMode`, `ExistingPolicy`, `GPSContextMode`, `XMPPairScope`) — do not invent option values (FR4-044).
 - No sample/placeholder data in shipped screens (FR4-045).
 - Shells (`Shells/`) are chrome only; feature views and state live in `Features/` and are embedded by both shells so switching shells never loses state (FR4-041).
+- UI for a not-yet-shipped feature is gated behind a hidden, off-by-default flag in `Support/FeatureFlags.swift` (a `CUPRIC_*` env var, following the existing dev-hook convention). Gates are presentation-only: the default (flag off) must preserve today's behavior exactly. Current gates: `CUPRIC_VOCABULARY_UI` (controlled-vocabulary UI) and `CUPRIC_STUDIO_UI` (Studio shell). Document new flags in `agent_docs/testing-and-verification.md`.

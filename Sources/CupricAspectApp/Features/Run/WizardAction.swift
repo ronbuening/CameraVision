@@ -22,7 +22,10 @@ enum WizardAction: String, CaseIterable, Sendable {
         switch self {
         case .analyze: "Write auditable .ai.json sidecars. No XMP is created — safest first pass."
         case .write: "Analyze, then export accepted keywords straight to .xmp for Lightroom Classic & Capture One."
-        case .normalize: "The full pipeline — reconcile keywords batch-wide under your vocabulary and consensus rules, then write normalized XMP."
+        case .normalize:
+            FeatureFlags.vocabularyUI
+                ? "The full pipeline — reconcile keywords batch-wide under your vocabulary and consensus rules, then write normalized XMP."
+                : "The full pipeline — reconcile keywords batch-wide under your consensus rules, then write normalized XMP."
         case .apply: "Re-apply a saved normalization session — no model runs, no re-analysis."
         }
     }

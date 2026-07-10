@@ -74,7 +74,7 @@ Presentation and state orchestration only (invariant 13); all processing stays i
 | `Features/Normalize/` | Normalization Inspector, session context panel | `NormalizationModel`, `NormalizationInspectorView`, `SessionContextPanel` |
 | `Features/Export/` | Change-plan-fronted writes, export reports | `ExportModel`, `ChangePlanSheet`, `Step3ApplyView` |
 | `Features/Settings/` | Settings sheet, config.json write-through, model picker | `SettingsModel`, `SettingsSheet` |
-| `Support/` | File logging (5 MB cap + rotation), state-dir housekeeping | `FileLogSink` (`GUILog.swift`), `StateHousekeeping` |
+| `Support/` | File logging (5 MB cap + rotation), state-dir housekeeping, hidden `CUPRIC_*` feature-flag gates | `FileLogSink` (`GUILog.swift`), `StateHousekeeping`, `FeatureFlags` |
 
 GUI model tests live in `Tests/CupricAspectAppTests` (offline, deterministic — same rules as Core tests).
 
