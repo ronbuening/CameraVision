@@ -30,10 +30,13 @@ public struct OllamaHTTPResponse: Sendable, Equatable {
 public enum OllamaHTTPTransportError: Error, Sendable, Equatable, LocalizedError {
     case timeout(String)
     case unreachable(String)
+    case clientError(Int, String)
 
     public var errorDescription: String? {
         switch self {
         case .timeout(let message), .unreachable(let message):
+            return message
+        case .clientError(_, let message):
             return message
         }
     }

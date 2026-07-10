@@ -11,6 +11,7 @@ final class ErrorTaxonomyTests: XCTestCase {
             "E_SUBJECT_ISOLATION_NO_FOREGROUND",
             "E_SUBJECT_ISOLATION_FAILED",
             "E_MODEL_ENDPOINT_UNREACHABLE",
+            "E_MODEL_RESPONSE_INVALID",
             "E_MODEL_TAG_NOT_FOUND",
             "E_MODEL_TIMEOUT",
             "E_MODEL_INVALID_JSON",

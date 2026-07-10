@@ -12,6 +12,7 @@ public enum SidecarErrorCode: String, Codable, CaseIterable, Sendable {
     case subjectIsolationNoForeground = "E_SUBJECT_ISOLATION_NO_FOREGROUND"
     case subjectIsolationFailed = "E_SUBJECT_ISOLATION_FAILED"
     case modelEndpointUnreachable = "E_MODEL_ENDPOINT_UNREACHABLE"
+    case modelResponseInvalid = "E_MODEL_RESPONSE_INVALID"
     case modelTagNotFound = "E_MODEL_TAG_NOT_FOUND"
     case modelTimeout = "E_MODEL_TIMEOUT"
     case modelInvalidJSON = "E_MODEL_INVALID_JSON"

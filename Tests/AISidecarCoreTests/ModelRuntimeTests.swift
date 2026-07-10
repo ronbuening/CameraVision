@@ -98,6 +98,43 @@ final class ModelRuntimeTests: XCTestCase {
         }
     }
 
+    func testPrepareRetriesMalformedSuccessfulResponseOnce() async throws {
+        let transport = RecordingOllamaTransport([
+            .success(jsonResponse("{")),
+            .success(jsonResponse("""
+            {"models":[{"name":"gemma4:26b-a4b-it-qat","model":"gemma4:26b-a4b-it-qat","digest":"abc123"}]}
+            """)),
+            .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
+            .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
+            .success(jsonResponse(#"{"version":"0.12.6"}"#))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let context = try await runner.prepare(configuration: .builtInDefaults)
+
+        XCTAssertEqual(context.model, "gemma4:26b-a4b-it-qat")
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.map(\.path), ["/api/tags", "/api/tags", "/api/show", "/api/show", "/api/version"])
+    }
+
+    func testPrepareClassifiesRepeatedMalformedSuccessfulResponse() async {
+        let transport = RecordingOllamaTransport([
+            .success(jsonResponse("{")),
+            .success(jsonResponse("{"))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        do {
+            _ = try await runner.prepare(configuration: .builtInDefaults)
+            XCTFail("Expected E_MODEL_RESPONSE_INVALID")
+        } catch let error as SidecarError {
+            XCTAssertEqual(error.code, .modelResponseInvalid)
+            XCTAssertTrue(error.message.contains("/api/tags"))
+        } catch {
+            XCTFail("Expected SidecarError")
+        }
+    }
+
     func testAnalyzeEncodesOllamaChatRequestAndValidResponseRecord() async throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
@@ -222,6 +259,171 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertTrue(record.jsonValid)
         let requests = await transport.capturedRequests()
         XCTAssertEqual(requests.count, 3)
+    }
+
+    func testAnalyzeDoesNotRetryHTTP4xxAndIncludesOllamaErrorBody() async throws {
+        let imageURL = try writeModelInput()
+        let transport = RecordingOllamaTransport([
+            .success(jsonResponse(#"{"error":"model requires more memory"}"#, statusCode: 400))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: 2),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertEqual(record.error?.code, .modelEndpointUnreachable)
+        XCTAssertTrue(record.error?.message.contains("model requires more memory") == true)
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 1)
+    }
+
+    func testAnalyzeRetriesHTTP5xxAndIncludesOllamaErrorBody() async throws {
+        let imageURL = try writeModelInput()
+        let transport = RecordingOllamaTransport([
+            .success(jsonResponse(#"{"error":"server overloaded"}"#, statusCode: 503)),
+            .success(chatResponse(content: #"{"summary":"Recovered"}"#))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: 2),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertTrue(record.jsonValid)
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 2)
+    }
+
+    func testAnalyzeReportsLastHTTP5xxErrorBodyAfterRetriesAreExhausted() async throws {
+        let imageURL = try writeModelInput()
+        let transport = RecordingOllamaTransport([
+            .success(jsonResponse(#"{"error":"warming up"}"#, statusCode: 503)),
+            .success(jsonResponse(#"{"error":"still overloaded"}"#, statusCode: 503))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: 1),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertEqual(record.error?.code, .modelEndpointUnreachable)
+        XCTAssertTrue(record.error?.message.contains("still overloaded") == true)
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 2)
+    }
+
+    func testAnalyzeDoesNotEmbedOversizedOllamaErrorBody() async throws {
+        let imageURL = try writeModelInput()
+        let oversizedDetail = String(repeating: "private-diagnostic-", count: 4_000)
+        let body = try JSONEncoder().encode(["error": oversizedDetail])
+        let transport = RecordingOllamaTransport([
+            .success(OllamaHTTPResponse(statusCode: 400, data: body))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: 2),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertEqual(record.error?.code, .modelEndpointUnreachable)
+        XCTAssertFalse(record.error?.message.contains("private-diagnostic") == true)
+        XCTAssertTrue(record.error?.message.contains("HTTP 400 from /api/chat") == true)
+    }
+
+    func testAnalyzeRetriesMalformedSuccessfulResponseOnce() async throws {
+        let imageURL = try writeModelInput()
+        let transport = RecordingOllamaTransport([
+            .success(jsonResponse(#"{"unexpected":true}"#)),
+            .success(chatResponse(content: #"{"summary":"Recovered"}"#))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: 0),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertTrue(record.jsonValid)
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 2)
+    }
+
+    func testAnalyzeInterruptionPreventsMalformedResponseRetry() async throws {
+        let imageURL = try writeModelInput()
+        let monitor = InterruptionMonitor()
+        let transport = RecordingOllamaTransport(
+            [
+                .success(jsonResponse(#"{"unexpected":true}"#)),
+                .success(chatResponse(content: #"{"summary":"never reached"}"#))
+            ],
+            onSend: { requestCount in
+                if requestCount == 1 {
+                    monitor.requestInterruption()
+                }
+            }
+        )
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: 2),
+            runtime: runtimeContext(),
+            isInterrupted: { monitor.isInterrupted }
+        )
+
+        XCTAssertEqual(record.error?.code, .interrupted)
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 1)
+    }
+
+    func testAnalyzeClassifiesRepeatedMalformedSuccessfulResponse() async throws {
+        let imageURL = try writeModelInput()
+        let transport = RecordingOllamaTransport([
+            .success(jsonResponse(#"{"unexpected":true}"#)),
+            .success(jsonResponse(#"{"unexpected":true}"#))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: 2),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertEqual(record.error?.code, .modelResponseInvalid)
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 2)
     }
 
     func testAnalyzeStopsRetryingWhenInterruptedBetweenAttempts() async throws {

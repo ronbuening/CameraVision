@@ -288,14 +288,21 @@ public struct OllamaVisionRunner: VisionModelRunner {
         request: OllamaHTTPRequest,
         endpoint: URL
     ) async throws -> T {
-        let response = try await transport.send(request, endpoint: endpoint)
-        guard (200..<300).contains(response.statusCode) else {
-            throw OllamaHTTPTransportError.unreachable("HTTP \(response.statusCode) from \(request.path).")
-        }
-        do {
-            return try Self.decoder().decode(type, from: response.data)
-        } catch {
-            throw OllamaHTTPTransportError.unreachable("Invalid JSON from \(request.path): \(error.localizedDescription)")
+        var decodeRetriesRemaining = 1
+        while true {
+            let response = try await transport.send(request, endpoint: endpoint)
+            guard (200..<300).contains(response.statusCode) else {
+                throw Self.httpError(for: response, path: request.path)
+            }
+            do {
+                return try Self.decoder().decode(type, from: response.data)
+            } catch {
+                if decodeRetriesRemaining > 0 {
+                    decodeRetriesRemaining -= 1
+                    continue
+                }
+                throw Self.invalidResponseError(path: request.path, decodingError: error)
+            }
         }
     }
 
@@ -340,13 +347,22 @@ public struct OllamaVisionRunner: VisionModelRunner {
         options: ModelRunOptions,
         isInterrupted: (@Sendable () -> Bool)?
     ) async throws -> OllamaChatResponse {
-        let response = try await sendChatWithRetries(
-            request,
-            endpoint: endpoint,
-            options: options,
-            isInterrupted: isInterrupted
-        )
-        return try decodeChatResponse(response)
+        var decodeRetriesRemaining = 1
+        while true {
+            let response = try await sendChatWithRetries(
+                request,
+                endpoint: endpoint,
+                options: options,
+                isInterrupted: isInterrupted
+            )
+            do {
+                return try decodeChatResponse(response)
+            } catch let error as SidecarError
+                where error.code == .modelResponseInvalid && decodeRetriesRemaining > 0 {
+                try Self.checkInterruption(isInterrupted)
+                decodeRetriesRemaining -= 1
+            }
+        }
     }
 
     private func sendChatWithRetries(
@@ -363,11 +379,15 @@ public struct OllamaVisionRunner: VisionModelRunner {
             do {
                 let response = try await transport.send(request, endpoint: endpoint)
                 guard (200..<300).contains(response.statusCode) else {
-                    throw OllamaHTTPTransportError.unreachable("HTTP \(response.statusCode) from /api/chat.")
+                    throw Self.httpError(for: response, path: "/api/chat")
                 }
                 return response
             } catch {
                 try Self.checkInterruption(isInterrupted)
+                if let transportError = error as? OllamaHTTPTransportError,
+                    case .clientError = transportError {
+                    throw endpointUnreachable(error)
+                }
                 lastError = error
                 if attempt == maxAttempts {
                     break
@@ -401,13 +421,40 @@ public struct OllamaVisionRunner: VisionModelRunner {
         do {
             return try Self.decoder().decode(OllamaChatResponse.self, from: response.data)
         } catch {
-            throw SidecarError(
-                code: .modelEndpointUnreachable,
-                stage: .model,
-                message: "Invalid Ollama /api/chat response: \(error.localizedDescription)",
-                recoverable: true
-            )
+            throw Self.invalidResponseError(path: "/api/chat", decodingError: error)
         }
+    }
+
+    private static func httpError(for response: OllamaHTTPResponse, path: String) -> OllamaHTTPTransportError {
+        var message = "HTTP \(response.statusCode) from \(path)."
+        if let detail = ollamaErrorMessage(from: response.data) {
+            message = "HTTP \(response.statusCode) from \(path): \(detail)"
+        }
+        if (500..<600).contains(response.statusCode) {
+            return .unreachable(message)
+        }
+        return .clientError(response.statusCode, message)
+    }
+
+    private static func ollamaErrorMessage(from data: Data) -> String? {
+        guard data.count <= 65_536,
+            let response = try? decoder().decode(OllamaErrorResponse.self, from: data) else {
+            return nil
+        }
+        let message = response.error.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else {
+            return nil
+        }
+        return String(message.prefix(2_048))
+    }
+
+    private static func invalidResponseError(path: String, decodingError: Error) -> SidecarError {
+        SidecarError(
+            code: .modelResponseInvalid,
+            stage: .model,
+            message: "Invalid Ollama response from \(path): \(decodingError.localizedDescription)",
+            recoverable: true
+        )
     }
 
     private func evaluateModelResponse(_ rawResponseText: String, schema: JSONSchemaDocument) -> ModelResponseEvaluation {
@@ -644,6 +691,10 @@ private struct OllamaShowRequest: Encodable {
 
 private struct OllamaShowResponse: Decodable {
     var capabilities: [String]
+}
+
+private struct OllamaErrorResponse: Decodable {
+    var error: String
 }
 
 private struct OllamaChatRequest: Encodable {
