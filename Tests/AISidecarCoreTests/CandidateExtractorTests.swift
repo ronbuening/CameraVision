@@ -32,10 +32,10 @@ final class CandidateExtractorTests: XCTestCase {
         XCTAssertEqual(birdPhotography.candidates.map(\.provenance.inputRole), [.wholeImage, .subjectIsolated])
         XCTAssertEqual(birdPhotography.candidates.first?.provenance.model, "gemma4:26b-a4b-it-qat")
         XCTAssertEqual(birdPhotography.candidates.first?.provenance.runtime, "ollama")
-        XCTAssertEqual(birdPhotography.candidates.first?.provenance.promptVersion, "aisidecar.prompt.whole_image/1.4.0")
+        XCTAssertEqual(birdPhotography.candidates.first?.provenance.promptVersion, "aisidecar.prompt.whole_image/1.5.0")
         XCTAssertEqual(
             birdPhotography.candidates.first?.provenance.responseSchemaVersion,
-            "urn:aisidecar:response:whole-image:1.4.0"
+            "urn:aisidecar:response:whole-image:1.5.0"
         )
         XCTAssertEqual(
             result.skippedCandidates
@@ -237,6 +237,37 @@ final class CandidateExtractorTests: XCTestCase {
             result.skippedCandidates.map(\.reason),
             [.coordinateLikeTerm, .coordinateLikeTerm, .gpsOnlyEvidence]
         )
+    }
+
+    func testSpeciesWithoutBiologicalGenreIsSkipped() throws {
+        // Schema 1.5.0 always requires `species`, so the old "species only
+        // for wildlife/bird/plant genres" contract is enforced here.
+        let input = try resolvedInput(response: response([
+            .genreOrPhotographyType: .array([candidate("landscape", confidence: "high", evidence: "wide mountain vista")]),
+            .species: .array([candidate("Douglas fir", confidence: "medium", evidence: "conical evergreen silhouette")]),
+            .proposedKeywords: .array([candidate("evergreen forest", confidence: "high", evidence: "dense conifer stand")])
+        ]))
+
+        let result = CandidateExtractor().extract(from: input, configuration: configuration())
+
+        XCTAssertEqual(result.flatKeywords.map(\.term), ["landscape", "evergreen forest"])
+        let skipped = result.skippedCandidates.filter { $0.reason == .speciesWithoutBiologicalGenre }
+        XCTAssertEqual(skipped.map(\.term), ["Douglas fir"])
+        XCTAssertEqual(skipped.first?.candidate?.provenance.sourceField, .species)
+    }
+
+    func testSpeciesWithMissingGenreFieldIsKeptForLegacyResponses() throws {
+        // The guard only fires when a genre list is present without a
+        // biological entry; responses that omit genres entirely (older or
+        // partially parsed sidecars) keep their species terms.
+        let input = try resolvedInput(response: response([
+            .species: .array([candidate("Great Egret", confidence: "high", evidence: "white plumage and yellow bill")])
+        ]))
+
+        let result = CandidateExtractor().extract(from: input, configuration: configuration())
+
+        XCTAssertEqual(result.flatKeywords.map(\.term), ["Great Egret"])
+        XCTAssertTrue(result.skippedCandidates.filter { $0.reason == .speciesWithoutBiologicalGenre }.isEmpty)
     }
 
     func testDisabledFlatAndHierarchicalExportsRecordSkippedReasons() throws {

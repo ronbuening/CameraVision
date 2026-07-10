@@ -40,8 +40,11 @@ public struct GPSModelInputContext: Codable, Sendable, Equatable {
 
     /// Deterministic prompt block appended only when GPS context is available.
     ///
-    /// The instructions keep GPS as external context, not output metadata or
-    /// candidate evidence; XMP export has a separate guard for model mistakes.
+    /// Since prompt v1.5.0 the base prompts carry no GPS or external-context
+    /// language, so this block is the model's only source for both the
+    /// coordinates and the rules governing them. The instructions keep GPS as
+    /// external context, not output metadata or candidate evidence; XMP export
+    /// has a separate guard for model mistakes.
     public var promptBlock: String {
         let precisionLine = precisionDegrees.map {
             "\n- coordinate_precision_degrees: \(Self.format($0, fractionDigits: 1))"
@@ -49,15 +52,15 @@ public struct GPSModelInputContext: Codable, Sendable, Equatable {
         return """
         MODEL INPUT CONTEXT
 
-        GPS capture context:
+        GPS capture context from the image file's EXIF data, not from the image itself:
         - mode: \(mode.rawValue)
         - latitude: \(Self.format(latitude, fractionDigits: mode == .coarse ? 1 : 6))
         - longitude: \(Self.format(longitude, fractionDigits: mode == .coarse ? 1 : 6))\(precisionLine)
 
-        Use GPS only as external capture context to narrow identifications already supported by visible image evidence.
-        Do not use GPS as the only reason for a location, species, subject, behavior, habitat, or keyword.
-        Do not cite GPS, coordinates, EXIF, geotagging, range, or commonness as candidate evidence.
-        Do not output coordinates, GPS labels, latitude/longitude, geotag terms, or exact-location keywords.
+        Use this context only to narrow an identification that visible image evidence already supports.
+        Never use this context as the sole reason for a location, species, subject, behavior, habitat, or keyword.
+        Never cite GPS, coordinates, EXIF, geotagging, range, or commonness in evidence strings; evidence stays visual.
+        Never output coordinates, GPS labels, latitude/longitude, geotag terms, or exact-location keywords.
         """
     }
 

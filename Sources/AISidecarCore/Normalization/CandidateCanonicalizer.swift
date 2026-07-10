@@ -671,6 +671,8 @@ public struct CandidateCanonicalizer {
                     reasons[CandidateObservationKey(candidate: candidate)] = .coordinateLikeTerm
                 case .gpsOnlyEvidence:
                     reasons[CandidateObservationKey(candidate: candidate)] = .gpsOnlyEvidence
+                case .speciesWithoutBiologicalGenre:
+                    reasons[CandidateObservationKey(candidate: candidate)] = .speciesWithoutBiologicalGenre
                 default:
                     continue
                 }
@@ -903,6 +905,8 @@ public struct CandidateCanonicalizer {
             return .coordinateLikeTerm
         case .gpsOnlyEvidence:
             return .gpsOnlyEvidence
+        case .speciesWithoutBiologicalGenre:
+            return .speciesWithoutBiologicalGenre
         case .unknownSessionContextRejected:
             return .unknownSessionContextRejected
         case .unknownSessionContextFlatOnly:

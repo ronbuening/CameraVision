@@ -12,6 +12,8 @@ final class AnalysisRunTests: XCTestCase {
         options.existing = .fail
         options.gps = .off
         options.concurrency = 3
+        options.profile = "gemma4-26b-benchmark-1024"
+        options.contextWindow = 4_096
 
         let configuration = try options.buildConfiguration(recursive: false, outputDir: "/tmp/out")
 
@@ -19,6 +21,8 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(configuration.existing, .fail)
         XCTAssertEqual(configuration.gpsContext, .off)
         XCTAssertEqual(configuration.stageConcurrency, 3)
+        XCTAssertEqual(configuration.profile, "gemma4-26b-benchmark-1024")
+        XCTAssertEqual(configuration.modelContextWindow, 4_096)
         XCTAssertFalse(configuration.recursive)
         XCTAssertEqual(configuration.outputDir, "/tmp/out")
     }

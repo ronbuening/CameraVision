@@ -26,9 +26,9 @@ final class JSONSidecarTests: XCTestCase {
         XCTAssertEqual(run.modelDigest, "sha256:modeldigest")
         XCTAssertEqual(run.runtime, "ollama")
         XCTAssertEqual(run.runtimeVersion, "0.12.6")
-        XCTAssertEqual(run.promptVersion, "aisidecar.prompt.whole_image/1.4.0")
+        XCTAssertEqual(run.promptVersion, "aisidecar.prompt.whole_image/1.5.0")
         XCTAssertEqual(run.promptSHA256.count, 64)
-        XCTAssertEqual(run.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.4.0")
+        XCTAssertEqual(run.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.5.0")
         XCTAssertEqual(run.requestOptions.seed, 123)
         XCTAssertFalse(run.requestOptions.thinkingEnabled)
         XCTAssertEqual(run.modelInputContext?.gps?.mode, .coarse)
@@ -164,7 +164,7 @@ final class JSONSidecarTests: XCTestCase {
             sha256: String(repeating: "b", count: 64),
             sourceIdentity: source.identity
         )
-        let prompt = VersionedPrompt(version: "aisidecar.prompt.whole_image/1.4.0", text: "Prompt")
+        let prompt = VersionedPrompt(version: "aisidecar.prompt.whole_image/1.5.0", text: "Prompt")
         let modelInputContext = ModelInputContext(gps: GPSModelInputContext(
             mode: .coarse,
             latitude: 45.1,
@@ -179,7 +179,7 @@ final class JSONSidecarTests: XCTestCase {
             runtimeVersion: "0.12.6",
             promptVersion: prompt.version,
             promptSHA256: prompt.sha256,
-            responseSchemaVersion: "urn:aisidecar:response:whole-image:1.4.0",
+            responseSchemaVersion: "urn:aisidecar:response:whole-image:1.5.0",
             requestOptions: ModelRunOptions(seed: 123),
             modelInputContext: modelInputContext,
             inputDerivativeSHA256: derivative.sha256,

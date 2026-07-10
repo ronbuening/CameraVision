@@ -66,6 +66,9 @@ public enum NormalizationCandidateSkipReason: String, Codable, CaseIterable, Sen
     case disabledHierarchicalExport = "disabled_hierarchical_export"
     case coordinateLikeTerm = "coordinate_like_term"
     case gpsOnlyEvidence = "gps_only_evidence"
+    // Additive (schema 1.5.0, invariant 7): species candidates from a model
+    // run whose genres include no wildlife/bird/plant entry.
+    case speciesWithoutBiologicalGenre = "species_without_biological_genre"
     case unknownSessionContextRejected = "unknown_session_context_rejected"
     case unknownSessionContextFlatOnly = "unknown_session_context_flat_only"
     case weakLocalAgreement = "weak_local_agreement"

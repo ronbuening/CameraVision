@@ -307,11 +307,12 @@ public struct OllamaVisionRunner: VisionModelRunner {
                     images: imageData.map { [$0.base64EncodedString()] }
                 )
             ],
-            format: schema.schema,
+            format: OllamaWireSchema.wireSchema(from: schema.schema),
             options: OllamaChatOptions(
                 temperature: options.temperature,
                 seed: options.seed,
-                numCtx: options.contextWindow
+                numCtx: options.contextWindow,
+                numPredict: options.maxResponseTokens
             ),
             stream: false,
             think: options.thinkingEnabled,
@@ -439,19 +440,32 @@ public struct OllamaVisionRunner: VisionModelRunner {
         )
     }
 
+    /// Character budget for the broken output embedded in a repair prompt.
+    ///
+    /// A runaway primary response (observed: a 27 KB repetition loop) would
+    /// otherwise fill the whole context window by itself, leaving the repair
+    /// call no room to respond — the repair then truncates and fails too.
+    /// The head carries the model's one real answer; a short tail preserves
+    /// whatever the response ended with.
+    static let repairInputHeadCharacters = 6_000
+    static let repairInputTailCharacters = 1_500
+
     private func repairPrompt(
         rawResponseText: String,
         error: SidecarError,
         schema: JSONSchemaDocument
     ) throws -> VersionedPrompt {
-        let schemaData = try Self.encoder().encode(schema.schema)
+        // Embed the compact wire schema: same contract the grammar enforces,
+        // roughly half the tokens of the authoritative document.
+        let schemaData = try Self.encoder().encode(OllamaWireSchema.wireSchema(from: schema.schema))
         let schemaText = String(decoding: schemaData, as: UTF8.self)
         let text = """
-        PROMPT_VERSION: aisidecar.prompt.model_response_repair/1.0.0
+        PROMPT_VERSION: aisidecar.prompt.model_response_repair/1.1.0
 
         Return exactly one JSON object matching the JSON Schema below.
         Do not analyze an image; no image is attached.
         Repair only the provided model output.
+        If the output repeats the same JSON object multiple times, repair the first copy and discard the rest.
         Do not add facts that are not already present in the provided model output.
         If a field cannot be recovered from the provided output, use the schema-compliant empty value.
         Do not wrap the response in Markdown.
@@ -466,12 +480,22 @@ public struct OllamaVisionRunner: VisionModelRunner {
 
         Model output to repair:
         ```text
-        \(rawResponseText)
+        \(Self.truncatedRepairInput(rawResponseText))
         ```
 
         Return only the repaired JSON object.
         """
-        return VersionedPrompt(version: "aisidecar.prompt.model_response_repair/1.0.0", text: text)
+        return VersionedPrompt(version: "aisidecar.prompt.model_response_repair/1.1.0", text: text)
+    }
+
+    static func truncatedRepairInput(_ rawResponseText: String) -> String {
+        let limit = repairInputHeadCharacters + repairInputTailCharacters
+        guard rawResponseText.count > limit else {
+            return rawResponseText
+        }
+        let head = rawResponseText.prefix(repairInputHeadCharacters)
+        let tail = rawResponseText.suffix(repairInputTailCharacters)
+        return "\(head)\n[... output truncated for repair ...]\n\(tail)"
     }
 
     private func record(
@@ -624,11 +648,13 @@ private struct OllamaChatOptions: Encodable {
     var temperature: Double
     var seed: Int
     var numCtx: Int?
+    var numPredict: Int?
 
     enum CodingKeys: String, CodingKey {
         case temperature
         case seed
         case numCtx = "num_ctx"
+        case numPredict = "num_predict"
     }
 }
 

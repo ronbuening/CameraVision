@@ -15,6 +15,10 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.modelKeepAlive, "30m")
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 1)
         XCTAssertEqual(resolved.gpsContext, .coarse)
+        // 0 = "model default": the pipeline sends no num_ctx until a positive
+        // value is configured.
+        XCTAssertEqual(resolved.modelContextWindow, 0)
+        XCTAssertEqual(resolved.modelMaxResponseTokens, 2_048)
     }
 
     func testXMPExportDefaultsLoadWhenDefaultConfigIsMissing() throws {
@@ -66,7 +70,9 @@ final class ConfigResolutionTests: XCTestCase {
               "subject_merge_dominance_threshold": 0.75,
               "stage_concurrency": 3,
               "model_response_repair_attempts": 0,
-              "gps_context": "exact"
+              "gps_context": "exact",
+              "model_context_window": 16384,
+              "model_max_response_tokens": 1024
             }
             """
         )
@@ -98,6 +104,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.stageConcurrency, 3)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 0)
         XCTAssertEqual(resolved.gpsContext, .exact)
+        XCTAssertEqual(resolved.modelContextWindow, 16_384)
+        XCTAssertEqual(resolved.modelMaxResponseTokens, 1_024)
     }
 
     func testXMPExportConfigFileOverridesDefaults() throws {
@@ -174,7 +182,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_SUBJECT_MERGE_DOMINANCE_THRESHOLD": "0.65",
                 "AISIDECAR_STAGE_CONCURRENCY": "5",
                 "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2",
-                "AISIDECAR_GPS_CONTEXT": "off"
+                "AISIDECAR_GPS_CONTEXT": "off",
+                "AISIDECAR_MODEL_CONTEXT_WINDOW": "4096"
             ],
             defaultConfigPath: configPath
         )
@@ -194,6 +203,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.stageConcurrency, 5)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 2)
         XCTAssertEqual(resolved.gpsContext, .off)
+        XCTAssertEqual(resolved.modelContextWindow, 4_096)
     }
 
     func testXMPExportEnvironmentOverridesConfigFile() throws {
@@ -313,7 +323,8 @@ final class ConfigResolutionTests: XCTestCase {
                 clearDerivativeCacheAfterSuccess: true,
                 stageConcurrency: 7,
                 modelResponseRepairAttempts: 3,
-                gpsContext: .exact
+                gpsContext: .exact,
+                modelContextWindow: 32_768
             ),
             environment: [
                 "AISIDECAR_MODE": "subject",
@@ -326,7 +337,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS": "false",
                 "AISIDECAR_STAGE_CONCURRENCY": "5",
                 "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2",
-                "AISIDECAR_GPS_CONTEXT": "off"
+                "AISIDECAR_GPS_CONTEXT": "off",
+                "AISIDECAR_MODEL_CONTEXT_WINDOW": "4096"
             ],
             defaultConfigPath: missingConfigPath()
         )
@@ -342,6 +354,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.stageConcurrency, 7)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 3)
         XCTAssertEqual(resolved.gpsContext, .exact)
+        XCTAssertEqual(resolved.modelContextWindow, 32_768)
     }
 
     func testXMPExportCLIOverridesEnvironment() throws {

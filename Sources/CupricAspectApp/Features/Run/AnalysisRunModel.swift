@@ -18,6 +18,10 @@ final class AnalysisOptions {
     var advancedOpen = false
     var modelOverride: String?
     var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    /// Rendering profile name controlling the image size sent to the model.
+    var profile: String = ModelInputProfile.defaultProfile.name
+    /// Ollama num_ctx token window requested per model call.
+    var contextWindow: Int = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
 
     /// Resolved display values (model tag, endpoint) from the config chain.
     private(set) var resolvedModel = ""
@@ -49,6 +53,8 @@ final class AnalysisOptions {
         gps = resolved.gpsContext
         existing = resolved.existing
         concurrency = min(8, max(1, resolved.stageConcurrency))
+        profile = resolved.profile
+        contextWindow = resolved.modelContextWindow
         if let exportDefaults = try? ConfigurationResolver.resolveApplySession(
             environment: environment,
             defaultConfigPath: defaultConfigPath
@@ -72,8 +78,10 @@ final class AnalysisOptions {
                 recursive: recursive,
                 outputDir: outputDir,
                 model: modelOverride,
+                profile: profile,
                 stageConcurrency: concurrency,
-                gpsContext: gps
+                gpsContext: gps,
+                modelContextWindow: contextWindow
             ),
             environment: environment,
             defaultConfigPath: defaultConfigPath

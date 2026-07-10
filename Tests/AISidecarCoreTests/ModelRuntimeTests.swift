@@ -138,7 +138,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertNil(record.error)
         XCTAssertEqual(record.rawResponseText, rawResponse)
         XCTAssertEqual(record.inputDerivativeSHA256, "image-sha")
-        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.4.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.5.0")
         XCTAssertEqual(record.runtimeMetrics?.totalDurationNs, 21_000_000)
         XCTAssertEqual(record.runtimeMetrics?.loadDurationNs, 2_000_000)
         XCTAssertEqual(record.runtimeMetrics?.promptEvalCount, 31)
@@ -155,7 +155,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(body["stream"]?.boolValue, false)
         XCTAssertEqual(body["think"]?.boolValue, false)
         XCTAssertEqual(body["keep_alive"]?.stringValue, "30m")
-        XCTAssertEqual(body["format"], schema.schema)
+        XCTAssertEqual(body["format"], OllamaWireSchema.wireSchema(from: schema.schema))
         let message = try XCTUnwrap(body["messages"]?.arrayValue?.first?.objectValue)
         XCTAssertEqual(message["content"]?.stringValue, prompt.text)
         XCTAssertEqual(message["images"]?.arrayValue?.first?.stringValue, inputData.base64EncodedString())
@@ -163,6 +163,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(requestOptions["temperature"]?.numberValue, 0)
         XCTAssertEqual(requestOptions["seed"]?.numberValue, 42)
         XCTAssertEqual(requestOptions["num_ctx"]?.numberValue, 4096)
+        XCTAssertEqual(requestOptions["num_predict"]?.numberValue, 2048)
     }
 
     func testAnalyzeRequestCarriesGPSContextInPromptText() async throws {
@@ -377,7 +378,62 @@ final class ModelRuntimeTests: XCTestCase {
         let repairMessage = try XCTUnwrap(repairBody["messages"]?.arrayValue?.first?.objectValue)
         XCTAssertNil(repairMessage["images"])
         XCTAssertTrue(repairMessage["content"]?.stringValue?.contains("not json") == true)
-        XCTAssertEqual(repairBody["format"], try summarySchema().schema)
+        XCTAssertEqual(repairBody["format"], OllamaWireSchema.wireSchema(from: try summarySchema().schema))
+    }
+
+    func testRepairInputTruncationBoundsEmbeddedOutput() {
+        let short = String(repeating: "a", count: 100)
+        XCTAssertEqual(OllamaVisionRunner.truncatedRepairInput(short), short)
+
+        let head = String(repeating: "h", count: OllamaVisionRunner.repairInputHeadCharacters)
+        let middle = String(repeating: "m", count: 40_000)
+        let tail = String(repeating: "t", count: OllamaVisionRunner.repairInputTailCharacters)
+        let truncated = OllamaVisionRunner.truncatedRepairInput(head + middle + tail)
+
+        XCTAssertTrue(truncated.hasPrefix(head))
+        XCTAssertTrue(truncated.hasSuffix(tail))
+        XCTAssertTrue(truncated.contains("[... output truncated for repair ...]"))
+        XCTAssertLessThan(
+            truncated.count,
+            OllamaVisionRunner.repairInputHeadCharacters + OllamaVisionRunner.repairInputTailCharacters + 100
+        )
+    }
+
+    func testWireSchemaInlinesRefsAndStripsUnsupportedKeywords() throws {
+        // Probing Ollama 0.30.10 + gemma4 showed $ref/$defs and pattern
+        // silently disable grammar enforcement; the wire schema must never
+        // contain them while keeping the enforceable core, including the
+        // string length bounds that stop in-string repetition loops.
+        for role in ModelInputRole.allCases {
+            let schema = try ResponseSchemas.schema(for: role)
+            let wire = OllamaWireSchema.wireSchema(from: schema.schema)
+            let encoded = String(decoding: try JSONEncoder().encode(wire), as: UTF8.self)
+            for forbidden in ["$ref", "$defs", "pattern", "description", "$schema", "$id", "title"] {
+                XCTAssertFalse(encoded.contains("\"\(forbidden)\""), "\(role.rawValue) wire schema contains \(forbidden)")
+            }
+
+            let root = try XCTUnwrap(wire.objectValue)
+            let required = try XCTUnwrap(root["required"]?.arrayValue?.compactMap(\.stringValue))
+            XCTAssertTrue(required.contains("species"))
+            XCTAssertEqual(root["additionalProperties"], .bool(false))
+
+            // Candidate defs are inlined with their required keys and the
+            // grammar-enforceable array bounds intact.
+            let properties = try XCTUnwrap(root["properties"]?.objectValue)
+            let species = try XCTUnwrap(properties["species"]?.objectValue)
+            XCTAssertEqual(species["maxItems"]?.numberValue, 6)
+            let item = try XCTUnwrap(species["items"]?.objectValue)
+            XCTAssertEqual(
+                item["required"]?.arrayValue?.compactMap(\.stringValue).sorted(),
+                ["confidence", "evidence", "term"]
+            )
+            let evidence = try XCTUnwrap(item["properties"]?.objectValue?["evidence"]?.objectValue)
+            XCTAssertEqual(evidence["maxLength"]?.numberValue, 220)
+            let genre = try XCTUnwrap(properties["genre_or_photography_type"]?.objectValue)
+            XCTAssertEqual(genre["minItems"]?.numberValue, 1)
+            let genreTerm = try XCTUnwrap(genre["items"]?.objectValue?["properties"]?.objectValue?["term"]?.objectValue)
+            XCTAssertNotNil(genreTerm["enum"]?.arrayValue)
+        }
     }
 
     func testAnalyzeRepairsSyntheticVisibleTextTermFragmentFixture() async throws {
@@ -403,7 +459,7 @@ final class ModelRuntimeTests: XCTestCase {
 
         XCTAssertTrue(record.jsonValid)
         XCTAssertNil(record.error)
-        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.4.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.5.0")
         let attempts = try XCTUnwrap(record.responseAttempts)
         XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
         XCTAssertEqual(attempts.first?.rawResponseText, malformed)

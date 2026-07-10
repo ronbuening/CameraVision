@@ -725,6 +725,9 @@ public struct AnalyzePipeline {
         var options = ModelRunOptions.default
         options.keepAlive = configuration.modelKeepAlive
         options.responseRepairAttempts = configuration.modelResponseRepairAttempts
+        // 0 means "model default": send no num_ctx and let Ollama size the window.
+        options.contextWindow = configuration.modelContextWindow > 0 ? configuration.modelContextWindow : nil
+        options.maxResponseTokens = configuration.modelMaxResponseTokens
         do {
             let prompt = try PromptRegistry.prompt(for: role, context: modelInputContext)
             let schema = try ResponseSchemas.schema(for: role)

@@ -12,9 +12,9 @@ public enum ResponseSchemas {
     private static func resourceName(for role: ModelInputRole) -> String {
         switch role {
         case .wholeImage:
-            return "whole_image_v1.4.0"
+            return "whole_image_v1.5.0"
         case .subjectIsolated:
-            return "subject_isolated_v1.4.0"
+            return "subject_isolated_v1.5.0"
         }
     }
 

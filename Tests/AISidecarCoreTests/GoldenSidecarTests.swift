@@ -112,6 +112,12 @@ final class GoldenSidecarTests: XCTestCase {
         let parsedResponse = try fixtureJSON(name: fixtureName, extension: "json", subdirectory: "model-responses")
         let prompt = try PromptRegistry.prompt(for: role)
         let schema = try ResponseSchemas.schema(for: role)
+        // Mirror the options AnalyzePipeline derives from built-in defaults so
+        // the golden sidecar matches what a real run records (0 = "model
+        // default" sends no num_ctx).
+        var requestOptions = ModelRunOptions.default
+        let configuredWindow = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
+        requestOptions.contextWindow = configuredWindow > 0 ? configuredWindow : nil
         return ModelRunRecord(
             inputRole: role,
             model: context.model,
@@ -121,7 +127,7 @@ final class GoldenSidecarTests: XCTestCase {
             promptVersion: prompt.version,
             promptSHA256: prompt.sha256,
             responseSchemaVersion: schema.version,
-            requestOptions: .default,
+            requestOptions: requestOptions,
             inputDerivativeSHA256: derivative.sha256,
             rawResponseText: try compactJSONString(for: parsedResponse),
             parsedResponseJSON: parsedResponse,

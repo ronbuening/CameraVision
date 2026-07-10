@@ -149,6 +149,11 @@ public enum SkippedCandidateReason: String, Codable, Equatable, Sendable {
     case coordinateLikeTerm = "coordinate_like_term"
     /// The model cited GPS/location context as evidence instead of visible image evidence.
     case gpsOnlyEvidence = "gps_only_evidence"
+    /// The model listed species candidates in a run whose genres include no
+    /// wildlife, bird_photography, or plant_botanical entry. Schema 1.5.0
+    /// requires `species` unconditionally so Ollama's grammar can guarantee
+    /// the field; the genre precondition is enforced here instead.
+    case speciesWithoutBiologicalGenre = "species_without_biological_genre"
     case unknownSessionContextRejected = "unknown_session_context_rejected"
     case unknownSessionContextFlatOnly = "unknown_session_context_flat_only"
     case weakLocalAgreement = "weak_local_agreement"
@@ -467,6 +472,8 @@ public struct CandidateExtractor {
                 continue
             }
 
+            let rejectSpeciesField = Self.rejectsSpeciesField(responseObject)
+
             for field in CandidateSourceField.allCases {
                 guard let fieldValue = responseObject[field.rawValue] else {
                     continue
@@ -590,6 +597,13 @@ public struct CandidateExtractor {
                         skippedCandidates.append(SkippedCandidate(reason: .gpsOnlyEvidence, candidate: candidate))
                         continue
                     }
+                    // Schema 1.5.0 always requires `species`; keep the old
+                    // conditional contract by rejecting species terms from
+                    // runs whose genre list has no biological entry.
+                    guard field != .species || !rejectSpeciesField else {
+                        skippedCandidates.append(SkippedCandidate(reason: .speciesWithoutBiologicalGenre, candidate: candidate))
+                        continue
+                    }
 
                     // Accepted terms retain later provenance before role-specific heuristics
                     // can reject a duplicate from a different source field.
@@ -683,6 +697,24 @@ public struct CandidateExtractor {
 
         let cardinalCoordinatePattern = #"\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[NS]\b.*\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[EW]\b"#
         return term.range(of: cardinalCoordinatePattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private static let biologicalGenreTerms: Set<String> = ["wildlife", "bird_photography", "plant_botanical"]
+
+    /// Species terms are rejected only when a genre list is present and lacks
+    /// a biological entry. Every valid 1.5.0 response carries a genre list, so
+    /// this covers the always-required species field without dropping species
+    /// from older or partially parsed responses that omit genres entirely.
+    private static func rejectsSpeciesField(_ responseObject: [String: JSONValue]) -> Bool {
+        guard let genres = responseObject[CandidateSourceField.genreOrPhotographyType.rawValue]?.arrayValue else {
+            return false
+        }
+        return !genres.contains { genre in
+            guard let term = genre.objectValue?["term"]?.stringValue else {
+                return false
+            }
+            return biologicalGenreTerms.contains(term)
+        }
     }
 
     private static func evidenceReliesOnGPS(_ evidence: String?) -> Bool {

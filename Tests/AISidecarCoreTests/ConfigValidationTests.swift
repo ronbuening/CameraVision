@@ -177,6 +177,51 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testInvalidModelContextWindowFailsAsConfigInvalid() throws {
+        // 0 is the valid "model default" sentinel; only negatives are invalid.
+        let zero = try ConfigurationResolver.resolve(
+            environment: [:],
+            defaultConfigPath: writeConfig(#"{ "model_context_window": 0 }"#)
+        )
+        XCTAssertEqual(zero.modelContextWindow, 0)
+
+        let zeroEnv = try ConfigurationResolver.resolve(
+            environment: ["AISIDECAR_MODEL_CONTEXT_WINDOW": "0"],
+            defaultConfigPath: missingConfigPath()
+        )
+        XCTAssertEqual(zeroEnv.modelContextWindow, 0)
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "model_context_window": -1 }"#)
+            )
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_MODEL_CONTEXT_WINDOW": "huge"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
+    func testInvalidModelMaxResponseTokensFailsAsConfigInvalid() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "model_max_response_tokens": 0 }"#)
+            )
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_MODEL_MAX_RESPONSE_TOKENS": "unbounded"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     func testInvalidXMPExportEnumFailsAsConfigInvalid() throws {
         for json in [
             #"{ "source_verification": "maybe" }"#,

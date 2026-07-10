@@ -49,6 +49,23 @@ final class SettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testModelTuningWriteThroughReachesResolverChain() throws {
+        let model = makeModel()
+        XCTAssertEqual(model.profile, ModelInputProfile.defaultProfile.name, "built-in default")
+        XCTAssertEqual(model.modelContextWindow, ResolvedRunConfiguration.builtInDefaults.modelContextWindow)
+
+        model.setProfile("gemma4-26b-benchmark-1024")
+        model.setModelContextWindow(16_384)
+
+        XCTAssertEqual(model.profile, "gemma4-26b-benchmark-1024")
+        XCTAssertEqual(model.modelContextWindow, 16_384)
+
+        let resolved = try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath)
+        XCTAssertEqual(resolved.profile, "gemma4-26b-benchmark-1024")
+        XCTAssertEqual(resolved.modelContextWindow, 16_384)
+    }
+
+    @MainActor
     func testHandEditedKeysSurviveSettingsChanges() throws {
         try Data(#"{"stage_concurrency": 3, "custom_note": "mine"}"#.utf8)
             .write(to: URL(fileURLWithPath: configPath))

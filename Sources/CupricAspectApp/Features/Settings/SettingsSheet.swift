@@ -313,6 +313,24 @@ struct SettingsSheet: View {
                     )
                 }
                 Divider().overlay(theme.border)
+                settingRow(
+                    "Model image size",
+                    caption: "Longest edge of the render sent to the model — smaller is faster, larger keeps fine detail."
+                ) {
+                    CVSegmentedControl(
+                        options: ModelTuning.profileNamesBySize,
+                        selection: Binding(get: { settings.profile }, set: { settings.setProfile($0) }),
+                        label: { ModelTuning.imageSizeLabel(forProfileNamed: $0) }
+                    )
+                }
+                Divider().overlay(theme.border)
+                settingRow(
+                    "Model context window",
+                    caption: "Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
+                ) {
+                    contextWindowMenu
+                }
+                Divider().overlay(theme.border)
                 settingRow("Concurrency", caption: "Lower = less memory pressure.") {
                     HStack(spacing: 0) {
                         settingsStepButton("−") { settings.setConcurrency(settings.stageConcurrency - 1) }
@@ -494,6 +512,37 @@ struct SettingsSheet: View {
             Spacer()
             control()
         }
+    }
+
+    private var contextWindowMenu: some View {
+        Menu {
+            ForEach(ModelTuning.contextWindowChoices, id: \.self) { tokens in
+                Button {
+                    settings.setModelContextWindow(tokens)
+                } label: {
+                    if tokens == settings.modelContextWindow {
+                        Label(ModelTuning.contextWindowLabel(tokens), systemImage: "checkmark")
+                    } else {
+                        Text(ModelTuning.contextWindowLabel(tokens))
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(ModelTuning.contextWindowLabel(settings.modelContextWindow))
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                Text("▾").font(.system(size: 9))
+            }
+            .foregroundStyle(theme.text)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 11)
+            .background(theme.panel2)
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(theme.border))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Ollama num_ctx tokens requested per model call")
     }
 
     private func xmpPolicyLabel(_ policy: XMPConflictPolicy) -> String {

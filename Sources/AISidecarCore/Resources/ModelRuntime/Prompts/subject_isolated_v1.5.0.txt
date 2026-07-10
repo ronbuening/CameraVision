@@ -1,0 +1,57 @@
+PROMPT_VERSION: aisidecar.prompt.subject_isolated/1.5.0
+
+Analyze the isolated subject crop and return exactly one JSON object matching the supplied JSON Schema.
+
+The background has been removed, replaced, cropped away, or composited onto a neutral matte.
+Judge only the subject itself: morphology, shape, structure, color pattern, field marks, pose, object type, and object parts.
+Do not infer habitat, location, weather, season, time of day, event, or scene context.
+Do not describe the matte or the missing background as a real object, surface, or setting.
+The response must not contain scene_context or habitat_or_setting fields.
+
+OUTPUT RULES
+
+Return only the JSON object: no Markdown, no code fences, no comments, no fields beyond the schema.
+Include every required field in every response, including species.
+Use [] for any array field with nothing to report, except genre_or_photography_type, which needs at least one best-fit entry.
+Use "" for uncertainty_notes when there is nothing useful to note.
+Confidence is only high, medium, or low:
+- high: directly visible and unlikely to be wrong.
+- medium: plausible from visible evidence, but not fully certain.
+- low: weak visual support; include only when still useful for review.
+
+EVIDENCE RULES
+
+Base every term on visible subject evidence, not on what is merely likely.
+Prefer a broader correct term over a narrower guess.
+Evidence strings are short visual descriptions, not reasoning.
+Good evidence: "yellow bill and white body", "curved metal handle", "fine hairs on stem".
+Bad evidence: "common in Florida", "likely because of the background", "probably photographed in a garden".
+Do not propose camera, lens, editing, software, file-format, image-quality, or text-transcription terms.
+Use concise English terms suitable for later metadata normalization.
+
+GENRE RULES
+
+genre_or_photography_type: 1 to 4 entries, most likely first, chosen only from:
+architecture, landscape, seascape, cityscape, portrait_people, group_portrait, candid_people, street_documentary, wildlife, bird_photography, plant_botanical, macro_closeup, abstract, still_life, product, food, sports_action, event, travel, night, astrophotography, aerial, underwater, interior, fine_art_conceptual.
+Be conservative with genres that depend on missing background context; if no strong genre is clear, use the best broad match with low confidence.
+Genre evidence must come from the visible subject, never from the removed background.
+
+SPECIES RULES
+
+species is always present.
+When no genre entry is wildlife, bird_photography, or plant_botanical, species must be [].
+Otherwise list biological identity candidates supported by visible field marks on the subject, using species-level common names when the visible evidence supports them.
+Broader taxa such as heron, egret, hawk, oak, or wildflower are correct when narrower identification is uncertain.
+Never derive a species from habitat, season, commonness, likelihood, or the removed background; use [] when nothing is visually defensible.
+Keep exact species and taxonomy terms in species only, not in proposed_keywords; note weak or competing identifications in uncertainty_notes.
+
+FIELD GUIDE
+
+summary: one concise sentence about the isolated subject; mention the crop or matte only when it affects uncertainty.
+main_subjects: the dominant isolated subject or subjects; specific terms when supported, broader terms when identifying traits are missing; describe people without identity claims.
+secondary_subjects: meaningful secondary subjects or subject parts that support identification, such as wing, bill, flower petals, leaf, label, handle, or wheel; ignore mask-edge artifacts unless they affect uncertainty.
+behavior_or_action: visible pose, motion, gesture, or object state supported by the subject alone.
+proposed_keywords: concise metadata terms for subject traits, body or object parts, color patterns, behavior, and genre; no exact species/taxonomy duplicates, no habitat/setting/location/event terms unless visible on the subject itself, no private identity or sensitive attributes, no text transcription.
+uncertainty_notes: brief notes on partial visibility, crop truncation, mask-edge ambiguity, occlusion, or competing identifications; "" when none.
+
+Return only the JSON object.
