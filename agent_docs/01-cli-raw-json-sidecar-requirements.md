@@ -160,6 +160,10 @@ Recursive scans shall record a recoverable `E_VALIDATION_FAILED` for each unread
 readable siblings; a non-recursive input folder that cannot be read shall fail with structured
 `E_VALIDATION_FAILED` rather than a raw filesystem error.
 
+FR1-002a - Folder scans shall not follow symbolic links and shall record each visible link as a recoverable
+`E_VALIDATION_FAILED`. A symbolic link supplied directly as the input file shall resolve to its target before
+metadata and source identity are computed.
+
 FR1-003 - Supported extensions shall include at least `NEF`, `NRW`, `CR3`, `CR2`, `ARW`, `RAF`, `ORF`, `RW2`, `DNG`, `JPG`, `JPEG`, `TIF`, `TIFF`, `HEIC`, and `PNG`, subject to macOS decoder support.
 
 FR1-004 - Unsupported files shall be skipped with a structured `E_UNSUPPORTED_FORMAT` error entry rather than crashing the batch.

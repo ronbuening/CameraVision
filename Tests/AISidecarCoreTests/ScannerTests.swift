@@ -45,6 +45,39 @@ final class ScannerTests: XCTestCase {
         XCTAssertEqual(image.identity.sha256.count, 64)
     }
 
+    func testFolderScanRecordsSymbolicLinkAsRecoverableError() throws {
+        let root = try temporaryDirectory()
+        let target = try writeFile("Bird.NEF", data: Data("raw-data".utf8), in: root)
+        let link = root.appendingPathComponent("Linked.NEF")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        let result = try ImageScanner().scan(inputPath: root.path, recursive: false, identityPolicy: .fast)
+
+        XCTAssertEqual(result.images.map(\.relativePath), ["Bird.NEF"])
+        let error = try XCTUnwrap(result.errors.first)
+        XCTAssertEqual(error.path, link.path)
+        XCTAssertEqual(error.relativePath, "Linked.NEF")
+        XCTAssertEqual(error.error.code, .validationFailed)
+        XCTAssertEqual(error.error.stage, .scan)
+        XCTAssertTrue(error.error.recoverable)
+        XCTAssertTrue(error.error.message.contains("Symbolic link skipped"))
+    }
+
+    func testDirectSymbolicLinkResolvesAndUsesTargetIdentity() throws {
+        let root = try temporaryDirectory()
+        let target = try writeFile("Bird.NEF", data: Data("raw-data".utf8), in: root)
+        let link = root.appendingPathComponent("Linked.NEF")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        let targetResult = try ImageScanner().scan(inputPath: target.path, recursive: false, identityPolicy: .fast)
+        let linkResult = try ImageScanner().scan(inputPath: link.path, recursive: false, identityPolicy: .fast)
+
+        XCTAssertEqual(linkResult.inputPath, target.path)
+        XCTAssertEqual(linkResult.images.first?.path, target.path)
+        XCTAssertEqual(linkResult.images.first?.identity, targetResult.images.first?.identity)
+        XCTAssertTrue(linkResult.errors.isEmpty)
+    }
+
     func testNonRecursiveFolderScanFiltersImagesAndReportsUnsupportedVisibleFiles() throws {
         let root = try temporaryDirectory()
         _ = try writeFile("B.JPG", data: Data("b".utf8), in: root)

@@ -107,7 +107,7 @@ public struct ImageScanner {
             return Discovery(inputPath: root.path, scanRoot: root.path, entries: sorted.entries, errors: sorted.errors)
         }
 
-        let fileURL = inputURL.standardizedFileURL
+        let fileURL = inputURL.resolvingSymlinksInPath().standardizedFileURL
         let root = fileURL.deletingLastPathComponent()
         // Direct hidden or sidecar inputs follow the same FR1-005 ignore rule
         // as folder contents: they are not images and are not batch failures.
@@ -196,6 +196,17 @@ public struct ImageScanner {
             // Hidden directories are skipped as containers; otherwise their
             // children could reappear as unsupported-file errors.
             return isDirectory(candidate)
+        }
+
+        if isSymbolicLink(candidate) {
+            errors.append(
+                ScanErrorRecord(
+                    path: candidate.path,
+                    relativePath: relativePath(for: candidate, root: root),
+                    error: validationError("Symbolic link skipped during folder scan: \(candidate.path)", recoverable: true)
+                )
+            )
+            return true
         }
 
         guard isRegularFile(candidate) else {
@@ -295,6 +306,10 @@ public struct ImageScanner {
         return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
             .appendingPathComponent(expandedPath)
             .standardizedFileURL
+    }
+
+    private func isSymbolicLink(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true
     }
 
     private func shouldIgnore(url: URL, root: URL) -> Bool {
