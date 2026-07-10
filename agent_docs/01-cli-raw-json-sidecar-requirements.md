@@ -192,7 +192,9 @@ _DSC1234.RAF -> _DSC1234.RAF.ai.json
 
 FR1-009 - When `--output-dir` is used with folder input, the sidecar tree shall mirror the relative path of each source from the scan root: the sidecar for `<root>/2026/06/_DSC1234.NEF` shall be written to `<output-dir>/2026/06/_DSC1234.NEF.ai.json`. Flattening is forbidden because Nikon-style 4-digit frame counters make basename collisions a certainty in real archives.
 
-FR1-009a - Residual collisions (including case-insensitive filesystem collisions) shall be detected before writing and shall fail the affected files with `E_SIDECAR_COLLISION` without aborting the batch.
+FR1-009a - Residual collisions (including case-insensitive and canonically equivalent Unicode filesystem
+collisions) shall be detected before writing and shall fail the affected files with `E_SIDECAR_COLLISION` without
+aborting the batch. Collision keys shall use Unicode canonical composition before case folding.
 
 FR1-010 - Pre-existing sidecars shall be governed by `--existing <skip|overwrite|fail>` with default `skip`.
 
@@ -433,6 +435,8 @@ Accepted flags: the project-wide glossary (PW-004) plus:
 `--export-model-inputs` is a diagnostic pre-model path. It shall not write raw `.ai.json` sidecars, model output, progress logs, batch summaries, or XMP. It shall reject `--dry-run` and `--debug-derivatives` because export mode writes only to the requested export folder.
 Its manifest shall be named `model-input-export-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.json`; scanners shall continue
 recognizing the legacy colon-bearing, suffix-free form as an owned protected artifact.
+Export destination collision keys shall use the same Unicode canonical-composition and case-folding policy as raw
+sidecar destinations.
 
 Benchmark-specific flags:
 

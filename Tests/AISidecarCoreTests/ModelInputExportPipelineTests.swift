@@ -3,6 +3,27 @@ import XCTest
 @testable import AISidecarCore
 
 final class ModelInputExportPipelineTests: XCTestCase {
+    func testUnicodeNormalizationVariantsCollideInExportPlan() throws {
+        let composed = "Café.NEF"
+        let decomposed = "Cafe\u{301}.NEF"
+        let sources = [
+            makeSource(fileName: composed, relativePath: composed, path: "/photos/\(composed)"),
+            makeSource(fileName: decomposed, relativePath: decomposed, path: "/photos/\(decomposed)")
+        ]
+        let profile = try ModelInputProfileRegistry.resolve(name: "gemma4-26b-default")
+
+        let plan = ModelInputExportNaming.plan(
+            for: sources,
+            mode: .whole,
+            profile: profile,
+            exportDirectory: "/tmp/export"
+        )
+
+        XCTAssertTrue(plan.entries.isEmpty)
+        XCTAssertEqual(plan.collisions.count, 1)
+        XCTAssertEqual(plan.collisions.first?.error.code, .sidecarCollision)
+    }
+
     func testSingleFileWholeExportWritesOnlyWholeImageAndManifest() async throws {
         let root = try temporaryDirectory()
         let export = try temporaryDirectory()

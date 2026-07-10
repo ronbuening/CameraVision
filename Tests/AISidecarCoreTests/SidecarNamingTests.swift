@@ -65,6 +65,23 @@ final class SidecarNamingTests: XCTestCase {
         XCTAssertEqual(plan.collisions.first?.error.stage, .write)
         XCTAssertTrue(plan.collisions.first?.error.recoverable == true)
     }
+
+    func testUnicodeNormalizationVariantsCollide() throws {
+        let output = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: output) }
+        let composed = "Café.NEF"
+        let decomposed = "Cafe\u{301}.NEF"
+        let sources = [
+            makeSource(fileName: composed, relativePath: composed, path: "/photos/\(composed)"),
+            makeSource(fileName: decomposed, relativePath: decomposed, path: "/photos/\(decomposed)")
+        ]
+
+        let plan = SidecarNaming.plan(for: sources, outputDir: output.path)
+
+        XCTAssertTrue(plan.entries.isEmpty)
+        XCTAssertEqual(plan.collisions.count, 1)
+        XCTAssertEqual(plan.collisions.first?.error.code, .sidecarCollision)
+    }
 }
 
 func makeSource(

@@ -2090,7 +2090,7 @@ func testDuplicateSessionTargetThrowsSessionStaleNamingTheKey() throws {
 - [ ] Each lands as its own commit with its own focused test (invariant 16)
 - [x] a: pre-scan failure aborts the remove-new-sidecars cleanup; deletion failures logged (plan 08 verbatim)
 - [x] b: recoverable record for folder-scan symlinks; direct input stats the target (plan 08 verbatim)
-- [ ] c: NFC folded in collision keys (plan 08 verbatim)
+- [x] c: NFC folded in collision keys (plan 08 verbatim)
 - [ ] d: unreadable-vs-absent distinguished; parse errors → `E_CONFIG_INVALID` (plan 08 verbatim)
 - [ ] e: probe errors distinguished in the `modelTagNotFound` diagnostic (plan 08 verbatim)
 - [ ] f: age-gated temp cleanup; young temps never removed (plan 08 verbatim)

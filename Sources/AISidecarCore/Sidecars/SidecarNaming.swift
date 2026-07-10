@@ -87,7 +87,9 @@ public enum SidecarNaming {
                 sidecarRelativePath: sidecarRelativePath(for: source)
             )
         }
-        let grouped = Dictionary(grouping: provisional) { $0.sidecarPath.lowercased() }
+        let grouped = Dictionary(grouping: provisional) {
+            $0.sidecarPath.precomposedStringWithCanonicalMapping.lowercased()
+        }
         // FR1-009a treats case-only path differences as collisions because the
         // target photo archive may live on a case-insensitive filesystem.
         let collidingKeys = Set(grouped.filter { $0.value.count > 1 }.map(\.key))
