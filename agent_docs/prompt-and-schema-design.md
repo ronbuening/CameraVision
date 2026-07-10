@@ -101,9 +101,12 @@ is the scarcest resource in the pipeline:
 
 `model_context_window` (config key, `AISIDECAR_MODEL_CONTEXT_WINDOW`, GUI
 controls in Settings and Step 3, choices up to 262144 for 256k models) is sent
-as Ollama `num_ctx` on every call, default 8192. Before that key existed, no
-`num_ctx` was sent and Ollama's runtime default could silently truncate the
-prompt or response. The KV cache grows with the window, so bigger is not free.
+as Ollama `num_ctx`. The built-in default is `0` — the "model default"
+sentinel: no `num_ctx` is sent and Ollama sizes the window itself. Pin a
+positive value when a model's own default is too small for the prompt, image
+tokens, and full JSON response; the KV cache grows with the window, so bigger
+is not free. The bounded repair prompt and the `model_max_response_tokens`
+cap are what keep small model-default windows workable.
 
 Prompt-writing rules that follow from the budget:
 
