@@ -21,19 +21,42 @@ registry pointer change.
 
 ## The constraint that shapes everything: Ollama's grammar
 
-Every model call sends the response schema through Ollama's `format` field,
+Every model call sends a response schema through Ollama's `format` field,
 which compiles it to a token-level grammar (llama.cpp GBNF). The grammar can
 force structure the model physically cannot violate — but only for a subset of
-JSON Schema:
+JSON Schema, and **one unsupported keyword silently disables enforcement for
+the whole schema**. Established by live probing Ollama 0.30.10 + gemma4 with
+progressively reduced schemas (2026-07-09):
 
 **Enforced at generation time:** `type`, `properties`, `required`,
-`additionalProperties: false`, `enum`, `items`, and (approximately) string
-`pattern`/length and array `minItems`/`maxItems`.
+`additionalProperties: false`, `enum`, `items`, array `minItems`/`maxItems`,
+and string `minLength`/`maxLength`.
 
-**Silently ignored:** `allOf`, `if`/`then`/`else`, `not`, `contains` — any
-conditional or combinator logic.
+**Poison pills — their presence anywhere degrades the entire call to
+unconstrained JSON:** `$ref`/`$defs` and `pattern`. Symptoms of the fallback:
+bare-string arrays, missing required keys, comma-joined keyword dumps, and
+temperature-0 repetition loops that run until the context window fills.
 
-Consequences, learned the hard way in the milestone-9a benchmarks:
+**Silently ignored (harmless but unenforced):** `allOf`, `if`/`then`/`else`,
+`not`, `contains` — any conditional or combinator logic.
+
+Because the bundled schemas legitimately use `$defs` and `pattern`,
+`OllamaWireSchema` (in `ModelRuntime/`) derives the **wire schema** actually
+sent to Ollama: every `$ref` inlined; `pattern`, `description`, `$schema`,
+`$id`, and `title` stripped. Local validation still runs against the full
+authoritative schema, and sidecars record the authoritative version. When
+editing schemas, edit the authoritative file — the wire form is derived — but
+never add a construct to the authoritative schema that the transform doesn't
+strip and Ollama can't enforce, without extending the transform and re-probing.
+
+Keeping `maxLength` in the wire schema matters beyond validation: the 220-char
+evidence bound is what structurally stops in-string repetition loops. The
+`model_max_response_tokens` option (Ollama `num_predict`, default 2048) is the
+backstop when generation runs away anyway — healthy responses run 350–800
+tokens.
+
+Consequences, learned the hard way in the milestone-9a benchmarks and the
+2026-07-09 TestingFileSet runs:
 
 1. **Anything the model must always emit goes in top-level `required`.**
    Schema 1.4.0 made `species` conditionally required via `allOf`/`if`/`then`;
@@ -67,14 +90,20 @@ is the scarcest resource in the pipeline:
 - Image tokens: hundreds to ~1.5k depending on model and render size (the
   `profile` config / "Model image size" GUI control decides the render).
 - Output: up to 30 evidence-bearing keyword objects plus the other arrays —
-  easily 1–2k tokens.
-- The **repair prompt is the biggest single consumer**: it embeds the full
-  schema JSON *and* the invalid response *and* instructions.
+  easily 1–2k tokens, hard-capped by `model_max_response_tokens` (default
+  2048).
+- The **repair prompt is the biggest single consumer**: it embeds the compact
+  wire schema *and* a bounded head+tail slice of the invalid response
+  (`OllamaVisionRunner.truncatedRepairInput`). Both bounds exist because an
+  unbounded runaway response once consumed the entire window by itself,
+  leaving the repair call ~90 tokens to answer in — the repair then truncated
+  and failed too.
 
 `model_context_window` (config key, `AISIDECAR_MODEL_CONTEXT_WINDOW`, GUI
-controls in Settings and Step 3) is sent as Ollama `num_ctx` on every call,
-default 8192. Before that key existed, no `num_ctx` was sent and Ollama's
-runtime default could silently truncate the prompt or response.
+controls in Settings and Step 3, choices up to 262144 for 256k models) is sent
+as Ollama `num_ctx` on every call, default 8192. Before that key existed, no
+`num_ctx` was sent and Ollama's runtime default could silently truncate the
+prompt or response. The KV cache grows with the window, so bigger is not free.
 
 Prompt-writing rules that follow from the budget:
 
@@ -115,7 +144,10 @@ downstream guard for model mistakes. Do not add it to the base prompt.
 2. Point `PromptRegistry.resourceName(for:)` and
    `ResponseSchemas.resourceName(for:)` at the new names.
 3. Keep the schema grammar-friendly: everything mandatory in `required`, no
-   `allOf`/`if`/`then`/`else`/`not`/`contains`. Conditional semantics go into
+   `allOf`/`if`/`then`/`else`/`not`/`contains`, and nothing new that
+   `OllamaWireSchema` doesn't already strip or Ollama can't enforce (when in
+   doubt, re-probe a live Ollama with the wire form and check the output
+   conforms). Conditional semantics go into
    `CandidateExtractor` with a new additive `SkippedCandidateReason` case,
    mirrored in `NormalizationCandidateSkipReason`,
    `CandidateCanonicalizer.convert`, `NormalizationDecisionExplainer`,
