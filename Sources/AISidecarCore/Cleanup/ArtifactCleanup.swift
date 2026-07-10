@@ -14,6 +14,7 @@ public enum CleanupArtifactKind: String, Codable, Sendable, Equatable, CaseItera
     case normalizationApplyProgressLog = "normalization_apply_progress_log"
     case normalizationApplyReport = "normalization_apply_report"
     case normalizationApplySummary = "normalization_apply_summary"
+    case atomicWriterTemp = "atomic_writer_temp"
 }
 
 /// Per-file result emitted by an artifact cleanup pass.
@@ -95,9 +96,14 @@ public struct CleanupReport: Codable, Sendable, Equatable {
 /// Scans a folder for AISidecar-owned raw sidecars and run artifacts, then optionally removes them.
 public struct ArtifactCleanup {
     private let fileManager: FileManager
+    private let now: @Sendable () -> Date
 
-    public init(fileManager: FileManager = .default) {
+    public init(
+        fileManager: FileManager = .default,
+        now: @escaping @Sendable () -> Date = Date.init
+    ) {
         self.fileManager = fileManager
+        self.now = now
     }
 
     /// Plan or execute cleanup under `rootPath`.
@@ -152,6 +158,9 @@ public struct ArtifactCleanup {
 
     /// Classify filenames that are safe for artifact cleanup.
     public static func classify(fileName: String) -> CleanupArtifactKind? {
+        if isAtomicWriterTemp(fileName) {
+            return .atomicWriterTemp
+        }
         let lowercased = fileName.lowercased()
         if lowercased.hasSuffix(".ai.json") {
             return .rawAISidecar
@@ -197,22 +206,36 @@ public struct ArtifactCleanup {
         if recursive {
             guard let enumerator = fileManager.enumerator(
                 at: root,
-                includingPropertiesForKeys: [.isRegularFileKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+                includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                options: [.skipsPackageDescendants]
             ) else {
                 return []
             }
-            urls = enumerator.compactMap { $0 as? URL }
+            var collected: [URL] = []
+            for case let url as URL in enumerator {
+                if url.lastPathComponent.hasPrefix("."), isDirectory(url) {
+                    enumerator.skipDescendants()
+                    continue
+                }
+                collected.append(url)
+            }
+            urls = collected
         } else {
             urls = try fileManager.contentsOfDirectory(
                 at: root,
                 includingPropertiesForKeys: [.isRegularFileKey],
-                options: [.skipsHiddenFiles]
+                options: []
             )
         }
 
         return urls.compactMap { url in
             guard isRegularFile(url), let kind = Self.classify(fileName: url.lastPathComponent) else {
+                return nil
+            }
+            if url.lastPathComponent.hasPrefix("."), kind != .atomicWriterTemp {
+                return nil
+            }
+            if kind == .atomicWriterTemp, !isExpiredAtomicWriterTemp(url) {
                 return nil
             }
             return CleanupCandidate(
@@ -228,6 +251,33 @@ public struct ArtifactCleanup {
 
     private func isRegularFile(_ url: URL) -> Bool {
         (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+    }
+
+    private func isDirectory(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+    }
+
+    private func isExpiredAtomicWriterTemp(_ url: URL) -> Bool {
+        guard let modifiedAt = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        else {
+            return false
+        }
+        return modifiedAt < now().addingTimeInterval(-86_400)
+    }
+
+    private static func isAtomicWriterTemp(_ fileName: String) -> Bool {
+        guard fileName.hasPrefix(".") else {
+            return false
+        }
+        let components = fileName.split(separator: ".", omittingEmptySubsequences: false)
+        guard components.count >= 4,
+              components.first?.isEmpty == true,
+              components.dropFirst().dropLast(2).contains(where: { !$0.isEmpty }),
+              components.last?.isEmpty == false
+        else {
+            return false
+        }
+        return UUID(uuidString: String(components[components.count - 2])) != nil
     }
 
     private func absoluteURL(for path: String) -> URL {

@@ -373,7 +373,8 @@ using each app's normal XMP workflow to pick up the new keywords.
   coordinates and GPS-only evidence are guarded from keyword export.
 - **`cleanup` is conservative.** It never removes source images, `.xmp` sidecars, XMP
   backups, model-input exports, debug derivatives, the derivative cache, or
-  normalization session JSON.
+  normalization session JSON. It removes UUID-shaped atomic-writer temp files only
+  after they are more than 24 hours old; fresh and unrelated hidden files stay protected.
 
 ---
 

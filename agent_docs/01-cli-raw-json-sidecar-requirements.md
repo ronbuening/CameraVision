@@ -474,6 +474,9 @@ Cleanup-specific flags:
 ```
 
 `aisidecar cleanup` removes raw `.ai.json` sidecars plus known analyze, XMP export, normalization, and apply-session progress/report/summary artifacts from the selected folder. It intentionally does not remove source images, `.xmp` sidecars, XMP backups, diagnostic model-input exports, debug derivative copies, derivative cache files, or normalization session JSON.
+Cleanup may also remove dot-prefixed sibling temporary files whose names match the project atomic writer's exact
+UUID shape and whose modification time is more than 24 hours old. Fresh temporary files, hidden directories, and all
+other hidden files remain protected.
 
 Recommended examples:
 
