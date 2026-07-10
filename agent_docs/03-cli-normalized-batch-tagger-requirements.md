@@ -212,6 +212,9 @@ FR3-CLI-002 - `--source-root` is valid only with `normalize --from-json` and `ap
 
 FR3-CLI-003 - `--write-ai-json` is meaningful only in analyze-and-normalize mode. With `normalize --from-json` or `apply-session`, explicit use shall fail as `E_CONFIG_INVALID`.
 
+FR3-CLI-003a - Analyze-and-normalize `--no-write-ai-json` cleanup shall keep all raw sidecars when its pre-run
+inventory fails, and shall log individual deletion failures instead of silently discarding them.
+
 FR3-CLI-004 - In `normalize`, `--existing` governs raw `.ai.json` output produced by analysis. Existing XMP sidecars are governed by `--xmp-conflict-policy`.
 
 FR3-CLI-005 - `--session-only` suppresses XMP writing but shall still produce the normalization session file and report. It shall not create, modify, back up, or validate `.xmp` files.

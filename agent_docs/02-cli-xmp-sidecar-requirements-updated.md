@@ -378,6 +378,10 @@ FR2-030 - Phase 2 shall produce or update `.xmp` sidecars only from `aisidecar w
 
 FR2-031 - Analyze-and-write mode shall preserve or create raw `.ai.json` sidecars unless `--no-write-ai-json` is supplied. `--no-write-ai-json` still records model-run provenance in memory for the export report, but it is not the default because auditability matters.
 
+FR2-031a - Before `--no-write-ai-json` cleanup, analyze-and-write shall inventory pre-existing raw sidecars. If that
+inventory fails, cleanup shall keep all raw sidecars. Individual deletion failures shall be logged and shall never be
+silently discarded.
+
 FR2-032 - Folder runs shall produce:
 
 ```text

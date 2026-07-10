@@ -56,6 +56,42 @@ final class AnalyzeAndXMPPipelineTests: XCTestCase {
         XCTAssertEqual(provenance.responseSchemaVersion, "schema/1")
     }
 
+    func testNoWriteAIJSONKeepsRawSidecarWhenPreScanFails() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Bird.JPG", in: root)
+        let sidecar = output.appendingPathComponent("Bird.JPG.ai.json")
+        try Data("preexisting user sidecar".utf8).write(to: sidecar)
+        var export = exportConfiguration(outputDir: output.path)
+        export.writeAIJSON = false
+        let guardedPipeline = AnalyzeAndXMPPipeline(
+            logger: Logger(sink: { _ in }),
+            runner: modelRunner(),
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000)),
+            preScanRawSidecars: { _, _ in
+                throw SidecarError(
+                    code: .validationFailed,
+                    stage: .scan,
+                    message: "injected pre-scan failure",
+                    recoverable: true
+                )
+            }
+        )
+
+        _ = try await guardedPipeline.run(
+            inputPath: image.path,
+            runConfiguration: runConfiguration(outputDir: output.path),
+            exportConfiguration: export
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sidecar.path))
+        XCTAssertNoThrow(try RawJSONSidecarReader().read(from: sidecar))
+    }
+
     func testModelPrepareFailureLeavesNoXMP() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()

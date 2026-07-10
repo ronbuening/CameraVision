@@ -2088,7 +2088,7 @@ func testDuplicateSessionTargetThrowsSessionStaleNamingTheKey() throws {
 
 **Acceptance (per sub-item).**
 - [ ] Each lands as its own commit with its own focused test (invariant 16)
-- [ ] a: pre-scan failure aborts the remove-new-sidecars cleanup; deletion failures logged (plan 08 verbatim)
+- [x] a: pre-scan failure aborts the remove-new-sidecars cleanup; deletion failures logged (plan 08 verbatim)
 - [ ] b: recoverable record for folder-scan symlinks; direct input stats the target (plan 08 verbatim)
 - [ ] c: NFC folded in collision keys (plan 08 verbatim)
 - [ ] d: unreadable-vs-absent distinguished; parse errors → `E_CONFIG_INVALID` (plan 08 verbatim)
