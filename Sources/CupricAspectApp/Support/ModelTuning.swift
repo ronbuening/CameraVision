@@ -11,8 +11,9 @@ enum ModelTuning {
         .map(\.name)
 
     /// Ollama `num_ctx` choices offered in the GUI. config.json accepts any
-    /// positive value; these cover the practical range for local vision models.
-    static let contextWindowChoices: [Int] = [2_048, 4_096, 8_192, 16_384, 32_768]
+    /// positive value; these cover local vision models up to 256k windows.
+    /// Larger windows grow the KV cache, so memory use rises with the choice.
+    static let contextWindowChoices: [Int] = [2_048, 4_096, 8_192, 16_384, 32_768, 65_536, 131_072, 262_144]
 
     /// Display a profile by the long-edge pixel size it renders, since that is
     /// the property users pick it for.

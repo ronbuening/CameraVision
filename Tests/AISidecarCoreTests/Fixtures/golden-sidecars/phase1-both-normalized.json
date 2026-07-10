@@ -126,6 +126,7 @@
       "request_options" : {
         "context_window" : 8192,
         "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
         "response_repair_attempts" : 1,
         "retry_limit" : 2,
         "seed" : 0,
@@ -196,6 +197,7 @@
       "request_options" : {
         "context_window" : 8192,
         "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
         "response_repair_attempts" : 1,
         "retry_limit" : 2,
         "seed" : 0,
@@ -224,6 +226,7 @@
     "model_context_window" : 8192,
     "model_endpoint" : "http://localhost:11434",
     "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
     "model_response_repair_attempts" : 1,
     "output_dir" : "<directory>",
     "profile" : "gemma4-26b-default",

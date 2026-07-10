@@ -29,6 +29,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var gpsContext: GPSContextMode?
     /// Optional Ollama `num_ctx` token window for model calls.
     public var modelContextWindow: Int?
+    /// Optional Ollama `num_predict` output-token cap for model calls.
+    public var modelMaxResponseTokens: Int?
     public var sourceRoot: String?
     public var sourceVerification: XMPSourceVerificationPolicy?
     public var writeFlatKeywords: Bool?
@@ -81,6 +83,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case modelResponseRepairAttempts = "model_response_repair_attempts"
         case gpsContext = "gps_context"
         case modelContextWindow = "model_context_window"
+        case modelMaxResponseTokens = "model_max_response_tokens"
         case sourceRoot = "source_root"
         case sourceVerification = "source_verification"
         case writeFlatKeywords = "write_flat_keywords"
@@ -134,6 +137,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         modelResponseRepairAttempts: Int? = nil,
         gpsContext: GPSContextMode? = nil,
         modelContextWindow: Int? = nil,
+        modelMaxResponseTokens: Int? = nil,
         sourceRoot: String? = nil,
         sourceVerification: XMPSourceVerificationPolicy? = nil,
         writeFlatKeywords: Bool? = nil,
@@ -185,6 +189,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
         self.gpsContext = gpsContext
         self.modelContextWindow = modelContextWindow
+        self.modelMaxResponseTokens = modelMaxResponseTokens
         self.sourceRoot = sourceRoot
         self.sourceVerification = sourceVerification
         self.writeFlatKeywords = writeFlatKeywords
@@ -268,6 +273,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.modelResponseRepairAttempts = try container.decodeIfPresent(Int.self, forKey: .modelResponseRepairAttempts)
         self.gpsContext = try container.decodeIfPresent(GPSContextMode.self, forKey: .gpsContext)
         self.modelContextWindow = try container.decodeIfPresent(Int.self, forKey: .modelContextWindow)
+        self.modelMaxResponseTokens = try container.decodeIfPresent(Int.self, forKey: .modelMaxResponseTokens)
         self.sourceRoot = try container.decodeIfPresent(String.self, forKey: .sourceRoot)
         self.sourceVerification = try container.decodeIfPresent(
             XMPSourceVerificationPolicy.self,
@@ -337,6 +343,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(modelResponseRepairAttempts, forKey: .modelResponseRepairAttempts)
         try container.encodeIfPresent(gpsContext, forKey: .gpsContext)
         try container.encodeIfPresent(modelContextWindow, forKey: .modelContextWindow)
+        try container.encodeIfPresent(modelMaxResponseTokens, forKey: .modelMaxResponseTokens)
         try container.encodeIfPresent(sourceRoot, forKey: .sourceRoot)
         try container.encodeIfPresent(sourceVerification, forKey: .sourceVerification)
         try container.encodeIfPresent(writeFlatKeywords, forKey: .writeFlatKeywords)

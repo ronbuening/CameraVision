@@ -16,6 +16,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 1)
         XCTAssertEqual(resolved.gpsContext, .coarse)
         XCTAssertEqual(resolved.modelContextWindow, 8_192)
+        XCTAssertEqual(resolved.modelMaxResponseTokens, 2_048)
     }
 
     func testXMPExportDefaultsLoadWhenDefaultConfigIsMissing() throws {
@@ -68,7 +69,8 @@ final class ConfigResolutionTests: XCTestCase {
               "stage_concurrency": 3,
               "model_response_repair_attempts": 0,
               "gps_context": "exact",
-              "model_context_window": 16384
+              "model_context_window": 16384,
+              "model_max_response_tokens": 1024
             }
             """
         )
@@ -101,6 +103,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 0)
         XCTAssertEqual(resolved.gpsContext, .exact)
         XCTAssertEqual(resolved.modelContextWindow, 16_384)
+        XCTAssertEqual(resolved.modelMaxResponseTokens, 1_024)
     }
 
     func testXMPExportConfigFileOverridesDefaults() throws {

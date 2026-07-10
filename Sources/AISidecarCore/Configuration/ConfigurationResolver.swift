@@ -307,6 +307,10 @@ public enum ConfigurationResolver {
             modelContextWindow: try intValue(
                 from: environment["AISIDECAR_MODEL_CONTEXT_WINDOW"],
                 key: "AISIDECAR_MODEL_CONTEXT_WINDOW"
+            ),
+            modelMaxResponseTokens: try intValue(
+                from: environment["AISIDECAR_MODEL_MAX_RESPONSE_TOKENS"],
+                key: "AISIDECAR_MODEL_MAX_RESPONSE_TOKENS"
             )
         )
     }
@@ -614,6 +618,7 @@ private struct ConfigurationBuilder {
     private var modelResponseRepairAttempts: Int
     private var gpsContext: GPSContextMode
     private var modelContextWindow: Int
+    private var modelMaxResponseTokens: Int
 
     init(defaults: ResolvedRunConfiguration) {
         self.mode = defaults.mode
@@ -639,6 +644,7 @@ private struct ConfigurationBuilder {
         self.modelResponseRepairAttempts = defaults.modelResponseRepairAttempts
         self.gpsContext = defaults.gpsContext
         self.modelContextWindow = defaults.modelContextWindow
+        self.modelMaxResponseTokens = defaults.modelMaxResponseTokens
     }
 
     mutating func apply(config: AppConfig) {
@@ -665,6 +671,7 @@ private struct ConfigurationBuilder {
         merge(&modelResponseRepairAttempts, config.modelResponseRepairAttempts)
         merge(&gpsContext, config.gpsContext)
         merge(&modelContextWindow, config.modelContextWindow)
+        merge(&modelMaxResponseTokens, config.modelMaxResponseTokens)
     }
 
     mutating func apply(overrides: RunConfigurationOverrides) {
@@ -691,6 +698,7 @@ private struct ConfigurationBuilder {
         merge(&modelResponseRepairAttempts, overrides.modelResponseRepairAttempts)
         merge(&gpsContext, overrides.gpsContext)
         merge(&modelContextWindow, overrides.modelContextWindow)
+        merge(&modelMaxResponseTokens, overrides.modelMaxResponseTokens)
     }
 
     func resolved() throws -> ResolvedRunConfiguration {
@@ -726,6 +734,9 @@ private struct ConfigurationBuilder {
         guard modelContextWindow > 0 else {
             throw SidecarError.configInvalid("model_context_window must be greater than zero")
         }
+        guard modelMaxResponseTokens > 0 else {
+            throw SidecarError.configInvalid("model_max_response_tokens must be greater than zero")
+        }
 
         return ResolvedRunConfiguration(
             mode: mode,
@@ -750,7 +761,8 @@ private struct ConfigurationBuilder {
             stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext,
-            modelContextWindow: modelContextWindow
+            modelContextWindow: modelContextWindow,
+            modelMaxResponseTokens: modelMaxResponseTokens
         )
     }
 }
@@ -1023,7 +1035,8 @@ private extension RunConfigurationOverrides {
             stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext,
-            modelContextWindow: modelContextWindow
+            modelContextWindow: modelContextWindow,
+            modelMaxResponseTokens: modelMaxResponseTokens
         )
     }
 }

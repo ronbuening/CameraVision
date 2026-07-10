@@ -41,10 +41,18 @@
 
   // Ollama num_ctx token window requested for every model call. The default
   // leaves headroom for the prompt, image tokens, and the full JSON response;
-  // raise it for models with larger windows or lower it to save memory.
+  // raise it (up to the model's limit, e.g. 262144 for 256k models) or lower
+  // it to save memory — the KV cache grows with the window.
   // Environment-only equivalent: AISIDECAR_MODEL_CONTEXT_WINDOW.
   // There is no current CLI flag for this key.
   "model_context_window": 8192,
+
+  // Ollama num_predict output-token cap for every model call. Healthy
+  // responses run a few hundred tokens; the cap stops a runaway generation
+  // loop early instead of letting it fill the whole context window.
+  // Environment-only equivalent: AISIDECAR_MODEL_MAX_RESPONSE_TOKENS.
+  // There is no current CLI flag for this key.
+  "model_max_response_tokens": 2048,
 
   // Model input rendering profile: controls the rendered image size sent to
   // the model (long edge 2048, 1024, or 1536 pixels). Options:

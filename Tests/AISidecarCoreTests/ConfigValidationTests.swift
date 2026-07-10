@@ -193,6 +193,22 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testInvalidModelMaxResponseTokensFailsAsConfigInvalid() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "model_max_response_tokens": 0 }"#)
+            )
+        }
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_MODEL_MAX_RESPONSE_TOKENS": "unbounded"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     func testInvalidXMPExportEnumFailsAsConfigInvalid() throws {
         for json in [
             #"{ "source_verification": "maybe" }"#,

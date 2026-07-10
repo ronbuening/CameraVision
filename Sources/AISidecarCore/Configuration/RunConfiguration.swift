@@ -75,6 +75,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var gpsContext: GPSContextMode?
     /// Ollama `num_ctx` token window requested for every model call.
     public var modelContextWindow: Int?
+    /// Ollama `num_predict` output-token cap for every model call.
+    public var modelMaxResponseTokens: Int?
 
     public init(
         mode: AnalysisMode? = nil,
@@ -100,7 +102,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         stageConcurrency: Int? = nil,
         modelResponseRepairAttempts: Int? = nil,
         gpsContext: GPSContextMode? = nil,
-        modelContextWindow: Int? = nil
+        modelContextWindow: Int? = nil,
+        modelMaxResponseTokens: Int? = nil
     ) {
         self.mode = mode
         self.existing = existing
@@ -126,6 +129,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
         self.gpsContext = gpsContext
         self.modelContextWindow = modelContextWindow
+        self.modelMaxResponseTokens = modelMaxResponseTokens
     }
 }
 
@@ -195,6 +199,10 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     /// evidence-bearing JSON response instead of relying on Ollama's
     /// smaller runtime default.
     public var modelContextWindow: Int
+    /// Ollama `num_predict` output-token cap; healthy responses run a few
+    /// hundred tokens, so the default stops runaway generation early instead
+    /// of letting it fill the whole context window.
+    public var modelMaxResponseTokens: Int
 
     enum CodingKeys: String, CodingKey {
         case mode
@@ -220,6 +228,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case modelResponseRepairAttempts = "model_response_repair_attempts"
         case gpsContext = "gps_context"
         case modelContextWindow = "model_context_window"
+        case modelMaxResponseTokens = "model_max_response_tokens"
     }
 
     public init(
@@ -245,7 +254,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         stageConcurrency: Int = Self.defaultStageConcurrency(),
         modelResponseRepairAttempts: Int = 1,
         gpsContext: GPSContextMode = .coarse,
-        modelContextWindow: Int = 8_192
+        modelContextWindow: Int = 8_192,
+        modelMaxResponseTokens: Int = 2_048
     ) {
         self.mode = mode
         self.existing = existing
@@ -270,6 +280,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
         self.gpsContext = gpsContext
         self.modelContextWindow = modelContextWindow
+        self.modelMaxResponseTokens = modelMaxResponseTokens
     }
 
     /// Default bounded render/isolation worker count for PW-015.
@@ -309,7 +320,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         stageConcurrency: ResolvedRunConfiguration.defaultStageConcurrency(),
         modelResponseRepairAttempts: 1,
         gpsContext: .coarse,
-        modelContextWindow: 8_192
+        modelContextWindow: 8_192,
+        modelMaxResponseTokens: 2_048
     )
 
     public init(from decoder: Decoder) throws {
@@ -349,5 +361,9 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
             Int.self,
             forKey: .modelContextWindow
         ) ?? Self.builtInDefaults.modelContextWindow
+        self.modelMaxResponseTokens = try container.decodeIfPresent(
+            Int.self,
+            forKey: .modelMaxResponseTokens
+        ) ?? Self.builtInDefaults.modelMaxResponseTokens
     }
 }
