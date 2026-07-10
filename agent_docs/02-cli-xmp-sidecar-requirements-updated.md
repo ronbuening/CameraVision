@@ -305,10 +305,11 @@ FR2-025 - Sidecar updates shall be merge-based, not full replacement of metadata
 
 FR2-026 - Sidecar writes shall be atomic: create or copy to a temporary file in the destination directory, apply the write plan to the temporary file, validate it, then replace the target.
 
-FR2-027 - Existing sidecars shall be backed up before modification when `--backup-sidecars` is enabled. Backups shall use a deterministic suffix:
+FR2-027 - Existing sidecars shall be backed up before modification when `--backup-sidecars` is enabled. New backups
+shall use a filesystem-safe timestamp and a four-character lowercase hexadecimal de-collision suffix:
 
 ```text
-<name>.xmp.bak-<ISO-8601-timestamp>
+<name>.xmp.bak-<yyyy-MM-dd'T'HHmmssZ>-<4hex>
 ```
 
 Backups shall be referenced in the export report.
@@ -372,12 +373,14 @@ FR2-031 - Analyze-and-write mode shall preserve or create raw `.ai.json` sidecar
 FR2-032 - Folder runs shall produce:
 
 ```text
-xmp-export-progress-<ISO-8601-timestamp>.jsonl
-xmp-export-report-<ISO-8601-timestamp>.json
-xmp-export-summary-<ISO-8601-timestamp>.md
+xmp-export-progress-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.jsonl
+xmp-export-report-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.json
+xmp-export-summary-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.md
 ```
 
 These files shall be written under `--output-dir` when supplied, otherwise beside the scan root or JSON scan root.
+The three files from one run share a suffix. Cleanup and scan readers shall continue accepting legacy colon-bearing,
+suffix-free names.
 
 `aisidecar cleanup` may remove these progress/report/summary artifacts from a selected folder, but it shall not remove XMP sidecars, backups, source images, or derivative cache artifacts.
 

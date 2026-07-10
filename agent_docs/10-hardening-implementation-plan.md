@@ -1890,16 +1890,21 @@ Every artifact filename embeds `:`; `ProgressLog`/`JSONLWriter` creation fails o
 
 **Discrepancy:** plan 08 says to update `ArtifactNames` patterns and `ArtifactCleanup.classify` to accept both forms — in current source both match by *prefix + suffix only* and never parse the timestamp, so old and new names are recognized with **zero reader changes**. Only `Timestamp`, the four `timestampString` call sites, golden tests, and docs change. `shouldIgnore` (post-R3-7) is likewise prefix/suffix-based.
 
-**STOP: maintainer decision** — new filename timestamp format:
+**Maintainer decision (2026-07-10): Option A** — new filename timestamp format:
 - **Option A** `2026-07-07T180000Z` (drop colons only): visually closest to today's names, sorts correctly alongside old ones.
 - **Option B** `20260707-180000` (compact basic): shortest, but sorts *before* all old names and reads worse.
 - **Recommendation: Option A**, plus R3-8b suffix → `batch-progress-2026-07-07T180000Z-a3f2.jsonl`.
 
-**Change.** (after decision)
+**Change.**
 1. Add `Timestamp.filenameSafe(_ date: Date) -> String` implementing the chosen format (keep `internetDateTime` untouched — provenance fields *inside* artifacts stay ISO-8601; only filenames change).
 2. Switch the four private `timestampString(for:)` helpers to `Timestamp.filenameSafe`.
 3. R3-8b: append a 4-char lowercase-hex random suffix at name-construction time (one value per run, shared by that run's progress + summary names so they stay visually paired). Inject via the pipelines' existing `now`/seam pattern so tests stay deterministic (fixed generator in tests, invariant 12).
 4. Golden/report tests asserting artifact names will diff: **golden diffs are deliberate — update fixtures explicitly and call it out in the PR** (repo test convention). Update `agent_docs/testing-and-verification.md` and README examples showing artifact names.
+
+Implementation audit correction: normalization session/report/summary/progress paths and XMP backup names also used
+colon-bearing timestamps even though the file list above omitted them. R3-8 covers those producers too; otherwise
+normalization and backup-and-merge could still fail on the target filesystems. No serialized golden fixture contained
+an artifact path, so focused report/path assertions were deliberately updated instead of changing unrelated fixtures.
 
 **Tests.** `Tests/AISidecarCoreTests/TimestampTests.swift` (new) + touched golden suites:
 
@@ -1929,10 +1934,10 @@ final class TimestampTests: XCTestCase {
 ```
 
 **Acceptance.**
-- [ ] New files use the filesystem-safe form; readers keep recognizing old names (plan 08 verbatim)
-- [ ] Additive pattern change only; invariant 7 respected (plan 08 verbatim)
-- [ ] R3-8b: same-second runs fully de-collided by suffix (plan 08 verbatim)
-- [ ] Golden tests updated deliberately and called out in the PR
+- [x] New files use the filesystem-safe form; readers keep recognizing old names (plan 08 verbatim)
+- [x] Additive pattern change only; invariant 7 respected (plan 08 verbatim)
+- [x] R3-8b: same-second runs fully de-collided by suffix (plan 08 verbatim)
+- [x] Golden tests updated deliberately and called out in the PR
 
 **Commit.** `Use filesystem-safe timestamps plus a run suffix in artifact filenames`
 

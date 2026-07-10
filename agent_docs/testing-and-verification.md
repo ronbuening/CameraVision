@@ -24,6 +24,10 @@ env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 - **Model behavior** is tested with mock runners and recorded-fixture replay from `ModelRuntime` — never a live model.
 - Every behavior change adds or updates a focused unit test (AGENTS.md rule).
 
+Artifact-filename tests inject a fixed four-hex suffix. New files must use the portable
+`yyyy-MM-dd'T'HHmmssZ-<4hex>` token, paired files from one run must share it, and cleanup/scanning tests must retain
+coverage for legacy colon-bearing, suffix-free names. ISO-8601 provenance fields inside JSON remain unchanged.
+
 ## CLI Help Checks (fast wiring smoke)
 
 ```bash

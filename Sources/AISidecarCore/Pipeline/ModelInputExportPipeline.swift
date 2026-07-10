@@ -258,12 +258,14 @@ public struct ModelInputExportPipeline {
     private let logger: Logger
     private let maskProvider: any ForegroundMaskProvider
     private let now: @Sendable () -> Date
+    private let filenameSuffix: @Sendable () -> String
 
     public init(
         fileManager: FileManager = .default,
         logger: Logger = Logger(),
         maskProvider: (any ForegroundMaskProvider)? = nil,
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix
     ) {
         self.fileManager = fileManager
         self.scanner = ImageScanner(fileManager: fileManager)
@@ -276,6 +278,7 @@ public struct ModelInputExportPipeline {
             self.maskProvider = ExportUnavailableForegroundMaskProvider()
         }
         self.now = now
+        self.filenameSuffix = filenameSuffix
     }
 
     /// Ensure export mode writes only its requested destination artifacts.
@@ -397,8 +400,8 @@ public struct ModelInputExportPipeline {
             records: records,
             summary: summary
         )
-        let manifestPath =
-            "\(exportDirectory)/\(ArtifactNames.modelInputExportManifestPrefix)\(timestampString(for: startedAt)).json"
+        let timestamp = Timestamp.filenameToken(startedAt, suffix: filenameSuffix())
+        let manifestPath = "\(exportDirectory)/\(ArtifactNames.modelInputExportManifestPrefix)\(timestamp).json"
         try writeManifest(manifest, to: manifestPath)
 
         if configuration.clearDerivativeCacheAfterSuccess,
@@ -693,10 +696,6 @@ public struct ModelInputExportPipeline {
                 recoverable: true
             )
         }
-    }
-
-    private func timestampString(for date: Date) -> String {
-        Timestamp.internetDateTime(date)
     }
 
     private func durationMs(from start: Date, to end: Date) -> Int {

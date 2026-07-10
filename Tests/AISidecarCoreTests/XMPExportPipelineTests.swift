@@ -10,7 +10,8 @@ final class XMPExportPipelineTests: XCTestCase {
 
         let result = try XMPExportPipeline(
             logger: Logger(sink: { _ in }),
-            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000))
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000)),
+            filenameSuffix: { "a3f2" }
         ).runFromJSON(fromJSONPath: fixture.jsonRoot.path, configuration: configuration)
 
         let target = fixture.output.appendingPathComponent("Bird.xmp")
@@ -23,6 +24,18 @@ final class XMPExportPipelineTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(result.progressLogPath)))
         XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(result.reportPath)))
         XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(result.summaryPath)))
+        XCTAssertEqual(
+            result.progressLogPath,
+            fixture.output.appendingPathComponent("xmp-export-progress-2027-01-15T080000Z-a3f2.jsonl").path
+        )
+        XCTAssertEqual(
+            result.reportPath,
+            fixture.output.appendingPathComponent("xmp-export-report-2027-01-15T080000Z-a3f2.json").path
+        )
+        XCTAssertEqual(
+            result.summaryPath,
+            fixture.output.appendingPathComponent("xmp-export-summary-2027-01-15T080000Z-a3f2.md").path
+        )
         let summary = try String(contentsOf: URL(fileURLWithPath: try XCTUnwrap(result.summaryPath)), encoding: .utf8)
         XCTAssertTrue(summary.contains("Lightroom Classic"))
         XCTAssertTrue(summary.contains("Capture One"))
@@ -65,10 +78,12 @@ final class XMPExportPipelineTests: XCTestCase {
     func testBackupAndMergeCreatesBackupAndPreservesExistingMetadata() throws {
         let fixture = try makeFromJSONFixture(existingXMP: existingDevelopSettingsXMP)
         let configuration = exportConfiguration(outputDir: fixture.output.path)
+        let suffixes = CountingSuffixProvider(values: ["a3f2", "beef"])
 
         let result = try XMPExportPipeline(
             logger: Logger(sink: { _ in }),
-            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000))
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000)),
+            filenameSuffix: suffixes.next
         ).runFromJSON(fromJSONPath: fixture.jsonRoot.path, configuration: configuration)
 
         let report = try XCTUnwrap(result.report?.targetReports.first)
@@ -76,6 +91,15 @@ final class XMPExportPipelineTests: XCTestCase {
         let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: fixture.output.appendingPathComponent("Bird.xmp").path)
         XCTAssertEqual(report.status, .written)
         XCTAssertTrue(FileManager.default.fileExists(atPath: backup.backupPath))
+        XCTAssertEqual(
+            backup.backupPath,
+            fixture.output.appendingPathComponent("Bird.xmp.bak-2027-01-15T080000Z-a3f2").path
+        )
+        XCTAssertEqual(
+            result.reportPath,
+            fixture.output.appendingPathComponent("xmp-export-report-2027-01-15T080000Z-a3f2.json").path
+        )
+        XCTAssertEqual(suffixes.callCount, 1, "one suffix is generated and shared by all export artifacts")
         XCTAssertEqual(snapshot.flatKeywords, ["existing bird", "wading bird"])
         XCTAssertEqual(snapshot.hierarchicalKeywords, ["existing habitat", "wading bird"])
         XCTAssertTrue(report.validation?.unmanagedContentPreserved == true)
@@ -216,6 +240,27 @@ final class XMPExportPipelineTests: XCTestCase {
 
     private func fixedDateProvider(_ date: Date) -> @Sendable () -> Date {
         { date }
+    }
+}
+
+private final class CountingSuffixProvider: @unchecked Sendable {
+    private let lock = NSLock()
+    private let values: [String]
+    private var index = 0
+
+    init(values: [String]) {
+        self.values = values
+    }
+
+    var callCount: Int {
+        lock.withLock { index }
+    }
+
+    func next() -> String {
+        lock.withLock {
+            defer { index += 1 }
+            return values[min(index, values.count - 1)]
+        }
     }
 }
 

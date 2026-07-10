@@ -26,6 +26,10 @@ final class ModelInputExportPipelineTests: XCTestCase {
         let whole = export.appendingPathComponent("A.JPG.aisidecar.whole_image.jpg")
         XCTAssertTrue(FileManager.default.fileExists(atPath: whole.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: result.manifestPath))
+        XCTAssertEqual(
+            result.manifestPath,
+            export.appendingPathComponent("model-input-export-2027-01-15T081640Z-a3f2.json").path
+        )
         XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("A.JPG.aisidecar.full_resolution.tiff").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("A.JPG.aisidecar.subject_isolated.jpg").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("A.JPG.ai.json").path))
@@ -334,7 +338,8 @@ final class ModelInputExportPipelineTests: XCTestCase {
         ModelInputExportPipeline(
             logger: Logger(sink: { _ in }),
             maskProvider: maskProvider,
-            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_001_000))
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_001_000)),
+            filenameSuffix: { "a3f2" }
         )
     }
 

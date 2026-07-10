@@ -194,7 +194,10 @@ FR1-010 - Pre-existing sidecars shall be governed by `--existing <skip|overwrite
 
 FR1-011 - The sidecar shall contain raw model output, parsed output when available, source-file details including identity, derivative-image details, model details and digest, prompt version and hash, runtime details, analysis mode, timing, and structured errors.
 
-FR1-012 - Folder runs shall write a batch summary JSON named `batch-summary-<ISO-8601-timestamp>.json` in the output directory (or beside the scan root when no `--output-dir` is given).
+FR1-012 - Folder runs shall write a batch summary JSON named
+`batch-summary-<filesystem-safe-timestamp>-<4hex>.json` in the output directory (or beside the scan root when no
+`--output-dir` is given). New names use `yyyy-MM-dd'T'HHmmssZ`; readers shall continue accepting legacy names that
+used the colon-bearing ISO-8601 timestamp and no suffix.
 
 FR1-012a - Folder runs shall additionally write an append-only JSONL progress log (one self-contained record per completed file, flushed before the batch advances). The batch summary shall be derived from this log.
 
@@ -206,6 +209,10 @@ not be retried or recorded as an endpoint failure.
 FR1-012c - Re-running an interrupted batch with `--existing skip` shall process only the remainder. This is the Phase 1 resume mechanism; no separate checkpoint format shall be introduced.
 
 FR1-012d - All file writes (sidecars, summaries, logs) shall be atomic: temporary file in the destination directory, then rename.
+
+FR1-012e - The batch progress and summary names created by one analysis run shall share a four-character lowercase
+hexadecimal suffix. The suffix shall de-collide runs that begin in the same second without changing provenance
+timestamps stored inside artifacts.
 
 ## 7. Rendering Requirements
 
@@ -420,6 +427,8 @@ Accepted flags: the project-wide glossary (PW-004) plus:
 ```
 
 `--export-model-inputs` is a diagnostic pre-model path. It shall not write raw `.ai.json` sidecars, model output, progress logs, batch summaries, or XMP. It shall reject `--dry-run` and `--debug-derivatives` because export mode writes only to the requested export folder.
+Its manifest shall be named `model-input-export-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.json`; scanners shall continue
+recognizing the legacy colon-bearing, suffix-free form as an owned protected artifact.
 
 Benchmark-specific flags:
 

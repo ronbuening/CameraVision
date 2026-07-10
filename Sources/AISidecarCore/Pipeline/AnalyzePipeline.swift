@@ -37,13 +37,15 @@ public struct AnalyzePipeline {
     private let maskProvider: any ForegroundMaskProvider
     private let runner: any VisionModelRunner
     private let now: @Sendable () -> Date
+    private let filenameSuffix: @Sendable () -> String
 
     public init(
         fileManager: FileManager = .default,
         logger: Logger = Logger(),
         maskProvider: (any ForegroundMaskProvider)? = nil,
         runner: any VisionModelRunner = OllamaVisionRunner(),
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix
     ) {
         self.fileManager = fileManager
         self.scanner = ImageScanner(fileManager: fileManager)
@@ -59,6 +61,7 @@ public struct AnalyzePipeline {
         }
         self.runner = runner
         self.now = now
+        self.filenameSuffix = filenameSuffix
     }
 
     /// Run full Phase 1 analysis for one file or folder.
@@ -103,7 +106,7 @@ public struct AnalyzePipeline {
         let runtime = pendingWork.isEmpty ? nil : try await runner.prepare(configuration: configuration)
 
         let isBatch = scanResult.inputPath == scanResult.scanRoot
-        let timestamp = timestampString(for: runStartedAt)
+        let timestamp = Timestamp.filenameToken(runStartedAt, suffix: filenameSuffix())
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
         let progressPath = isBatch && !configuration.dryRun && writesBatchArtifacts
             ? "\(reportDirectory)/\(ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
@@ -845,10 +848,6 @@ public struct AnalyzePipeline {
     private func reportDirectoryPath(scanRoot: String, outputDir: String?) -> String {
         let path = outputDir ?? scanRoot
         return URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path
-    }
-
-    private func timestampString(for date: Date) -> String {
-        Timestamp.internetDateTime(date)
     }
 
     private func durationMs(from start: Date, to end: Date) -> Int {

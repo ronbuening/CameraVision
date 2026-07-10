@@ -800,13 +800,15 @@ privacy_redacted
 FR3-037 - Folder runs shall produce:
 
 ```text
-normalization-session-<ISO-8601-timestamp>.json
-normalization-report-<ISO-8601-timestamp>.json
-normalization-summary-<ISO-8601-timestamp>.md
-normalization-progress-<ISO-8601-timestamp>.jsonl
+normalization-session-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.json
+normalization-report-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.json
+normalization-summary-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.md
+normalization-progress-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.jsonl
 ```
 
 These files shall be written under `--output-dir` when supplied, otherwise beside the scan root, JSON scan root, or session file as appropriate.
+Files created by one invocation share the lowercase hexadecimal suffix. Readers shall continue accepting legacy
+colon-bearing, suffix-free names.
 
 `aisidecar cleanup` may remove normalization progress/report/summary artifacts from a selected folder, but it shall retain normalization session JSON because that file is the durable input for `apply-session`. Cleanup also shall not remove XMP sidecars, backups, source images, or derivative cache artifacts.
 

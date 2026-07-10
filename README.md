@@ -274,7 +274,7 @@ swift run aisidecar normalize --from-json /tmp/aisidecar-ai --recursive \
 
 ```bash
 swift run aisidecar apply-session \
-  /tmp/aisidecar-normalization/normalization-session-<timestamp>.json \
+  /tmp/aisidecar-normalization/normalization-session-2026-07-07T180000Z-a3f2.json \
   --dry-run --output-dir /tmp/aisidecar-apply-preview
 ```
 
@@ -349,6 +349,11 @@ Frequently used knobs:
 | `normalization-session-*.json` | Durable session that `apply-session` can reuse. |
 | `~/Library/Caches/aisidecar/derivatives` | Regenerable render/derivative cache (default location). |
 | `~/Library/Application Support/CupricAspect/` | App state (recovery session, per-run artifacts) and a size-capped diagnostic log (path shown in **Settings → About**). |
+
+New run artifacts use a filesystem-portable `yyyy-MM-dd'T'HHmmssZ-<4hex>` token, for example
+`batch-progress-2026-07-07T180000Z-a3f2.jsonl`. The shared suffix keeps a run's progress, report, and summary files
+visually paired and prevents same-second collisions. Existing colon-bearing artifact names remain readable and
+cleanup-compatible.
 
 After a write, import or synchronize metadata in Lightroom Classic or Capture One
 using each app's normal XMP workflow to pick up the new keywords.

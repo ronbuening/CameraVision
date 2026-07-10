@@ -699,7 +699,8 @@ final class AnalyzePipelineTests: XCTestCase {
             logger: Logger(sink: { _ in }),
             maskProvider: maskProvider,
             runner: runner,
-            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_002_000))
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_002_000)),
+            filenameSuffix: { "a3f2" }
         )
     }
 
@@ -795,6 +796,14 @@ final class AnalyzePipelineTests: XCTestCase {
 
         XCTAssertEqual(captured.records, result.records, "handler sees exactly the emitted records, in order")
         let progressLogPath = try XCTUnwrap(result.progressLogPath)
+        XCTAssertEqual(
+            progressLogPath,
+            output.appendingPathComponent("batch-progress-2027-01-15T083320Z-a3f2.jsonl").path
+        )
+        XCTAssertEqual(
+            result.summaryPath,
+            output.appendingPathComponent("batch-summary-2027-01-15T083320Z-a3f2.json").path
+        )
         let logLines = try String(contentsOfFile: progressLogPath, encoding: .utf8)
             .split(separator: "\n").count
         XCTAssertEqual(logLines, result.records.count, "hook is additive — the JSONL log is unchanged")

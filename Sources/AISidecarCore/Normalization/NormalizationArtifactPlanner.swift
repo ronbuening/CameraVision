@@ -37,10 +37,11 @@ public enum NormalizationArtifactPlanner {
         inputBasePath: String,
         outputDir: String?,
         writeReportPath: String?,
-        timestamp: Date
+        timestamp: Date,
+        filenameSuffix: String = Timestamp.randomFilenameSuffix()
     ) -> NormalizationArtifactPlan {
         let root = URL(fileURLWithPath: outputDir ?? inputBasePath).standardizedFileURL
-        let stamp = timestampString(timestamp)
+        let stamp = Timestamp.filenameToken(timestamp, suffix: filenameSuffix)
         let sessionPath = root.appendingPathComponent("\(ArtifactNames.normalizationSessionPrefix)\(stamp).json").path
         let reportPath = writeReportPath
             ?? root.appendingPathComponent("\(ArtifactNames.normalizationReportPrefix)\(stamp).json").path
@@ -57,11 +58,12 @@ public enum NormalizationArtifactPlanner {
         sessionPath: String,
         outputDir: String?,
         writeReportPath: String?,
-        timestamp: Date
+        timestamp: Date,
+        filenameSuffix: String = Timestamp.randomFilenameSuffix()
     ) -> NormalizationArtifactPlan {
         let sessionURL = URL(fileURLWithPath: sessionPath).standardizedFileURL
         let root = URL(fileURLWithPath: outputDir ?? sessionURL.deletingLastPathComponent().path).standardizedFileURL
-        let stamp = timestampString(timestamp)
+        let stamp = Timestamp.filenameToken(timestamp, suffix: filenameSuffix)
         let reportPath = writeReportPath
             ?? root.appendingPathComponent("\(ArtifactNames.normalizationApplyReportPrefix)\(stamp).json").path
         return NormalizationArtifactPlan(
@@ -71,9 +73,5 @@ public enum NormalizationArtifactPlanner {
             progressPath: root.appendingPathComponent("\(ArtifactNames.normalizationApplyProgressPrefix)\(stamp).jsonl").path,
             xmpTargetRoot: outputDir
         )
-    }
-
-    private static func timestampString(_ timestamp: Date) -> String {
-        ISO8601DateFormatter().string(from: timestamp)
     }
 }
