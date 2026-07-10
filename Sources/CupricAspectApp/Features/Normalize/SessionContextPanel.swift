@@ -49,13 +49,17 @@ struct SessionContextPanel: View {
                             .kerning(0.5)
                             .foregroundStyle(theme.textFaint)
                         HStack(spacing: 8) {
-                            Text(model.vocabularyPath.map { ($0 as NSString).lastPathComponent } ?? "bundled starter vocabulary")
+                            // nil path = the pipeline's built-in default: a
+                            // catalog generated from the batch's observed
+                            // model tags, not the bundled starter vocabulary
+                            // (that only backs controlled mode).
+                            Text(model.vocabularyPath.map { ($0 as NSString).lastPathComponent } ?? "observed tags (default)")
                                 .font(.system(size: 11.5, weight: .medium, design: .monospaced))
                                 .foregroundStyle(model.vocabularyPath == nil ? theme.textDim : theme.text)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                             if model.vocabularyPath != nil {
-                                Button("Bundled") { model.vocabularyPath = nil }
+                                Button("Default") { model.vocabularyPath = nil }
                                     .buttonStyle(.plain)
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(theme.textDim)
