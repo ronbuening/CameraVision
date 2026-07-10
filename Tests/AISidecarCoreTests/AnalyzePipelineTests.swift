@@ -161,6 +161,51 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(maxInFlight, 1)
     }
 
+    func testInterruptionBetweenRolesSkipsSecondRoleAndFailsClosed() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        _ = try writeTestImage("Bird.JPG", width: 120, height: 80, in: root)
+        let monitor = InterruptionMonitor()
+        let runner = RecordingVisionModelRunner(
+            onAnalyze: { role in
+                if role == .wholeImage {
+                    monitor.requestInterruption()
+                }
+            }
+        )
+
+        let result = try await pipeline(
+            maskProvider: StaticForegroundMaskProvider([
+                StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
+            ]),
+            runner: runner
+        ).run(
+            inputPath: root.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .both,
+                cacheDir: output.appendingPathComponent("cache").path
+            ),
+            interruptionMonitor: monitor
+        )
+
+        XCTAssertTrue(result.interrupted)
+        XCTAssertTrue(result.records.isEmpty)
+        XCTAssertEqual(result.summary?.errors.map(\.code), [.interrupted])
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.JPG.ai.json").path)
+        )
+        let calls = await runner.capturedCalls()
+        let cancellationObserved = await runner.observedCancellation()
+        XCTAssertEqual(calls.map(\.inputRole), [.wholeImage])
+        XCTAssertTrue(cancellationObserved)
+    }
+
     func testStageConcurrencyOneDoesNotRenderAheadDuringModelCall() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -806,6 +851,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
     private var calls: [CapturedModelCall] = []
     private var inFlight = 0
     private var maxInFlight = 0
+    private var cancellationObserved = false
 
     init(
         prepareError: SidecarError? = nil,
@@ -843,7 +889,8 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
         prompt: VersionedPrompt,
         schema: JSONSchemaDocument,
         options: ModelRunOptions,
-        runtime: ModelRuntimeContext
+        runtime: ModelRuntimeContext,
+        isInterrupted _: (@Sendable () -> Bool)? = nil
     ) async -> ModelRunRecord {
         inFlight += 1
         maxInFlight = max(maxInFlight, inFlight)
@@ -860,6 +907,9 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
             )
         )
         await onAnalyze?(inputRole)
+        if Task.isCancelled {
+            cancellationObserved = true
+        }
         if delayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: delayNanoseconds)
         }
@@ -910,6 +960,10 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
 
     func maximumInFlight() -> Int {
         maxInFlight
+    }
+
+    func observedCancellation() -> Bool {
+        cancellationObserved
     }
 
     func prepareCount() -> Int {

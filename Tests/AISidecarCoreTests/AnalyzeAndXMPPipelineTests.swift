@@ -215,7 +215,8 @@ private struct PrepareFailingRunner: VisionModelRunner {
         prompt _: VersionedPrompt,
         schema _: JSONSchemaDocument,
         options _: ModelRunOptions,
-        runtime: ModelRuntimeContext
+        runtime: ModelRuntimeContext,
+        isInterrupted _: (@Sendable () -> Bool)? = nil
     ) async -> ModelRunRecord {
         ModelRunRecord(
             inputRole: .wholeImage,

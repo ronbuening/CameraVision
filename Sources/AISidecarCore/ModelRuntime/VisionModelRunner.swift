@@ -6,14 +6,39 @@ public protocol VisionModelRunner: Sendable {
     func prepare(configuration: ResolvedRunConfiguration) async throws -> ModelRuntimeContext
 
     /// Analyze one model-input derivative and return a provenance-ready record.
+    ///
+    /// Runtimes check `isInterrupted` before starting and retrying transport work.
     func analyze(
         image: DerivativeRecord,
         inputRole: ModelInputRole,
         prompt: VersionedPrompt,
         schema: JSONSchemaDocument,
         options: ModelRunOptions,
-        runtime: ModelRuntimeContext
+        runtime: ModelRuntimeContext,
+        isInterrupted: (@Sendable () -> Bool)?
     ) async -> ModelRunRecord
+}
+
+extension VisionModelRunner {
+    /// Analyze without an external interruption callback.
+    public func analyze(
+        image: DerivativeRecord,
+        inputRole: ModelInputRole,
+        prompt: VersionedPrompt,
+        schema: JSONSchemaDocument,
+        options: ModelRunOptions,
+        runtime: ModelRuntimeContext
+    ) async -> ModelRunRecord {
+        await analyze(
+            image: image,
+            inputRole: inputRole,
+            prompt: prompt,
+            schema: schema,
+            options: options,
+            runtime: runtime,
+            isInterrupted: nil
+        )
+    }
 }
 
 /// Deterministic runner for tests that need a model result without I/O.
@@ -36,7 +61,8 @@ public struct MockVisionModelRunner: VisionModelRunner {
         prompt _: VersionedPrompt,
         schema _: JSONSchemaDocument,
         options _: ModelRunOptions,
-        runtime _: ModelRuntimeContext
+        runtime _: ModelRuntimeContext,
+        isInterrupted _: (@Sendable () -> Bool)? = nil
     ) async -> ModelRunRecord {
         record
     }
@@ -76,7 +102,8 @@ public struct RecordedFixtureRunner: VisionModelRunner {
         prompt: VersionedPrompt,
         schema: JSONSchemaDocument,
         options: ModelRunOptions,
-        runtime: ModelRuntimeContext
+        runtime: ModelRuntimeContext,
+        isInterrupted _: (@Sendable () -> Bool)? = nil
     ) async -> ModelRunRecord {
         if let exact = fixture.records.first(where: {
             $0.inputRole == inputRole && $0.inputDerivativeSHA256 == image.sha256

@@ -47,10 +47,12 @@ public struct OllamaVisionRunner: VisionModelRunner {
         prompt: VersionedPrompt,
         schema: JSONSchemaDocument,
         options: ModelRunOptions,
-        runtime: ModelRuntimeContext
+        runtime: ModelRuntimeContext,
+        isInterrupted: (@Sendable () -> Bool)? = nil
     ) async -> ModelRunRecord {
         let startedAt = now()
         do {
+            try Self.checkInterruption(isInterrupted)
             let imageData = try Data(contentsOf: URL(fileURLWithPath: image.cachePath))
             let primaryStartedAt = now()
             let request = try chatRequest(
@@ -60,7 +62,12 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 options: options,
                 runtime: runtime
             )
-            let chat = try await chatResponse(request, endpoint: runtime.endpoint, options: options)
+            let chat = try await chatResponse(
+                request,
+                endpoint: runtime.endpoint,
+                options: options,
+                isInterrupted: isInterrupted
+            )
             let rawText = chat.message.content
             let evaluation = evaluateModelResponse(rawText, schema: schema)
             let primaryAttempt = responseAttempt(
@@ -119,7 +126,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
                     let repairChat = try await chatResponse(
                         repairRequest,
                         endpoint: runtime.endpoint,
-                        options: repairOptions
+                        options: repairOptions,
+                        isInterrupted: isInterrupted
                     )
                     let repairRawText = repairChat.message.content
                     let repairEvaluation = evaluateModelResponse(repairRawText, schema: schema)
@@ -329,21 +337,29 @@ public struct OllamaVisionRunner: VisionModelRunner {
     private func chatResponse(
         _ request: OllamaHTTPRequest,
         endpoint: URL,
-        options: ModelRunOptions
+        options: ModelRunOptions,
+        isInterrupted: (@Sendable () -> Bool)?
     ) async throws -> OllamaChatResponse {
-        let response = try await sendChatWithRetries(request, endpoint: endpoint, options: options)
+        let response = try await sendChatWithRetries(
+            request,
+            endpoint: endpoint,
+            options: options,
+            isInterrupted: isInterrupted
+        )
         return try decodeChatResponse(response)
     }
 
     private func sendChatWithRetries(
         _ request: OllamaHTTPRequest,
         endpoint: URL,
-        options: ModelRunOptions
+        options: ModelRunOptions,
+        isInterrupted: (@Sendable () -> Bool)?
     ) async throws -> OllamaHTTPResponse {
         let maxAttempts = max(0, options.retryLimit) + 1
         var lastError: Error?
 
         for attempt in 1...maxAttempts {
+            try Self.checkInterruption(isInterrupted)
             do {
                 let response = try await transport.send(request, endpoint: endpoint)
                 guard (200..<300).contains(response.statusCode) else {
@@ -351,6 +367,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 }
                 return response
             } catch {
+                try Self.checkInterruption(isInterrupted)
                 lastError = error
                 if attempt == maxAttempts {
                     break
@@ -367,6 +384,17 @@ public struct OllamaVisionRunner: VisionModelRunner {
             )
         }
         throw endpointUnreachable(lastError ?? OllamaHTTPTransportError.unreachable("Unknown transport error."))
+    }
+
+    private static func checkInterruption(_ isInterrupted: (@Sendable () -> Bool)?) throws {
+        if Task.isCancelled || isInterrupted?() == true {
+            throw SidecarError(
+                code: .interrupted,
+                stage: .model,
+                message: "Model request interrupted.",
+                recoverable: true
+            )
+        }
     }
 
     private func decodeChatResponse(_ response: OllamaHTTPResponse) throws -> OllamaChatResponse {

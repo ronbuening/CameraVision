@@ -224,6 +224,93 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(requests.count, 3)
     }
 
+    func testAnalyzeStopsRetryingWhenInterruptedBetweenAttempts() async throws {
+        let imageURL = try writeModelInput()
+        let monitor = InterruptionMonitor()
+        let transport = RecordingOllamaTransport(
+            [
+                .failure(OllamaHTTPTransportError.unreachable("first failure")),
+                .success(chatResponse(content: #"{"summary":"never reached"}"#))
+            ],
+            onSend: { requestCount in
+                if requestCount == 1 {
+                    monitor.requestInterruption()
+                }
+            }
+        )
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: 2),
+            runtime: runtimeContext(),
+            isInterrupted: { monitor.isInterrupted }
+        )
+
+        XCTAssertEqual(record.error?.code, .interrupted)
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 1)
+    }
+
+    func testAnalyzeStartsNoRequestWhenAlreadyInterrupted() async throws {
+        let imageURL = try writeModelInput()
+        let transport = RecordingOllamaTransport([
+            .success(chatResponse(content: #"{"summary":"never reached"}"#))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: VersionedPrompt(version: "prompt/1.0", text: "Prompt"),
+            schema: try summarySchema(),
+            options: ModelRunOptions(retryLimit: 2),
+            runtime: runtimeContext(),
+            isInterrupted: { true }
+        )
+
+        XCTAssertEqual(record.error?.code, .interrupted)
+        let requests = await transport.capturedRequests()
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testInFlightRequestCancellationStopsHangingTransport() async throws {
+        let imageURL = try writeModelInput()
+        let monitor = InterruptionMonitor()
+        let transport = CancellationAwareHangingTransport()
+        let runner = OllamaVisionRunner(transport: transport)
+        let prompt = VersionedPrompt(version: "prompt/1.0", text: "Prompt")
+        let schema = try summarySchema()
+        let image = derivative(cachePath: imageURL.path)
+        let runtime = runtimeContext()
+        let task = Task {
+            await runner.analyze(
+                image: image,
+                inputRole: .wholeImage,
+                prompt: prompt,
+                schema: schema,
+                options: ModelRunOptions(retryLimit: 2),
+                runtime: runtime,
+                isInterrupted: { monitor.isInterrupted }
+            )
+        }
+        let registration = monitor.onInterruption { task.cancel() }
+
+        await transport.waitUntilStarted()
+        monitor.requestInterruption()
+        let record = await task.value
+        registration.cancel()
+
+        XCTAssertEqual(record.error?.code, .interrupted)
+        let requestCount = await transport.requestCount
+        let wasCancelled = await transport.wasCancelled
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertTrue(wasCancelled)
+    }
+
     func testAnalyzeClassifiesExhaustedTimeoutAndEndpointFailures() async throws {
         let imageURL = try writeModelInput()
         let timeoutTransport = RecordingOllamaTransport([
@@ -763,9 +850,14 @@ final class ModelRuntimeTests: XCTestCase {
 private actor RecordingOllamaTransport: OllamaHTTPTransport {
     private var responses: [Result<OllamaHTTPResponse, Error>]
     private var requests: [OllamaHTTPRequest] = []
+    private let onSend: (@Sendable (Int) -> Void)?
 
-    init(_ responses: [Result<OllamaHTTPResponse, Error>]) {
+    init(
+        _ responses: [Result<OllamaHTTPResponse, Error>],
+        onSend: (@Sendable (Int) -> Void)? = nil
+    ) {
         self.responses = responses
+        self.onSend = onSend
     }
 
     func capturedRequests() -> [OllamaHTTPRequest] {
@@ -774,6 +866,7 @@ private actor RecordingOllamaTransport: OllamaHTTPTransport {
 
     func send(_ request: OllamaHTTPRequest, endpoint _: URL) async throws -> OllamaHTTPResponse {
         requests.append(request)
+        onSend?(requests.count)
         let response = responses.isEmpty
             ? .failure(OllamaHTTPTransportError.unreachable("No stubbed Ollama response."))
             : responses.removeFirst()
@@ -783,6 +876,43 @@ private actor RecordingOllamaTransport: OllamaHTTPTransport {
             return value
         case .failure(let error):
             throw error
+        }
+    }
+}
+
+private actor CancellationAwareHangingTransport: OllamaHTTPTransport {
+    private var started = false
+    private var cancelled = false
+    private var requests = 0
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+
+    var requestCount: Int { requests }
+    var wasCancelled: Bool { cancelled }
+
+    func waitUntilStarted() async {
+        if started {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func send(_: OllamaHTTPRequest, endpoint _: URL) async throws -> OllamaHTTPResponse {
+        requests += 1
+        started = true
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: 60_000_000_000)
+            return OllamaHTTPResponse(statusCode: 500, data: Data())
+        } catch is CancellationError {
+            cancelled = true
+            throw CancellationError()
         }
     }
 }
