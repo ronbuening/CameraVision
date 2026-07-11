@@ -2361,8 +2361,8 @@ func testDMSCoordinateCandidateIsSkippedInObservedTagsMode() throws {
 ```
 
 **Acceptance.**
-- [ ] Table-driven cases for each caught format plus non-coordinate negatives ("50mm f/1.8", "Apollo 11", "Room 404") (plan 08 verbatim).
-- [ ] Existing coordinate/GPS-evidence test still green (guards extended, not replaced); `evidenceReliesOnGPS` untouched.
+- [x] Table-driven cases for each caught format plus non-coordinate negatives ("50mm f/1.8", "Apollo 11", "Room 404") (plan 08 verbatim).
+- [x] Existing coordinate/GPS-evidence test still green (guards extended, not replaced); `evidenceReliesOnGPS` untouched.
 
 **Commit.** `Broaden coordinate-term guard to DMS, cardinal-prefix, signed pairs, and UTM`
 
