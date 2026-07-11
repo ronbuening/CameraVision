@@ -23,6 +23,7 @@ public final class DerivativeCache: @unchecked Sendable {
     private let decoder: JSONDecoder
     private let stateLock = NSLock()
     private var cachedManifestState: CachedManifestState?
+    private var retainedFileNames: Set<String> = []
 
     public init(
         directoryPath: String,
@@ -88,6 +89,7 @@ public final class DerivativeCache: @unchecked Sendable {
 
             manifest.entries[url.lastPathComponent]?.lastAccessedAt = now()
             try saveManifest(manifest)
+            _ = retain(url.lastPathComponent)
             return entry.record(cachePath: url.path)
         }
     }
@@ -133,7 +135,8 @@ public final class DerivativeCache: @unchecked Sendable {
             try withManifestLock {
                 var manifest = try loadManifest()
                 manifest.entries[url.lastPathComponent] = entry
-                try evictIfNeeded(manifest: &manifest, protectedFileName: url.lastPathComponent)
+                let protectedFileNames = retain(url.lastPathComponent)
+                try evictIfNeeded(manifest: &manifest, protecting: protectedFileNames)
                 try saveManifest(manifest)
             }
             return entry.record(cachePath: url.path)
@@ -224,6 +227,13 @@ public final class DerivativeCache: @unchecked Sendable {
         try clear()
     }
 
+    /// Release artifacts retained for the active run so later stores can evict them normally.
+    public func releaseRetained() {
+        stateLock.withLock {
+            retainedFileNames.removeAll()
+        }
+    }
+
     /// Compute the SHA-256 digest of artifact bytes for derivative provenance.
     public static func sha256(of url: URL) throws -> String {
         let data = try Data(contentsOf: url)
@@ -289,12 +299,19 @@ public final class DerivativeCache: @unchecked Sendable {
         )
     }
 
-    private func evictIfNeeded(manifest: inout CacheManifest, protectedFileName: String) throws {
+    private func retain(_ fileName: String) -> Set<String> {
+        stateLock.withLock {
+            retainedFileNames.insert(fileName)
+            return retainedFileNames
+        }
+    }
+
+    private func evictIfNeeded(manifest: inout CacheManifest, protecting protectedFileNames: Set<String>) throws {
         var totalBytes = manifest.entries.values.reduce(Int64(0)) { $0 + $1.byteCount }
-        // Keep the artifact that satisfied the current render request even if
-        // a tiny cap means the cache remains over budget after older eviction.
+        // The active run's prepared derivatives are a temporary floor beneath the configured cap:
+        // evicting them before the serialized model loop reads them would invalidate the work queue.
         let candidates = manifest.entries.values
-            .filter { $0.fileName != protectedFileName }
+            .filter { !protectedFileNames.contains($0.fileName) }
             .sorted { $0.lastAccessedAt < $1.lastAccessedAt }
 
         for entry in candidates where totalBytes > sizeCapBytes {

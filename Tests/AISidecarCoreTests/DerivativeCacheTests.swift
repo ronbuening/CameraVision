@@ -192,6 +192,41 @@ final class DerivativeCacheTests: XCTestCase {
         XCTAssertEqual(fileManager.manifestReadCount, 1)
     }
 
+    func testEvictionSkipsRetainedWorkingSetUnderTinyCap() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let cache = DerivativeCache(directoryPath: root.path, sizeCapBytes: 5)
+        let firstSource = makeSource(
+            identity: SourceIdentity(policy: .sha256, sha256: String(repeating: "1", count: 64))
+        )
+        let secondSource = makeSource(
+            identity: SourceIdentity(policy: .sha256, sha256: String(repeating: "2", count: 64))
+        )
+        let thirdSource = makeSource(
+            identity: SourceIdentity(policy: .sha256, sha256: String(repeating: "3", count: 64))
+        )
+        let first = try Self.store(Data("first".utf8), in: cache, source: firstSource)
+        cache.releaseRetained()
+        XCTAssertNotNil(try cache.cachedRecord(
+            source: firstSource,
+            recipeVersion: "recipe-v1",
+            role: .wholeImage,
+            format: .jpeg
+        ))
+
+        let second = try Self.store(Data("other".utf8), in: cache, source: secondSource)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.cachePath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.cachePath))
+
+        cache.releaseRetained()
+        let third = try Self.store(Data("third".utf8), in: cache, source: thirdSource)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: first.cachePath))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: second.cachePath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: third.cachePath))
+    }
+
     private static func store(_ data: Data, in cache: DerivativeCache, source: SourceImage) throws -> DerivativeRecord {
         try cache.store(
             source: source,

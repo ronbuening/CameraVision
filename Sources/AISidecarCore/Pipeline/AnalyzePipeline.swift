@@ -84,6 +84,7 @@ public struct AnalyzePipeline {
         let runStartedAt = now()
         let profile = try ModelInputProfileRegistry.resolve(name: configuration.profile)
         let lifecycleCache = cache(for: configuration)
+        defer { lifecycleCache.releaseRetained() }
         if configuration.clearDerivativeCacheOnStart {
             try lifecycleCache.clear()
         }
