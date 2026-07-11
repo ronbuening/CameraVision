@@ -25,7 +25,7 @@ struct Step5ReviewView: View {
                     .padding(.top, 14)
             }
 
-            if let error = review.buildError ?? review.fileError {
+            if let error = review.buildError ?? review.fileError ?? review.editError {
                 Text(error)
                     .font(.system(size: 12.5))
                     .foregroundStyle(theme.danger)
@@ -72,7 +72,7 @@ struct Step5ReviewView: View {
             Button("Apply to all photos with “\(editing?.keyword ?? "")”") {
                 if let chip = editing {
                     let applied = review.editEverywhere(keyword: chip.keyword, to: editText)
-                    batchEditNotice = "Applied to \(applied) photo(s)"
+                    batchEditNotice = review.editError == nil ? "Applied to \(applied) photo(s)" : nil
                 }
                 editing = nil
             }

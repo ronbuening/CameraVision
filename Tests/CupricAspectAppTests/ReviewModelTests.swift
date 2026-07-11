@@ -324,4 +324,18 @@ final class ReviewModelTests: XCTestCase {
         XCTAssertTrue(chips.contains { $0.keyword == "Birds" && $0.originalKeyword == "Subject|Wildlife|Birds" })
         XCTAssertTrue(chips.contains { $0.keyword == "Signage" && $0.originalKeyword == "visible sign" })
     }
+
+    @MainActor
+    func testPipeBearingEditsAreRejectedAndSurfaced() throws {
+        let model = makeModel()
+        model.adopt(session: try makeBaseSession(terms: ["bird"]))
+        let chip = try XCTUnwrap(model.assetRows.first?.chips.first)
+
+        XCTAssertFalse(model.editKeyword(chip.decisionID, to: "Great|Egret"))
+        XCTAssertEqual(model.editError, "Keyword edits must be non-empty and cannot contain '|'.")
+        XCTAssertTrue(model.edits.isEmpty)
+        XCTAssertEqual(model.editEverywhere(keyword: "bird", to: "Birds|Herons"), 0)
+        XCTAssertTrue(model.edits.isEmpty)
+        XCTAssertEqual(model.assetRows.first?.chips.first?.keyword, "bird")
+    }
 }

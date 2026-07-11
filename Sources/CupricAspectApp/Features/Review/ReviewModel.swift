@@ -42,6 +42,7 @@ final class ReviewModel {
     private(set) var recoveryAvailable = false
     private(set) var restoredFromRecovery = false
     private(set) var restoredRecoveryDirty = false
+    private(set) var editError: String?
 
     /// Autosave policy (FR4-046a defaults): every 25 decisions or 5 minutes.
     private let autosaveDecisionLimit: Int
@@ -183,6 +184,7 @@ final class ReviewModel {
         lastAutosaveAt = now()
         restoredFromRecovery = false
         restoredRecoveryDirty = false
+        editError = nil
     }
 
     /// FR4-059: user-initiated file operations surface failures instead of
@@ -232,6 +234,7 @@ final class ReviewModel {
         edits = [:]
         restoredFromRecovery = false
         restoredRecoveryDirty = false
+        editError = nil
     }
 
     // MARK: - Verdicts
@@ -265,12 +268,17 @@ final class ReviewModel {
         recordChange()
     }
 
-    func editKeyword(_ decisionID: String, to text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        edits[decisionID] = trimmed
+    @discardableResult
+    func editKeyword(_ decisionID: String, to text: String) -> Bool {
+        guard let replacement = SessionReview.sanitizedEdit(text) else {
+            editError = "Keyword edits must be non-empty and cannot contain '|'."
+            return false
+        }
+        editError = nil
+        edits[decisionID] = replacement
         verdicts[decisionID] = .approved
         recordChange()
+        return true
     }
 
     /// FR4-019 scoped batch correction: apply an edit to every asset in the
@@ -278,8 +286,11 @@ final class ReviewModel {
     func editEverywhere(keyword: String, to text: String) -> Int {
         guard let session else { return 0 }
         let folded = keyword.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let replacement = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !folded.isEmpty, !replacement.isEmpty else { return 0 }
+        guard !folded.isEmpty, let replacement = SessionReview.sanitizedEdit(text) else {
+            editError = "Keyword edits must be non-empty and cannot contain '|'."
+            return 0
+        }
+        editError = nil
         var applied = 0
         for decision in session.perAssetDecisions
         where isVisibleReviewDecision(decision) && displayKeyword(for: decision).lowercased() == folded {

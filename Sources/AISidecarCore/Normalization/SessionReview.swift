@@ -15,6 +15,16 @@ public enum ReviewVerdict: String, Codable, Sendable, Equatable {
 /// reconstructs them from one — the sidecar-only durability mechanism for
 /// review state (NFR4-008, FR4-046a).
 public enum SessionReview {
+    /// Flat user edits must remain valid Phase 2 keywords; hierarchy may only
+    /// come from a controlled vocabulary canonical path (FR3-003g/h).
+    public static func sanitizedEdit(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.contains("|") else {
+            return nil
+        }
+        return trimmed
+    }
+
     /// Return a copy of `session` with verdicts and edits applied.
     ///
     /// - approved → `status = .accepted`, user-review reasons removed
@@ -33,8 +43,7 @@ public enum SessionReview {
         var reviewed = session
         reviewed.perAssetDecisions = session.perAssetDecisions.map { decision in
             var decision = decision
-            if let editedText = edits[decision.decisionID]?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !editedText.isEmpty {
+            if let editedText = edits[decision.decisionID].flatMap(sanitizedEdit) {
                 if decision.sourceText == nil {
                     decision.sourceText = decision.flatKeyword ?? decision.canonicalPath
                 }

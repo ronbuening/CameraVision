@@ -124,6 +124,22 @@ final class SessionReviewTests: XCTestCase {
         XCTAssertEqual(SessionReview.edits(in: reviewed)[bird.decisionID], "Great Horned Owl")
     }
 
+    func testEditContainingHierarchySeparatorIsRejected() throws {
+        let (session, _, _) = try makeSession(terms: ["bird"])
+        let bird = try acceptedDecision(for: "bird", in: session)
+
+        let reviewed = SessionReview.applying(
+            verdicts: [:],
+            edits: [bird.decisionID: "Great|Egret"],
+            to: session
+        )
+
+        let unchanged = try XCTUnwrap(reviewed.perAssetDecisions.first { $0.decisionID == bird.decisionID })
+        XCTAssertEqual(unchanged, bird)
+        XCTAssertNil(SessionReview.sanitizedEdit("Great|Egret"))
+        XCTAssertEqual(SessionReview.sanitizedEdit("  Great Egret  "), "Great Egret")
+    }
+
     func testReviewedSessionSurvivesWriterReaderRoundTrip() throws {
         let (session, root, _) = try makeSession(terms: ["bird", "tree"])
         let bird = try acceptedDecision(for: "bird", in: session)
