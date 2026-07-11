@@ -29,7 +29,10 @@ Overall verdict: the safety core is genuinely strong — the XMP write chain (pr
 
 **Implementation status (2026-07-10):** R3-1 through R3-11 are implemented and committed. The automated R3 exit
 gate is green; environment-dependent Ctrl+C, live-model timeout, and exFAT checks remain manual release evidence as
-recorded in the companion plan.
+recorded in the companion plan. A post-implementation audit (2026-07-10, six parallel spec-versus-code reviews)
+confirmed every item and landed two corrections: `normalize --dry-run` now exits nonzero when its printed change
+plan contains failed targets, and scans ignore `.xmp.bak-*` backups so backup-and-merge no longer poisons reruns.
+Details in the companion plan's R3-1/R3-7 audit-correction notes and R3 exit gate.
 
 Rules for every item: one work item at a time (invariant 17); each item independently committable with `swift test` green; behavior changes ship with focused unit tests (invariant 16); commit at each passing breakpoint, docs and code in separate commits.
 
@@ -295,6 +298,8 @@ Two app instances (or GUI + CLI) share the recovery file path, log path, and con
 - **EXIF orientation 0 strictness** (`RenderRecipe.swift:46-54`) — deliberate; revisit if real-world images hit it.
 - **Per-file `startedAt` at plan time** inflating `durationMs` (`AnalyzePipeline.swift:402-403`) — reporting-quality only.
 - **`RawJSONSidecar.swift:126` `try?` on `subject_isolation`** — verified no data loss on rewrite.
+- **Preflight interruption** (R3 audit, 2026-07-10): `runner.prepare` (`/api/tags`, `/api/show` probes, `/api/version`) runs before the first monitor check and holds no cancellation registration, so Ctrl+C/GUI cancel during preflight waits out the configured timeout per request (CLI escalation still applies; parent-task cancellation propagates). R3-2/R3-4 scoped cancellation to model requests — extend to preflight only if it bites in practice.
+- **Settings tag-list probe timeout** (R3 audit, 2026-07-10): the GUI Settings model dropdown probes via `listInstalledVisionTags` with the built-in 180 s default rather than the configured `model_timeout_seconds`; run preflight is fully covered. Cosmetic inconsistency.
 
 ## 7. Verification
 

@@ -53,6 +53,9 @@ and `--model-retry-limit`; the latter two commands accept them only in their ana
 Use a disposable input/output location for these checks. A completed diagnostic
 scan remains exit `0` even when its JSON contains unsupported-file records; a real
 batch with a failed item exits `1`; and an interrupted batch exits `130`.
+Symbolic links in a scanned folder are skipped with a recorded scan error, which
+counts as a failed item. `write-xmp --dry-run` and `normalize --dry-run` exit `1`
+when the printed change plan contains failed inputs or target plans.
 
 ```bash
 swift run aisidecar analyze <unsupported-file> --dry-scan; echo $?   # 0

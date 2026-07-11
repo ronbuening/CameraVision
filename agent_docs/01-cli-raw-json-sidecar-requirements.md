@@ -301,7 +301,8 @@ FR1-030c - Thinking mode shall be explicitly disabled for tagging runs and the s
 FR1-030d - `keep_alive` shall default to a duration that keeps the model resident for the whole batch (initial default: `30m`, refreshed per request), avoiding a per-image reload tax.
 
 FR1-030e - Requests shall have a timeout (default 180 s) and bounded transport retries (default 2), retrying only
-on timeout, transport errors, and HTTP 5xx responses. HTTP 4xx responses shall fail immediately. When Ollama
+on timeout, transport errors, and HTTP 5xx responses. Other non-2xx responses (4xx included; a surfaced 3xx means
+a broken proxy and is treated the same) shall fail immediately. When Ollama
 returns a JSON `error` message for a non-success response, the diagnostic shall be included in the bounded error
 message. A malformed HTTP-success API envelope shall be retried exactly once on an independent decode-retry budget,
 then fail with `E_MODEL_RESPONSE_INVALID`. `E_MODEL_INVALID_JSON` and `E_MODEL_SCHEMA_VIOLATION` shall not be

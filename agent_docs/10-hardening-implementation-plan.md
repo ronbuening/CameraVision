@@ -1455,7 +1455,7 @@ Keep plan 08's scope boundary: no lock, no `NSFileCoordinator` — plan 08 §"de
 
 ## Milestone R3 — CLI process-boundary hardening
 
-R3 runs after R2. R3 and R4 are independent and may swap wholesale, but do not interleave them. Items run in order R3-1 → R3-11; R3-11's sub-items are each one small commit and may be reordered or individually deferred. Two items change observable behavior (R3-1 exit codes, R3-8 artifact names): both update `agent_docs/testing-and-verification.md`, the README, and golden tests deliberately, and say so in their commits. All source claims below re-verified against the working tree on 2026-07-08.
+R3 runs after R2. R3 and R4 are independent and may swap wholesale, but do not interleave them. Items run in order R3-1 → R3-11; R3-11's sub-items are each one small commit and may be reordered or individually deferred. Two items change observable behavior (R3-1 exit codes, R3-8 artifact names): both update `agent_docs/testing-and-verification.md`, the README, and golden tests deliberately, and say so in their commits. (R3-11b adds a third, smaller one: symlink skips now produce scan-error records, which count as failed items under the R3-1 policy — documented in the README and testing guide.) All source claims below re-verified against the working tree on 2026-07-08.
 
 ### R3-1 — Nonzero exit codes for failed/interrupted batches
 
@@ -1502,6 +1502,12 @@ public enum BatchExitPolicy {
 3. `WriteXMPCommand` (both `run()` call sites at :138/:151), `NormalizeCommand` (:213/:221), `ApplySessionCommand` (:121): same, using `report.failedCount` (fall back to `report.errors.count` where the export report is nil, matching the existing summary math) plus the pipeline result's `interrupted` flag. Throw `ExitCode` *after* `writeEssentialSummary` so output is unchanged.
 4. `CleanupCommand.swift:30-37`: keep the printed message, replace the thrown `SidecarError` with `throw ExitCode(BatchExitPolicy.failureStatus)` for consistency (observable exit code stays 1; the stderr error line disappears — mention in commit).
 5. Document the codes in each command's `CommandConfiguration(discussion:)` and in README Troubleshooting; update `agent_docs/testing-and-verification.md`.
+
+Implementation audit correction (2026-07-10): `normalize --dry-run` derived its exit from the report's input errors
+only, so failed target plans in the printed change plan (sidecar collisions, empty pair selections) exited 0 while
+`write-xmp --dry-run` and a real `normalize` exited 1 for the same condition. The planned-failure count now lives on
+`XMPChangePlanDocument.failedCount` (mirroring `XMPExportReport.failedCount`) and both commands' dry-run exits derive
+from it, so the printed plan and the exit status cannot drift.
 
 **Tests.** `Tests/AISidecarCoreTests/BatchExitPolicyTests.swift` (new file, one file per subject):
 
@@ -1859,6 +1865,12 @@ func testScanIgnoresOwnedRunArtifacts() throws {
 
 (Note `normalization-session-*` files: `classify` recognizes prefixes via `ArtifactNames` but has **no** `normalizationSessionPrefix` branch — sessions are deliberately not cleanup-deletable. The scanner must still ignore them; cover via a direct prefix check like the export manifest. **Discrepancy:** plan 08 implies `classify` covers all owned patterns; sessions and export manifests are exceptions.)
 
+Implementation audit correction (2026-07-10): backup-and-merge XMP backups (`<name>.xmp.bak-<token>`, written beside
+the target XMP and therefore usually beside the source images) were a third classify exception the file list above
+missed — a rerun reported each backup as an `E_UNSUPPORTED_FORMAT` failure and, once R3-1 landed, exited nonzero.
+`shouldIgnore` now matches the backup infix via a shared `ArtifactNames.xmpBackupInfix` constant; cleanup continues
+to protect backups (ignoring ≠ deleting).
+
 **Acceptance.**
 - [x] Scan of a folder containing each owned artifact type → no failure records (plan 08 verbatim)
 - [x] `clearDerivativeCacheAfterSuccess` fires again on a clean rerun over a previously-analyzed folder
@@ -2103,13 +2115,19 @@ timeout/retry flags present; benchmark self-test and `source-identity-fast` (one
 and cleanup dry-run smokes passed. The environment-dependent Ctrl+C/live-model timeout/exFAT checks below remain
 manual release evidence rather than automated unit coverage.
 
+**Post-implementation audit (2026-07-10):** six parallel spec-versus-code reviews over R3-1…R3-11 confirmed every
+item against both plans and surfaced two corrections, both landed with tests (517 tests green): the R3-1
+`normalize --dry-run` exit derivation (see the R3-1 audit-correction note) and scan-ignoring `.xmp.bak-*` backups
+(see the R3-7 note). Remaining low-severity observations were either recorded in plan 08 §6 (preflight
+interruption, Settings tag-list probe timeout) or folded into the requirement text (FR1-030e non-2xx wording).
+
 1. `swift test` green (all suites; new fixtures deterministic and offline — invariant 12); `swift build --product CupricAspect` (R3-5 Settings work compiles).
 2. CLI help checks (all nine, per `agent_docs/testing-and-verification.md`): `swift run aisidecar --help`, plus `analyze`, `write-xmp`, `normalize`, `apply-session`, `explain-session`, `benchmark`, `purge`, `cleanup` `--help` — confirm exit-code documentation (R3-1) and `--model-timeout`/`--model-retry-limit` (R3-5) appear.
 3. Offline smoke checks: `swift run aisidecar benchmark --self-test`; `swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --output-dir <tmp>`; `swift run aisidecar analyze <folder> --recursive --dry-scan`; `swift run aisidecar cleanup <folder> --recursive --dry-run`.
 4. R3-specific manual verification:
    - `swift run aisidecar analyze <folder-with-one-unsupported-file> --dry-scan; echo $?` → dry-scan unaffected; then a real failed batch (unreachable endpoint) → `echo $?` prints `1`.
    - Ctrl+C during a dry-run batch and during a live batch: prompt returns within one attempt, `echo $?` prints `130`; second Ctrl+C arms escalation, third kills.
-   - Rerun `analyze` over a folder already containing `batch-progress-*` / `batch-summary-*` artifacts → summary shows zero failures (R3-7).
+   - Rerun `analyze` over a folder already containing `batch-progress-*` / `batch-summary-*` artifacts and `.xmp.bak-*` backups → summary shows zero failures (R3-7).
    - If an exFAT-formatted volume (SD card) is available: `analyze` with no `--output-dir` writes artifacts successfully with the new names (R3-8).
    - `AISIDECAR_MODEL_TIMEOUT_SECONDS=1 swift run aisidecar analyze <image> ...` against a live model → fast `E_MODEL_TIMEOUT` (R3-5).
 5. Deliberate observable-behavior updates shipped alongside code: README Troubleshooting (exit codes), `agent_docs/testing-and-verification.md`, `aisidecar.config.example.jsonc` (R3-5 keys), golden fixtures (R3-8) — each called out in its commit/PR.

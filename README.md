@@ -383,8 +383,12 @@ using each app's normal XMP workflow to pick up the new keywords.
 **Batch exit statuses** — Batch commands return `0` only when all items succeed,
 `1` when one or more items fail, and `130` when interrupted. This lets shell chains
 such as `aisidecar analyze ... && aisidecar write-xmp ...` stop after an incomplete
-run. `analyze --dry-scan` remains a diagnostic exception: it reports scan errors in
-its JSON output and exits `0` when the scan itself completes.
+run. Dry-run modes follow the same policy: `write-xmp --dry-run` and
+`normalize --dry-run` exit `1` when the printed change plan contains failed inputs
+or target plans. Symbolic links in a scanned folder are skipped with a recorded
+scan error and count as failed items. `analyze --dry-scan` remains a diagnostic
+exception: it reports scan errors in its JSON output and exits `0` when the scan
+itself completes.
 
 **`E_MODEL_TAG_NOT_FOUND`** — The configured model isn't installed, is named
 differently, or isn't reported by Ollama as vision-capable. Check and pass a known tag:
