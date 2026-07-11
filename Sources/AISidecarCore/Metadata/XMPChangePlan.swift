@@ -262,6 +262,14 @@ public struct XMPChangePlanDocument: Codable, Sendable, Equatable {
         self.targetPlans = targetPlans
         self.inputFailures = inputFailures
     }
+
+    /// Planned-failure count for batch exit derivation when no export report
+    /// exists (dry runs): unresolvable inputs plus target plans that already
+    /// carry failures. Mirrors `XMPExportReport.failedCount`.
+    public var failedCount: Int {
+        targetPlans.filter { $0.status == .failed || !$0.failures.isEmpty }.count
+            + inputFailures.count
+    }
 }
 
 /// Builds Phase 2 dry-run change plans from resolved raw sidecars and extracted candidates.

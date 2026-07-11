@@ -209,7 +209,12 @@ struct NormalizeCommand: AsyncParsableCommand {
             if let changePlan = result.changePlan {
                 try writeChangePlan(changePlan)
             }
-            try enforceBatchExitPolicy(failureCount: result.report.errors.count, interrupted: false)
+            // The change plan's failedCount covers the report's input errors plus
+            // failed target plans, so the printed plan and the exit status agree.
+            try enforceBatchExitPolicy(
+                failureCount: result.changePlan?.failedCount ?? result.report.errors.count,
+                interrupted: false
+            )
             return
         }
 

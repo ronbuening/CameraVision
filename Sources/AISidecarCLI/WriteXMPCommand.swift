@@ -283,8 +283,6 @@ struct WriteXMPCommand: AsyncParsableCommand {
     }
 
     private func failureCount(for result: XMPExportPipelineResult) -> Int {
-        result.report?.failedCount
-            ?? result.changePlan.inputFailures.count
-                + result.changePlan.targetPlans.filter { $0.status == .failed || !$0.failures.isEmpty }.count
+        result.report?.failedCount ?? result.changePlan.failedCount
     }
 }
