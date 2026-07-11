@@ -99,6 +99,34 @@ final class XMPExportPipelineTests: XCTestCase {
         XCTAssertTrue(logs.lines.contains { $0.contains("write_xmp.stamp_skipped") })
     }
 
+    func testStampRewritePreservesFloatAndSlashFormatting() throws {
+        let fixture = try makeFromJSONFixture()
+        let sidecar = fixture.jsonRoot.appendingPathComponent("Bird.JPG.ai.json")
+        var sidecarJSON = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: sidecar))
+        var fixtureObject = try XCTUnwrap(sidecarJSON.objectValue)
+        fixtureObject["future_path"] = .string("/future/path")
+        sidecarJSON = .object(fixtureObject)
+        try JSONCoding.documentEncoder(iso8601Dates: false).encode(sidecarJSON).write(to: sidecar)
+
+        try RawSidecarExportStamp.stamp(
+            sidecarPath: sidecar.path,
+            contents: RawSidecarExportStamp.Contents(
+                targetXMPPath: "/exports/Bird.xmp",
+                xmpSHA256: String(repeating: "a", count: 64),
+                writerRecipeVersion: OwnedXMPSidecarEngine.writerRecipeVersion,
+                engineVersion: OwnedXMPSidecarEngine.engineVersion,
+                exportedAt: Date(timeIntervalSince1970: 1_800_000_000)
+            )
+        )
+
+        let rewritten = try String(contentsOf: sidecar, encoding: .utf8)
+        XCTAssertTrue(rewritten.contains(#""subject_crop_margin_fraction" : 0.08"#))
+        XCTAssertFalse(rewritten.contains("0.080000000000000002"))
+        XCTAssertTrue(rewritten.contains(#""future_path" : "/future/path""#))
+        XCTAssertTrue(rewritten.contains(#""target_xmp_path" : "/exports/Bird.xmp""#))
+        XCTAssertFalse(rewritten.contains(#"\/future\/path"#))
+    }
+
     func testUnreadableSourceAtExportStartRecordsFailedHashCheckAndFailsTarget() throws {
         try XCTSkipIf(getuid() == 0, "chmod 000 is not enforced for root")
         let fixture = try makeFromJSONFixture()
