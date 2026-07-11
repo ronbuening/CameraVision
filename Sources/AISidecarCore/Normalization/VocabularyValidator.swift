@@ -12,6 +12,7 @@ public enum VocabularyValidator {
 
         try validateCanonicalPaths(document.entries)
         try validateSynonyms(document.entries)
+        try validateFlatKeywords(document.entries)
         try validateParentsAndCycles(document.entries)
 
         let resolvedEntries = document.entries.map(resolveDefaults)
@@ -69,6 +70,60 @@ public enum VocabularyValidator {
                 synonymOwnerByFoldedTerm[folded] = entry.canonicalPath
             }
         }
+    }
+
+    private static func validateFlatKeywords(_ entries: [VocabularyEntry]) throws {
+        var canonicalOwnersByFoldedTerm: [String: [String]] = [:]
+        var flatOwnersByFoldedTerm: [String: [String]] = [:]
+        var synonymOwnersByFoldedTerm: [String: [String]] = [:]
+
+        for entry in entries {
+            canonicalOwnersByFoldedTerm[VocabularyTextFolder.fold(entry.canonicalPath), default: []]
+                .append(entry.canonicalPath)
+            flatOwnersByFoldedTerm[VocabularyTextFolder.fold(entry.flatKeyword), default: []]
+                .append(entry.canonicalPath)
+            for synonym in entry.synonyms {
+                synonymOwnersByFoldedTerm[VocabularyTextFolder.fold(synonym), default: []]
+                    .append(entry.canonicalPath)
+            }
+        }
+
+        var collisions: [String] = []
+        for (folded, owners) in canonicalOwnersByFoldedTerm where Set(owners).count > 1 {
+            collisions.append("folded canonical_path '\(folded)' maps to \(owners.sorted().joined(separator: ", "))")
+        }
+        for (folded, flatOwners) in flatOwnersByFoldedTerm {
+            if let canonicalOwners = canonicalOwnersByFoldedTerm[folded] {
+                let distinctFlatOwners = Set(flatOwners)
+                for flatOwner in flatOwners {
+                    for canonicalOwner in canonicalOwners where canonicalOwner != flatOwner {
+                        // A canonical entry and another entry may intentionally share one display
+                        // keyword; duplicate flat labels remain runtime-ambiguity-guarded.
+                        guard !distinctFlatOwners.contains(canonicalOwner) else {
+                            continue
+                        }
+                        collisions.append(
+                            "flat_keyword under \(flatOwner) collides with canonical_path \(canonicalOwner)"
+                        )
+                    }
+                }
+            }
+            if let synonymOwners = synonymOwnersByFoldedTerm[folded] {
+                for flatOwner in flatOwners {
+                    for synonymOwner in synonymOwners where synonymOwner != flatOwner {
+                        collisions.append(
+                            "flat_keyword under \(flatOwner) collides with synonym under \(synonymOwner)"
+                        )
+                    }
+                }
+            }
+        }
+
+        guard !collisions.isEmpty else {
+            return
+        }
+        let collisionList = Set(collisions).sorted().joined(separator: "; ")
+        throw vocabularyInvalid("Vocabulary alias collisions: \(collisionList)")
     }
 
     private static func validateParentsAndCycles(_ entries: [VocabularyEntry]) throws {

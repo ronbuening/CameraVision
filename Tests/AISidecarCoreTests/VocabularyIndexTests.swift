@@ -117,4 +117,60 @@ final class VocabularyIndexTests: XCTestCase {
         XCTAssertEqual(vocabulary.index.entry(matching: "A B")?.canonicalPath, "Subject|A B")
         XCTAssertNil(vocabulary.index.entry(matching: "A_B"))
     }
+
+    func testExactFoldLookupDoesNotResolveAmbiguousFlatKeywordAliases() throws {
+        let entries = [
+            VocabularyEntry(
+                canonicalPath: "Subject",
+                flatKeyword: "Subject",
+                namespace: .subject,
+                parentPath: nil,
+                synonyms: [],
+                requiresReview: false,
+                autoApplyAllowed: false,
+                directApplyPolicy: .withhold,
+                propagationScope: PropagationScope.none,
+                specificity: .broad
+            ),
+            VocabularyEntry(
+                canonicalPath: "Subject|Birds",
+                flatKeyword: "Shared Bird Label",
+                namespace: .subject,
+                parentPath: "Subject"
+            ),
+            VocabularyEntry(
+                canonicalPath: "Subject|Avian Subjects",
+                flatKeyword: "shared bird label",
+                namespace: .subject,
+                parentPath: "Subject"
+            ),
+        ]
+        let vocabulary = try VocabularyLoader.load(
+            data: vocabularyData(entries: entries),
+            sourcePath: "memory://exact-fold-ambiguity.json"
+        )
+
+        XCTAssertNil(vocabulary.index.entry(matching: "SHARED BIRD LABEL"))
+        XCTAssertEqual(vocabulary.index.entry(matching: "Subject|Birds")?.canonicalPath, "Subject|Birds")
+        XCTAssertEqual(
+            vocabulary.index.entry(matching: "Subject|Avian Subjects")?.canonicalPath,
+            "Subject|Avian Subjects"
+        )
+    }
+
+    func testFlatKeywordAliasNeverShadowsExactCanonicalPathMatch() throws {
+        let vocabulary = try VocabularyLoader.load(
+            data: vocabularyData(entries: minimalVocabularyEntries()),
+            sourcePath: "memory://canonical-priority.json"
+        )
+        var entries = vocabulary.entries
+        entries[1].flatKeyword = entries[2].canonicalPath
+
+        let index = VocabularyIndex(entries: entries)
+
+        XCTAssertEqual(
+            index.entry(matching: entries[2].canonicalPath)?.canonicalPath,
+            entries[2].canonicalPath
+        )
+    }
 }

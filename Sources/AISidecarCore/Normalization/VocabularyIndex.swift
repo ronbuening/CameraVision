@@ -4,7 +4,12 @@ import Foundation
 public struct VocabularyIndex: Sendable, Equatable {
     private var byCanonicalPath: [String: ResolvedVocabularyEntry]
     private var canonicalPathByFoldedTerm: [String: String]
+    private var canonicalFoldedTerms: Set<String>
+    private var ambiguousCanonicalFoldedTerms: Set<String>
+    private var ambiguousFoldedAliasTerms: Set<String>
     private var canonicalPathBySeparatorFoldedTerm: [String: String]
+    private var canonicalSeparatorFoldedTerms: Set<String>
+    private var ambiguousCanonicalSeparatorFoldedTerms: Set<String>
     private var ambiguousSeparatorFoldedTerms: Set<String>
     private var childrenByParentPath: [String: [String]]
     private var canonicalPathsByNamespace: [VocabularyNamespace: [String]]
@@ -13,20 +18,28 @@ public struct VocabularyIndex: Sendable, Equatable {
     public init(entries: [ResolvedVocabularyEntry]) {
         self.byCanonicalPath = Dictionary(uniqueKeysWithValues: entries.map { ($0.canonicalPath, $0) })
         self.canonicalPathByFoldedTerm = [:]
+        self.canonicalFoldedTerms = []
+        self.ambiguousCanonicalFoldedTerms = []
+        self.ambiguousFoldedAliasTerms = []
         self.canonicalPathBySeparatorFoldedTerm = [:]
+        self.canonicalSeparatorFoldedTerms = []
+        self.ambiguousCanonicalSeparatorFoldedTerms = []
         self.ambiguousSeparatorFoldedTerms = []
         self.childrenByParentPath = [:]
         self.canonicalPathsByNamespace = [:]
         self.canonicalPathsByMutuallyExclusiveGroup = [:]
 
-        for entry in entries.sorted(by: { $0.canonicalPath < $1.canonicalPath }) {
-            insertLookup(entry.canonicalPath, canonicalPath: entry.canonicalPath)
-            insertSeparatorLookup(entry.canonicalPath, canonicalPath: entry.canonicalPath)
-            insertLookup(entry.flatKeyword, canonicalPath: entry.canonicalPath)
-            insertSeparatorLookup(entry.flatKeyword, canonicalPath: entry.canonicalPath)
+        let sortedEntries = entries.sorted(by: { $0.canonicalPath < $1.canonicalPath })
+        for entry in sortedEntries {
+            insertCanonicalLookup(entry.canonicalPath, canonicalPath: entry.canonicalPath)
+            insertCanonicalSeparatorLookup(entry.canonicalPath, canonicalPath: entry.canonicalPath)
+        }
+        for entry in sortedEntries {
+            insertAliasLookup(entry.flatKeyword, canonicalPath: entry.canonicalPath)
+            insertAliasSeparatorLookup(entry.flatKeyword, canonicalPath: entry.canonicalPath)
             for synonym in entry.synonyms {
-                insertLookup(synonym, canonicalPath: entry.canonicalPath)
-                insertSeparatorLookup(synonym, canonicalPath: entry.canonicalPath)
+                insertAliasLookup(synonym, canonicalPath: entry.canonicalPath)
+                insertAliasSeparatorLookup(synonym, canonicalPath: entry.canonicalPath)
             }
             if let parentPath = entry.parentPath {
                 childrenByParentPath[parentPath, default: []].append(entry.canonicalPath)
@@ -54,7 +67,9 @@ public struct VocabularyIndex: Sendable, Equatable {
 
     public func entry(matching value: String) -> ResolvedVocabularyEntry? {
         let folded = VocabularyTextFolder.fold(value)
-        if let canonicalPath = canonicalPathByFoldedTerm[folded] {
+        let exactFoldIsAmbiguous = ambiguousCanonicalFoldedTerms.contains(folded)
+            || ambiguousFoldedAliasTerms.contains(folded)
+        if !exactFoldIsAmbiguous, let canonicalPath = canonicalPathByFoldedTerm[folded] {
             return byCanonicalPath[canonicalPath]
         }
 
@@ -114,19 +129,53 @@ public struct VocabularyIndex: Sendable, Equatable {
         (canonicalPathsByMutuallyExclusiveGroup[mutuallyExclusiveGroup] ?? []).compactMap { byCanonicalPath[$0] }
     }
 
-    private mutating func insertLookup(_ value: String, canonicalPath: String) {
+    private mutating func insertCanonicalLookup(_ value: String, canonicalPath: String) {
         let folded = VocabularyTextFolder.fold(value)
-        guard !folded.isEmpty else {
+        guard !folded.isEmpty, !ambiguousCanonicalFoldedTerms.contains(folded) else {
             return
         }
-        if canonicalPathByFoldedTerm[folded] == nil {
+        canonicalFoldedTerms.insert(folded)
+        if let existing = canonicalPathByFoldedTerm[folded], existing != canonicalPath {
+            canonicalPathByFoldedTerm.removeValue(forKey: folded)
+            ambiguousCanonicalFoldedTerms.insert(folded)
+        } else {
             canonicalPathByFoldedTerm[folded] = canonicalPath
         }
     }
 
-    private mutating func insertSeparatorLookup(_ value: String, canonicalPath: String) {
+    private mutating func insertAliasLookup(_ value: String, canonicalPath: String) {
+        let folded = VocabularyTextFolder.fold(value)
+        let isReserved = canonicalFoldedTerms.contains(folded) || ambiguousFoldedAliasTerms.contains(folded)
+        guard !folded.isEmpty, !isReserved else {
+            return
+        }
+        if let existing = canonicalPathByFoldedTerm[folded], existing != canonicalPath {
+            canonicalPathByFoldedTerm.removeValue(forKey: folded)
+            ambiguousFoldedAliasTerms.insert(folded)
+        } else {
+            canonicalPathByFoldedTerm[folded] = canonicalPath
+        }
+    }
+
+    private mutating func insertCanonicalSeparatorLookup(_ value: String, canonicalPath: String) {
         let folded = VocabularyTextFolder.separatorInsensitiveFold(value)
-        guard !folded.isEmpty, !ambiguousSeparatorFoldedTerms.contains(folded) else {
+        guard !folded.isEmpty, !ambiguousCanonicalSeparatorFoldedTerms.contains(folded) else {
+            return
+        }
+        canonicalSeparatorFoldedTerms.insert(folded)
+        if let existing = canonicalPathBySeparatorFoldedTerm[folded], existing != canonicalPath {
+            canonicalPathBySeparatorFoldedTerm.removeValue(forKey: folded)
+            ambiguousCanonicalSeparatorFoldedTerms.insert(folded)
+        } else {
+            canonicalPathBySeparatorFoldedTerm[folded] = canonicalPath
+        }
+    }
+
+    private mutating func insertAliasSeparatorLookup(_ value: String, canonicalPath: String) {
+        let folded = VocabularyTextFolder.separatorInsensitiveFold(value)
+        let isReserved = canonicalSeparatorFoldedTerms.contains(folded)
+            || ambiguousSeparatorFoldedTerms.contains(folded)
+        guard !folded.isEmpty, !isReserved else {
             return
         }
         if let existing = canonicalPathBySeparatorFoldedTerm[folded], existing != canonicalPath {
@@ -138,7 +187,9 @@ public struct VocabularyIndex: Sendable, Equatable {
     }
 
     private func entryCanonicalPath(separatorFolded: String) -> String? {
-        guard !ambiguousSeparatorFoldedTerms.contains(separatorFolded) else {
+        let isAmbiguous = ambiguousCanonicalSeparatorFoldedTerms.contains(separatorFolded)
+            || ambiguousSeparatorFoldedTerms.contains(separatorFolded)
+        guard !isAmbiguous else {
             return nil
         }
         return canonicalPathBySeparatorFoldedTerm[separatorFolded]
