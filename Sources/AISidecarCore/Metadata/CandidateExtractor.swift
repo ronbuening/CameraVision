@@ -680,7 +680,7 @@ public struct CandidateExtractor {
         }
     }
 
-    private static func isCoordinateLikeTerm(_ term: String) -> Bool {
+    static func isCoordinateLikeTerm(_ term: String) -> Bool {
         let lowercased = term.lowercased()
         if lowercased.contains("gps")
             || lowercased.contains("geotag")
@@ -695,8 +695,16 @@ public struct CandidateExtractor {
             return true
         }
 
-        let cardinalCoordinatePattern = #"\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[NS]\b.*\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[EW]\b"#
-        return term.range(of: cardinalCoordinatePattern, options: [.regularExpression, .caseInsensitive]) != nil
+        let coordinatePatterns = [
+            #"\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[NS]\b.*\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[EW]\b"#,
+            #"\d{1,3}\s*[°º]\s*\d{1,2}\s*['′’]\s*\d{1,2}(?:\.\d+)?\s*[\"″”]?\s*[NSEW]"#,
+            #"\b[NS]\s*\d{1,3}(?:\.\d+)?\b.*\b[EW]\s*\d{1,3}(?:\.\d+)?\b"#,
+            #"(?<!\d)[+-]?\d{1,3}(?:\.\d+)?\s*,\s*[+-]\d{1,3}(?:\.\d+)?(?!\d)"#,
+            #"\butm\b\s*\d{1,2}\s*[a-z]?\b"#,
+        ]
+        return coordinatePatterns.contains { pattern in
+            term.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+        }
     }
 
     private static let biologicalGenreTerms: Set<String> = ["wildlife", "bird_photography", "plant_botanical"]

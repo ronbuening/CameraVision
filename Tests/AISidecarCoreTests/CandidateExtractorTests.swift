@@ -239,6 +239,59 @@ final class CandidateExtractorTests: XCTestCase {
         )
     }
 
+    func testCoordinateLikeTermGuardCatchesDMSCardinalIntegerPairAndUTM() {
+        let blocked = [
+            #"40°26'46"N 79°58'56"W"#,
+            "40°26′46″N 79°58′56″W",
+            "N 40.446 W 79.982",
+            "n40.446 w79.982",
+            "40, -79",
+            "-40.4, -79.9",
+            "UTM 17T 589500 4477000",
+            "utm 17",
+            "40.446, -79.982",
+            "40.446 N, 79.982 W",
+        ]
+        let allowed = [
+            "50mm f/1.8",
+            "35mm",
+            "Apollo 11",
+            "Route 66",
+            "Room 404",
+            #"5'10" tall"#,
+            "autumn migration",
+            "ISO 6400, f/8",
+        ]
+
+        for term in blocked {
+            XCTAssertTrue(CandidateExtractor.isCoordinateLikeTerm(term), term)
+        }
+        for term in allowed {
+            XCTAssertFalse(CandidateExtractor.isCoordinateLikeTerm(term), term)
+        }
+    }
+
+    func testDMSCoordinateCandidateIsSkippedInObservedTagsMode() throws {
+        let coordinate = #"40°26'46"N 79°58'56"W"#
+        let input = try resolvedInput(response: response([
+            .proposedKeywords: .array([
+                candidate(coordinate, confidence: "high"),
+                candidate("wetland", confidence: "high"),
+            ])
+        ]))
+
+        let result = CandidateExtractor().extract(
+            from: input,
+            configuration: configuration(allowSpecificTags: true)
+        )
+
+        XCTAssertEqual(result.flatKeywords.map(\.term), ["wetland"])
+        XCTAssertEqual(
+            result.skippedCandidates.filter { $0.term == coordinate }.map(\.reason),
+            [.coordinateLikeTerm]
+        )
+    }
+
     func testSpeciesWithoutBiologicalGenreIsSkipped() throws {
         // Schema 1.5.0 always requires `species`, so the old "species only
         // for wildlife/bird/plant genres" contract is enforced here.
