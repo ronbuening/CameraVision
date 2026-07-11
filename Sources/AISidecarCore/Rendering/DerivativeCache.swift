@@ -13,14 +13,16 @@ public struct DerivativeCachePurgeResult: Sendable, Equatable {
 }
 
 /// Content-addressed derivative cache with manifest-backed LRU eviction.
-public struct DerivativeCache {
-    public var directoryPath: String
-    public var sizeCapBytes: Int64
+public final class DerivativeCache: @unchecked Sendable {
+    public let directoryPath: String
+    public let sizeCapBytes: Int64
 
     private let fileManager: FileManager
     private let now: @Sendable () -> Date
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private let stateLock = NSLock()
+    private var cachedManifestState: CachedManifestState?
 
     public init(
         directoryPath: String,
@@ -243,10 +245,24 @@ public struct DerivativeCache {
 
     private func loadManifest() throws -> CacheManifest {
         guard fileManager.fileExists(atPath: manifestURL.path) else {
+            stateLock.withLock {
+                cachedManifestState = nil
+            }
             return CacheManifest()
         }
         do {
-            return try decoder.decode(CacheManifest.self, from: Data(contentsOf: manifestURL))
+            let signature = try manifestSignature()
+            if let cached = stateLock.withLock({ cachedManifestState }), cached.signature == signature {
+                return cached.manifest
+            }
+            guard let data = fileManager.contents(atPath: manifestURL.path) else {
+                throw CocoaError(.fileReadUnknown)
+            }
+            let manifest = try decoder.decode(CacheManifest.self, from: data)
+            stateLock.withLock {
+                cachedManifestState = CachedManifestState(manifest: manifest, signature: signature)
+            }
+            return manifest
         } catch {
             throw SidecarError(
                 code: .renderFailed,
@@ -260,6 +276,17 @@ public struct DerivativeCache {
     private func saveManifest(_ manifest: CacheManifest) throws {
         let data = try encoder.encode(manifest)
         try AtomicFileWriter.write(data, to: manifestURL, fileManager: fileManager)
+        stateLock.withLock {
+            cachedManifestState = try? CachedManifestState(manifest: manifest, signature: manifestSignature())
+        }
+    }
+
+    private func manifestSignature() throws -> ManifestSignature {
+        let attributes = try fileManager.attributesOfItem(atPath: manifestURL.path)
+        return ManifestSignature(
+            modifiedAt: attributes[.modificationDate] as? Date ?? .distantPast,
+            byteCount: (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        )
     }
 
     private func evictIfNeeded(manifest: inout CacheManifest, protectedFileName: String) throws {
@@ -301,6 +328,16 @@ public struct DerivativeCache {
             fileName.contains("-\(role.rawValue).")
         }
     }
+}
+
+private struct CachedManifestState {
+    var manifest: CacheManifest
+    var signature: ManifestSignature
+}
+
+private struct ManifestSignature: Equatable {
+    var modifiedAt: Date
+    var byteCount: Int64
 }
 
 private extension DerivativeFormat {

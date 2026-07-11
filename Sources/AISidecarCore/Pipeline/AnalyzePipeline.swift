@@ -182,6 +182,7 @@ public struct AnalyzePipeline {
                 configuration: configuration,
                 profile: profile,
                 runtime: runtime!,
+                cache: lifecycleCache,
                 interruptionMonitor: interruptionMonitor,
                 emit: emit
             )
@@ -241,12 +242,12 @@ public struct AnalyzePipeline {
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile,
         runtime: ModelRuntimeContext,
+        cache: DerivativeCache,
         interruptionMonitor: InterruptionMonitor?,
         emit: (ProgressRecord) throws -> Void
     ) async throws -> Bool {
         var interrupted = false
         let maxWorkers = max(1, min(configuration.stageConcurrency, pendingWork.count))
-        let fileManagerBox = SendableFileManager(fileManager)
         let maskProvider = maskProvider
         let now = now
 
@@ -257,8 +258,8 @@ public struct AnalyzePipeline {
                 configuration: configuration,
                 profile: profile,
                 runtime: runtime,
+                cache: cache,
                 interruptionMonitor: interruptionMonitor,
-                fileManagerBox: fileManagerBox,
                 maskProvider: maskProvider,
                 now: now,
                 emit: emit
@@ -281,7 +282,7 @@ public struct AnalyzePipeline {
                             entry: entry,
                             configuration: configuration,
                             profile: profile,
-                            fileManager: fileManagerBox.value,
+                            cache: cache,
                             maskProvider: maskProvider,
                             now: now
                         )
@@ -365,8 +366,8 @@ public struct AnalyzePipeline {
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile,
         runtime: ModelRuntimeContext,
+        cache: DerivativeCache,
         interruptionMonitor: InterruptionMonitor?,
-        fileManagerBox: SendableFileManager,
         maskProvider: any ForegroundMaskProvider,
         now: @escaping @Sendable () -> Date,
         emit: (ProgressRecord) throws -> Void
@@ -389,7 +390,7 @@ public struct AnalyzePipeline {
                     entry: entries[index],
                     configuration: configuration,
                     profile: profile,
-                    fileManager: fileManagerBox.value,
+                    cache: cache,
                     maskProvider: maskProvider,
                     now: now
                 )
@@ -490,18 +491,12 @@ public struct AnalyzePipeline {
         entry: SidecarPlanEntry,
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile,
-        fileManager: FileManager,
+        cache: DerivativeCache,
         maskProvider: any ForegroundMaskProvider,
         now: @escaping @Sendable () -> Date
     ) async -> PreparedAnalysis {
         let renderStartedAt = now()
         do {
-            let cache = DerivativeCache(
-                directoryPath: configuration.derivativeCacheDir,
-                sizeCapBytes: configuration.derivativeCacheSizeBytes,
-                fileManager: fileManager,
-                now: now
-            )
             let renderer = ImageRenderer(cache: cache)
             let subjectIsolationService = SubjectIsolationService(cache: cache, maskProvider: maskProvider)
             var derivatives: [DerivativeRecord] = []
