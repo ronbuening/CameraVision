@@ -2550,12 +2550,12 @@ func testStampRewritePreservesFloatAndSlashFormatting() throws {
 ```
 
 **Acceptance.**
-- [ ] Reject/strip `|` in `SessionReview.applying` (Core-level) and surface the rejection in the GUI (plan 08 verbatim).
-- [ ] Additive enums decode-tolerant; unknown case fails only the affected decision, not the document (plan 08 verbatim).
-- [ ] Emit nil instead of a non-`.ai.json` path and skip stamping; log the skip (plan 08 verbatim).
-- [ ] Merge target prefers a source-matching `rdf:about` before `descriptions.first` (adjusted per discrepancy above; `about=""` preference already present).
-- [ ] Stamp rewrite routed through the merge-preserving `JSONCoding` path (plan 08 verbatim).
-- [ ] Golden sidecar tests updated deliberately if stamp byte output changes.
+- [x] Reject/strip `|` in `SessionReview.applying` (Core-level) and surface the rejection in the GUI (plan 08 verbatim).
+- [x] Additive enums decode-tolerant; unknown case fails only the affected decision, not the document (plan 08 verbatim).
+- [x] Emit nil instead of a non-`.ai.json` path and skip stamping; log the skip (plan 08 verbatim).
+- [x] Merge target prefers a source-matching `rdf:about` before `descriptions.first` (adjusted per discrepancy above; `about=""` preference already present).
+- [x] Stamp rewrite routed through the merge-preserving `JSONCoding` path (plan 08 verbatim).
+- [x] Golden sidecar output remains unchanged; focused stamp formatting coverage pins floats and unescaped slashes.
 
 **Commit.** `Session/edit hardening: pipe rejection, tolerant decode, stamp path and serialization, merge-target about` (split per bullet if any grows; each is independently committable)
 
