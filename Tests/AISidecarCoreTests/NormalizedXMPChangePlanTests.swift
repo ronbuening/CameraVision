@@ -154,6 +154,22 @@ final class NormalizedXMPChangePlanTests: XCTestCase {
         )
     }
 
+    func testSourceSidecarPathIsNilWhenNoRawSidecarExists() throws {
+        var input = phase3InputBatch(["Bird.JPG"])
+        input.sourceAISidecars = []
+
+        let result = try NormalizedXMPChangePlanner().plan(
+            input: input,
+            decisions: [
+                phase3DirectDecision(assetID: "asset-000001", canonicalPath: "Subject|Wildlife|Birds")
+            ],
+            candidateSkips: [],
+            configuration: phase3Configuration(normalizationMode: .singleImage)
+        )
+
+        XCTAssertNil(result.changePlan.targetPlans.first?.sourceMembers.first?.sourceSidecarPath)
+    }
+
     private func unnormalizedContextDecision() -> PerAssetNormalizationDecision {
         PerAssetNormalizationDecision(
             decisionID: "decision-000003",

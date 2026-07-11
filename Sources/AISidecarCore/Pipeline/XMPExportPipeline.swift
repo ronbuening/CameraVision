@@ -644,11 +644,35 @@ public struct XMPExportPipeline {
             exportedAt: now()
         )
         for member in report.plan.sourceMembers where member.selected {
-            try? RawSidecarExportStamp.stamp(
-                sidecarPath: member.sourceSidecarPath,
-                contents: contents,
-                fileManager: fileManager
-            )
+            guard let sidecarPath = member.sourceSidecarPath,
+                  sidecarPath.lowercased().hasSuffix(".ai.json") else {
+                try? logger.log(LogRecord(
+                    level: .warn,
+                    event: "write_xmp.stamp_skipped",
+                    message: "Skipped export stamp because this source has no raw .ai.json sidecar.",
+                    sourcePath: member.sourcePath,
+                    sidecarPath: targetPath,
+                    status: "skipped"
+                ))
+                continue
+            }
+            do {
+                try RawSidecarExportStamp.stamp(
+                    sidecarPath: sidecarPath,
+                    contents: contents,
+                    fileManager: fileManager
+                )
+            } catch {
+                try? logger.log(LogRecord(
+                    level: .warn,
+                    event: "write_xmp.stamp_failed",
+                    message: "XMP was written, but its raw-sidecar export stamp failed: \(error.localizedDescription)",
+                    sourcePath: member.sourcePath,
+                    sidecarPath: sidecarPath,
+                    status: "warning",
+                    errors: (error as? SidecarError).map { [$0] } ?? []
+                ))
+            }
         }
     }
 

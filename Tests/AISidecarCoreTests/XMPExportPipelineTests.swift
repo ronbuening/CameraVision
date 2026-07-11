@@ -41,6 +41,64 @@ final class XMPExportPipelineTests: XCTestCase {
         XCTAssertTrue(summary.contains("Capture One"))
     }
 
+    func testStampSkipsMembersWithoutRawSidecarAndNeverWritesToImagePaths() throws {
+        let root = try temporaryDirectory()
+        let source = root.appendingPathComponent("Bird.JPG")
+        let target = root.appendingPathComponent("Bird.xmp")
+        let sourceData = Data("source image bytes".utf8)
+        try sourceData.write(to: source)
+        let logs = XMPLogSink()
+        let member = SourceMemberPlan(
+            sourcePath: source.path,
+            sourceRelativePath: "Bird.JPG",
+            sourceFileName: "Bird.JPG",
+            sourceType: .jpg,
+            sourceSidecarPath: nil,
+            sourceSidecarRelativePath: nil,
+            sourceIdentityStatus: .matched,
+            pairKind: .jpeg,
+            selected: true,
+            skipReason: nil,
+            flatKeywordContributionCount: 1,
+            hierarchicalKeywordContributionCount: 0
+        )
+        let plan = XMPChangePlan(
+            status: .planned,
+            targetXMPPath: target.path,
+            targetRelativePath: "Bird.xmp",
+            pairScope: .union,
+            sourceMembers: [member],
+            flatKeywordsToAdd: [PlannedKeyword(term: "bird", normalizedKey: "bird", candidates: [])],
+            hierarchicalKeywordsToAdd: [],
+            skippedCandidates: [],
+            candidateExtractionIssues: [],
+            sourceVerificationWarnings: [],
+            groupWarnings: [],
+            existingPolicy: .backupAndMerge,
+            backupPlan: BackupPlan(
+                backupSidecars: true,
+                backupRequiredBeforeMerge: true,
+                conflictPolicy: .backupAndMerge
+            ),
+            validationPlan: .phase2Default,
+            failures: []
+        )
+        let document = XMPChangePlanDocument(dryRun: false, targetPlans: [plan], inputFailures: [])
+
+        let result = try XMPExportPipeline(
+            logger: Logger(sink: logs.append)
+        ).runChangePlan(
+            document,
+            inputPath: root.path,
+            configuration: exportConfiguration(outputDir: root.path)
+        )
+
+        XCTAssertEqual(result.report?.targetReports.first?.status, .created)
+        XCTAssertEqual(try Data(contentsOf: source), sourceData)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
+        XCTAssertTrue(logs.lines.contains { $0.contains("write_xmp.stamp_skipped") })
+    }
+
     func testUnreadableSourceAtExportStartRecordsFailedHashCheckAndFailsTarget() throws {
         try XCTSkipIf(getuid() == 0, "chmod 000 is not enforced for root")
         let fixture = try makeFromJSONFixture()
@@ -334,6 +392,17 @@ private struct FromJSONFixture {
     var jsonRoot: URL
     var output: URL
     var source: URL
+}
+
+private final class XMPLogSink: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var lines: [String] = []
+
+    func append(_ line: String) {
+        lock.lock()
+        lines.append(line)
+        lock.unlock()
+    }
 }
 
 private struct ValidationFailingEngine: MetadataWriteEngine {

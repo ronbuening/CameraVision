@@ -228,12 +228,18 @@ public struct NormalizedXMPChangePlanner {
         }
         let assetDecisions = selected ? decisions.filter { $0.assetID == assetID } : []
         let sourcePath = asset.sourcePath
+        let sourceSidecarPath: String?
+        if let candidate = sidecar?.sidecarPath, candidate.lowercased().hasSuffix(".ai.json") {
+            sourceSidecarPath = candidate
+        } else {
+            sourceSidecarPath = nil
+        }
         return SourceMemberPlan(
             sourcePath: sourcePath,
             sourceRelativePath: asset.sourceRelativePath,
             sourceFileName: asset.fileName,
             sourceType: asset.sourceType,
-            sourceSidecarPath: sidecar?.sidecarPath ?? sourcePath ?? asset.sourceRelativePath,
+            sourceSidecarPath: sourceSidecarPath,
             sourceSidecarRelativePath: sidecar?.relativePath,
             sourceIdentityStatus: asset.sourceIdentityStatus ?? .skipped,
             pairKind: XMPSourcePairKind(sourceType: asset.sourceType),
