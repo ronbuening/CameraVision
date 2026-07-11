@@ -37,6 +37,8 @@ PW-004 - The following flags shall have identical names, types, and semantics in
 --output-dir <path>                  Redirect outputs; mirrors the relative scan tree.
 --model <tag>                        Ollama model tag. Default: gemma4:26b-a4b-it-qat.
 --model-endpoint <url>               Ollama endpoint. Default: http://localhost:11434.
+--model-timeout <seconds>            Timeout for each Ollama request. Default: 180.
+--model-retry-limit <n>              Additional attempts for retryable model failures. Default: 2.
 --profile <name>                     Model input profile name.
 --config <path>                      Alternate configuration file.
 --log-level <error|warn|info|debug>  Default: info.
@@ -80,8 +82,9 @@ E_UNSUPPORTED_FORMAT            E_DECODE_FAILED
 E_RENDER_FAILED                 E_ORIENTATION_UNRESOLVED
 E_SUBJECT_ISOLATION_NO_FOREGROUND
 E_SUBJECT_ISOLATION_FAILED
-E_MODEL_ENDPOINT_UNREACHABLE    E_MODEL_TAG_NOT_FOUND
-E_MODEL_TIMEOUT                 E_MODEL_INVALID_JSON
+E_MODEL_ENDPOINT_UNREACHABLE    E_MODEL_RESPONSE_INVALID
+E_MODEL_TAG_NOT_FOUND           E_MODEL_TIMEOUT
+E_MODEL_INVALID_JSON
 E_MODEL_SCHEMA_VIOLATION
 E_SIDECAR_EXISTS                E_SIDECAR_COLLISION
 E_WRITE_FAILED                  E_VALIDATION_FAILED
@@ -90,7 +93,10 @@ E_SESSION_STALE                 E_CONFIG_INVALID
 E_EXIFTOOL_MISSING              E_INTERRUPTED
 ```
 
-`E_MODEL_INVALID_JSON` means the final response was not parseable JSON. `E_MODEL_SCHEMA_VIOLATION` means it parsed but failed the response schema. Both preserve raw response text, including attempted repair responses when repair is enabled.
+`E_MODEL_RESPONSE_INVALID` means Ollama returned an HTTP-success response whose API envelope was malformed after
+one decode retry. `E_MODEL_INVALID_JSON` means the final model-authored structured output was not parseable JSON.
+`E_MODEL_SCHEMA_VIOLATION` means that output parsed but failed the response schema. The latter two preserve raw
+response text, including attempted repair responses when repair is enabled.
 
 ### 1.5 Schema Evolution
 
@@ -150,12 +156,21 @@ The default mode shall be `both`.
 FR1-001 - The program shall accept either one image file path or one folder path.
 
 FR1-002 - Folder input shall support recursive scanning with `--recursive` and non-recursive scanning by default.
+Recursive scans shall record a recoverable `E_VALIDATION_FAILED` for each unreadable directory and continue with
+readable siblings; a non-recursive input folder that cannot be read shall fail with structured
+`E_VALIDATION_FAILED` rather than a raw filesystem error.
+
+FR1-002a - Folder scans shall not follow symbolic links and shall record each visible link as a recoverable
+`E_VALIDATION_FAILED`. A symbolic link supplied directly as the input file shall resolve to its target before
+metadata and source identity are computed.
 
 FR1-003 - Supported extensions shall include at least `NEF`, `NRW`, `CR3`, `CR2`, `ARW`, `RAF`, `ORF`, `RW2`, `DNG`, `JPG`, `JPEG`, `TIF`, `TIFF`, `HEIC`, and `PNG`, subject to macOS decoder support.
 
 FR1-004 - Unsupported files shall be skipped with a structured `E_UNSUPPORTED_FORMAT` error entry rather than crashing the batch.
 
-FR1-005 - Hidden files, macOS resource forks, `.DS_Store`, and existing `.ai.json` and `.xmp` sidecar files shall be ignored by default.
+FR1-005 - Hidden files, macOS resource forks, `.DS_Store`, existing `.ai.json` and `.xmp` sidecar files, and
+AISidecar-owned progress/report/summary/session/manifest artifacts shall be ignored by default. Ignoring protected
+normalization sessions and model-input export manifests shall not make them eligible for cleanup.
 
 FR1-006 - The program shall process each input image independently. It shall not try to merge RAW+JPEG pairs in Phase 1.
 
@@ -177,21 +192,33 @@ _DSC1234.RAF -> _DSC1234.RAF.ai.json
 
 FR1-009 - When `--output-dir` is used with folder input, the sidecar tree shall mirror the relative path of each source from the scan root: the sidecar for `<root>/2026/06/_DSC1234.NEF` shall be written to `<output-dir>/2026/06/_DSC1234.NEF.ai.json`. Flattening is forbidden because Nikon-style 4-digit frame counters make basename collisions a certainty in real archives.
 
-FR1-009a - Residual collisions (including case-insensitive filesystem collisions) shall be detected before writing and shall fail the affected files with `E_SIDECAR_COLLISION` without aborting the batch.
+FR1-009a - Residual collisions (including case-insensitive and canonically equivalent Unicode filesystem
+collisions) shall be detected before writing and shall fail the affected files with `E_SIDECAR_COLLISION` without
+aborting the batch. Collision keys shall use Unicode canonical composition before case folding.
 
 FR1-010 - Pre-existing sidecars shall be governed by `--existing <skip|overwrite|fail>` with default `skip`.
 
 FR1-011 - The sidecar shall contain raw model output, parsed output when available, source-file details including identity, derivative-image details, model details and digest, prompt version and hash, runtime details, analysis mode, timing, and structured errors.
 
-FR1-012 - Folder runs shall write a batch summary JSON named `batch-summary-<ISO-8601-timestamp>.json` in the output directory (or beside the scan root when no `--output-dir` is given).
+FR1-012 - Folder runs shall write a batch summary JSON named
+`batch-summary-<filesystem-safe-timestamp>-<4hex>.json` in the output directory (or beside the scan root when no
+`--output-dir` is given). New names use `yyyy-MM-dd'T'HHmmssZ`; readers shall continue accepting legacy names that
+used the colon-bearing ISO-8601 timestamp and no suffix.
 
 FR1-012a - Folder runs shall additionally write an append-only JSONL progress log (one self-contained record per completed file, flushed before the batch advances). The batch summary shall be derived from this log.
 
-FR1-012b - Interruption contract: on `SIGINT`/`SIGTERM`, the in-flight file's sidecar shall be either complete or absent — never partial — by virtue of atomic writes; the progress log shall reflect everything finished; the summary, when writable, shall carry `E_INTERRUPTED`.
+FR1-012b - Interruption contract: on `SIGINT`/`SIGTERM` or task cancellation, the in-flight file's sidecar shall be
+either complete or absent — never partial — by virtue of atomic writes; the progress log shall reflect everything
+finished; the summary, when writable, shall carry `E_INTERRUPTED`. Cancellation of an in-flight model request shall
+not be retried or recorded as an endpoint failure.
 
 FR1-012c - Re-running an interrupted batch with `--existing skip` shall process only the remainder. This is the Phase 1 resume mechanism; no separate checkpoint format shall be introduced.
 
 FR1-012d - All file writes (sidecars, summaries, logs) shall be atomic: temporary file in the destination directory, then rename.
+
+FR1-012e - The batch progress and summary names created by one analysis run shall share a four-character lowercase
+hexadecimal suffix. The suffix shall de-collide runs that begin in the same second without changing provenance
+timestamps stored inside artifacts.
 
 ## 7. Rendering Requirements
 
@@ -263,15 +290,30 @@ FR1-030 - The initial runtime target shall be Ollama over the local HTTP API.
 
 FR1-030a - The client shall use `POST /api/chat` with the image supplied as base64 in the user message's `images` array and the response JSON Schema supplied via the `format` field. One image and one prompt per request.
 
-FR1-030b - At startup, the configured tag shall be resolved against `GET /api/tags`. An unresolvable tag shall fail fast with `E_MODEL_TAG_NOT_FOUND` and a listing of locally installed vision-capable tags. The runtime version from `GET /api/version` and the model digest shall be recorded in provenance (PW-013/014).
+FR1-030b - At startup, the configured tag shall be resolved against `GET /api/tags`. An unresolvable tag shall fail
+fast with `E_MODEL_TAG_NOT_FOUND` and a listing of locally installed vision-capable tags. If one or more installed
+tags could not be probed through `/api/show`, the diagnostic shall report that count rather than classifying them as
+confirmed non-vision models. The runtime version from `GET /api/version` and the model digest shall be recorded in
+provenance (PW-013/014).
 
 FR1-030c - Thinking mode shall be explicitly disabled for tagging runs and the setting recorded in `request_options`. Reasoning traces multiply latency across large batches and can interfere with strict structured output; tagging is not a reasoning workload.
 
 FR1-030d - `keep_alive` shall default to a duration that keeps the model resident for the whole batch (initial default: `30m`, refreshed per request), avoiding a per-image reload tax.
 
-FR1-030e - Requests shall have a timeout (default 180 s) and bounded transport retries (default 2), retrying only on timeout and transport errors. `E_MODEL_INVALID_JSON` and `E_MODEL_SCHEMA_VIOLATION` shall not be silently accepted; by default the runtime performs one no-image, schema-constrained repair call using the original raw output and validation error, then records the final failure if repair still does not produce schema-valid JSON. `model_response_repair_attempts = 0` preserves the strict one-shot behavior.
+FR1-030e - Requests shall have a timeout (default 180 s) and bounded transport retries (default 2), retrying only
+on timeout, transport errors, and HTTP 5xx responses. Other non-2xx responses (4xx included; a surfaced 3xx means
+a broken proxy and is treated the same) shall fail immediately. When Ollama
+returns a JSON `error` message for a non-success response, the diagnostic shall be included in the bounded error
+message. A malformed HTTP-success API envelope shall be retried exactly once on an independent decode-retry budget,
+then fail with `E_MODEL_RESPONSE_INVALID`. `E_MODEL_INVALID_JSON` and `E_MODEL_SCHEMA_VIOLATION` shall not be
+silently accepted; by default the runtime performs one no-image, schema-constrained repair call using the original
+raw output and validation error, then records the final failure if repair still does not produce schema-valid JSON.
+`model_response_repair_attempts = 0` preserves the strict one-shot behavior.
+The timeout and retry limit shall resolve through `model_timeout_seconds` / `model_retry_limit`,
+`AISIDECAR_MODEL_TIMEOUT_SECONDS` / `AISIDECAR_MODEL_RETRY_LIMIT`, and the matching CLI flags under PW-007.
 
-FR1-030f - Request options shall record temperature, seed, thinking setting, `keep_alive`, and any context override, per PW-013.
+FR1-030f - Request options shall record temperature, seed, thinking setting, `keep_alive`, timeout, retry limit, and
+any context override, per PW-013.
 
 FR1-031 - The model client shall be implemented behind a `VisionModelRunner` protocol so later phases can support other Ollama tags, llama.cpp, MLX, or a direct library backend. A mock runner and a recorded-fixture replay runner shall be implemented alongside the live runner so the full pipeline is testable without a network.
 
@@ -396,6 +438,10 @@ Accepted flags: the project-wide glossary (PW-004) plus:
 ```
 
 `--export-model-inputs` is a diagnostic pre-model path. It shall not write raw `.ai.json` sidecars, model output, progress logs, batch summaries, or XMP. It shall reject `--dry-run` and `--debug-derivatives` because export mode writes only to the requested export folder.
+Its manifest shall be named `model-input-export-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.json`; scanners shall continue
+recognizing the legacy colon-bearing, suffix-free form as an owned protected artifact.
+Export destination collision keys shall use the same Unicode canonical-composition and case-folding policy as raw
+sidecar destinations.
 
 Benchmark-specific flags:
 
@@ -429,6 +475,9 @@ Cleanup-specific flags:
 ```
 
 `aisidecar cleanup` removes raw `.ai.json` sidecars plus known analyze, XMP export, normalization, and apply-session progress/report/summary artifacts from the selected folder. It intentionally does not remove source images, `.xmp` sidecars, XMP backups, diagnostic model-input exports, debug derivative copies, derivative cache files, or normalization session JSON.
+Cleanup may also remove dot-prefixed sibling temporary files whose names match the project atomic writer's exact
+UUID shape and whose modification time is more than 24 hours old. Fresh temporary files, hidden directories, and all
+other hidden files remain protected.
 
 Recommended examples:
 

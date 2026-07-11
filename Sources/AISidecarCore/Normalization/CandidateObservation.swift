@@ -201,13 +201,29 @@ public struct CandidateObservationBuilder {
     public func build(
         extractionResults: [CandidateExtractionResult],
         input: NormalizationResolvedInputBatch
-    ) -> CandidateObservationExtraction {
-        let assetIDBySidecarPath = Dictionary(
-            uniqueKeysWithValues: input.sourceAISidecars.map { ($0.sidecarPath, $0.sourceAssetID) }
+    ) throws -> CandidateObservationExtraction {
+        let assetIDBySidecarPath = try uniqueLookup(
+            input.sourceAISidecars.map { ($0.sidecarPath, $0.sourceAssetID) },
+            onDuplicate: { path in
+                SidecarError(
+                    code: .validationFailed,
+                    stage: .normalize,
+                    message: "Duplicate source sidecar in normalization input: \(path)",
+                    recoverable: false
+                )
+            }
         )
-        let groupIDByAssetID = Dictionary(
-            uniqueKeysWithValues: input.sameBaseNameGroups.flatMap { group in
+        let groupIDByAssetID = try uniqueLookup(
+            input.sameBaseNameGroups.flatMap { group in
                 group.memberAssetIDs.map { ($0, group.groupID) }
+            },
+            onDuplicate: { assetID in
+                SidecarError(
+                    code: .validationFailed,
+                    stage: .normalize,
+                    message: "Asset appears in more than one normalization group: \(assetID)",
+                    recoverable: false
+                )
             }
         )
         var observations: [CandidateObservation] = []

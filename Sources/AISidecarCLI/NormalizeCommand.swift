@@ -5,7 +5,8 @@ import AISidecarCore
 struct NormalizeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "normalize",
-        abstract: "Build Phase 3 normalized metadata decisions for a batch."
+        abstract: "Build Phase 3 normalized metadata decisions for a batch.",
+        discussion: BatchExitHelp.discussion
     )
 
     @Argument(help: "Image file or folder to analyze before normalization.")
@@ -40,6 +41,12 @@ struct NormalizeCommand: AsyncParsableCommand {
 
     @Option(help: "Ollama endpoint URL for analyze-and-normalize.")
     var modelEndpoint: String?
+
+    @Option(help: "Model request timeout in seconds for analyze-and-normalize.")
+    var modelTimeout: Double?
+
+    @Option(help: "Model request retry limit for retryable analyze-and-normalize failures.")
+    var modelRetryLimit: Int?
 
     @Option(help: "Model input profile name for analyze-and-normalize.")
     var profile: String?
@@ -171,11 +178,13 @@ struct NormalizeCommand: AsyncParsableCommand {
         let interruptionMonitor = InterruptionMonitor()
         interruptionMonitor.installSignalHandlers()
         if resolved.sessionOnly {
-            let result = try NormalizePipeline().runSessionOnly(
-                mode: mode,
-                configuration: resolved,
-                interruptionMonitor: interruptionMonitor
-            )
+            let result = try withBatchInterruptionExit {
+                try NormalizePipeline().runSessionOnly(
+                    mode: mode,
+                    configuration: resolved,
+                    interruptionMonitor: interruptionMonitor
+                )
+            }
             let sessionPath = result.session.artifacts.sessionPath ?? "unplanned"
             FileHandle.standardOutput.write(
                 Data(
@@ -186,17 +195,26 @@ struct NormalizeCommand: AsyncParsableCommand {
                     """.utf8
                 )
             )
+            try enforceBatchExitPolicy(failureCount: result.report.errors.count, interrupted: false)
             return
         }
         if resolved.dryRun {
-            let result = try NormalizePipeline().runDryRun(
-                mode: mode,
-                configuration: resolved,
-                interruptionMonitor: interruptionMonitor
-            )
+            let result = try withBatchInterruptionExit {
+                try NormalizePipeline().runDryRun(
+                    mode: mode,
+                    configuration: resolved,
+                    interruptionMonitor: interruptionMonitor
+                )
+            }
             if let changePlan = result.changePlan {
                 try writeChangePlan(changePlan)
             }
+            // The change plan's failedCount covers the report's input errors plus
+            // failed target plans, so the printed plan and the exit status agree.
+            try enforceBatchExitPolicy(
+                failureCount: result.changePlan?.failedCount ?? result.report.errors.count,
+                interrupted: false
+            )
             return
         }
 
@@ -204,21 +222,33 @@ struct NormalizeCommand: AsyncParsableCommand {
         case .analyze(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
-            let result = try await AnalyzeAndNormalizePipeline(logger: logger).run(
-                inputPath: inputPath,
-                runConfiguration: runConfiguration,
-                normalizationConfiguration: resolved,
-                interruptionMonitor: interruptionMonitor
-            )
+            let result = try await withBatchInterruptionExit {
+                try await AnalyzeAndNormalizePipeline(logger: logger).run(
+                    inputPath: inputPath,
+                    runConfiguration: runConfiguration,
+                    normalizationConfiguration: resolved,
+                    interruptionMonitor: interruptionMonitor
+                )
+            }
             writeEssentialSummary(result.normalizeResult.report)
+            try enforceBatchExitPolicy(
+                failureCount: failureCount(for: result.normalizeResult.report),
+                interrupted: result.analyzeResult.interrupted || result.exportResult.interrupted
+            )
         case .fromJSON, .fileList:
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
-            let result = try NormalizeAndWritePipeline(logger: logger).run(
-                mode: mode,
-                configuration: resolved,
-                interruptionMonitor: interruptionMonitor
-            )
+            let result = try withBatchInterruptionExit {
+                try NormalizeAndWritePipeline(logger: logger).run(
+                    mode: mode,
+                    configuration: resolved,
+                    interruptionMonitor: interruptionMonitor
+                )
+            }
             writeEssentialSummary(result.normalizeResult.report)
+            try enforceBatchExitPolicy(
+                failureCount: failureCount(for: result.normalizeResult.report),
+                interrupted: result.exportResult.interrupted
+            )
         }
     }
 
@@ -233,6 +263,8 @@ struct NormalizeCommand: AsyncParsableCommand {
             existing: existing,
             model: model,
             modelEndpoint: modelEndpoint,
+            modelTimeoutSeconds: modelTimeout,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             debugDerivatives: debugDerivatives,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
@@ -299,6 +331,8 @@ struct NormalizeCommand: AsyncParsableCommand {
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,
+            modelTimeoutSeconds: modelTimeout,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             configPath: config,
             logLevel: logLevel,
@@ -336,5 +370,9 @@ struct NormalizeCommand: AsyncParsableCommand {
         let failed = exportReport?.failedCount ?? report.errors.count
         let line = "normalize complete: \(written) written, \(failed) failed."
         FileHandle.standardOutput.write(Data((line + "\n").utf8))
+    }
+
+    private func failureCount(for report: NormalizationReport) -> Int {
+        report.xmpExportReport?.failedCount ?? report.errors.count
     }
 }

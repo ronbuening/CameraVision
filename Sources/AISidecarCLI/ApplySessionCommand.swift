@@ -5,7 +5,8 @@ import AISidecarCore
 struct ApplySessionCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "apply-session",
-        abstract: "Apply a frozen Phase 3 normalization session without model runs."
+        abstract: "Apply a frozen Phase 3 normalization session without model runs.",
+        discussion: BatchExitHelp.discussion
     )
 
     @Argument(help: "Normalization session JSON file.")
@@ -104,21 +105,31 @@ struct ApplySessionCommand: AsyncParsableCommand {
         let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
         let interruptionMonitor = InterruptionMonitor()
         interruptionMonitor.installSignalHandlers()
-        let result = try ApplySessionPipeline(
-            xmpPipeline: XMPExportPipeline(
-                engine: OwnedXMPSidecarEngine(),
-                logger: logger
+        let result = try withBatchInterruptionExit {
+            try ApplySessionPipeline(
+                xmpPipeline: XMPExportPipeline(
+                    engine: OwnedXMPSidecarEngine(),
+                    logger: logger
+                )
+            ).run(
+                sessionPath: sessionPath,
+                configuration: resolved,
+                interruptionMonitor: interruptionMonitor
             )
-        ).run(
-            sessionPath: sessionPath,
-            configuration: resolved,
-            interruptionMonitor: interruptionMonitor
-        )
+        }
         if resolved.dryRun {
             try writeChangePlan(result.changePlan)
+            try enforceBatchExitPolicy(
+                failureCount: failureCount(for: result.report),
+                interrupted: result.interrupted
+            )
             return
         }
         writeEssentialSummary(result.report)
+        try enforceBatchExitPolicy(
+            failureCount: failureCount(for: result.report),
+            interrupted: result.interrupted
+        )
     }
 
     private var invocationRequest: ApplySessionInvocationRequest {
@@ -197,5 +208,9 @@ struct ApplySessionCommand: AsyncParsableCommand {
         let failed = exportReport?.failedCount ?? report.errors.count
         let line = "apply-session complete: \(written) written, \(failed) failed."
         FileHandle.standardOutput.write(Data((line + "\n").utf8))
+    }
+
+    private func failureCount(for report: NormalizationReport) -> Int {
+        report.xmpExportReport?.failedCount ?? report.errors.count
     }
 }

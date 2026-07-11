@@ -86,6 +86,8 @@ Accepted project-wide flags in analyze-and-write mode:
 --output-dir <path>
 --model <tag>
 --model-endpoint <url>
+--model-timeout <seconds>
+--model-retry-limit <n>
 --profile <name>
 --config <path>
 --log-level <error|warn|info|debug>
@@ -151,7 +153,9 @@ FR2-CLI-004 - In `write-xmp`, `--existing` governs raw `.ai.json` output produce
 
 ## 5. Input and Source Verification Requirements
 
-FR2-000 - `--from-json <json-file>` shall read one Phase 1 raw sidecar. `--from-json <folder>` shall scan for `.ai.json` files, recursively only when `--recursive` is supplied.
+FR2-000 - `--from-json <json-file>` shall read one Phase 1 raw sidecar. `--from-json <folder>` shall scan for
+`.ai.json` files, recursively only when `--recursive` is supplied. Recursive scans shall report each unreadable
+directory as a recoverable input failure and continue with readable siblings.
 
 FR2-000a - Raw JSON sidecars shall be read under PW-012. Readers shall accept `ai-sidecar-json/1.x`, preserve unknown fields when rewriting a raw sidecar, and refuse unsupported major versions with `E_SCHEMA_UNSUPPORTED`.
 
@@ -203,9 +207,17 @@ FR2-003 - Detected groups shall produce a warning in the report. The warning is 
 
 FR2-004 - Phase 2 shall not modify source image files. Proprietary RAW file hashes shall be verifiably unchanged after any run, and the same non-modification rule shall also hold for JPEG, TIFF, HEIC, PNG, and DNG during the sidecar-only MVP.
 
+FR2-004a - Every selected source shall retain a before/after hash-check record. If the pre-write hash cannot be
+computed, the record shall contain a nil `before_sha256`, `unchanged: false`, and a structured validation error; the
+target shall fail closed rather than silently omitting the source from verification.
+
 ## 7. Candidate Extraction Requirements
 
 FR2-013 - The program shall extract candidate terms from Phase 1 model JSON using the Phase 1 response schema, including conditional `species` candidates when present, and respecting schema evolution under PW-012.
+
+FR2-013a - If an input batch contains more than one extraction result for the same source-sidecar path, planning
+shall keep the first result deterministically and record each later occurrence as a recoverable `E_VALIDATION_FAILED`
+input failure naming the path. Duplicate results shall never trap the process.
 
 FR2-013a - Candidate-bearing fields in Phase 1 v1.3+ responses are:
 
@@ -301,10 +313,11 @@ FR2-025 - Sidecar updates shall be merge-based, not full replacement of metadata
 
 FR2-026 - Sidecar writes shall be atomic: create or copy to a temporary file in the destination directory, apply the write plan to the temporary file, validate it, then replace the target.
 
-FR2-027 - Existing sidecars shall be backed up before modification when `--backup-sidecars` is enabled. Backups shall use a deterministic suffix:
+FR2-027 - Existing sidecars shall be backed up before modification when `--backup-sidecars` is enabled. New backups
+shall use a filesystem-safe timestamp and a four-character lowercase hexadecimal de-collision suffix:
 
 ```text
-<name>.xmp.bak-<ISO-8601-timestamp>
+<name>.xmp.bak-<yyyy-MM-dd'T'HHmmssZ>-<4hex>
 ```
 
 Backups shall be referenced in the export report.
@@ -365,15 +378,21 @@ FR2-030 - Phase 2 shall produce or update `.xmp` sidecars only from `aisidecar w
 
 FR2-031 - Analyze-and-write mode shall preserve or create raw `.ai.json` sidecars unless `--no-write-ai-json` is supplied. `--no-write-ai-json` still records model-run provenance in memory for the export report, but it is not the default because auditability matters.
 
+FR2-031a - Before `--no-write-ai-json` cleanup, analyze-and-write shall inventory pre-existing raw sidecars. If that
+inventory fails, cleanup shall keep all raw sidecars. Individual deletion failures shall be logged and shall never be
+silently discarded.
+
 FR2-032 - Folder runs shall produce:
 
 ```text
-xmp-export-progress-<ISO-8601-timestamp>.jsonl
-xmp-export-report-<ISO-8601-timestamp>.json
-xmp-export-summary-<ISO-8601-timestamp>.md
+xmp-export-progress-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.jsonl
+xmp-export-report-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.json
+xmp-export-summary-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.md
 ```
 
 These files shall be written under `--output-dir` when supplied, otherwise beside the scan root or JSON scan root.
+The three files from one run share a suffix. Cleanup and scan readers shall continue accepting legacy colon-bearing,
+suffix-free names.
 
 `aisidecar cleanup` may remove these progress/report/summary artifacts from a selected folder, but it shall not remove XMP sidecars, backups, source images, or derivative cache artifacts.
 

@@ -24,6 +24,10 @@ env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 - **Model behavior** is tested with mock runners and recorded-fixture replay from `ModelRuntime` — never a live model.
 - Every behavior change adds or updates a focused unit test (AGENTS.md rule).
 
+Artifact-filename tests inject a fixed four-hex suffix. New files must use the portable
+`yyyy-MM-dd'T'HHmmssZ-<4hex>` token, paired files from one run must share it, and cleanup/scanning tests must retain
+coverage for legacy colon-bearing, suffix-free names. ISO-8601 provenance fields inside JSON remain unchanged.
+
 ## CLI Help Checks (fast wiring smoke)
 
 ```bash
@@ -36,6 +40,30 @@ swift run aisidecar explain-session --help
 swift run aisidecar benchmark --help
 swift run aisidecar purge --help
 swift run aisidecar cleanup --help
+```
+
+The batch-command help for `analyze`, `write-xmp`, `normalize`, `apply-session`,
+and `cleanup` documents the stable process statuses: `0` for success, `1` for one
+or more item failures, and `130` for interruption.
+The `analyze`, `write-xmp`, and `normalize` help must also list `--model-timeout`
+and `--model-retry-limit`; the latter two commands accept them only in their analyze modes.
+
+## CLI Exit Status Checks
+
+Use a disposable input/output location for these checks. A completed diagnostic
+scan remains exit `0` even when its JSON contains unsupported-file records; a real
+batch with a failed item exits `1`; and an interrupted batch exits `130`.
+Symbolic links in a scanned folder are skipped with a recorded scan error, which
+counts as a failed item. `write-xmp --dry-run` and `normalize --dry-run` exit `1`
+when the printed change plan contains failed inputs or target plans.
+
+```bash
+swift run aisidecar analyze <unsupported-file> --dry-scan; echo $?   # 0
+swift run aisidecar analyze <unsupported-file> --dry-run; echo $?    # 1
+swift run aisidecar analyze <image-or-folder> --output-dir <tmp-output>
+# First Ctrl+C requests a graceful stop and cancels the live model request.
+# A second Ctrl+C arms default SIGINT handling; a third force-terminates.
+# After a graceful stop, run: echo $?                                # 130
 ```
 
 ## Offline Smoke Checks (no Ollama required)

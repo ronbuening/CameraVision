@@ -175,9 +175,9 @@ intermediate files after a successful write.
 - **Nothing is written until you say so.** Analysis produces only `.ai.json`; XMP is
   written only when you export, and a dry-run change plan is always available first.
 - **Settings** persist to the shared `config.json` (so the CLI sees the same
-  defaults), let you pick the vision model and endpoint with a connectivity
-  indicator, and choose Light / Dark / Auto themes with copper, brass, or patina
-  accents.
+  defaults), let you pick the vision model and endpoint, tune model timeout and
+  retry limits, show a connectivity indicator, and choose Light / Dark / Auto
+  themes with copper, brass, or patina accents.
 - **Studio shell** (nonlinear, sidebar navigation) is planned for a later release;
   its toggle is visible but disabled ("coming soon") during the beta.
 
@@ -274,7 +274,7 @@ swift run aisidecar normalize --from-json /tmp/aisidecar-ai --recursive \
 
 ```bash
 swift run aisidecar apply-session \
-  /tmp/aisidecar-normalization/normalization-session-<timestamp>.json \
+  /tmp/aisidecar-normalization/normalization-session-2026-07-07T180000Z-a3f2.json \
   --dry-run --output-dir /tmp/aisidecar-apply-preview
 ```
 
@@ -313,8 +313,10 @@ A minimal config:
 
 ```json
 {
-  "model": "gemma4:26b",
+  "model": "gemma4:26b-a4b-it-qat",
   "model_endpoint": "http://localhost:11434",
+  "model_timeout_seconds": 180,
+  "model_retry_limit": 2,
   "profile": "gemma4-26b-default",
   "gps_context": "coarse",
   "stage_concurrency": 1
@@ -325,6 +327,8 @@ Frequently used knobs:
 
 - `--model <tag>` / `"model"` — choose the installed Ollama vision model.
 - `--model-endpoint <url>` / `"model_endpoint"` — point at a non-default Ollama endpoint.
+- `--model-timeout <seconds>` / `"model_timeout_seconds"` — allow slower model requests or cold starts.
+- `--model-retry-limit <n>` / `"model_retry_limit"` — set additional attempts for retryable failures.
 - `--mode whole|subject|both` / `"mode"` — analysis input role.
 - `--stage-concurrency 1` / `"stage_concurrency"` — lower memory pressure by preparing renders serially.
 - `--gps-context off|coarse|exact` / `"gps_context"` — prompt-only GPS context. GPS is never exported as a keyword.
@@ -346,6 +350,11 @@ Frequently used knobs:
 | `~/Library/Caches/aisidecar/derivatives` | Regenerable render/derivative cache (default location). |
 | `~/Library/Application Support/CupricAspect/` | App state (recovery session, per-run artifacts) and a size-capped diagnostic log (path shown in **Settings → About**). |
 
+New run artifacts use a filesystem-portable `yyyy-MM-dd'T'HHmmssZ-<4hex>` token, for example
+`batch-progress-2026-07-07T180000Z-a3f2.jsonl`. The shared suffix keeps a run's progress, report, and summary files
+visually paired and prevents same-second collisions. Existing colon-bearing artifact names remain readable and
+cleanup-compatible.
+
 After a write, import or synchronize metadata in Lightroom Classic or Capture One
 using each app's normal XMP workflow to pick up the new keywords.
 
@@ -364,11 +373,22 @@ using each app's normal XMP workflow to pick up the new keywords.
   coordinates and GPS-only evidence are guarded from keyword export.
 - **`cleanup` is conservative.** It never removes source images, `.xmp` sidecars, XMP
   backups, model-input exports, debug derivatives, the derivative cache, or
-  normalization session JSON.
+  normalization session JSON. It removes UUID-shaped atomic-writer temp files only
+  after they are more than 24 hours old; fresh and unrelated hidden files stay protected.
 
 ---
 
 ## Troubleshooting
+
+**Batch exit statuses** — Batch commands return `0` only when all items succeed,
+`1` when one or more items fail, and `130` when interrupted. This lets shell chains
+such as `aisidecar analyze ... && aisidecar write-xmp ...` stop after an incomplete
+run. Dry-run modes follow the same policy: `write-xmp --dry-run` and
+`normalize --dry-run` exit `1` when the printed change plan contains failed inputs
+or target plans. Symbolic links in a scanned folder are skipped with a recorded
+scan error and count as failed items. `analyze --dry-scan` remains a diagnostic
+exception: it reports scan errors in its JSON output and exits `0` when the scan
+itself completes.
 
 **`E_MODEL_TAG_NOT_FOUND`** — The configured model isn't installed, is named
 differently, or isn't reported by Ollama as vision-capable. Check and pass a known tag:

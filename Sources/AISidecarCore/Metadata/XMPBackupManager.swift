@@ -26,14 +26,23 @@ public struct XMPBackupRecord: Codable, Sendable, Equatable {
 public struct XMPBackupManager {
     private let fileManager: FileManager
     private let now: @Sendable () -> Date
+    private let filenameSuffix: @Sendable () -> String
 
-    public init(fileManager: FileManager = .default, now: @escaping @Sendable () -> Date = Date.init) {
+    public init(
+        fileManager: FileManager = .default,
+        now: @escaping @Sendable () -> Date = Date.init,
+        filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix
+    ) {
         self.fileManager = fileManager
         self.now = now
+        self.filenameSuffix = filenameSuffix
     }
 
-    /// Copy the target sidecar to `<name>.xmp.bak-<ISO-8601-timestamp>`.
-    public func backupExistingSidecar(at targetXMPPath: String) throws -> XMPBackupRecord {
+    /// Copy the target sidecar to `<name>.xmp.bak-<filesystem-safe-run-token>`.
+    public func backupExistingSidecar(
+        at targetXMPPath: String,
+        runSuffix: String? = nil
+    ) throws -> XMPBackupRecord {
         let targetURL = URL(fileURLWithPath: targetXMPPath).standardizedFileURL
         guard fileManager.fileExists(atPath: targetURL.path) else {
             throw SidecarError(
@@ -45,9 +54,10 @@ public struct XMPBackupManager {
         }
 
         let createdAt = now()
+        let timestamp = Timestamp.filenameToken(createdAt, suffix: runSuffix ?? filenameSuffix())
         let backupURL = targetURL
             .deletingLastPathComponent()
-            .appendingPathComponent("\(targetURL.lastPathComponent).bak-\(timestampString(for: createdAt))")
+            .appendingPathComponent("\(targetURL.lastPathComponent).bak-\(timestamp)")
             .standardizedFileURL
 
         do {
@@ -103,9 +113,5 @@ public struct XMPBackupManager {
                 recoverable: true
             )
         }
-    }
-
-    private func timestampString(for date: Date) -> String {
-        Timestamp.internetDateTime(date)
     }
 }

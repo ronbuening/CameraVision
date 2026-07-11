@@ -39,7 +39,8 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         let logs = LockedLogSink()
         let pipeline = AnalyzeShellPipeline(
             logger: Logger(minimumLevel: .debug, format: .json, sink: logs.append),
-            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000))
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000)),
+            filenameSuffix: { "a3f2" }
         )
 
         let result = try await pipeline.run(
@@ -54,8 +55,14 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("_DSC1234.JPG.ai.json").path))
         XCTAssertEqual(result.records.map(\.status), [.failed, .written, .written])
         XCTAssertEqual(result.records.first?.errors.first?.code, .unsupportedFormat)
-        XCTAssertNotNil(result.progressLogPath)
-        XCTAssertNotNil(result.summaryPath)
+        XCTAssertEqual(
+            result.progressLogPath,
+            output.appendingPathComponent("batch-progress-2027-01-15T080000Z-a3f2.jsonl").path
+        )
+        XCTAssertEqual(
+            result.summaryPath,
+            output.appendingPathComponent("batch-summary-2027-01-15T080000Z-a3f2.json").path
+        )
         XCTAssertEqual(result.summary?.written, 2)
         XCTAssertEqual(result.summary?.failed, 1)
         XCTAssertEqual(result.summary?.totalImages, 2)

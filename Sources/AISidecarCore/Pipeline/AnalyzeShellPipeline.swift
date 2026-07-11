@@ -39,12 +39,14 @@ public struct AnalyzeShellPipeline {
     private let logger: Logger
     private let maskProvider: any ForegroundMaskProvider
     private let now: @Sendable () -> Date
+    private let filenameSuffix: @Sendable () -> String
 
     public init(
         fileManager: FileManager = .default,
         logger: Logger = Logger(),
         maskProvider: (any ForegroundMaskProvider)? = nil,
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix
     ) {
         self.fileManager = fileManager
         self.scanner = ImageScanner(fileManager: fileManager)
@@ -59,6 +61,7 @@ public struct AnalyzeShellPipeline {
             self.maskProvider = UnavailableForegroundMaskProvider()
         }
         self.now = now
+        self.filenameSuffix = filenameSuffix
     }
 
     /// Run the analyze shell pipeline for one file or one folder.
@@ -89,7 +92,7 @@ public struct AnalyzeShellPipeline {
             identityPolicy: configuration.sourceIdentityPolicy
         )
         let isBatch = scanResult.inputPath == scanResult.scanRoot
-        let timestamp = timestampString(for: runStartedAt)
+        let timestamp = Timestamp.filenameToken(runStartedAt, suffix: filenameSuffix())
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
         // FR1-012 defines progress and summary artifacts for folder runs; a
         // single file writes only its sidecar and CLI status.
@@ -215,10 +218,6 @@ public struct AnalyzeShellPipeline {
     private func reportDirectoryPath(scanRoot: String, outputDir: String?) -> String {
         let path = outputDir ?? scanRoot
         return URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path
-    }
-
-    private func timestampString(for date: Date) -> String {
-        Timestamp.internetDateTime(date)
     }
 
     private func durationMs(from start: Date, to end: Date) -> Int {

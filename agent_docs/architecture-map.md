@@ -22,7 +22,7 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
 | Directory | Owns | Key types |
 |---|---|---|
 | `Configuration/` | Config models, precedence (CLI > env > file > default), invocation validation, config-file editing | `ConfigurationResolver`, `AppConfig`, `ConfigFileEditor`, `RunConfiguration`/`ResolvedRunConfiguration`, `XMPExportConfiguration`, `NormalizationConfiguration`, `InvocationRules` |
-| `FileScanning/` | Folder scan, supported extensions, source records, no-hash inventory scan | `ImageScanner` (+ `inventory(inputPath:recursive:)` → `ScanInventory`, CORE-5), `SourceImage`, `ScanResult` |
+| `FileScanning/` | Folder scan, supported extensions, source records, structured directory-read failures, no-hash inventory scan | `ImageScanner` (+ `inventory(inputPath:recursive:)` → `ScanInventory`, CORE-5), `SourceImage`, `ScanResult` |
 | `Identity/` | Source content identity hashing (fast/sha256 policies) | `SourceIdentity` |
 | `Rendering/` | Model-input profiles, render recipes, whole-image rendering, derivative cache | `ImageRenderer`, `DerivativeCache`, `ModelInputProfileRegistry`, `RenderRecipe` |
 | `SubjectIsolation/` | Apple Vision foreground masks, instance selection, two-resolution subject crops | `SubjectIsolationService`, `AppleVisionForegroundMaskProvider`, `InstanceSelectionPolicy` |
@@ -31,7 +31,7 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
 | `Metadata/` | Phase 2: candidate extraction, keyword policy, XMP naming/grouping, owned XMP parser/writer engine, backups, merge validation | `CandidateExtractor`, `MetadataWriteEngine` (protocol), `OwnedXMPSidecarEngine`, `XMPDocumentParser/Writer`, `XMPKeywordReader/Merger`, `XMPMetadataSnapshot`, `XMPUnmanagedContentFingerprint`, `XMPBackupManager`, `XMPChangePlan`, `SameBaseNameGroupResolver` |
 | `Normalization/` | Phase 3: vocabulary load/index/validate, canonicalization, affinity graph, consensus, session documents, decision explainer, GUI review application | `VocabularyLoader/Index/Validator`, `VocabularyTextFolder`, `CandidateCanonicalizer`, `AssetAffinityGraph`, `BatchConsensusEngine`, `NormalizationSessionDocument`, `NormalizedXMPChangePlanner`, `NormalizationDecisionExplainer` (CORE-6), `SessionReview` (CORE-7) |
 | `Pipeline/` | Orchestration of everything above + interruption handling | see entry-point table below |
-| `Reporting/` | Injectable logger, JSONL progress logs, reports, summaries, schema identifiers | `Logger` (injectable sink), `ProgressLog`, `JSONLWriter`, `BatchSummary`, `XMPExportReport`, `NormalizationReport`, `ArtifactNames` |
+| `Reporting/` | Injectable logger, JSONL progress logs, reports, summaries, schema identifiers, shared owned-artifact prefixes | `Logger` (injectable sink), `ProgressLog`, `JSONLWriter`, `BatchSummary`, `XMPExportReport`, `NormalizationReport`, `ArtifactNames` |
 | `Cleanup/` | Scoped removal of owned raw sidecars and run artifacts | `ArtifactCleanup` |
 | `Benchmarking/` | Milestone 9a benchmark harness | `Milestone9BenchmarkRunner` |
 | `Errors/` | Project-wide structured error codes (additive only, stable raw strings) | `SidecarError` |
@@ -40,7 +40,7 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
 
 ## Pipeline Entry Points
 
-All results are `Sendable`; no `@MainActor` coupling; Core never prints directly (the `Logger` sink is injectable, default stderr). Cancellation: pass an `InterruptionMonitor` and call `requestInterruption()`; pipelines check it between assets.
+All results are `Sendable`; no `@MainActor` coupling; Core never prints directly (the `Logger` sink is injectable, default stderr). Cancellation: pass an `InterruptionMonitor` and call `requestInterruption()`; pipelines check it between assets, while `AnalyzePipeline` also checks between model roles/retries and cancels its in-flight model request. Parent-task cancellation follows the same fail-closed path: the transport passes cancellation through, the model run records `E_INTERRUPTED`, and no failure sidecar is written.
 
 | Pipeline | Entry | Async | Purpose |
 |---|---|---|---|
@@ -86,6 +86,7 @@ GUI model tests live in `Tests/CupricAspectAppTests` (offline, deterministic —
 | XMP sidecar | owned parser/writer output, target naming in `Metadata/XMPNaming.swift` |
 | Progress log / report / summary | `*-progress-*.jsonl` / `*-report-*.json` / `*-summary-*.md` (names in `Reporting/ArtifactNames.swift`) |
 | Normalization session | `normalization-session-*.json`, reusable by `apply-session` |
+| Model-input export manifest | `model-input-export-*.json`, protected diagnostic manifest |
 | Derivative cache | `~/Library/Caches/aisidecar/derivatives` (configurable), manifest JSON + `aisidecar purge` lifecycle |
 | Config file | `~/Library/Application Support/aisidecar/config.json` (configurable; the GUI Settings sheet writes through to the same file via `ConfigFileEditor`) |
 | GUI state | `~/Library/Application Support/CupricAspect/` — recovery session, per-run artifact dirs (pruned after 7 days by `StateHousekeeping`), `logs/` diagnostic log |

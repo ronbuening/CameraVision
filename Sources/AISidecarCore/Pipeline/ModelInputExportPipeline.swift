@@ -258,12 +258,14 @@ public struct ModelInputExportPipeline {
     private let logger: Logger
     private let maskProvider: any ForegroundMaskProvider
     private let now: @Sendable () -> Date
+    private let filenameSuffix: @Sendable () -> String
 
     public init(
         fileManager: FileManager = .default,
         logger: Logger = Logger(),
         maskProvider: (any ForegroundMaskProvider)? = nil,
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix
     ) {
         self.fileManager = fileManager
         self.scanner = ImageScanner(fileManager: fileManager)
@@ -276,6 +278,7 @@ public struct ModelInputExportPipeline {
             self.maskProvider = ExportUnavailableForegroundMaskProvider()
         }
         self.now = now
+        self.filenameSuffix = filenameSuffix
     }
 
     /// Ensure export mode writes only its requested destination artifacts.
@@ -397,7 +400,8 @@ public struct ModelInputExportPipeline {
             records: records,
             summary: summary
         )
-        let manifestPath = "\(exportDirectory)/model-input-export-\(timestampString(for: startedAt)).json"
+        let timestamp = Timestamp.filenameToken(startedAt, suffix: filenameSuffix())
+        let manifestPath = "\(exportDirectory)/\(ArtifactNames.modelInputExportManifestPrefix)\(timestamp).json"
         try writeManifest(manifest, to: manifestPath)
 
         if configuration.clearDerivativeCacheAfterSuccess,
@@ -694,10 +698,6 @@ public struct ModelInputExportPipeline {
         }
     }
 
-    private func timestampString(for date: Date) -> String {
-        Timestamp.internetDateTime(date)
-    }
-
     private func durationMs(from start: Date, to end: Date) -> Int {
         max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
     }
@@ -707,7 +707,7 @@ public struct ModelInputExportPipeline {
     }
 }
 
-fileprivate struct ModelInputExportPlannedOutput: Sendable, Equatable {
+struct ModelInputExportPlannedOutput: Sendable, Equatable {
     var role: DerivativeRole
     var path: String
     var relativePath: String
@@ -719,7 +719,7 @@ fileprivate struct ModelInputExportPlannedOutput: Sendable, Equatable {
     }
 }
 
-fileprivate struct ModelInputExportPlanEntry: Sendable, Equatable {
+struct ModelInputExportPlanEntry: Sendable, Equatable {
     var source: SourceImage
     var plannedOutputs: [ModelInputExportPlannedOutput]
 
@@ -728,17 +728,17 @@ fileprivate struct ModelInputExportPlanEntry: Sendable, Equatable {
     }
 }
 
-private struct ModelInputExportPlanCollision: Sendable, Equatable {
+struct ModelInputExportPlanCollision: Sendable, Equatable {
     var sources: [SourceImage]
     var error: SidecarError
 }
 
-private struct ModelInputExportPlan: Sendable, Equatable {
+struct ModelInputExportPlan: Sendable, Equatable {
     var entries: [ModelInputExportPlanEntry]
     var collisions: [ModelInputExportPlanCollision]
 }
 
-private enum ModelInputExportNaming {
+enum ModelInputExportNaming {
     static func plan(
         for sources: [SourceImage],
         mode: AnalysisMode,
@@ -759,7 +759,9 @@ private enum ModelInputExportNaming {
         let outputPairs = provisional.flatMap { entry in
             entry.plannedOutputs.map { output in (entry.source, output) }
         }
-        let grouped = Dictionary(grouping: outputPairs) { $0.1.path.lowercased() }
+        let grouped = Dictionary(grouping: outputPairs) {
+            $0.1.path.precomposedStringWithCanonicalMapping.lowercased()
+        }
         let collidingKeys = Set(grouped.filter { $0.value.count > 1 }.map(\.key))
         let collidingSourcePaths = Set(
             grouped

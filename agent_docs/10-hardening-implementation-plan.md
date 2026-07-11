@@ -1455,7 +1455,7 @@ Keep plan 08's scope boundary: no lock, no `NSFileCoordinator` — plan 08 §"de
 
 ## Milestone R3 — CLI process-boundary hardening
 
-R3 runs after R2. R3 and R4 are independent and may swap wholesale, but do not interleave them. Items run in order R3-1 → R3-11; R3-11's sub-items are each one small commit and may be reordered or individually deferred. Two items change observable behavior (R3-1 exit codes, R3-8 artifact names): both update `agent_docs/testing-and-verification.md`, the README, and golden tests deliberately, and say so in their commits. All source claims below re-verified against the working tree on 2026-07-08.
+R3 runs after R2. R3 and R4 are independent and may swap wholesale, but do not interleave them. Items run in order R3-1 → R3-11; R3-11's sub-items are each one small commit and may be reordered or individually deferred. Two items change observable behavior (R3-1 exit codes, R3-8 artifact names): both update `agent_docs/testing-and-verification.md`, the README, and golden tests deliberately, and say so in their commits. (R3-11b adds a third, smaller one: symlink skips now produce scan-error records, which count as failed items under the R3-1 policy — documented in the README and testing guide.) All source claims below re-verified against the working tree on 2026-07-08.
 
 ### R3-1 — Nonzero exit codes for failed/interrupted batches
 
@@ -1503,6 +1503,12 @@ public enum BatchExitPolicy {
 4. `CleanupCommand.swift:30-37`: keep the printed message, replace the thrown `SidecarError` with `throw ExitCode(BatchExitPolicy.failureStatus)` for consistency (observable exit code stays 1; the stderr error line disappears — mention in commit).
 5. Document the codes in each command's `CommandConfiguration(discussion:)` and in README Troubleshooting; update `agent_docs/testing-and-verification.md`.
 
+Implementation audit correction (2026-07-10): `normalize --dry-run` derived its exit from the report's input errors
+only, so failed target plans in the printed change plan (sidecar collisions, empty pair selections) exited 0 while
+`write-xmp --dry-run` and a real `normalize` exited 1 for the same condition. The planned-failure count now lives on
+`XMPChangePlanDocument.failedCount` (mirroring `XMPExportReport.failedCount`) and both commands' dry-run exits derive
+from it, so the printed plan and the exit status cannot drift.
+
 **Tests.** `Tests/AISidecarCoreTests/BatchExitPolicyTests.swift` (new file, one file per subject):
 
 ```swift
@@ -1526,9 +1532,9 @@ final class BatchExitPolicyTests: XCTestCase {
 ```
 
 **Acceptance.**
-- [ ] Exit nonzero when any per-file failure or an interruption occurred (plan 08 verbatim)
-- [ ] Policy defined once and applied to all batch commands; documented in `--help` and README
-- [ ] `E_*` error codes untouched (invariant 7); exit codes documented as stable once shipped
+- [x] Exit nonzero when any per-file failure or an interruption occurred (plan 08 verbatim)
+- [x] Policy defined once and applied to all batch commands; documented in `--help` and README
+- [x] `E_*` error codes untouched (invariant 7); exit codes documented as stable once shipped
 - [ ] `echo $?` manual checks in the exit gate pass
 
 **Commit.** `Exit nonzero for failed or interrupted batch runs via shared BatchExitPolicy`
@@ -1553,17 +1559,17 @@ for (role, derivative) in modelInputs(derivatives: derivatives, mode: configurat
 ```
 
 **Change.** (Do R3-4 first or together — cancellation propagation through the transport is shared.)
-1. Plumb `interruptionMonitor` from `finishPrepared` into `runModelRuns`/`runModel`. At the top of the role loop: `if interruptionMonitor?.isInterrupted == true { break }` — partial `runs` flow back and the pipeline's existing fail-closed boundary handling marks the file interrupted (no sidecar written, `E_INTERRUPTED` on the record, consistent with the between-files path).
+1. Plumb `interruptionMonitor` from `finishPrepared` into `runModelRuns`/`runModel`. At the top of the role loop, stop through an explicit internal interrupted outcome rather than returning partial model runs. The processing loop then writes no sidecar and emits no partial per-file progress record; the batch result and summary carry the interruption, matching the established between-files behavior. (The original plan assumed this fail-closed outcome already existed; `finishPrepared` previously wrote partial runs, so the explicit outcome is required.)
 2. Runner gains a per-call interruption check: add `isInterrupted: (@Sendable () -> Bool)?` to the `analyze` signature (defaulted `nil` — mock runners unaffected). In `sendChatWithRetries`, check it (and `Task.isCancelled`, R3-4) at the top of each attempt and after each failure; when set, throw `SidecarError(code: .interrupted, stage: .model, ...)` instead of starting the next attempt.
 3. Cancel in-flight requests: `AnalyzePipeline.runModel` wraps the `runner.analyze` call in a child `Task`; the pipeline registers a handler on the monitor that calls `task.cancel()`. Add to `InterruptionMonitor`:
 
 ```swift
 /// Register a callback fired once when interruption is requested.
-/// Fires immediately if already interrupted. Returns after removal-safe registration.
-public func onInterruption(_ handler: @escaping @Sendable () -> Void)
+/// Fires immediately if already interrupted. Returns a removable lifetime token.
+public func onInterruption(_ handler: @escaping @Sendable () -> Void) -> InterruptionRegistration
 ```
-   (Store handlers under the existing lock; `requestInterruption()` drains them.) The transport-level cancellation behavior is R3-4.
-4. Escalation: in `installSignalHandlers`, when the SIGINT event handler sees `interrupted` already `true`, restore default disposition (`signal(SIGINT, SIG_DFL)`) so the *third* Ctrl+C genuinely kills the process. Second press = "cancel in-flight + arm escalation", third = kill.
+   (Store handlers under the existing lock; `requestInterruption()` drains them. Registrations must unregister completed requests so a long successful batch retains no historical tasks.) The transport-level task-only cancellation behavior is R3-4.
+4. Escalation: in `installSignalHandlers`, when the SIGINT event handler sees `interrupted` already `true`, restore default disposition (`signal(SIGINT, SIG_DFL)`) so the *third* Ctrl+C genuinely kills the process. Second press = "cancel in-flight + arm escalation", third = kill. Account for `DispatchSourceSignal.data` so rapidly coalesced signals preserve the same sequence.
 
 **Tests.** Extend `Tests/AISidecarCoreTests/ModelRuntimeTests.swift` (runner behavior) and `AnalyzePipelineTests.swift` (role-boundary stop):
 
@@ -1578,7 +1584,7 @@ func testAnalyzeStopsRetryingWhenInterruptedBetweenAttempts() async throws {
     let record = await runner.analyze(
         /* image/prompt/schema/runtime per existing helpers */
         options: ModelRunOptions(retryLimit: 2),
-        isInterrupted: { true }
+        isInterrupted: { monitor.isInterrupted }
     )
     XCTAssertEqual(record.error?.code, .interrupted)
     XCTAssertEqual(await transport.capturedRequests().count, 1)
@@ -1587,15 +1593,15 @@ func testAnalyzeStopsRetryingWhenInterruptedBetweenAttempts() async throws {
 // AnalyzePipelineTests.swift
 func testInterruptionBetweenRolesSkipsSecondRoleAndFailsClosed() async throws {
     // mock runner flips monitor.requestInterruption() during the first role;
-    // assert: one model call, record interrupted, no sidecar file written.
+    // assert: one model call, no per-file record, summary interrupted, no sidecar.
 }
 ```
 
 **Acceptance.**
-- [ ] Monitor checked between roles and between retry attempts (plan 08 verbatim)
-- [ ] In-flight `URLSession` request cancelled on interruption (with R3-4)
-- [ ] Second SIGINT restores default disposition; third kills (plan 08 verbatim)
-- [ ] Files stay fail-closed at boundaries (existing behavior preserved)
+- [x] Monitor checked between roles and between retry attempts (plan 08 verbatim)
+- [x] In-flight `URLSession` request cancelled on interruption (with R3-4)
+- [x] Second SIGINT restores default disposition; third kills (plan 08 verbatim)
+- [x] Files stay fail-closed at boundaries (existing behavior preserved)
 - [ ] Manual: Ctrl+C during a batch stops within one attempt, exits 130 (R3-1)
 
 **Commit.** `Check interruption between roles and attempts and cancel in-flight model requests`
@@ -1648,10 +1654,10 @@ func testAnalyzeRetriesHTTP5xxAndMalformed200Once() async throws {
 ```
 
 **Acceptance.**
-- [ ] Ollama error body included in thrown error messages (plan 08 verbatim)
-- [ ] Retry only timeouts, transport errors, and 5xx; fail fast on 4xx (plan 08 verbatim)
-- [ ] Malformed 200 → decode-class error, retried once, `E_MODEL_RESPONSE_INVALID` additive (plan 08 verbatim)
-- [ ] Existing `testAnalyzeRetriesTimeoutsAndTransportErrorsOnly` still green; 4xx non-retry now actually pinned
+- [x] Ollama error body included in thrown error messages (plan 08 verbatim)
+- [x] Retry only timeouts, transport errors, and 5xx; fail fast on 4xx (plan 08 verbatim)
+- [x] Malformed 200 → decode-class error, retried once, `E_MODEL_RESPONSE_INVALID` additive (plan 08 verbatim)
+- [x] Existing `testAnalyzeRetriesTimeoutsAndTransportErrorsOnly` still green; 4xx non-retry now actually pinned
 
 **Commit.** `Classify Ollama retries: fail fast on 4xx, surface error bodies, retry malformed 200 once`
 
@@ -1702,9 +1708,9 @@ func testCancelledModelRunWritesNoFailureSidecarAndRecordsInterruption() async t
 ```
 
 **Acceptance.**
-- [ ] Cancellation rethrown without writing a failure sidecar; run records interruption (plan 08 verbatim)
-- [ ] `Task.isCancelled` checked in the retry loop (plan 08 verbatim)
-- [ ] Rerun with `--existing skip` after a GUI cancel re-attempts the file
+- [x] Cancellation rethrown without writing a failure sidecar; run records interruption (plan 08 verbatim)
+- [x] `Task.isCancelled` checked in the retry loop (plan 08 verbatim)
+- [x] Rerun with `--existing skip` after a GUI cancel re-attempts the file
 
 **Commit.** `Propagate task cancellation through the model runtime instead of writing failure sidecars`
 
@@ -1732,9 +1738,9 @@ options.responseRepairAttempts = configuration.modelResponseRepairAttempts
 1. `AppConfig`: add `modelTimeoutSeconds: Double?` (`model_timeout_seconds`) and `modelRetryLimit: Int?` (`model_retry_limit`) — decode/encode-if-present like `modelKeepAlive` (:237/:317).
 2. `ConfigurationResolver`: env keys `AISIDECAR_MODEL_TIMEOUT_SECONDS`, `AISIDECAR_MODEL_RETRY_LIMIT` beside :259; merge in the same CLI > env > file > default order (invariant 9); validate `timeout > 0`, `retryLimit >= 0` → `SidecarError.configInvalid` otherwise.
 3. `RunConfigurationOverrides` + `ResolvedRunConfiguration`: new fields with defaults `ModelRunOptions.default.timeoutSeconds` / `.retryLimit`; snake_case coding keys (`model_timeout_seconds`, `model_retry_limit`).
-4. `SharedOptions`: `@Option(help: "Model request timeout in seconds.") var modelTimeout: Double?` and `@Option(help: "Model request retry limit for retryable failures.") var modelRetryLimit: Int?`; wire into `overrides` (both `SharedOptions.swift` and the duplicated `overrides` builder in `WriteXMPCommand.swift:200-227`).
+4. `SharedOptions`: `@Option(help: "Model request timeout in seconds.") var modelTimeout: Double?` and `@Option(help: "Model request retry limit for retryable failures.") var modelRetryLimit: Int?`; wire into `overrides` in `SharedOptions.swift` and the duplicated analyze-mode builders in `WriteXMPCommand.swift` and `NormalizeCommand.swift`; add both fields to their invocation validators so model-free modes reject them.
 5. `AnalyzePipeline.runModel` (:725-727): `options.timeoutSeconds = configuration.modelTimeoutSeconds; options.retryLimit = configuration.modelRetryLimit`.
-6. Add both keys to `aisidecar.config.example.jsonc` with comments; add to the GUI Settings sheet per the M8a `ConfigFileEditor.merge` write-through pattern.
+6. Add both keys to `aisidecar.config.example.jsonc` with comments; add to the GUI Settings sheet per the M8a `ConfigFileEditor.merge` write-through pattern. Apply the configured timeout to Ollama preflight requests as well as `/api/chat`.
 
 **Tests.** Extend `Tests/AISidecarCoreTests/ConfigResolutionTests.swift` per the existing keep-alive precedence pattern (asserted at :15/:85/:185/:338):
 
@@ -1751,9 +1757,9 @@ func testModelTimeoutRejectsNonPositiveValues() throws {
 ```
 
 **Acceptance.**
-- [ ] Full chain: `AppConfig` + example JSONC, `AISIDECAR_*` env, `--model-timeout` flag, `ResolvedRunConfiguration`, GUI Settings (plan 08 verbatim)
-- [ ] Resolver precedence tests per the existing pattern (plan 08 verbatim; invariant 9)
-- [ ] `purge` still resolves without model config validity (invariant 9, second clause)
+- [x] Full chain: `AppConfig` + example JSONC, `AISIDECAR_*` env, `--model-timeout` flag, `ResolvedRunConfiguration`, GUI Settings (plan 08 verbatim)
+- [x] Resolver precedence tests per the existing pattern (plan 08 verbatim; invariant 9)
+- [x] `purge` still resolves without model config validity (invariant 9, second clause)
 
 **Commit.** `Plumb model_timeout_seconds and model_retry_limit through the config chain`
 
@@ -1808,9 +1814,9 @@ func testNonRecursiveUnreadableFolderThrowsSidecarError() throws {
 ```
 
 **Acceptance.**
-- [ ] `errorHandler` records a `ScanErrorRecord` (scanner) / input-failure record (resolver) per failed directory and continues (plan 08 verbatim)
-- [ ] R3-6b: non-recursive unreadable-folder throw wrapped as `validationError` (plan 08 verbatim)
-- [ ] chmod-000 fixture tests skip under root (plan 08 verbatim)
+- [x] `errorHandler` records a `ScanErrorRecord` (scanner) / input-failure record (resolver) per failed directory and continues (plan 08 verbatim)
+- [x] R3-6b: non-recursive unreadable-folder throw wrapped as `validationError` (plan 08 verbatim)
+- [x] chmod-000 fixture tests skip under root (plan 08 verbatim)
 
 **Commit.** `Record unreadable subdirectories as scan failures instead of silently skipping them`
 
@@ -1859,10 +1865,16 @@ func testScanIgnoresOwnedRunArtifacts() throws {
 
 (Note `normalization-session-*` files: `classify` recognizes prefixes via `ArtifactNames` but has **no** `normalizationSessionPrefix` branch — sessions are deliberately not cleanup-deletable. The scanner must still ignore them; cover via a direct prefix check like the export manifest. **Discrepancy:** plan 08 implies `classify` covers all owned patterns; sessions and export manifests are exceptions.)
 
+Implementation audit correction (2026-07-10): backup-and-merge XMP backups (`<name>.xmp.bak-<token>`, written beside
+the target XMP and therefore usually beside the source images) were a third classify exception the file list above
+missed — a rerun reported each backup as an `E_UNSUPPORTED_FORMAT` failure and, once R3-1 landed, exited nonzero.
+`shouldIgnore` now matches the backup infix via a shared `ArtifactNames.xmpBackupInfix` constant; cleanup continues
+to protect backups (ignoring ≠ deleting).
+
 **Acceptance.**
-- [ ] Scan of a folder containing each owned artifact type → no failure records (plan 08 verbatim)
-- [ ] `clearDerivativeCacheAfterSuccess` fires again on a clean rerun over a previously-analyzed folder
-- [ ] `cleanup` scope unchanged (invariant 6) — ignoring ≠ deleting
+- [x] Scan of a folder containing each owned artifact type → no failure records (plan 08 verbatim)
+- [x] `clearDerivativeCacheAfterSuccess` fires again on a clean rerun over a previously-analyzed folder
+- [x] `cleanup` scope unchanged (invariant 6) — ignoring ≠ deleting
 
 **Commit.** `Ignore owned run artifacts during scans so reruns stop reporting them as failures`
 
@@ -1890,16 +1902,21 @@ Every artifact filename embeds `:`; `ProgressLog`/`JSONLWriter` creation fails o
 
 **Discrepancy:** plan 08 says to update `ArtifactNames` patterns and `ArtifactCleanup.classify` to accept both forms — in current source both match by *prefix + suffix only* and never parse the timestamp, so old and new names are recognized with **zero reader changes**. Only `Timestamp`, the four `timestampString` call sites, golden tests, and docs change. `shouldIgnore` (post-R3-7) is likewise prefix/suffix-based.
 
-**STOP: maintainer decision** — new filename timestamp format:
+**Maintainer decision (2026-07-10): Option A** — new filename timestamp format:
 - **Option A** `2026-07-07T180000Z` (drop colons only): visually closest to today's names, sorts correctly alongside old ones.
 - **Option B** `20260707-180000` (compact basic): shortest, but sorts *before* all old names and reads worse.
 - **Recommendation: Option A**, plus R3-8b suffix → `batch-progress-2026-07-07T180000Z-a3f2.jsonl`.
 
-**Change.** (after decision)
+**Change.**
 1. Add `Timestamp.filenameSafe(_ date: Date) -> String` implementing the chosen format (keep `internetDateTime` untouched — provenance fields *inside* artifacts stay ISO-8601; only filenames change).
 2. Switch the four private `timestampString(for:)` helpers to `Timestamp.filenameSafe`.
 3. R3-8b: append a 4-char lowercase-hex random suffix at name-construction time (one value per run, shared by that run's progress + summary names so they stay visually paired). Inject via the pipelines' existing `now`/seam pattern so tests stay deterministic (fixed generator in tests, invariant 12).
 4. Golden/report tests asserting artifact names will diff: **golden diffs are deliberate — update fixtures explicitly and call it out in the PR** (repo test convention). Update `agent_docs/testing-and-verification.md` and README examples showing artifact names.
+
+Implementation audit correction: normalization session/report/summary/progress paths and XMP backup names also used
+colon-bearing timestamps even though the file list above omitted them. R3-8 covers those producers too; otherwise
+normalization and backup-and-merge could still fail on the target filesystems. No serialized golden fixture contained
+an artifact path, so focused report/path assertions were deliberately updated instead of changing unrelated fixtures.
 
 **Tests.** `Tests/AISidecarCoreTests/TimestampTests.swift` (new) + touched golden suites:
 
@@ -1929,10 +1946,10 @@ final class TimestampTests: XCTestCase {
 ```
 
 **Acceptance.**
-- [ ] New files use the filesystem-safe form; readers keep recognizing old names (plan 08 verbatim)
-- [ ] Additive pattern change only; invariant 7 respected (plan 08 verbatim)
-- [ ] R3-8b: same-second runs fully de-collided by suffix (plan 08 verbatim)
-- [ ] Golden tests updated deliberately and called out in the PR
+- [x] New files use the filesystem-safe form; readers keep recognizing old names (plan 08 verbatim)
+- [x] Additive pattern change only; invariant 7 respected (plan 08 verbatim)
+- [x] R3-8b: same-second runs fully de-collided by suffix (plan 08 verbatim)
+- [x] Golden tests updated deliberately and called out in the PR
 
 **Commit.** `Use filesystem-safe timestamps plus a run suffix in artifact filenames`
 
@@ -1978,9 +1995,9 @@ func testUnreadableSourceAtExportStartRecordsFailedHashCheckAndFailsTarget() thr
 ```
 
 **Acceptance.**
-- [ ] Check entry recorded with nil `beforeSHA256` and the error (plan 08 verbatim)
-- [ ] Treated as failed verification for reporting; target fails (plan 08 verbatim, conservative default)
-- [ ] Invariant 4 guard chain unchanged otherwise
+- [x] Check entry recorded with nil `beforeSHA256` and the error (plan 08 verbatim)
+- [x] Treated as failed verification for reporting; target fails (plan 08 verbatim, conservative default)
+- [x] Invariant 4 guard chain unchanged otherwise
 
 **Commit.** `Record failed before-hash computations as failed XMP source-hash checks`
 
@@ -2028,6 +2045,11 @@ func uniqueLookup<K: Hashable, V>(
 3. `CandidateObservationBuilder.build`: helper with `.validationFailed` naming the duplicate sidecar path / the asset ID present in two groups; `build` becomes `throws` (callers adapt — mechanical).
 4. `XMPChangePlanner.plan` (`XMPChangePlan.swift:286`) is the batch-tolerant surface: rather than failing the whole plan, detect duplicates first and record an `XMPChangePlanInputFailure` (`validationFailed`, "Duplicate source sidecar in input batch") for the extras, keeping the first deterministically — matches the planner's existing per-input failure model at `:290-296`.
 
+Implementation audit correction: edited sessions reach two additional trapping lookups in `NormalizedXMPChangePlanner`
+before `ApplySessionPipeline.annotateWritePlans`, and the GUI review model had another duplicate-asset lookup. Session
+reading now rejects duplicate asset identities as `sessionStale`; normalized planning throws `validationFailed` for
+programmatic malformed inputs; review-row derivation uses a nontrapping first-wins defense after the reader boundary.
+
 **Tests.** Extend `Tests/AISidecarCoreTests/ApplySessionPipelineTests.swift`, `NormalizedXMPChangePlanTests.swift` (or `XMPChangePlan`'s suite), and the observation-builder suite, each with a malformed fixture:
 
 ```swift
@@ -2042,9 +2064,9 @@ func testDuplicateSessionTargetThrowsSessionStaleNamingTheKey() throws {
 ```
 
 **Acceptance.**
-- [ ] `Dictionary(_:uniquingKeysWith:)`-style explicit duplicate detection throwing `validationFailed`/`sessionStale` with the offending key named (plan 08 verbatim)
-- [ ] Malformed session fixtures for each site (plan 08 verbatim)
-- [ ] No new error codes; existing codes reused appropriately (invariant 7)
+- [x] `Dictionary(_:uniquingKeysWith:)`-style explicit duplicate detection throwing `validationFailed`/`sessionStale` with the offending key named (plan 08 verbatim)
+- [x] Malformed session fixtures for each site (plan 08 verbatim)
+- [x] No new error codes; existing codes reused appropriately (invariant 7)
 
 **Commit.** `Replace trapping uniqueKeysWithValues lookups with structured duplicate-key errors`
 
@@ -2077,15 +2099,27 @@ func testDuplicateSessionTargetThrowsSessionStaleNamingTheKey() throws {
 **Commit.** `Teach cleanup to remove day-old orphaned atomic-writer temp files`
 
 **Acceptance (per sub-item).**
-- [ ] Each lands as its own commit with its own focused test (invariant 16)
-- [ ] a: pre-scan failure aborts the remove-new-sidecars cleanup; deletion failures logged (plan 08 verbatim)
-- [ ] b: recoverable record for folder-scan symlinks; direct input stats the target (plan 08 verbatim)
-- [ ] c: NFC folded in collision keys (plan 08 verbatim)
-- [ ] d: unreadable-vs-absent distinguished; parse errors → `E_CONFIG_INVALID` (plan 08 verbatim)
-- [ ] e: probe errors distinguished in the `modelTagNotFound` diagnostic (plan 08 verbatim)
-- [ ] f: age-gated temp cleanup; young temps never removed (plan 08 verbatim)
+- [x] Each lands as its own commit with its own focused test (invariant 16)
+- [x] a: pre-scan failure aborts the remove-new-sidecars cleanup; deletion failures logged (plan 08 verbatim)
+- [x] b: recoverable record for folder-scan symlinks; direct input stats the target (plan 08 verbatim)
+- [x] c: NFC folded in collision keys (plan 08 verbatim)
+- [x] d: unreadable-vs-absent distinguished; parse errors → `E_CONFIG_INVALID` (plan 08 verbatim)
+- [x] e: probe errors distinguished in the `modelTagNotFound` diagnostic (plan 08 verbatim)
+- [x] f: age-gated temp cleanup; young temps never removed (plan 08 verbatim)
 
 ### R3 exit gate
+
+**Automated verification (2026-07-10):** `swift test` passed 516 tests with 2 expected opt-in/live skips;
+`swift build --product CupricAspect` passed; all nine CLI help checks passed with the R3-1 exit-status text and R3-5
+timeout/retry flags present; benchmark self-test and `source-identity-fast` (one hash copy) passed; recursive dry-scan
+and cleanup dry-run smokes passed. The environment-dependent Ctrl+C/live-model timeout/exFAT checks below remain
+manual release evidence rather than automated unit coverage.
+
+**Post-implementation audit (2026-07-10):** six parallel spec-versus-code reviews over R3-1…R3-11 confirmed every
+item against both plans and surfaced two corrections, both landed with tests (517 tests green): the R3-1
+`normalize --dry-run` exit derivation (see the R3-1 audit-correction note) and scan-ignoring `.xmp.bak-*` backups
+(see the R3-7 note). Remaining low-severity observations were either recorded in plan 08 §6 (preflight
+interruption, Settings tag-list probe timeout) or folded into the requirement text (FR1-030e non-2xx wording).
 
 1. `swift test` green (all suites; new fixtures deterministic and offline — invariant 12); `swift build --product CupricAspect` (R3-5 Settings work compiles).
 2. CLI help checks (all nine, per `agent_docs/testing-and-verification.md`): `swift run aisidecar --help`, plus `analyze`, `write-xmp`, `normalize`, `apply-session`, `explain-session`, `benchmark`, `purge`, `cleanup` `--help` — confirm exit-code documentation (R3-1) and `--model-timeout`/`--model-retry-limit` (R3-5) appear.
@@ -2093,7 +2127,7 @@ func testDuplicateSessionTargetThrowsSessionStaleNamingTheKey() throws {
 4. R3-specific manual verification:
    - `swift run aisidecar analyze <folder-with-one-unsupported-file> --dry-scan; echo $?` → dry-scan unaffected; then a real failed batch (unreachable endpoint) → `echo $?` prints `1`.
    - Ctrl+C during a dry-run batch and during a live batch: prompt returns within one attempt, `echo $?` prints `130`; second Ctrl+C arms escalation, third kills.
-   - Rerun `analyze` over a folder already containing `batch-progress-*` / `batch-summary-*` artifacts → summary shows zero failures (R3-7).
+   - Rerun `analyze` over a folder already containing `batch-progress-*` / `batch-summary-*` artifacts and `.xmp.bak-*` backups → summary shows zero failures (R3-7).
    - If an exFAT-formatted volume (SD card) is available: `analyze` with no `--output-dir` writes artifacts successfully with the new names (R3-8).
    - `AISIDECAR_MODEL_TIMEOUT_SECONDS=1 swift run aisidecar analyze <image> ...` against a live model → fast `E_MODEL_TIMEOUT` (R3-5).
 5. Deliberate observable-behavior updates shipped alongside code: README Troubleshooting (exit codes), `agent_docs/testing-and-verification.md`, `aisidecar.config.example.jsonc` (R3-5 keys), golden fixtures (R3-8) — each called out in its commit/PR.
@@ -2690,4 +2724,3 @@ The hardening waves are complete when:
 6. `agent_docs/08-post-review-hardening-plan.md` §1.1 step 7 (efficiency plan) is unblocked: R4-6 landed with P2/P3 inside it, and R1-3 landed ahead of P4.
 
 After this plan closes, execution continues at plan 08 §1.1 step 7 (remaining efficiency items), then step 8 (M9–M11, per `agent_docs/phase-4-gui-implementation-plan.md` — note its "Decisions required before M9/M10a" sections), then step 9 (roadmap 09).
-

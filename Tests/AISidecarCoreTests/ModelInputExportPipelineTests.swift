@@ -3,6 +3,27 @@ import XCTest
 @testable import AISidecarCore
 
 final class ModelInputExportPipelineTests: XCTestCase {
+    func testUnicodeNormalizationVariantsCollideInExportPlan() throws {
+        let composed = "Café.NEF"
+        let decomposed = "Cafe\u{301}.NEF"
+        let sources = [
+            makeSource(fileName: composed, relativePath: composed, path: "/photos/\(composed)"),
+            makeSource(fileName: decomposed, relativePath: decomposed, path: "/photos/\(decomposed)")
+        ]
+        let profile = try ModelInputProfileRegistry.resolve(name: "gemma4-26b-default")
+
+        let plan = ModelInputExportNaming.plan(
+            for: sources,
+            mode: .whole,
+            profile: profile,
+            exportDirectory: "/tmp/export"
+        )
+
+        XCTAssertTrue(plan.entries.isEmpty)
+        XCTAssertEqual(plan.collisions.count, 1)
+        XCTAssertEqual(plan.collisions.first?.error.code, .sidecarCollision)
+    }
+
     func testSingleFileWholeExportWritesOnlyWholeImageAndManifest() async throws {
         let root = try temporaryDirectory()
         let export = try temporaryDirectory()
@@ -26,6 +47,10 @@ final class ModelInputExportPipelineTests: XCTestCase {
         let whole = export.appendingPathComponent("A.JPG.aisidecar.whole_image.jpg")
         XCTAssertTrue(FileManager.default.fileExists(atPath: whole.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: result.manifestPath))
+        XCTAssertEqual(
+            result.manifestPath,
+            export.appendingPathComponent("model-input-export-2027-01-15T081640Z-a3f2.json").path
+        )
         XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("A.JPG.aisidecar.full_resolution.tiff").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("A.JPG.aisidecar.subject_isolated.jpg").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("A.JPG.ai.json").path))
@@ -334,7 +359,8 @@ final class ModelInputExportPipelineTests: XCTestCase {
         ModelInputExportPipeline(
             logger: Logger(sink: { _ in }),
             maskProvider: maskProvider,
-            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_001_000))
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_001_000)),
+            filenameSuffix: { "a3f2" }
         )
     }
 

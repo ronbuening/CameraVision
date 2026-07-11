@@ -19,16 +19,22 @@ public enum ConfigFileEditor {
         let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
 
         var object: [String: Any] = [:]
-        if let data = fileManager.contents(atPath: url.path), !data.isEmpty {
-            guard let existing = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw SidecarError(
-                    code: .validationFailed,
-                    stage: .configuration,
-                    message: "Config file is not a JSON object: \(url.path)",
-                    recoverable: true
+        if fileManager.fileExists(atPath: url.path) {
+            guard let data = fileManager.contents(atPath: url.path) else {
+                throw SidecarError.configInvalid("Config file exists but cannot be read: \(url.path)")
+            }
+            do {
+                guard let existing = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    throw SidecarError.configInvalid("Config file is not a JSON object: \(url.path)")
+                }
+                object = existing
+            } catch let error as SidecarError {
+                throw error
+            } catch {
+                throw SidecarError.configInvalid(
+                    "Config file contains malformed JSON: \(url.path): \(error.localizedDescription)"
                 )
             }
-            object = existing
         }
 
         for (key, value) in changes {

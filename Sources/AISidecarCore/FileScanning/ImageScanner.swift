@@ -107,7 +107,7 @@ public struct ImageScanner {
             return Discovery(inputPath: root.path, scanRoot: root.path, entries: sorted.entries, errors: sorted.errors)
         }
 
-        let fileURL = inputURL.standardizedFileURL
+        let fileURL = inputURL.resolvingSymlinksInPath().standardizedFileURL
         let root = fileURL.deletingLastPathComponent()
         // Direct hidden or sidecar inputs follow the same FR1-005 ignore rule
         // as folder contents: they are not images and are not batch failures.
@@ -130,10 +130,24 @@ public struct ImageScanner {
         var errors: [ScanErrorRecord] = []
 
         if recursive {
+            let enumerationErrors = SynchronousScanErrorAccumulator<ScanErrorRecord>()
             guard let enumerator = fileManager.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-                options: [.skipsPackageDescendants]
+                options: [.skipsPackageDescendants],
+                errorHandler: { url, error in
+                    enumerationErrors.append(
+                        ScanErrorRecord(
+                            path: url.standardizedFileURL.path,
+                            relativePath: relativePath(for: url, root: root),
+                            error: validationError(
+                                "Unable to read directory during scan: \(url.path): \(error.localizedDescription)",
+                                recoverable: true
+                            )
+                        )
+                    )
+                    return true
+                }
             ) else {
                 throw validationError("Unable to enumerate input folder: \(root.path)")
             }
@@ -146,15 +160,21 @@ public struct ImageScanner {
                     enumerator.skipDescendants()
                 }
             }
+            errors.append(contentsOf: enumerationErrors.values)
 
             return (entries, errors)
         }
 
-        let urls = try fileManager.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-            options: [.skipsPackageDescendants]
-        )
+        let urls: [URL]
+        do {
+            urls = try fileManager.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                options: [.skipsPackageDescendants]
+            )
+        } catch {
+            throw validationError("Unable to read input folder: \(root.path): \(error.localizedDescription)")
+        }
 
         for url in urls {
             _ = autoreleasepool {
@@ -176,6 +196,17 @@ public struct ImageScanner {
             // Hidden directories are skipped as containers; otherwise their
             // children could reappear as unsupported-file errors.
             return isDirectory(candidate)
+        }
+
+        if isSymbolicLink(candidate) {
+            errors.append(
+                ScanErrorRecord(
+                    path: candidate.path,
+                    relativePath: relativePath(for: candidate, root: root),
+                    error: validationError("Symbolic link skipped during folder scan: \(candidate.path)", recoverable: true)
+                )
+            )
+            return true
         }
 
         guard isRegularFile(candidate) else {
@@ -277,6 +308,10 @@ public struct ImageScanner {
             .standardizedFileURL
     }
 
+    private func isSymbolicLink(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true
+    }
+
     private func shouldIgnore(url: URL, root: URL) -> Bool {
         let relativePath = relativePath(for: url, root: root)
         let components = relativePath.split(separator: "/").map(String.init)
@@ -296,6 +331,24 @@ public struct ImageScanner {
             // source images to analyze or unsupported files to report.
             || lowercasedName.hasSuffix(".ai.json")
             || lowercasedName.hasSuffix(".xmp")
+            // Backup-and-merge XMP backups sit beside the source images and are
+            // protected from cleanup; scans still ignore them.
+            || lowercasedName.contains(ArtifactNames.xmpBackupInfix)
+            || ArtifactCleanup.classify(fileName: fileName) != nil
+            // Sessions and diagnostic manifests are owned artifacts but are
+            // intentionally protected from cleanup; scans still ignore them.
+            || matchesOwnedJSON(
+                lowercasedName,
+                prefix: ArtifactNames.normalizationSessionPrefix
+            )
+            || matchesOwnedJSON(
+                lowercasedName,
+                prefix: ArtifactNames.modelInputExportManifestPrefix
+            )
+    }
+
+    private func matchesOwnedJSON(_ lowercasedName: String, prefix: String) -> Bool {
+        lowercasedName.hasPrefix(prefix) && lowercasedName.hasSuffix(".json")
     }
 
     private func isRegularFile(_ url: URL) -> Bool {
@@ -329,8 +382,18 @@ public struct ImageScanner {
         attributes[.modificationDate] as? Date ?? Date(timeIntervalSince1970: 0)
     }
 
-    private func validationError(_ message: String) -> SidecarError {
-        SidecarError(code: .validationFailed, stage: .scan, message: message, recoverable: false)
+    private func validationError(_ message: String, recoverable: Bool = false) -> SidecarError {
+        SidecarError(code: .validationFailed, stage: .scan, message: message, recoverable: recoverable)
+    }
+}
+
+/// FileManager enumeration invokes its error callback synchronously. This box
+/// gives that callback reference semantics without suggesting cross-task use.
+private final class SynchronousScanErrorAccumulator<Value>: @unchecked Sendable {
+    private(set) var values: [Value] = []
+
+    func append(_ value: Value) {
+        values.append(value)
     }
 }
 

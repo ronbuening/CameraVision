@@ -226,6 +226,8 @@
     "model_keep_alive" : "30m",
     "model_max_response_tokens" : 2048,
     "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
     "output_dir" : "<directory>",
     "profile" : "gemma4-26b-default",
     "recursive" : false,

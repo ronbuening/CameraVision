@@ -8,6 +8,7 @@ import Foundation
 public enum ArtifactNames {
     public static let batchProgressPrefix = "batch-progress-"
     public static let batchSummaryPrefix = "batch-summary-"
+    public static let modelInputExportManifestPrefix = "model-input-export-"
     public static let xmpExportProgressPrefix = "xmp-export-progress-"
     public static let xmpExportReportPrefix = "xmp-export-report-"
     public static let xmpExportSummaryPrefix = "xmp-export-summary-"
@@ -18,4 +19,7 @@ public enum ArtifactNames {
     public static let normalizationApplyProgressPrefix = "normalization-apply-progress-"
     public static let normalizationApplyReportPrefix = "normalization-apply-report-"
     public static let normalizationApplySummaryPrefix = "normalization-apply-summary-"
+    /// Infix of backup-and-merge XMP backups (`<name>.xmp.bak-<token>`, written by
+    /// `XMPBackupManager`). Scans ignore them; cleanup never deletes them.
+    public static let xmpBackupInfix = ".xmp.bak-"
 }

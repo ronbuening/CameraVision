@@ -45,7 +45,7 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertTrue(sidecar.errors.isEmpty)
     }
 
-    func testPipelineUsesConfiguredKeepAliveAndKeepsThinkingDisabled() async throws {
+    func testPipelineUsesConfiguredModelRequestOptionsAndKeepsThinkingDisabled() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         addTeardownBlock {
@@ -62,7 +62,9 @@ final class AnalyzePipelineTests: XCTestCase {
                 outputDir: output.path,
                 mode: .whole,
                 cacheDir: output.appendingPathComponent("cache").path,
-                modelKeepAlive: "5m"
+                modelKeepAlive: "5m",
+                modelTimeoutSeconds: 90,
+                modelRetryLimit: 4
             )
         )
 
@@ -71,7 +73,13 @@ final class AnalyzePipelineTests: XCTestCase {
         let captured = try XCTUnwrap(capturedCalls.first)
         XCTAssertEqual(sidecar.runConfiguration.modelKeepAlive, "5m")
         XCTAssertEqual(sidecar.modelRuns.first?.requestOptions.keepAlive, "5m")
+        XCTAssertEqual(sidecar.runConfiguration.modelTimeoutSeconds, 90)
+        XCTAssertEqual(sidecar.runConfiguration.modelRetryLimit, 4)
+        XCTAssertEqual(sidecar.modelRuns.first?.requestOptions.timeoutSeconds, 90)
+        XCTAssertEqual(sidecar.modelRuns.first?.requestOptions.retryLimit, 4)
         XCTAssertEqual(captured.keepAlive, "5m")
+        XCTAssertEqual(captured.timeoutSeconds, 90)
+        XCTAssertEqual(captured.retryLimit, 4)
         XCTAssertFalse(captured.thinkingEnabled)
     }
 
@@ -159,6 +167,103 @@ final class AnalyzePipelineTests: XCTestCase {
             .subjectIsolated
         ])
         XCTAssertEqual(maxInFlight, 1)
+    }
+
+    func testInterruptionBetweenRolesSkipsSecondRoleAndFailsClosed() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        _ = try writeTestImage("Bird.JPG", width: 120, height: 80, in: root)
+        let monitor = InterruptionMonitor()
+        let runner = RecordingVisionModelRunner(
+            onAnalyze: { role in
+                if role == .wholeImage {
+                    monitor.requestInterruption()
+                }
+            }
+        )
+
+        let result = try await pipeline(
+            maskProvider: StaticForegroundMaskProvider([
+                StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
+            ]),
+            runner: runner
+        ).run(
+            inputPath: root.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .both,
+                cacheDir: output.appendingPathComponent("cache").path
+            ),
+            interruptionMonitor: monitor
+        )
+
+        XCTAssertTrue(result.interrupted)
+        XCTAssertTrue(result.records.isEmpty)
+        XCTAssertEqual(result.summary?.errors.map(\.code), [.interrupted])
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.JPG.ai.json").path)
+        )
+        let calls = await runner.capturedCalls()
+        let cancellationObserved = await runner.observedCancellation()
+        XCTAssertEqual(calls.map(\.inputRole), [.wholeImage])
+        XCTAssertTrue(cancellationObserved)
+    }
+
+    func testCancelledModelRunWritesNoSidecarAndCanBeRetriedWithExistingSkip() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Bird.JPG", in: root)
+        let runner = CancellationAwareVisionModelRunner()
+        let configuration = config(
+            recursive: false,
+            outputDir: output.path,
+            existing: .skip,
+            mode: .whole,
+            cacheDir: output.appendingPathComponent("cache").path
+        )
+        let inputPath = image.path
+        let task = Task {
+            let analysisPipeline = AnalyzePipeline(
+                logger: Logger(sink: { _ in }),
+                runner: runner,
+                now: { Date(timeIntervalSince1970: 1_800_002_000) }
+            )
+            return try await analysisPipeline.run(
+                inputPath: inputPath,
+                configuration: configuration
+            )
+        }
+
+        await runner.waitUntilStarted()
+        task.cancel()
+        let cancelledResult = try await task.value
+
+        XCTAssertTrue(cancelledResult.interrupted)
+        XCTAssertTrue(cancelledResult.records.isEmpty)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.JPG.ai.json").path)
+        )
+        let cancellationObserved = await runner.observedCancellation()
+        XCTAssertTrue(cancellationObserved)
+
+        let retryResult = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: image.path,
+            configuration: configuration,
+            writesBatchArtifacts: false
+        )
+        XCTAssertEqual(retryResult.records.map(\.status), [.written])
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.JPG.ai.json").path)
+        )
     }
 
     func testStageConcurrencyOneDoesNotRenderAheadDuringModelCall() async throws {
@@ -512,6 +617,47 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(try cacheContents(at: cacheDir), [])
     }
 
+    func testOwnedBatchArtifactsDoNotBlockPostSuccessCacheClearOnRerun() async throws {
+        let root = try temporaryDirectory()
+        let cacheRoot = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: cacheRoot)
+        }
+        _ = try writeTestImage("A.JPG", in: root)
+        let cacheDir = cacheRoot.appendingPathComponent("cache")
+        let baseConfiguration = config(
+            recursive: false,
+            outputDir: nil,
+            existing: .skip,
+            mode: .whole,
+            cacheDir: cacheDir.path
+        )
+
+        let first = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: baseConfiguration
+        )
+
+        XCTAssertEqual(first.records.map(\.status), [.written])
+        XCTAssertFalse(try cacheContents(at: cacheDir).isEmpty)
+        XCTAssertFalse(
+            try FileManager.default.contentsOfDirectory(atPath: root.path)
+                .filter { $0.hasPrefix(ArtifactNames.batchProgressPrefix) }.isEmpty
+        )
+
+        var rerunConfiguration = baseConfiguration
+        rerunConfiguration.clearDerivativeCacheAfterSuccess = true
+        let rerun = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: rerunConfiguration
+        )
+
+        XCTAssertEqual(rerun.records.map(\.status), [.skippedExisting])
+        XCTAssertTrue(rerun.scanResult.errors.isEmpty)
+        XCTAssertEqual(try cacheContents(at: cacheDir), [])
+    }
+
     func testClearDerivativeCacheAfterSuccessDoesNotRunForFailedAnalysis() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -547,13 +693,14 @@ final class AnalyzePipelineTests: XCTestCase {
 
     private func pipeline(
         maskProvider: (any ForegroundMaskProvider)? = nil,
-        runner: RecordingVisionModelRunner
+        runner: any VisionModelRunner
     ) -> AnalyzePipeline {
         AnalyzePipeline(
             logger: Logger(sink: { _ in }),
             maskProvider: maskProvider,
             runner: runner,
-            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_002_000))
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_002_000)),
+            filenameSuffix: { "a3f2" }
         )
     }
 
@@ -565,6 +712,8 @@ final class AnalyzePipelineTests: XCTestCase {
         cacheDir: String,
         stageConcurrency: Int = 2,
         modelKeepAlive: String = ModelRunOptions.default.keepAlive,
+        modelTimeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds,
+        modelRetryLimit: Int = ModelRunOptions.default.retryLimit,
         clearDerivativeCacheOnStart: Bool = false,
         clearDerivativeCacheAfterSuccess: Bool = false,
         modelContextWindow: Int = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
@@ -577,6 +726,8 @@ final class AnalyzePipelineTests: XCTestCase {
             model: ResolvedRunConfiguration.builtInDefaults.model,
             modelEndpoint: ResolvedRunConfiguration.builtInDefaults.modelEndpoint,
             modelKeepAlive: modelKeepAlive,
+            modelTimeoutSeconds: modelTimeoutSeconds,
+            modelRetryLimit: modelRetryLimit,
             profile: ResolvedRunConfiguration.builtInDefaults.profile,
             logLevel: .debug,
             logFormat: .json,
@@ -645,6 +796,14 @@ final class AnalyzePipelineTests: XCTestCase {
 
         XCTAssertEqual(captured.records, result.records, "handler sees exactly the emitted records, in order")
         let progressLogPath = try XCTUnwrap(result.progressLogPath)
+        XCTAssertEqual(
+            progressLogPath,
+            output.appendingPathComponent("batch-progress-2027-01-15T083320Z-a3f2.jsonl").path
+        )
+        XCTAssertEqual(
+            result.summaryPath,
+            output.appendingPathComponent("batch-summary-2027-01-15T083320Z-a3f2.json").path
+        )
         let logLines = try String(contentsOfFile: progressLogPath, encoding: .utf8)
             .split(separator: "\n").count
         XCTAssertEqual(logLines, result.records.count, "hook is additive — the JSONL log is unchanged")
@@ -776,6 +935,8 @@ private struct CapturedModelCall: Sendable, Equatable {
     var promptText: String
     var schemaVersion: String
     var keepAlive: String
+    var timeoutSeconds: Double
+    var retryLimit: Int
     var thinkingEnabled: Bool
     var contextWindow: Int?
 }
@@ -806,6 +967,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
     private var calls: [CapturedModelCall] = []
     private var inFlight = 0
     private var maxInFlight = 0
+    private var cancellationObserved = false
 
     init(
         prepareError: SidecarError? = nil,
@@ -843,7 +1005,8 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
         prompt: VersionedPrompt,
         schema: JSONSchemaDocument,
         options: ModelRunOptions,
-        runtime: ModelRuntimeContext
+        runtime: ModelRuntimeContext,
+        isInterrupted _: (@Sendable () -> Bool)? = nil
     ) async -> ModelRunRecord {
         inFlight += 1
         maxInFlight = max(maxInFlight, inFlight)
@@ -855,11 +1018,16 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
                 promptText: prompt.text,
                 schemaVersion: schema.version,
                 keepAlive: options.keepAlive,
+                timeoutSeconds: options.timeoutSeconds,
+                retryLimit: options.retryLimit,
                 thinkingEnabled: options.thinkingEnabled,
                 contextWindow: options.contextWindow
             )
         )
         await onAnalyze?(inputRole)
+        if Task.isCancelled {
+            cancellationObserved = true
+        }
         if delayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: delayNanoseconds)
         }
@@ -910,6 +1078,10 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
 
     func maximumInFlight() -> Int {
         maxInFlight
+    }
+
+    func observedCancellation() -> Bool {
+        cancellationObserved
     }
 
     func prepareCount() -> Int {
@@ -1010,6 +1182,82 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
             jsonValid: repairIsValid,
             error: repairIsValid ? nil : finalError,
             responseAttempts: attempts
+        )
+    }
+}
+
+private actor CancellationAwareVisionModelRunner: VisionModelRunner {
+    private var started = false
+    private var cancelled = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func waitUntilStarted() async {
+        if started {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func observedCancellation() -> Bool {
+        cancelled
+    }
+
+    func prepare(configuration _: ResolvedRunConfiguration) async throws -> ModelRuntimeContext {
+        ModelRuntimeContext(
+            model: "test:model",
+            modelDigest: "sha256:testdigest",
+            runtime: "test-runtime",
+            runtimeVersion: "1.0",
+            endpoint: URL(string: "http://localhost:11434")!,
+            installedVisionTags: ["test:model"]
+        )
+    }
+
+    func analyze(
+        image: DerivativeRecord,
+        inputRole: ModelInputRole,
+        prompt: VersionedPrompt,
+        schema: JSONSchemaDocument,
+        options: ModelRunOptions,
+        runtime: ModelRuntimeContext,
+        isInterrupted _: (@Sendable () -> Bool)? = nil
+    ) async -> ModelRunRecord {
+        started = true
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: 60_000_000_000)
+        } catch is CancellationError {
+            cancelled = true
+        } catch {}
+
+        return ModelRunRecord(
+            inputRole: inputRole,
+            model: runtime.model,
+            modelDigest: runtime.modelDigest,
+            runtime: runtime.runtime,
+            runtimeVersion: runtime.runtimeVersion,
+            promptVersion: prompt.version,
+            promptSHA256: prompt.sha256,
+            responseSchemaVersion: schema.version,
+            requestOptions: options,
+            inputDerivativeSHA256: image.sha256,
+            rawResponseText: "",
+            parsedResponseJSON: nil,
+            jsonValid: false,
+            durationMs: 0,
+            error: SidecarError(
+                code: .interrupted,
+                stage: .model,
+                message: "Model request cancelled.",
+                recoverable: true
+            )
         )
     }
 }

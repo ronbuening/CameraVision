@@ -257,6 +257,14 @@ public enum ConfigurationResolver {
             model: environment["AISIDECAR_MODEL"],
             modelEndpoint: environment["AISIDECAR_MODEL_ENDPOINT"],
             modelKeepAlive: environment["AISIDECAR_MODEL_KEEP_ALIVE"],
+            modelTimeoutSeconds: try doubleValue(
+                from: environment["AISIDECAR_MODEL_TIMEOUT_SECONDS"],
+                key: "AISIDECAR_MODEL_TIMEOUT_SECONDS"
+            ),
+            modelRetryLimit: try nonNegativeIntValue(
+                from: environment["AISIDECAR_MODEL_RETRY_LIMIT"],
+                key: "AISIDECAR_MODEL_RETRY_LIMIT"
+            ),
             profile: environment["AISIDECAR_PROFILE"],
             logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
             logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
@@ -602,6 +610,8 @@ private struct ConfigurationBuilder {
     private var model: String
     private var modelEndpoint: String
     private var modelKeepAlive: String
+    private var modelTimeoutSeconds: Double
+    private var modelRetryLimit: Int
     private var profile: String
     private var logLevel: LogLevel
     private var logFormat: LogFormat
@@ -628,6 +638,8 @@ private struct ConfigurationBuilder {
         self.model = defaults.model
         self.modelEndpoint = defaults.modelEndpoint.absoluteString
         self.modelKeepAlive = defaults.modelKeepAlive
+        self.modelTimeoutSeconds = defaults.modelTimeoutSeconds
+        self.modelRetryLimit = defaults.modelRetryLimit
         self.profile = defaults.profile
         self.logLevel = defaults.logLevel
         self.logFormat = defaults.logFormat
@@ -655,6 +667,8 @@ private struct ConfigurationBuilder {
         merge(&model, config.model)
         merge(&modelEndpoint, config.modelEndpoint)
         merge(&modelKeepAlive, config.modelKeepAlive)
+        merge(&modelTimeoutSeconds, config.modelTimeoutSeconds)
+        merge(&modelRetryLimit, config.modelRetryLimit)
         merge(&profile, config.profile)
         merge(&logLevel, config.logLevel)
         merge(&logFormat, config.logFormat)
@@ -682,6 +696,8 @@ private struct ConfigurationBuilder {
         merge(&model, overrides.model)
         merge(&modelEndpoint, overrides.modelEndpoint)
         merge(&modelKeepAlive, overrides.modelKeepAlive)
+        merge(&modelTimeoutSeconds, overrides.modelTimeoutSeconds)
+        merge(&modelRetryLimit, overrides.modelRetryLimit)
         merge(&profile, overrides.profile)
         merge(&logLevel, overrides.logLevel)
         merge(&logFormat, overrides.logFormat)
@@ -711,6 +727,12 @@ private struct ConfigurationBuilder {
         }
         guard !modelKeepAlive.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SidecarError.configInvalid("model_keep_alive must not be empty")
+        }
+        guard modelTimeoutSeconds > 0, modelTimeoutSeconds.isFinite else {
+            throw SidecarError.configInvalid("model_timeout_seconds must be a finite value greater than zero")
+        }
+        guard modelRetryLimit >= 0 else {
+            throw SidecarError.configInvalid("model_retry_limit must be zero or greater")
         }
         _ = try ModelInputProfileRegistry.resolve(name: profile)
         guard derivativeCacheSizeBytes > 0 else {
@@ -746,6 +768,8 @@ private struct ConfigurationBuilder {
             model: model,
             modelEndpoint: endpoint,
             modelKeepAlive: modelKeepAlive,
+            modelTimeoutSeconds: modelTimeoutSeconds,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             logLevel: logLevel,
             logFormat: logFormat,
@@ -1020,6 +1044,8 @@ private extension RunConfigurationOverrides {
             model: model,
             modelEndpoint: modelEndpoint,
             modelKeepAlive: modelKeepAlive,
+            modelTimeoutSeconds: modelTimeoutSeconds,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             logLevel: logLevel,
             logFormat: logFormat,

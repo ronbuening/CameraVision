@@ -13,6 +13,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertFalse(resolved.clearDerivativeCacheOnStart)
         XCTAssertFalse(resolved.clearDerivativeCacheAfterSuccess)
         XCTAssertEqual(resolved.modelKeepAlive, "30m")
+        XCTAssertEqual(resolved.modelTimeoutSeconds, 180)
+        XCTAssertEqual(resolved.modelRetryLimit, 2)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 1)
         XCTAssertEqual(resolved.gpsContext, .coarse)
         // 0 = "model default": the pipeline sends no num_ctx until a positive
@@ -56,6 +58,8 @@ final class ConfigResolutionTests: XCTestCase {
               "model": "custom:model",
               "model_endpoint": "http://127.0.0.1:11434",
               "model_keep_alive": "5m",
+              "model_timeout_seconds": 420,
+              "model_retry_limit": 4,
               "profile": "gemma4-26b-default",
               "log_level": "debug",
               "log_format": "json",
@@ -89,6 +93,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.model, "custom:model")
         XCTAssertEqual(resolved.modelEndpoint.absoluteString, "http://127.0.0.1:11434")
         XCTAssertEqual(resolved.modelKeepAlive, "5m")
+        XCTAssertEqual(resolved.modelTimeoutSeconds, 420)
+        XCTAssertEqual(resolved.modelRetryLimit, 4)
         XCTAssertEqual(resolved.profile, "gemma4-26b-default")
         XCTAssertEqual(resolved.logLevel, .debug)
         XCTAssertEqual(resolved.logFormat, .json)
@@ -172,6 +178,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_EXISTING": "overwrite",
                 "AISIDECAR_MODEL": "env:model",
                 "AISIDECAR_MODEL_KEEP_ALIVE": "0",
+                "AISIDECAR_MODEL_TIMEOUT_SECONDS": "360",
+                "AISIDECAR_MODEL_RETRY_LIMIT": "5",
                 "AISIDECAR_LOG_LEVEL": "debug",
                 "AISIDECAR_SOURCE_IDENTITY_POLICY": "sha256",
                 "AISIDECAR_DERIVATIVE_CACHE_DIR": "/tmp/env-cache",
@@ -192,6 +200,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.existing, .overwrite)
         XCTAssertEqual(resolved.model, "env:model")
         XCTAssertEqual(resolved.modelKeepAlive, "0")
+        XCTAssertEqual(resolved.modelTimeoutSeconds, 360)
+        XCTAssertEqual(resolved.modelRetryLimit, 5)
         XCTAssertEqual(resolved.logLevel, .debug)
         XCTAssertEqual(resolved.sourceIdentityPolicy, .sha256)
         XCTAssertEqual(resolved.derivativeCacheDir, "/tmp/env-cache")
@@ -266,6 +276,8 @@ final class ConfigResolutionTests: XCTestCase {
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
         let config = AppConfig(
             modelKeepAlive: "5m",
+            modelTimeoutSeconds: 240,
+            modelRetryLimit: 6,
             sourceIdentityPolicy: .fast,
             clearDerivativeCacheOnStart: true,
             clearDerivativeCacheAfterSuccess: true,
@@ -291,6 +303,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(object["source_identity_policy"] as? String, "fast")
         XCTAssertNil(object["sourceIdentityPolicy"])
         XCTAssertEqual(object["model_keep_alive"] as? String, "5m")
+        XCTAssertEqual(object["model_timeout_seconds"] as? Double, 240)
+        XCTAssertEqual(object["model_retry_limit"] as? Int, 6)
         XCTAssertEqual(object["clear_derivative_cache_on_start"] as? Bool, true)
         XCTAssertEqual(object["clear_derivative_cache_after_success"] as? Bool, true)
         XCTAssertEqual(object["subject_crop_margin_fraction"] as? Double, 0.12)
@@ -318,6 +332,8 @@ final class ConfigResolutionTests: XCTestCase {
                 model: "cli:model",
                 modelEndpoint: "http://localhost:9999",
                 modelKeepAlive: "15m",
+                modelTimeoutSeconds: 300,
+                modelRetryLimit: 7,
                 logFormat: .json,
                 clearDerivativeCacheOnStart: true,
                 clearDerivativeCacheAfterSuccess: true,
@@ -332,6 +348,8 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_MODEL": "env:model",
                 "AISIDECAR_MODEL_ENDPOINT": "http://localhost:1111",
                 "AISIDECAR_MODEL_KEEP_ALIVE": "0",
+                "AISIDECAR_MODEL_TIMEOUT_SECONDS": "240",
+                "AISIDECAR_MODEL_RETRY_LIMIT": "6",
                 "AISIDECAR_LOG_FORMAT": "text",
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_ON_START": "false",
                 "AISIDECAR_CLEAR_DERIVATIVE_CACHE_AFTER_SUCCESS": "false",
@@ -348,6 +366,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.model, "cli:model")
         XCTAssertEqual(resolved.modelEndpoint.absoluteString, "http://localhost:9999")
         XCTAssertEqual(resolved.modelKeepAlive, "15m")
+        XCTAssertEqual(resolved.modelTimeoutSeconds, 300)
+        XCTAssertEqual(resolved.modelRetryLimit, 7)
         XCTAssertEqual(resolved.logFormat, .json)
         XCTAssertTrue(resolved.clearDerivativeCacheOnStart)
         XCTAssertTrue(resolved.clearDerivativeCacheAfterSuccess)
@@ -428,6 +448,8 @@ final class ConfigResolutionTests: XCTestCase {
             """
             {
               "model_endpoint": "not-a-url",
+              "model_timeout_seconds": "slow",
+              "model_retry_limit": "many",
               "profile": "unknown-profile",
               "gps_context": "precise",
               "derivative_cache_dir": "/tmp/file-cache",
@@ -444,7 +466,9 @@ final class ConfigResolutionTests: XCTestCase {
             environment: [
                 "AISIDECAR_DERIVATIVE_CACHE_DIR": "/tmp/env-cache",
                 "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152",
-                "AISIDECAR_GPS_CONTEXT": "precise"
+                "AISIDECAR_GPS_CONTEXT": "precise",
+                "AISIDECAR_MODEL_TIMEOUT_SECONDS": "not-a-number",
+                "AISIDECAR_MODEL_RETRY_LIMIT": "not-a-number"
             ],
             defaultConfigPath: configPath
         )

@@ -5,7 +5,8 @@ import AISidecarCore
 struct WriteXMPCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "write-xmp",
-        abstract: "Export accepted Phase 1 sidecar candidates to XMP sidecars."
+        abstract: "Export accepted Phase 1 sidecar candidates to XMP sidecars.",
+        discussion: BatchExitHelp.discussion
     )
 
     @Argument(help: "Image file or folder to analyze before writing XMP.")
@@ -37,6 +38,12 @@ struct WriteXMPCommand: AsyncParsableCommand {
 
     @Option(help: "Ollama endpoint URL for analyze-and-write.")
     var modelEndpoint: String?
+
+    @Option(help: "Model request timeout in seconds for analyze-and-write.")
+    var modelTimeout: Double?
+
+    @Option(help: "Model request retry limit for retryable analyze-and-write failures.")
+    var modelRetryLimit: Int?
 
     @Option(help: "Model input profile name for analyze-and-write.")
     var profile: String?
@@ -123,32 +130,52 @@ struct WriteXMPCommand: AsyncParsableCommand {
 
         switch mode {
         case .fromJSON(let path):
-            let result = try XMPExportPipeline(
-                engine: OwnedXMPSidecarEngine(),
-                logger: logger
-            ).runFromJSON(
-                fromJSONPath: path,
-                configuration: exportConfiguration,
-                interruptionMonitor: interruptionMonitor
-            )
+            let result = try withBatchInterruptionExit {
+                try XMPExportPipeline(
+                    engine: OwnedXMPSidecarEngine(),
+                    logger: logger
+                ).runFromJSON(
+                    fromJSONPath: path,
+                    configuration: exportConfiguration,
+                    interruptionMonitor: interruptionMonitor
+                )
+            }
             if exportConfiguration.dryRun {
                 try writeChangePlan(result.changePlan)
+                try enforceBatchExitPolicy(
+                    failureCount: failureCount(for: result),
+                    interrupted: result.interrupted
+                )
                 return
             }
             writeEssentialSummary(result.report)
+            try enforceBatchExitPolicy(
+                failureCount: failureCount(for: result),
+                interrupted: result.interrupted
+            )
         case .analyzeAndWrite(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
-            let result = try await AnalyzeAndXMPPipeline(logger: logger).run(
-                inputPath: inputPath,
-                runConfiguration: runConfiguration,
-                exportConfiguration: exportConfiguration,
-                interruptionMonitor: interruptionMonitor
-            )
+            let result = try await withBatchInterruptionExit {
+                try await AnalyzeAndXMPPipeline(logger: logger).run(
+                    inputPath: inputPath,
+                    runConfiguration: runConfiguration,
+                    exportConfiguration: exportConfiguration,
+                    interruptionMonitor: interruptionMonitor
+                )
+            }
             if exportConfiguration.dryRun {
                 try writeChangePlan(result.exportResult.changePlan)
+                try enforceBatchExitPolicy(
+                    failureCount: failureCount(for: result.exportResult),
+                    interrupted: result.analyzeResult.interrupted || result.exportResult.interrupted
+                )
                 return
             }
             writeEssentialSummary(result.exportResult.report)
+            try enforceBatchExitPolicy(
+                failureCount: failureCount(for: result.exportResult),
+                interrupted: result.analyzeResult.interrupted || result.exportResult.interrupted
+            )
         }
     }
 
@@ -162,6 +189,8 @@ struct WriteXMPCommand: AsyncParsableCommand {
             existing: existing,
             model: model,
             modelEndpoint: modelEndpoint,
+            modelTimeoutSeconds: modelTimeout,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             debugDerivatives: debugDerivatives,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
@@ -212,6 +241,8 @@ struct WriteXMPCommand: AsyncParsableCommand {
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,
+            modelTimeoutSeconds: modelTimeout,
+            modelRetryLimit: modelRetryLimit,
             profile: profile,
             configPath: config,
             logLevel: logLevel,
@@ -249,5 +280,9 @@ struct WriteXMPCommand: AsyncParsableCommand {
         }
         let line = "XMP export complete: \(report.writtenCount) written, \(report.failedCount) failed."
         FileHandle.standardOutput.write(Data((line + "\n").utf8))
+    }
+
+    private func failureCount(for result: XMPExportPipelineResult) -> Int {
+        result.report?.failedCount ?? result.changePlan.failedCount
     }
 }

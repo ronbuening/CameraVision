@@ -1,3 +1,4 @@
+import Darwin
 import XCTest
 @testable import AISidecarCore
 
@@ -80,6 +81,36 @@ final class ConfigFileEditorTests: XCTestCase {
     func testMergeRejectsNonObjectConfig() throws {
         let path = root.appendingPathComponent("config.json").path
         try Data("[1,2,3]".utf8).write(to: URL(fileURLWithPath: path))
-        XCTAssertThrowsError(try ConfigFileEditor.merge(["mode": .string("both")], atPath: path))
+        XCTAssertThrowsError(try ConfigFileEditor.merge(["mode": .string("both")], atPath: path)) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .configInvalid)
+        }
+    }
+
+    func testMergeRejectsMalformedJSONWithoutModifyingFile() throws {
+        let path = root.appendingPathComponent("config.json").path
+        let original = Data(#"{"mode": "whole""#.utf8)
+        try original.write(to: URL(fileURLWithPath: path))
+
+        XCTAssertThrowsError(try ConfigFileEditor.merge(["mode": .string("both")], atPath: path)) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .configInvalid)
+        }
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: path)), original)
+    }
+
+    func testMergeRejectsUnreadableExistingConfigWithoutModifyingFile() throws {
+        try XCTSkipIf(getuid() == 0, "chmod 000 is not enforced for root")
+        let path = root.appendingPathComponent("config.json").path
+        let original = Data(#"{"mode":"whole"}"#.utf8)
+        try original.write(to: URL(fileURLWithPath: path))
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: path)
+        }
+
+        XCTAssertThrowsError(try ConfigFileEditor.merge(["mode": .string("both")], atPath: path)) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .configInvalid)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: path)
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: path)), original)
     }
 }

@@ -1,3 +1,4 @@
+import Darwin
 import XCTest
 @testable import AISidecarCore
 
@@ -44,6 +45,39 @@ final class ScannerTests: XCTestCase {
         XCTAssertEqual(image.identity.sha256.count, 64)
     }
 
+    func testFolderScanRecordsSymbolicLinkAsRecoverableError() throws {
+        let root = try temporaryDirectory()
+        let target = try writeFile("Bird.NEF", data: Data("raw-data".utf8), in: root)
+        let link = root.appendingPathComponent("Linked.NEF")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        let result = try ImageScanner().scan(inputPath: root.path, recursive: false, identityPolicy: .fast)
+
+        XCTAssertEqual(result.images.map(\.relativePath), ["Bird.NEF"])
+        let error = try XCTUnwrap(result.errors.first)
+        XCTAssertEqual(error.path, link.path)
+        XCTAssertEqual(error.relativePath, "Linked.NEF")
+        XCTAssertEqual(error.error.code, .validationFailed)
+        XCTAssertEqual(error.error.stage, .scan)
+        XCTAssertTrue(error.error.recoverable)
+        XCTAssertTrue(error.error.message.contains("Symbolic link skipped"))
+    }
+
+    func testDirectSymbolicLinkResolvesAndUsesTargetIdentity() throws {
+        let root = try temporaryDirectory()
+        let target = try writeFile("Bird.NEF", data: Data("raw-data".utf8), in: root)
+        let link = root.appendingPathComponent("Linked.NEF")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        let targetResult = try ImageScanner().scan(inputPath: target.path, recursive: false, identityPolicy: .fast)
+        let linkResult = try ImageScanner().scan(inputPath: link.path, recursive: false, identityPolicy: .fast)
+
+        XCTAssertEqual(linkResult.inputPath, target.path)
+        XCTAssertEqual(linkResult.images.first?.path, target.path)
+        XCTAssertEqual(linkResult.images.first?.identity, targetResult.images.first?.identity)
+        XCTAssertTrue(linkResult.errors.isEmpty)
+    }
+
     func testNonRecursiveFolderScanFiltersImagesAndReportsUnsupportedVisibleFiles() throws {
         let root = try temporaryDirectory()
         _ = try writeFile("B.JPG", data: Data("b".utf8), in: root)
@@ -83,6 +117,82 @@ final class ScannerTests: XCTestCase {
         )
         XCTAssertEqual(result.images.map(\.fileName), ["_DSC1234.NEF", "_DSC1234.JPG"])
         XCTAssertEqual(result.errors.map(\.relativePath), ["2026/07/readme.md"])
+    }
+
+    func testRecursiveScanRecordsUnreadableSubdirectoryAndContinues() throws {
+        try XCTSkipIf(getuid() == 0, "chmod 000 is not enforced for root")
+        let root = try temporaryDirectory()
+        _ = try writeFile("Top.NEF", data: Data("top".utf8), in: root)
+        let locked = root.appendingPathComponent("locked", isDirectory: true)
+        _ = try writeFile("locked/Hidden.NEF", data: Data("hidden".utf8), in: root)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        }
+
+        let result = try ImageScanner().scan(inputPath: root.path, recursive: true, identityPolicy: .fast)
+
+        XCTAssertEqual(result.images.map(\.relativePath), ["Top.NEF"])
+        let failure = try XCTUnwrap(result.errors.first { $0.path == locked.standardizedFileURL.path })
+        XCTAssertEqual(failure.relativePath, "locked")
+        XCTAssertEqual(failure.error.code, .validationFailed)
+        XCTAssertEqual(failure.error.stage, .scan)
+        XCTAssertTrue(failure.error.recoverable)
+    }
+
+    func testScanIgnoresOwnedRunArtifactsWithoutExpandingCleanupScope() throws {
+        let root = try temporaryDirectory()
+        _ = try writeFile("Bird.NEF", data: Data("raw".utf8), in: root)
+        let artifactNames = [
+            "batch-progress-2026-07-10T120000Z.jsonl",
+            "batch-summary-2026-07-10T120000Z.json",
+            "xmp-export-progress-2026-07-10T120000Z.jsonl",
+            "xmp-export-report-2026-07-10T120000Z.json",
+            "xmp-export-summary-2026-07-10T120000Z.md",
+            "normalization-progress-2026-07-10T120000Z.jsonl",
+            "normalization-report-2026-07-10T120000Z.json",
+            "normalization-summary-2026-07-10T120000Z.md",
+            "normalization-session-2026-07-10T120000Z.json",
+            "normalization-apply-progress-2026-07-10T120000Z.jsonl",
+            "normalization-apply-report-2026-07-10T120000Z.json",
+            "normalization-apply-summary-2026-07-10T120000Z.md",
+            "model-input-export-2026-07-10T120000Z.json",
+            "Bird.xmp.bak-2026-07-10T12:00:00Z",
+            "Bird.XMP.bak-2026-07-10T120000Z-a3f2"
+        ]
+        for name in artifactNames {
+            _ = try writeFile(name, data: Data("{}".utf8), in: root)
+        }
+
+        let result = try ImageScanner().scan(inputPath: root.path, recursive: false, identityPolicy: .fast)
+
+        XCTAssertEqual(result.images.map(\.relativePath), ["Bird.NEF"])
+        XCTAssertTrue(result.errors.isEmpty)
+        XCTAssertNil(ArtifactCleanup.classify(fileName: "normalization-session-2026-07-10T120000Z.json"))
+        XCTAssertNil(ArtifactCleanup.classify(fileName: "model-input-export-2026-07-10T120000Z.json"))
+        XCTAssertNil(ArtifactCleanup.classify(fileName: "Bird.xmp.bak-2026-07-10T120000Z-a3f2"))
+    }
+
+    func testNonRecursiveUnreadableFolderThrowsStructuredValidationError() throws {
+        try XCTSkipIf(getuid() == 0, "chmod 000 is not enforced for root")
+        let root = try temporaryDirectory()
+        _ = try writeFile("Hidden.NEF", data: Data("hidden".utf8), in: root)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: root.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.path)
+        }
+
+        XCTAssertThrowsError(
+            try ImageScanner().scan(inputPath: root.path, recursive: false, identityPolicy: .fast)
+        ) { error in
+            guard let sidecarError = error as? SidecarError else {
+                return XCTFail("Expected SidecarError")
+            }
+            XCTAssertEqual(sidecarError.code, .validationFailed)
+            XCTAssertEqual(sidecarError.stage, .scan)
+            XCTAssertFalse(sidecarError.recoverable)
+            XCTAssertTrue(sidecarError.message.contains("Unable to read input folder"))
+        }
     }
 
     func testUnsupportedSingleFileProducesRecoverableScanError() throws {

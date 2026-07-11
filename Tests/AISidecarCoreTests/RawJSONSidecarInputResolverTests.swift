@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import XCTest
 @testable import AISidecarCore
@@ -100,6 +101,40 @@ final class RawJSONSidecarInputResolverTests: XCTestCase {
         XCTAssertEqual(batch.inputs.map(\.relativePath), ["2026/06/Bird.JPG.ai.json"])
         XCTAssertEqual(batch.inputs.first?.sourcePath, source.standardizedFileURL)
         XCTAssertTrue(batch.failures.isEmpty)
+    }
+
+    func testRecursiveScanRecordsUnreadableSubdirectoryAndContinues() throws {
+        try XCTSkipIf(getuid() == 0, "chmod 000 is not enforced for root")
+        let root = try temporaryDirectory()
+        let topSource = try writeSource("Top.JPG", data: Data("top".utf8), in: root)
+        _ = try writeSidecar(
+            makeSidecar(source: try makeSourceImage(for: topSource)),
+            named: "Top.JPG.ai.json",
+            in: root
+        )
+        let hiddenSource = try writeSource("locked/Hidden.JPG", data: Data("hidden".utf8), in: root)
+        _ = try writeSidecar(
+            makeSidecar(source: try makeSourceImage(for: hiddenSource)),
+            named: "locked/Hidden.JPG.ai.json",
+            in: root
+        )
+        let locked = root.appendingPathComponent("locked", isDirectory: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        }
+
+        let batch = try RawJSONSidecarInputResolver().resolve(
+            fromJSONPath: root.path,
+            configuration: configuration(recursive: true)
+        )
+
+        XCTAssertEqual(batch.inputs.map(\.relativePath), ["Top.JPG.ai.json"])
+        let failure = try XCTUnwrap(batch.failures.first { $0.sidecarPath == locked.standardizedFileURL })
+        XCTAssertEqual(failure.relativePath, "locked")
+        XCTAssertEqual(failure.error.code, .validationFailed)
+        XCTAssertEqual(failure.error.stage, .scan)
+        XCTAssertTrue(failure.error.recoverable)
     }
 
     func testSourceRootTakesPrecedenceOverRecordedPathAndSibling() throws {

@@ -72,6 +72,44 @@ final class ArtifactCleanupTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(nested).path))
     }
 
+    func testCleanupRemovesOnlyDayOldAtomicWriterTempsAmongHiddenFiles() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let uuid = "123E4567-E89B-12D3-A456-426614174000"
+        let oldTemp = "nested/.Bird.xmp.\(uuid).tmp"
+        let freshTemp = ".report.\(uuid).json"
+        let protected = [".DS_Store", ".Hidden.JPG.ai.json", ".notes.not-a-uuid.tmp"]
+        try write("old", named: oldTemp, in: root)
+        try write("fresh", named: freshTemp, in: root)
+        try protected.forEach { try write("protected", named: $0, in: root) }
+        try FileManager.default.setAttributes(
+            [.modificationDate: now.addingTimeInterval(-172_800)],
+            ofItemAtPath: root.appendingPathComponent(oldTemp).path
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: now],
+            ofItemAtPath: root.appendingPathComponent(freshTemp).path
+        )
+
+        let report = try ArtifactCleanup(now: { now }).run(
+            rootPath: root.path,
+            recursive: true,
+            dryRun: false
+        )
+
+        XCTAssertEqual(report.artifacts.map(\.relativePath), [oldTemp])
+        XCTAssertEqual(report.artifacts.first?.kind, .atomicWriterTemp)
+        XCTAssertEqual(report.removedCount, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(oldTemp).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(freshTemp).path))
+        for name in protected {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(name).path), name)
+        }
+        XCTAssertEqual(ArtifactCleanup.classify(fileName: freshTemp), .atomicWriterTemp)
+        XCTAssertNil(ArtifactCleanup.classify(fileName: ".notes.not-a-uuid.tmp"))
+    }
+
     private func write(_ contents: String, named relativePath: String, in root: URL) throws {
         let url = root.appendingPathComponent(relativePath)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

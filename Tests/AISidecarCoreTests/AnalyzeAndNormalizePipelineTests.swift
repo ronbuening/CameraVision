@@ -100,6 +100,44 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         XCTAssertEqual(result.normalizeResult.report.xmpExportReport?.writtenCount, 1)
     }
 
+    func testNoWriteAIJSONKeepsRawSidecarWhenPreScanFails() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        let vocabularyPath = try writeVocabulary()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: vocabularyPath).deletingLastPathComponent())
+        }
+        _ = try writeTestImage("Bird.JPG", in: root)
+        let sidecar = output.appendingPathComponent("Bird.JPG.ai.json")
+        try Data("preexisting user sidecar".utf8).write(to: sidecar)
+        var normalize = normalizationConfiguration(outputDir: output.path, vocabularyPath: vocabularyPath)
+        normalize.writeAIJSON = false
+        let guardedPipeline = AnalyzeAndNormalizePipeline(
+            logger: Logger(sink: { _ in }),
+            runner: AnalyzeNormalizeVisionRunner(),
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_003_000)),
+            preScanRawSidecars: { _, _ in
+                throw SidecarError(
+                    code: .validationFailed,
+                    stage: .scan,
+                    message: "injected pre-scan failure",
+                    recoverable: true
+                )
+            }
+        )
+
+        _ = try await guardedPipeline.run(
+            inputPath: root.path,
+            runConfiguration: runConfiguration(outputDir: output.path, recursive: true),
+            normalizationConfiguration: normalize
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sidecar.path))
+        XCTAssertNoThrow(try RawJSONSidecarReader().read(from: sidecar))
+    }
+
     func testModelPrepareFailureLeavesNoNormalizationArtifactsOrXMP() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -304,7 +342,8 @@ private actor AnalyzeNormalizeVisionRunner: VisionModelRunner {
         prompt: VersionedPrompt,
         schema: JSONSchemaDocument,
         options: ModelRunOptions,
-        runtime: ModelRuntimeContext
+        runtime: ModelRuntimeContext,
+        isInterrupted _: (@Sendable () -> Bool)? = nil
     ) async -> ModelRunRecord {
         prompts.append(prompt.text)
         return ModelRunRecord(

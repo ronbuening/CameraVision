@@ -15,27 +15,51 @@ public struct OllamaVisionRunner: VisionModelRunner {
 
     public func prepare(configuration: ResolvedRunConfiguration) async throws -> ModelRuntimeContext {
         do {
-            let tags = try await getTags(endpoint: configuration.modelEndpoint)
-            let visionTags = await installedVisionTags(from: tags, endpoint: configuration.modelEndpoint)
+            let tags = try await getTags(
+                endpoint: configuration.modelEndpoint,
+                timeoutSeconds: configuration.modelTimeoutSeconds
+            )
+            let visionProbe = await installedVisionTags(
+                from: tags,
+                endpoint: configuration.modelEndpoint,
+                timeoutSeconds: configuration.modelTimeoutSeconds
+            )
             guard let model = tags.models.first(where: { $0.name == configuration.model || $0.model == configuration.model }) else {
-                throw tagNotFound(configuration.model, visionTags: visionTags)
+                throw tagNotFound(
+                    configuration.model,
+                    visionTags: visionProbe.tags,
+                    probeFailureCount: visionProbe.failureCount
+                )
             }
 
-            let show = try await showModel(model.name, endpoint: configuration.modelEndpoint)
+            let show = try await showModel(
+                model.name,
+                endpoint: configuration.modelEndpoint,
+                timeoutSeconds: configuration.modelTimeoutSeconds
+            )
             guard show.capabilities.contains("vision") else {
-                throw tagNotFound(configuration.model, visionTags: visionTags)
+                throw tagNotFound(
+                    configuration.model,
+                    visionTags: visionProbe.tags,
+                    probeFailureCount: visionProbe.failureCount
+                )
             }
 
-            let version = try await getVersion(endpoint: configuration.modelEndpoint)
+            let version = try await getVersion(
+                endpoint: configuration.modelEndpoint,
+                timeoutSeconds: configuration.modelTimeoutSeconds
+            )
             return ModelRuntimeContext(
                 model: model.name,
                 modelDigest: Self.normalizedDigest(model.digest),
                 runtimeVersion: version.version,
                 endpoint: configuration.modelEndpoint,
-                installedVisionTags: visionTags
+                installedVisionTags: visionProbe.tags
             )
         } catch let error as SidecarError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw endpointUnreachable(error)
         }
@@ -47,10 +71,12 @@ public struct OllamaVisionRunner: VisionModelRunner {
         prompt: VersionedPrompt,
         schema: JSONSchemaDocument,
         options: ModelRunOptions,
-        runtime: ModelRuntimeContext
+        runtime: ModelRuntimeContext,
+        isInterrupted: (@Sendable () -> Bool)? = nil
     ) async -> ModelRunRecord {
         let startedAt = now()
         do {
+            try Self.checkInterruption(isInterrupted)
             let imageData = try Data(contentsOf: URL(fileURLWithPath: image.cachePath))
             let primaryStartedAt = now()
             let request = try chatRequest(
@@ -60,7 +86,12 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 options: options,
                 runtime: runtime
             )
-            let chat = try await chatResponse(request, endpoint: runtime.endpoint, options: options)
+            let chat = try await chatResponse(
+                request,
+                endpoint: runtime.endpoint,
+                options: options,
+                isInterrupted: isInterrupted
+            )
             let rawText = chat.message.content
             let evaluation = evaluateModelResponse(rawText, schema: schema)
             let primaryAttempt = responseAttempt(
@@ -119,7 +150,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
                     let repairChat = try await chatResponse(
                         repairRequest,
                         endpoint: runtime.endpoint,
-                        options: repairOptions
+                        options: repairOptions,
+                        isInterrupted: isInterrupted
                     )
                     let repairRawText = repairChat.message.content
                     let repairEvaluation = evaluateModelResponse(repairRawText, schema: schema)
@@ -190,6 +222,25 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 error: finalAttempt.error,
                 responseAttempts: attempts.count > 1 ? attempts : nil
             )
+        } catch is CancellationError {
+            return record(
+                image: image,
+                inputRole: inputRole,
+                prompt: prompt,
+                schema: schema,
+                options: options,
+                runtime: runtime,
+                rawResponseText: "",
+                parsedResponseJSON: nil,
+                jsonValid: false,
+                startedAt: startedAt,
+                error: SidecarError(
+                    code: .interrupted,
+                    stage: .model,
+                    message: "Model request cancelled.",
+                    recoverable: true
+                )
+            )
         } catch let error as SidecarError {
             return record(
                 image: image,
@@ -231,48 +282,71 @@ public struct OllamaVisionRunner: VisionModelRunner {
     /// requiring any particular tag to exist. Serial per invariant 15.
     public func listInstalledVisionTags(endpoint: URL) async throws -> [String] {
         let tags = try await getTags(endpoint: endpoint)
-        return await installedVisionTags(from: tags, endpoint: endpoint)
+        return await installedVisionTags(from: tags, endpoint: endpoint).tags
     }
 
-    private func getTags(endpoint: URL) async throws -> OllamaTagsResponse {
+    private func getTags(
+        endpoint: URL,
+        timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
+    ) async throws -> OllamaTagsResponse {
         try await requestJSON(
             OllamaTagsResponse.self,
-            request: OllamaHTTPRequest(method: "GET", path: "/api/tags", timeoutSeconds: ModelRunOptions.default.timeoutSeconds),
+            request: OllamaHTTPRequest(method: "GET", path: "/api/tags", timeoutSeconds: timeoutSeconds),
             endpoint: endpoint
         )
     }
 
-    private func getVersion(endpoint: URL) async throws -> OllamaVersionResponse {
+    private func getVersion(
+        endpoint: URL,
+        timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
+    ) async throws -> OllamaVersionResponse {
         try await requestJSON(
             OllamaVersionResponse.self,
-            request: OllamaHTTPRequest(method: "GET", path: "/api/version", timeoutSeconds: ModelRunOptions.default.timeoutSeconds),
+            request: OllamaHTTPRequest(method: "GET", path: "/api/version", timeoutSeconds: timeoutSeconds),
             endpoint: endpoint
         )
     }
 
-    private func showModel(_ model: String, endpoint: URL) async throws -> OllamaShowResponse {
+    private func showModel(
+        _ model: String,
+        endpoint: URL,
+        timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
+    ) async throws -> OllamaShowResponse {
         let body = try Self.encoder().encode(OllamaShowRequest(model: model))
         return try await requestJSON(
             OllamaShowResponse.self,
-            request: OllamaHTTPRequest(method: "POST", path: "/api/show", body: body, timeoutSeconds: ModelRunOptions.default.timeoutSeconds),
+            request: OllamaHTTPRequest(method: "POST", path: "/api/show", body: body, timeoutSeconds: timeoutSeconds),
             endpoint: endpoint
         )
     }
 
-    private func installedVisionTags(from tags: OllamaTagsResponse, endpoint: URL) async -> [String] {
+    private func installedVisionTags(
+        from tags: OllamaTagsResponse,
+        endpoint: URL,
+        timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
+    ) async -> (tags: [String], failureCount: Int) {
         // Probe capabilities serially so the `/api/show` request sequence stays deterministic. The
         // preflight runs once per invocation; concurrent probing saved only marginal latency and made
         // the external-call order nondeterministic.
         var visionTags: [String] = []
+        var failureCount = 0
         for model in tags.models {
-            guard let show = try? await showModel(model.name, endpoint: endpoint),
-                  show.capabilities.contains("vision")
-            else {
+            let show: OllamaShowResponse
+            do {
+                show = try await showModel(
+                    model.name,
+                    endpoint: endpoint,
+                    timeoutSeconds: timeoutSeconds
+                )
+            } catch {
+                failureCount += 1
                 continue
             }
-            visionTags.append(model.name)
+            if show.capabilities.contains("vision") {
+                visionTags.append(model.name)
+            }
         }
-        return visionTags.sorted()
+        return (visionTags.sorted(), failureCount)
     }
 
     private func requestJSON<T: Decodable>(
@@ -280,14 +354,21 @@ public struct OllamaVisionRunner: VisionModelRunner {
         request: OllamaHTTPRequest,
         endpoint: URL
     ) async throws -> T {
-        let response = try await transport.send(request, endpoint: endpoint)
-        guard (200..<300).contains(response.statusCode) else {
-            throw OllamaHTTPTransportError.unreachable("HTTP \(response.statusCode) from \(request.path).")
-        }
-        do {
-            return try Self.decoder().decode(type, from: response.data)
-        } catch {
-            throw OllamaHTTPTransportError.unreachable("Invalid JSON from \(request.path): \(error.localizedDescription)")
+        var decodeRetriesRemaining = 1
+        while true {
+            let response = try await transport.send(request, endpoint: endpoint)
+            guard (200..<300).contains(response.statusCode) else {
+                throw Self.httpError(for: response, path: request.path)
+            }
+            do {
+                return try Self.decoder().decode(type, from: response.data)
+            } catch {
+                if decodeRetriesRemaining > 0 {
+                    decodeRetriesRemaining -= 1
+                    continue
+                }
+                throw Self.invalidResponseError(path: request.path, decodingError: error)
+            }
         }
     }
 
@@ -329,28 +410,55 @@ public struct OllamaVisionRunner: VisionModelRunner {
     private func chatResponse(
         _ request: OllamaHTTPRequest,
         endpoint: URL,
-        options: ModelRunOptions
+        options: ModelRunOptions,
+        isInterrupted: (@Sendable () -> Bool)?
     ) async throws -> OllamaChatResponse {
-        let response = try await sendChatWithRetries(request, endpoint: endpoint, options: options)
-        return try decodeChatResponse(response)
+        var decodeRetriesRemaining = 1
+        while true {
+            let response = try await sendChatWithRetries(
+                request,
+                endpoint: endpoint,
+                options: options,
+                isInterrupted: isInterrupted
+            )
+            do {
+                return try decodeChatResponse(response)
+            } catch let error as SidecarError
+                where error.code == .modelResponseInvalid && decodeRetriesRemaining > 0 {
+                try Self.checkInterruption(isInterrupted)
+                decodeRetriesRemaining -= 1
+            }
+        }
     }
 
     private func sendChatWithRetries(
         _ request: OllamaHTTPRequest,
         endpoint: URL,
-        options: ModelRunOptions
+        options: ModelRunOptions,
+        isInterrupted: (@Sendable () -> Bool)?
     ) async throws -> OllamaHTTPResponse {
-        let maxAttempts = max(0, options.retryLimit) + 1
+        let (incrementedAttempts, overflowed) = max(0, options.retryLimit).addingReportingOverflow(1)
+        let maxAttempts = overflowed ? Int.max : incrementedAttempts
         var lastError: Error?
 
         for attempt in 1...maxAttempts {
+            try Task.checkCancellation()
+            try Self.checkInterruption(isInterrupted)
             do {
                 let response = try await transport.send(request, endpoint: endpoint)
                 guard (200..<300).contains(response.statusCode) else {
-                    throw OllamaHTTPTransportError.unreachable("HTTP \(response.statusCode) from /api/chat.")
+                    throw Self.httpError(for: response, path: "/api/chat")
                 }
                 return response
             } catch {
+                if error is CancellationError {
+                    throw error
+                }
+                try Self.checkInterruption(isInterrupted)
+                if let transportError = error as? OllamaHTTPTransportError,
+                    case .clientError = transportError {
+                    throw endpointUnreachable(error)
+                }
                 lastError = error
                 if attempt == maxAttempts {
                     break
@@ -369,17 +477,55 @@ public struct OllamaVisionRunner: VisionModelRunner {
         throw endpointUnreachable(lastError ?? OllamaHTTPTransportError.unreachable("Unknown transport error."))
     }
 
+    private static func checkInterruption(_ isInterrupted: (@Sendable () -> Bool)?) throws {
+        if Task.isCancelled || isInterrupted?() == true {
+            throw SidecarError(
+                code: .interrupted,
+                stage: .model,
+                message: "Model request interrupted.",
+                recoverable: true
+            )
+        }
+    }
+
     private func decodeChatResponse(_ response: OllamaHTTPResponse) throws -> OllamaChatResponse {
         do {
             return try Self.decoder().decode(OllamaChatResponse.self, from: response.data)
         } catch {
-            throw SidecarError(
-                code: .modelEndpointUnreachable,
-                stage: .model,
-                message: "Invalid Ollama /api/chat response: \(error.localizedDescription)",
-                recoverable: true
-            )
+            throw Self.invalidResponseError(path: "/api/chat", decodingError: error)
         }
+    }
+
+    private static func httpError(for response: OllamaHTTPResponse, path: String) -> OllamaHTTPTransportError {
+        var message = "HTTP \(response.statusCode) from \(path)."
+        if let detail = ollamaErrorMessage(from: response.data) {
+            message = "HTTP \(response.statusCode) from \(path): \(detail)"
+        }
+        if (500..<600).contains(response.statusCode) {
+            return .unreachable(message)
+        }
+        return .clientError(response.statusCode, message)
+    }
+
+    private static func ollamaErrorMessage(from data: Data) -> String? {
+        guard data.count <= 65_536,
+            let response = try? decoder().decode(OllamaErrorResponse.self, from: data) else {
+            return nil
+        }
+        let message = response.error.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else {
+            return nil
+        }
+        return String(message.prefix(2_048))
+    }
+
+    private static func invalidResponseError(path: String, decodingError: Error) -> SidecarError {
+        SidecarError(
+            code: .modelResponseInvalid,
+            stage: .model,
+            message: "Invalid Ollama response from \(path): \(decodingError.localizedDescription)",
+            recoverable: true
+        )
     }
 
     private func evaluateModelResponse(_ rawResponseText: String, schema: JSONSchemaDocument) -> ModelResponseEvaluation {
@@ -543,12 +689,19 @@ public struct OllamaVisionRunner: VisionModelRunner {
         )
     }
 
-    private func tagNotFound(_ model: String, visionTags: [String]) -> SidecarError {
+    private func tagNotFound(
+        _ model: String,
+        visionTags: [String],
+        probeFailureCount: Int
+    ) -> SidecarError {
         let installed = visionTags.isEmpty ? "none" : visionTags.joined(separator: ", ")
+        let probeDetail = probeFailureCount == 0
+            ? ""
+            : ". \(probeFailureCount) installed tag(s) could not be probed"
         return SidecarError(
             code: .modelTagNotFound,
             stage: .model,
-            message: "Ollama model tag not found or not vision-capable: \(model). Installed vision-capable tags: \(installed)",
+            message: "Ollama model tag not found or not vision-capable: \(model). Installed vision-capable tags: \(installed)\(probeDetail)",
             recoverable: false
         )
     }
@@ -616,6 +769,10 @@ private struct OllamaShowRequest: Encodable {
 
 private struct OllamaShowResponse: Decodable {
     var capabilities: [String]
+}
+
+private struct OllamaErrorResponse: Decodable {
+    var error: String
 }
 
 private struct OllamaChatRequest: Encodable {

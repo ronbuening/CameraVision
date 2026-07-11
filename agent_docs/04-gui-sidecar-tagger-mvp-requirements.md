@@ -150,6 +150,9 @@ FR4-012a - The user shall be able to refresh metadata snapshots without running 
 
 FR4-012b - The user shall be able to import an existing Phase 3 normalization session and continue review/export from it.
 
+FR4-012c - A structurally corrupt imported or recovery session with duplicate asset identities shall surface the
+Core `E_SESSION_STALE` error and shall not crash review-row derivation.
+
 ## 6. Review UI Requirements
 
 FR4-013 - The review screen shall show the full image.
@@ -326,7 +329,7 @@ AC4-030 - The Normalization Inspector explains every non-exported keyword: each 
 
 AC4-031 - `aisidecar explain-session <session> --keyword <term>` prints the same stage/rule/support/conflict/skip facts for that keyword that the Inspector displays, sourced from the same Core explainer, for a session produced by either the CLI or the GUI.
 
-AC4-032 - Changing a run default in Settings updates `config.json` such that a subsequent CLI resolve reflects it, while hand-added keys in the file survive the write; an invalid endpoint is rejected without writing.
+AC4-032 - Changing a run default in Settings, including model timeout and retry limit, updates `config.json` such that a subsequent CLI resolve reflects it, while hand-added keys in the file survive the write; an invalid endpoint or invalid model request limit is rejected without writing.
 
 AC4-033 - The model picker lists exactly the installed tags whose Ollama capabilities include `vision`, sorted; selecting one persists it as the default model.
 
@@ -385,7 +388,16 @@ FR4-044 - Option controls shall map one-to-one onto existing Core enums (`Analys
 
 FR4-045 - Every count, rate, filename, thumbnail, and progress figure shown in the shells shall come from real pipeline, database, or filesystem state; prototype sample data shall not ship.
 
-FR4-056 - **Settings write-through (v0.8; extended v0.12).** Run defaults edited in Settings (model tag, model endpoint, render mode, GPS context, existing-sidecar policy, stage concurrency (FR4-064), and existing-XMP conflict policy (FR4-065)) shall persist to the shared config file via a read-modify-write that preserves unknown keys. The precedence chain is unchanged; Settings shall disclose active `AISIDECAR_*` environment overrides.
+FR4-056 - **Settings write-through (v0.8; extended v0.12/R3-5).** Run defaults edited in Settings (model tag,
+model endpoint, model request timeout, model retry limit, render mode, GPS context, existing-sidecar policy, stage
+concurrency (FR4-064), and existing-XMP conflict policy (FR4-065)) shall persist to the shared config file via a
+read-modify-write that preserves unknown keys. Model timeout shall be finite and greater than zero; model retry
+limit shall be zero or greater. The precedence chain is unchanged; Settings shall disclose active `AISIDECAR_*`
+environment overrides.
+
+FR4-056a - Settings write-through shall distinguish a missing config file from an existing unreadable file. An
+unreadable, malformed, empty, or non-object config shall fail as `E_CONFIG_INVALID` and remain byte-for-byte
+unmodified; only a missing file may be created from the edited keys.
 
 FR4-057 - **Vision model picker (v0.8).** Settings shall list installed Ollama models reporting the `vision` capability (Core `listInstalledVisionTags`, the preflight's own probing), let the user pick one (persisted per FR4-056), flag a configured-but-unavailable model, and offer an editable, validated endpoint with a connectivity indicator under the FR4-051 no-polling policy.
 

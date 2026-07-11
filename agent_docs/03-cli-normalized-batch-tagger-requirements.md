@@ -95,6 +95,8 @@ Accepted project-wide flags in analyze-and-normalize mode:
 --output-dir <path>
 --model <tag>
 --model-endpoint <url>
+--model-timeout <seconds>
+--model-retry-limit <n>
 --profile <name>
 --config <path>
 --log-level <error|warn|info|debug>
@@ -209,6 +211,9 @@ FR3-CLI-001 - `--from-json`, `--file-list`, and positional image input are mutua
 FR3-CLI-002 - `--source-root` is valid only with `normalize --from-json` and `apply-session` when the session was produced from staged or moved sidecars. It resolves recorded source-relative paths back to current source images.
 
 FR3-CLI-003 - `--write-ai-json` is meaningful only in analyze-and-normalize mode. With `normalize --from-json` or `apply-session`, explicit use shall fail as `E_CONFIG_INVALID`.
+
+FR3-CLI-003a - Analyze-and-normalize `--no-write-ai-json` cleanup shall keep all raw sidecars when its pre-run
+inventory fails, and shall log individual deletion failures instead of silently discarding them.
 
 FR3-CLI-004 - In `normalize`, `--existing` governs raw `.ai.json` output produced by analysis. Existing XMP sidecars are governed by `--xmp-conflict-policy`.
 
@@ -720,6 +725,11 @@ FR3-030g - Each propagated per-asset decision shall record local weighted agreem
 
 FR3-030h - `apply-session` shall consume stored decisions and shall not rerun model analysis, re-extract candidates, reload the vocabulary to change decisions, or recompute affinity to change propagation decisions unless a future schema explicitly defines that behavior.
 
+FR3-030i - Session import and apply shall reject duplicate source asset IDs, source-sidecar asset IDs, same-base-name
+target paths, and stored XMP write-plan target paths as `E_SESSION_STALE`, naming the duplicate key. Normalization
+input construction shall reject duplicate sidecar mappings and assets assigned to multiple groups as
+`E_VALIDATION_FAILED`. These structural failures shall never trap the process.
+
 FR3-030i - The session file shall record deterministic policy metadata: score rounding precision, score-band thresholds, edge sorting order, neighbor truncation rule, decision tie-break order, and whether exact affinity input persistence was enabled.
 
 FR3-030j - The session file shall record artifact outputs and planned outputs in a stable `artifacts` object: session path, report path, summary path, progress path, dry-run change-plan path or stream, and XMP target root. This object is required even when some artifacts are intentionally suppressed.
@@ -798,13 +808,15 @@ privacy_redacted
 FR3-037 - Folder runs shall produce:
 
 ```text
-normalization-session-<ISO-8601-timestamp>.json
-normalization-report-<ISO-8601-timestamp>.json
-normalization-summary-<ISO-8601-timestamp>.md
-normalization-progress-<ISO-8601-timestamp>.jsonl
+normalization-session-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.json
+normalization-report-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.json
+normalization-summary-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.md
+normalization-progress-<yyyy-MM-dd'T'HHmmssZ>-<4hex>.jsonl
 ```
 
 These files shall be written under `--output-dir` when supplied, otherwise beside the scan root, JSON scan root, or session file as appropriate.
+Files created by one invocation share the lowercase hexadecimal suffix. Readers shall continue accepting legacy
+colon-bearing, suffix-free names.
 
 `aisidecar cleanup` may remove normalization progress/report/summary artifacts from a selected folder, but it shall retain normalization session JSON because that file is the durable input for `apply-session`. Cleanup also shall not remove XMP sidecars, backups, source images, or derivative cache artifacts.
 

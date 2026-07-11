@@ -9,14 +9,18 @@ final class XMPBackupManagerTests: XCTestCase {
         let target = root.appendingPathComponent("Bird.xmp")
         try "original".write(to: target, atomically: true, encoding: .utf8)
         let manager = XMPBackupManager(
-            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000))
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000)),
+            filenameSuffix: { "a3f2" }
         )
 
         let backup = try manager.backupExistingSidecar(at: target.path)
         try "changed".write(to: target, atomically: true, encoding: .utf8)
         let restored = try manager.restore(backup)
 
-        XCTAssertEqual(backup.backupPath, root.appendingPathComponent("Bird.xmp.bak-2027-01-15T08:00:00Z").path)
+        XCTAssertEqual(
+            backup.backupPath,
+            root.appendingPathComponent("Bird.xmp.bak-2027-01-15T080000Z-a3f2").path
+        )
         XCTAssertEqual(try String(contentsOf: URL(fileURLWithPath: backup.backupPath), encoding: .utf8), "original")
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "original")
         XCTAssertNotNil(restored.restoredAt)

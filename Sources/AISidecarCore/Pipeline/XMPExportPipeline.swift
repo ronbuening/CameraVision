@@ -35,6 +35,7 @@ public struct XMPExportPipeline {
     private let validator: XMPMergeValidator
     private let logger: Logger
     private let now: @Sendable () -> Date
+    private let filenameSuffix: @Sendable () -> String
     private let afterBackup: @Sendable () -> Void
 
     public init(
@@ -44,14 +45,24 @@ public struct XMPExportPipeline {
         validator: XMPMergeValidator = XMPMergeValidator(),
         logger: Logger = Logger(),
         now: @escaping @Sendable () -> Date = Date.init,
+        filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix,
         afterBackup: @escaping @Sendable () -> Void = {}
     ) {
         self.fileManager = fileManager
         self.engine = engine
-        self.backupManager = backupManager ?? XMPBackupManager(fileManager: fileManager, now: now)
+        if let backupManager {
+            self.backupManager = backupManager
+        } else {
+            self.backupManager = XMPBackupManager(
+                fileManager: fileManager,
+                now: now,
+                filenameSuffix: filenameSuffix
+            )
+        }
         self.validator = validator
         self.logger = logger
         self.now = now
+        self.filenameSuffix = filenameSuffix
         self.afterBackup = afterBackup
     }
 
@@ -86,6 +97,7 @@ public struct XMPExportPipeline {
         interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> XMPExportPipelineResult {
         let startedAt = now()
+        let runSuffix = filenameSuffix()
         let extractionResults = CandidateExtractor().extract(from: batch.inputs, configuration: configuration)
         let changePlan = XMPChangePlanner().plan(
             inputBatch: batch,
@@ -94,7 +106,12 @@ public struct XMPExportPipeline {
         )
 
         let artifacts = writesBatchArtifacts
-            ? artifactPaths(inputPath: inputPath, outputDir: configuration.outputDir, startedAt: startedAt)
+            ? artifactPaths(
+                inputPath: inputPath,
+                outputDir: configuration.outputDir,
+                startedAt: startedAt,
+                runSuffix: runSuffix
+            )
             : nil
         return try executeChangePlan(
             changePlan,
@@ -102,7 +119,8 @@ public struct XMPExportPipeline {
             configuration: configuration,
             artifacts: artifacts,
             interruptionMonitor: interruptionMonitor,
-            reportDryRun: false
+            reportDryRun: false,
+            runSuffix: runSuffix
         )
     }
 
@@ -118,13 +136,15 @@ public struct XMPExportPipeline {
         configuration: ResolvedXMPExportConfiguration,
         interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> XMPExportPipelineResult {
-        try executeChangePlan(
+        let runSuffix = filenameSuffix()
+        return try executeChangePlan(
             changePlan,
             inputPath: absolutePath(for: inputPath),
             configuration: configuration,
             artifacts: nil,
             interruptionMonitor: interruptionMonitor,
-            reportDryRun: true
+            reportDryRun: true,
+            runSuffix: runSuffix
         )
     }
 
@@ -134,7 +154,8 @@ public struct XMPExportPipeline {
         configuration: ResolvedXMPExportConfiguration,
         artifacts: ExportArtifactPaths?,
         interruptionMonitor: InterruptionMonitor?,
-        reportDryRun: Bool
+        reportDryRun: Bool,
+        runSuffix: String
     ) throws -> XMPExportPipelineResult {
         let startedAt = now()
         var changePlan = originalChangePlan
@@ -191,7 +212,11 @@ public struct XMPExportPipeline {
                 break
             }
 
-            let targetReport = executeTarget(plan, interruptionMonitor: interruptionMonitor)
+            let targetReport = executeTarget(
+                plan,
+                interruptionMonitor: interruptionMonitor,
+                runSuffix: runSuffix
+            )
             targetReports.append(targetReport)
             stampSourceSidecars(for: targetReport, context: context)
             try progressLog?.append(progressRecord(for: targetReport))
@@ -282,7 +307,8 @@ public struct XMPExportPipeline {
 
     private func executeTarget(
         _ plan: XMPChangePlan,
-        interruptionMonitor: InterruptionMonitor?
+        interruptionMonitor: InterruptionMonitor?,
+        runSuffix: String
     ) -> XMPExportTargetReport {
         let startedAt = now()
         guard plan.status == .planned, plan.failures.isEmpty else {
@@ -328,7 +354,10 @@ public struct XMPExportPipeline {
         var backup: XMPBackupRecord?
         if targetExists, plan.backupPlan.backupSidecars {
             do {
-                backup = try backupManager.backupExistingSidecar(at: plan.targetXMPPath)
+                backup = try backupManager.backupExistingSidecar(
+                    at: plan.targetXMPPath,
+                    runSuffix: runSuffix
+                )
                 afterBackup()
             } catch {
                 return targetReport(
@@ -404,23 +433,42 @@ public struct XMPExportPipeline {
         }
     }
 
-    private func sourceHashesBeforeWrite(for plan: XMPChangePlan) -> [String: String] {
-        var hashes: [String: String] = [:]
+    private func sourceHashesBeforeWrite(for plan: XMPChangePlan) -> [String: String?] {
+        var hashes: [String: String?] = [:]
         for path in selectedSourcePaths(for: plan) {
-            hashes[path] = try? SourceIdentityCalculator.compute(
+            let hash = try? SourceIdentityCalculator.compute(
                 for: URL(fileURLWithPath: path),
                 policy: .sha256,
                 fileManager: fileManager
             ).sha256
+            hashes.updateValue(hash, forKey: path)
         }
         return hashes
     }
 
-    private func sourceHashChecks(afterWriteFor before: [String: String]) -> (checks: [XMPSourceHashCheck], errors: [SidecarError]) {
+    private func sourceHashChecks(afterWriteFor before: [String: String?]) -> (checks: [XMPSourceHashCheck], errors: [SidecarError]) {
         var checks: [XMPSourceHashCheck] = []
         var errors: [SidecarError] = []
         for path in before.keys.sorted(by: comparePaths) {
-            let beforeHash = before[path]
+            guard let beforeHash = before[path] ?? nil else {
+                let sidecarError = SidecarError(
+                    code: .validationFailed,
+                    stage: .write,
+                    message: "Unable to read source image before XMP export: \(path)",
+                    recoverable: true
+                )
+                errors.append(sidecarError)
+                checks.append(
+                    XMPSourceHashCheck(
+                        sourcePath: path,
+                        beforeSHA256: nil,
+                        afterSHA256: nil,
+                        unchanged: false,
+                        error: sidecarError
+                    )
+                )
+                continue
+            }
             do {
                 let afterHash = try SourceIdentityCalculator.compute(
                     for: URL(fileURLWithPath: path),
@@ -614,7 +662,12 @@ public struct XMPExportPipeline {
         return .unchanged
     }
 
-    private func artifactPaths(inputPath: String, outputDir: String?, startedAt: Date) -> ExportArtifactPaths {
+    private func artifactPaths(
+        inputPath: String,
+        outputDir: String?,
+        startedAt: Date,
+        runSuffix: String
+    ) -> ExportArtifactPaths {
         let directory: String
         if let outputDir {
             directory = absolutePath(for: outputDir)
@@ -624,7 +677,7 @@ public struct XMPExportPipeline {
             directory = URL(fileURLWithPath: inputPath).deletingLastPathComponent().standardizedFileURL.path
         }
 
-        let timestamp = timestampString(for: startedAt)
+        let timestamp = Timestamp.filenameToken(startedAt, suffix: runSuffix)
         return ExportArtifactPaths(
             directory: directory,
             progressPath: "\(directory)/\(ArtifactNames.xmpExportProgressPrefix)\(timestamp).jsonl",
@@ -647,10 +700,6 @@ public struct XMPExportPipeline {
     private func isDirectory(path: String) -> Bool {
         var isDirectory: ObjCBool = false
         return fileManager.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
-    }
-
-    private func timestampString(for date: Date) -> String {
-        Timestamp.internetDateTime(date)
     }
 
     private func durationMs(from start: Date, to end: Date) -> Int {

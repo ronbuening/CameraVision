@@ -60,6 +60,78 @@ final class XMPChangePlanTests: XCTestCase {
         XCTAssertTrue(encoded?.contains("\"validation_plan\"") == true)
     }
 
+    func testFailedCountCountsInputFailuresAndFailureBearingTargetPlans() {
+        let failure = SidecarError(
+            code: .validationFailed,
+            stage: .normalize,
+            message: "Planned target failure.",
+            recoverable: false
+        )
+        let document = XMPChangePlanDocument(
+            dryRun: true,
+            targetPlans: [
+                minimalTargetPlan(status: .planned, failures: []),
+                minimalTargetPlan(status: .failed, failures: [failure]),
+                minimalTargetPlan(status: .planned, failures: [failure])
+            ],
+            inputFailures: [
+                XMPChangePlanInputFailure(
+                    sidecarPath: "/sidecars/Bad.JPG.ai.json",
+                    relativePath: "Bad.JPG.ai.json",
+                    error: failure
+                )
+            ]
+        )
+
+        XCTAssertEqual(document.failedCount, 3)
+        XCTAssertEqual(
+            XMPChangePlanDocument(dryRun: true, targetPlans: [], inputFailures: []).failedCount,
+            0
+        )
+    }
+
+    private func minimalTargetPlan(status: XMPTargetPlanStatus, failures: [SidecarError]) -> XMPChangePlan {
+        XMPChangePlan(
+            status: status,
+            targetXMPPath: "/photos/Bird.xmp",
+            targetRelativePath: "Bird.xmp",
+            pairScope: .union,
+            sourceMembers: [],
+            flatKeywordsToAdd: [],
+            hierarchicalKeywordsToAdd: [],
+            skippedCandidates: [],
+            candidateExtractionIssues: [],
+            sourceVerificationWarnings: [],
+            groupWarnings: [],
+            existingPolicy: .backupAndMerge,
+            backupPlan: BackupPlan(
+                backupSidecars: true,
+                backupRequiredBeforeMerge: true,
+                conflictPolicy: .backupAndMerge
+            ),
+            validationPlan: .phase2Default,
+            failures: failures
+        )
+    }
+
+    func testDuplicateExtractionSidecarBecomesInputFailureAndKeepsFirstResult() throws {
+        let input = try resolvedInput(warnings: [])
+        let first = extraction(for: input)
+
+        let document = XMPChangePlanner().plan(
+            inputBatch: RawJSONSidecarInputBatch(inputs: [input], failures: []),
+            extractionResults: [first, first],
+            configuration: .builtInDefaults
+        )
+
+        let failure = try XCTUnwrap(document.inputFailures.first)
+        XCTAssertEqual(failure.sidecarPath, first.sourceSidecar)
+        XCTAssertEqual(failure.error.code, .validationFailed)
+        XCTAssertTrue(failure.error.message.contains(first.sourceSidecar))
+        XCTAssertEqual(document.targetPlans.count, 1)
+        XCTAssertEqual(document.targetPlans.first?.flatKeywordsToAdd.map(\.term), ["wading bird"])
+    }
+
     private func resolvedInput(warnings: [SidecarError]) throws -> ResolvedRawSidecarInput {
         let source = SourceImage(
             path: "/photos/Bird.JPG",

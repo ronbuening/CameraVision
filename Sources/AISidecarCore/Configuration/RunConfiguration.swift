@@ -54,6 +54,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var model: String?
     public var modelEndpoint: String?
     public var modelKeepAlive: String?
+    public var modelTimeoutSeconds: Double?
+    public var modelRetryLimit: Int?
     public var profile: String?
     public var configPath: String?
     public var logLevel: LogLevel?
@@ -86,6 +88,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         model: String? = nil,
         modelEndpoint: String? = nil,
         modelKeepAlive: String? = nil,
+        modelTimeoutSeconds: Double? = nil,
+        modelRetryLimit: Int? = nil,
         profile: String? = nil,
         configPath: String? = nil,
         logLevel: LogLevel? = nil,
@@ -112,6 +116,8 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.model = model
         self.modelEndpoint = modelEndpoint
         self.modelKeepAlive = modelKeepAlive
+        self.modelTimeoutSeconds = modelTimeoutSeconds
+        self.modelRetryLimit = modelRetryLimit
         self.profile = profile
         self.configPath = configPath
         self.logLevel = logLevel
@@ -176,6 +182,10 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var model: String
     public var modelEndpoint: URL
     public var modelKeepAlive: String
+    /// Timeout applied to each Ollama model request.
+    public var modelTimeoutSeconds: Double
+    /// Additional attempts allowed for retryable model-request failures.
+    public var modelRetryLimit: Int
     public var profile: String
     public var logLevel: LogLevel
     public var logFormat: LogFormat
@@ -213,6 +223,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case model
         case modelEndpoint = "model_endpoint"
         case modelKeepAlive = "model_keep_alive"
+        case modelTimeoutSeconds = "model_timeout_seconds"
+        case modelRetryLimit = "model_retry_limit"
         case profile
         case logLevel = "log_level"
         case logFormat = "log_format"
@@ -240,6 +252,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         model: String,
         modelEndpoint: URL,
         modelKeepAlive: String = ModelRunOptions.default.keepAlive,
+        modelTimeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds,
+        modelRetryLimit: Int = ModelRunOptions.default.retryLimit,
         profile: String,
         logLevel: LogLevel,
         logFormat: LogFormat,
@@ -265,6 +279,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.model = model
         self.modelEndpoint = modelEndpoint
         self.modelKeepAlive = modelKeepAlive
+        self.modelTimeoutSeconds = modelTimeoutSeconds
+        self.modelRetryLimit = modelRetryLimit
         self.profile = profile
         self.logLevel = logLevel
         self.logFormat = logFormat
@@ -306,6 +322,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         model: "gemma4:26b-a4b-it-qat",
         modelEndpoint: URL(string: "http://localhost:11434")!,
         modelKeepAlive: ModelRunOptions.default.keepAlive,
+        modelTimeoutSeconds: ModelRunOptions.default.timeoutSeconds,
+        modelRetryLimit: ModelRunOptions.default.retryLimit,
         profile: "gemma4-26b-default",
         logLevel: .info,
         logFormat: .text,
@@ -337,6 +355,14 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
             String.self,
             forKey: .modelKeepAlive
         ) ?? Self.builtInDefaults.modelKeepAlive
+        self.modelTimeoutSeconds = try container.decodeIfPresent(
+            Double.self,
+            forKey: .modelTimeoutSeconds
+        ) ?? Self.builtInDefaults.modelTimeoutSeconds
+        self.modelRetryLimit = try container.decodeIfPresent(
+            Int.self,
+            forKey: .modelRetryLimit
+        ) ?? Self.builtInDefaults.modelRetryLimit
         self.profile = try container.decode(String.self, forKey: .profile)
         self.logLevel = try container.decode(LogLevel.self, forKey: .logLevel)
         self.logFormat = try container.decode(LogFormat.self, forKey: .logFormat)

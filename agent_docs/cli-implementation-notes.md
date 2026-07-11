@@ -51,7 +51,10 @@ Default model input profile (to be justified empirically in Milestone 9, not ass
 
 Derivative cache: default path `~/Library/Caches/aisidecar/derivatives` (see architecture-map.md artifacts table), default cap **20 GiB**, manifest-backed LRU eviction, keys `<source-sha256>-<recipe-version>-<role>.<ext>`. Overridable via `derivative_cache_dir` / `derivative_cache_size_bytes` config or `AISIDECAR_*` env. Only model-input roles (`whole_image`, `subject_isolated`) are cached; the cache index manifest is excluded from role artifacts. `clear_derivative_cache_on_start` / `clear_derivative_cache_after_success` are resolvable via config, env, and CLI flags; post-success clearing runs only when the invocation has no failed records and was not interrupted.
 
-Model run option defaults: temperature 0, recorded seed, thinking explicitly disabled and recorded, `keep_alive` 30m refreshed per request, timeout 180 s, 2 retries on timeout/transport errors only, `response_repair_attempts` 1.
+Model run option defaults: temperature 0, recorded seed, thinking explicitly disabled and recorded, `keep_alive`
+30m refreshed per request, timeout 180 s, 2 additional attempts on timeout/transport/HTTP 5xx errors, and
+`response_repair_attempts` 1. Timeout and retry limit resolve through CLI > environment > config > built-in default;
+HTTP 4xx fails immediately and a malformed HTTP-success envelope has its own single decode retry.
 
 ## Implementation conventions
 

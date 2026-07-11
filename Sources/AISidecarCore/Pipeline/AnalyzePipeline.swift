@@ -37,13 +37,15 @@ public struct AnalyzePipeline {
     private let maskProvider: any ForegroundMaskProvider
     private let runner: any VisionModelRunner
     private let now: @Sendable () -> Date
+    private let filenameSuffix: @Sendable () -> String
 
     public init(
         fileManager: FileManager = .default,
         logger: Logger = Logger(),
         maskProvider: (any ForegroundMaskProvider)? = nil,
         runner: any VisionModelRunner = OllamaVisionRunner(),
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix
     ) {
         self.fileManager = fileManager
         self.scanner = ImageScanner(fileManager: fileManager)
@@ -59,6 +61,7 @@ public struct AnalyzePipeline {
         }
         self.runner = runner
         self.now = now
+        self.filenameSuffix = filenameSuffix
     }
 
     /// Run full Phase 1 analysis for one file or folder.
@@ -103,7 +106,7 @@ public struct AnalyzePipeline {
         let runtime = pendingWork.isEmpty ? nil : try await runner.prepare(configuration: configuration)
 
         let isBatch = scanResult.inputPath == scanResult.scanRoot
-        let timestamp = timestampString(for: runStartedAt)
+        let timestamp = Timestamp.filenameToken(runStartedAt, suffix: filenameSuffix())
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
         let progressPath = isBatch && !configuration.dryRun && writesBatchArtifacts
             ? "\(reportDirectory)/\(ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
@@ -291,7 +294,7 @@ public struct AnalyzePipeline {
 
             // Prepared results may finish out of order, but sidecar/progress
             // emission stays in scan order and model calls happen in this loop.
-            for (index, action) in actions.enumerated() {
+            processingLoop: for (index, action) in actions.enumerated() {
                 if interruptionMonitor?.isInterrupted == true {
                     interrupted = true
                     group.cancelAll()
@@ -325,15 +328,28 @@ public struct AnalyzePipeline {
                         break
                     }
 
-                    let record = await finishPrepared(
+                    let outcome = await finishPrepared(
                         prepared,
                         entry: entries[index],
                         configuration: configuration,
                         profile: profile,
                         runtime: runtime,
+                        interruptionMonitor: interruptionMonitor,
                         startedAt: startedAt
                     )
-                    try emit(record)
+                    switch outcome {
+                    case .completed(let record):
+                        try emit(record)
+                    case .interrupted:
+                        interrupted = true
+                        group.cancelAll()
+                        break processingLoop
+                    }
+                    if interruptionMonitor?.isInterrupted == true {
+                        interrupted = true
+                        group.cancelAll()
+                        break processingLoop
+                    }
                 }
             }
 
@@ -380,15 +396,24 @@ public struct AnalyzePipeline {
                 if interruptionMonitor?.isInterrupted == true {
                     return true
                 }
-                let record = await finishPrepared(
+                let outcome = await finishPrepared(
                     prepared,
                     entry: entries[index],
                     configuration: configuration,
                     profile: profile,
                     runtime: runtime,
+                    interruptionMonitor: interruptionMonitor,
                     startedAt: startedAt
                 )
-                try emit(record)
+                switch outcome {
+                case .completed(let record):
+                    try emit(record)
+                case .interrupted:
+                    return true
+                }
+                if interruptionMonitor?.isInterrupted == true {
+                    return true
+                }
             }
         }
 
@@ -562,28 +587,37 @@ public struct AnalyzePipeline {
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile,
         runtime: ModelRuntimeContext,
+        interruptionMonitor: InterruptionMonitor?,
         startedAt: Date
-    ) async -> ProgressRecord {
+    ) async -> FinishPreparedOutcome {
         switch prepared {
         case .renderFailed(let error, let renderMs):
-            return writeFailureSidecar(
-                source: entry.source,
-                sidecarPath: entry.sidecarPath,
-                configuration: configuration,
-                profile: profile,
-                errors: [error],
-                renderMs: renderMs,
-                startedAt: startedAt
+            return .completed(
+                writeFailureSidecar(
+                    source: entry.source,
+                    sidecarPath: entry.sidecarPath,
+                    configuration: configuration,
+                    profile: profile,
+                    errors: [error],
+                    renderMs: renderMs,
+                    startedAt: startedAt
+                )
             )
         case .prepared(let prepared):
             let modelStartedAt = now()
-            let modelRuns = await runModelRuns(
+            let modelOutcome = await runModelRuns(
                 derivatives: prepared.derivatives,
                 modelInputContext: prepared.modelInputContext,
                 configuration: configuration,
-                runtime: runtime
+                runtime: runtime,
+                interruptionMonitor: interruptionMonitor
             )
             let modelMs = durationMs(from: modelStartedAt, to: now())
+            guard case .completed(let modelRuns) = modelOutcome,
+                  interruptionMonitor?.isInterrupted != true
+            else {
+                return .interrupted
+            }
             let errors = prepared.errors + modelRuns.compactMap(\.error)
             var sidecar = RawJSONSidecar(
                 source: entry.source,
@@ -623,24 +657,28 @@ public struct AnalyzePipeline {
                 case .written:
                     status = modelRuns.contains { $0.error == nil && $0.jsonValid } ? .written : .failed
                 }
-                return ProgressRecord(
-                    timestamp: now(),
-                    sourcePath: entry.source.path,
-                    relativePath: entry.source.relativePath,
-                    sidecarPath: entry.sidecarPath,
-                    status: status,
-                    errors: errors,
-                    durationMs: durationMs(from: startedAt, to: now())
+                return .completed(
+                    ProgressRecord(
+                        timestamp: now(),
+                        sourcePath: entry.source.path,
+                        relativePath: entry.source.relativePath,
+                        sidecarPath: entry.sidecarPath,
+                        status: status,
+                        errors: errors,
+                        durationMs: durationMs(from: startedAt, to: now())
+                    )
                 )
             } catch {
-                return ProgressRecord(
-                    timestamp: now(),
-                    sourcePath: entry.source.path,
-                    relativePath: entry.source.relativePath,
-                    sidecarPath: entry.sidecarPath,
-                    status: .failed,
-                    errors: errors + [Self.sidecarError(from: error, sidecarPath: entry.sidecarPath)],
-                    durationMs: durationMs(from: startedAt, to: now())
+                return .completed(
+                    ProgressRecord(
+                        timestamp: now(),
+                        sourcePath: entry.source.path,
+                        relativePath: entry.source.relativePath,
+                        sidecarPath: entry.sidecarPath,
+                        status: .failed,
+                        errors: errors + [Self.sidecarError(from: error, sidecarPath: entry.sidecarPath)],
+                        durationMs: durationMs(from: startedAt, to: now())
+                    )
                 )
             }
         }
@@ -698,21 +736,30 @@ public struct AnalyzePipeline {
         derivatives: [DerivativeRecord],
         modelInputContext: ModelInputContext?,
         configuration: ResolvedRunConfiguration,
-        runtime: ModelRuntimeContext
-    ) async -> [ModelRunRecord] {
+        runtime: ModelRuntimeContext,
+        interruptionMonitor: InterruptionMonitor?
+    ) async -> ModelRunsOutcome {
         var runs: [ModelRunRecord] = []
         // PW-015 requires exactly one model request in flight; keep this loop
         // sequential even when render/isolation preparation has worked ahead.
         for (role, derivative) in modelInputs(derivatives: derivatives, mode: configuration.mode) {
-            runs.append(await runModel(
+            if interruptionMonitor?.isInterrupted == true {
+                return .interrupted
+            }
+            let run = await runModel(
                 role: role,
                 derivative: derivative,
                 modelInputContext: modelInputContext,
                 configuration: configuration,
-                runtime: runtime
-            ))
+                runtime: runtime,
+                interruptionMonitor: interruptionMonitor
+            )
+            if interruptionMonitor?.isInterrupted == true || run.error?.code == .interrupted {
+                return .interrupted
+            }
+            runs.append(run)
         }
-        return runs
+        return .completed(runs)
     }
 
     private func runModel(
@@ -720,10 +767,13 @@ public struct AnalyzePipeline {
         derivative: DerivativeRecord,
         modelInputContext: ModelInputContext?,
         configuration: ResolvedRunConfiguration,
-        runtime: ModelRuntimeContext
+        runtime: ModelRuntimeContext,
+        interruptionMonitor: InterruptionMonitor?
     ) async -> ModelRunRecord {
         var options = ModelRunOptions.default
         options.keepAlive = configuration.modelKeepAlive
+        options.timeoutSeconds = configuration.modelTimeoutSeconds
+        options.retryLimit = configuration.modelRetryLimit
         options.responseRepairAttempts = configuration.modelResponseRepairAttempts
         // 0 means "model default": send no num_ctx and let Ollama size the window.
         options.contextWindow = configuration.modelContextWindow > 0 ? configuration.modelContextWindow : nil
@@ -731,14 +781,27 @@ public struct AnalyzePipeline {
         do {
             let prompt = try PromptRegistry.prompt(for: role, context: modelInputContext)
             let schema = try ResponseSchemas.schema(for: role)
-            var record = await runner.analyze(
-                image: derivative,
-                inputRole: role,
-                prompt: prompt,
-                schema: schema,
-                options: options,
-                runtime: runtime
-            )
+            let runner = self.runner
+            let task = Task {
+                await runner.analyze(
+                    image: derivative,
+                    inputRole: role,
+                    prompt: prompt,
+                    schema: schema,
+                    options: options,
+                    runtime: runtime,
+                    isInterrupted: { interruptionMonitor?.isInterrupted == true }
+                )
+            }
+            let registration = interruptionMonitor?.onInterruption {
+                task.cancel()
+            }
+            defer { registration?.cancel() }
+            var record = await withTaskCancellationHandler {
+                await task.value
+            } onCancel: {
+                task.cancel()
+            }
             record.modelInputContext = modelInputContext?.isEmpty == false ? modelInputContext : nil
             return record
         } catch {
@@ -785,10 +848,6 @@ public struct AnalyzePipeline {
     private func reportDirectoryPath(scanRoot: String, outputDir: String?) -> String {
         let path = outputDir ?? scanRoot
         return URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path
-    }
-
-    private func timestampString(for date: Date) -> String {
-        Timestamp.internetDateTime(date)
     }
 
     private func durationMs(from start: Date, to end: Date) -> Int {
@@ -907,6 +966,16 @@ private enum EntryAction: Sendable {
 private enum PreparedAnalysis: Sendable {
     case prepared(PreparedRenderedAnalysis)
     case renderFailed(SidecarError, renderMs: Int)
+}
+
+private enum FinishPreparedOutcome: Sendable {
+    case completed(ProgressRecord)
+    case interrupted
+}
+
+private enum ModelRunsOutcome: Sendable {
+    case completed([ModelRunRecord])
+    case interrupted
 }
 
 private struct PreparedRenderedAnalysis: Sendable {

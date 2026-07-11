@@ -3,6 +3,46 @@ import XCTest
 @testable import AISidecarCore
 
 final class CandidateCanonicalizerTests: XCTestCase {
+    func testObservationBuilderRejectsDuplicateSourceSidecarPath() throws {
+        var input = inputBatch()
+        let duplicate = try XCTUnwrap(input.sourceAISidecars.first)
+        input.sourceAISidecars.append(duplicate)
+
+        XCTAssertThrowsError(
+            try CandidateObservationBuilder().build(extractionResults: [], input: input)
+        ) { error in
+            let sidecarError = error as? SidecarError
+            XCTAssertEqual(sidecarError?.code, .validationFailed)
+            XCTAssertEqual(sidecarError?.stage, .normalize)
+            XCTAssertTrue(sidecarError?.message.contains(duplicate.sidecarPath) == true)
+        }
+    }
+
+    func testObservationBuilderRejectsAssetPresentInMultipleGroups() throws {
+        var input = inputBatch()
+        let assetID = try XCTUnwrap(input.sourceAssets.first?.assetID)
+        input.sameBaseNameGroups.append(
+            NormalizationSourceGroup(
+                groupID: "group-duplicate",
+                groupDirectory: "",
+                groupBasename: "Duplicate",
+                targetRelativePath: "Duplicate.xmp",
+                memberAssetIDs: [assetID],
+                selectedAssetIDs: [assetID],
+                skippedAssetIDs: []
+            )
+        )
+
+        XCTAssertThrowsError(
+            try CandidateObservationBuilder().build(extractionResults: [], input: input)
+        ) { error in
+            let sidecarError = error as? SidecarError
+            XCTAssertEqual(sidecarError?.code, .validationFailed)
+            XCTAssertEqual(sidecarError?.stage, .normalize)
+            XCTAssertTrue(sidecarError?.message.contains(assetID) == true)
+        }
+    }
+
     func testSynonymsCollapseToCanonicalCasingWithUnitSupportAndRoleProvenance() throws {
         let vocabulary = try loadedVocabulary()
         let extraction = try extractionResult(responses: [

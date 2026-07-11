@@ -39,6 +39,16 @@
   // There is no current CLI flag for this key.
   "model_keep_alive": "30m",
 
+  // Timeout applied to each Ollama model request, in seconds. Must be a
+  // finite value greater than zero. CLI: --model-timeout.
+  // Environment: AISIDECAR_MODEL_TIMEOUT_SECONDS.
+  "model_timeout_seconds": 180,
+
+  // Additional attempts for retryable model failures (timeouts, transport
+  // errors, and HTTP 5xx responses). Must be zero or greater.
+  // CLI: --model-retry-limit. Environment: AISIDECAR_MODEL_RETRY_LIMIT.
+  "model_retry_limit": 2,
+
   // Ollama num_ctx token window requested for every model call. 0 — the
   // built-in default — sends no num_ctx and lets Ollama's own model default
   // apply. Set a positive value (up to the model's limit, e.g. 262144 for
