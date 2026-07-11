@@ -85,9 +85,10 @@ final class DerivativeCacheTests: XCTestCase {
         let result = try cache.clear()
 
         XCTAssertEqual(result.directoryPath, root.path)
-        XCTAssertEqual(result.removedFileCount, 3)
+        XCTAssertEqual(result.removedFileCount, 4)
         XCTAssertFalse(FileManager.default.fileExists(atPath: record.cachePath))
         XCTAssertFalse(FileManager.default.fileExists(atPath: manifest.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("derivative-cache-index.lock").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: unrelated.path))
     }

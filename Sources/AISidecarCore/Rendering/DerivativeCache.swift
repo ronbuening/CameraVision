@@ -21,7 +21,6 @@ public struct DerivativeCache {
     private let now: @Sendable () -> Date
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
-    private static let manifestLock = NSLock()
 
     public init(
         directoryPath: String,
@@ -67,29 +66,28 @@ public struct DerivativeCache {
             return nil
         }
 
-        Self.manifestLock.lock()
-        defer { Self.manifestLock.unlock() }
+        return try withManifestLock {
+            guard fileManager.fileExists(atPath: url.path) else {
+                return nil
+            }
+            var manifest = try loadManifest()
+            guard let entry = manifest.entries[url.lastPathComponent] else {
+                return nil
+            }
+            let sha256 = try Self.sha256(of: url)
+            guard sha256 == entry.sha256 else {
+                // Cache artifacts are regenerable; removing corrupt bytes is safer
+                // than returning provenance for a derivative the model did not see.
+                try? fileManager.removeItem(at: url)
+                manifest.entries.removeValue(forKey: url.lastPathComponent)
+                try saveManifest(manifest)
+                return nil
+            }
 
-        guard fileManager.fileExists(atPath: url.path) else {
-            return nil
-        }
-        var manifest = try loadManifest()
-        guard let entry = manifest.entries[url.lastPathComponent] else {
-            return nil
-        }
-        let sha256 = try Self.sha256(of: url)
-        guard sha256 == entry.sha256 else {
-            // Cache artifacts are regenerable; removing corrupt bytes is safer
-            // than returning provenance for a derivative the model did not see.
-            try? fileManager.removeItem(at: url)
-            manifest.entries.removeValue(forKey: url.lastPathComponent)
+            manifest.entries[url.lastPathComponent]?.lastAccessedAt = now()
             try saveManifest(manifest)
-            return nil
+            return entry.record(cachePath: url.path)
         }
-
-        manifest.entries[url.lastPathComponent]?.lastAccessedAt = now()
-        try saveManifest(manifest)
-        return entry.record(cachePath: url.path)
     }
 
     /// Store a newly encoded artifact, update the manifest, and evict older entries.
@@ -130,12 +128,12 @@ public struct DerivativeCache {
             // final bytes are equivalent for a deterministic recipe, and cache hits still verify
             // them against the manifest, so that duplicate-artifact race is benign. Only the
             // shared index merge and eviction must be serialized.
-            Self.manifestLock.lock()
-            defer { Self.manifestLock.unlock() }
-            var manifest = try loadManifest()
-            manifest.entries[url.lastPathComponent] = entry
-            try evictIfNeeded(manifest: &manifest, protectedFileName: url.lastPathComponent)
-            try saveManifest(manifest)
+            try withManifestLock {
+                var manifest = try loadManifest()
+                manifest.entries[url.lastPathComponent] = entry
+                try evictIfNeeded(manifest: &manifest, protectedFileName: url.lastPathComponent)
+                try saveManifest(manifest)
+            }
             return entry.record(cachePath: url.path)
         } catch let error as SidecarError {
             throw error
@@ -180,41 +178,41 @@ public struct DerivativeCache {
     /// directory is less likely to lose unrelated user files.
     @discardableResult
     public func clear() throws -> DerivativeCachePurgeResult {
-        Self.manifestLock.lock()
-        defer { Self.manifestLock.unlock() }
-
         let directory = URL(fileURLWithPath: directoryPath).standardizedFileURL
         guard fileManager.fileExists(atPath: directory.path) else {
             return DerivativeCachePurgeResult(directoryPath: directory.path, removedFileCount: 0)
         }
 
-        do {
-            var cacheOwnedNames = Set<String>()
-            if let manifest = try? loadManifest() {
-                cacheOwnedNames.formUnion(manifest.entries.keys)
-            }
-            cacheOwnedNames.insert(manifestURL.lastPathComponent)
+        return try withManifestLock {
+            do {
+                var cacheOwnedNames = Set<String>()
+                if let manifest = try? loadManifest() {
+                    cacheOwnedNames.formUnion(manifest.entries.keys)
+                }
+                cacheOwnedNames.insert(manifestURL.lastPathComponent)
+                cacheOwnedNames.insert(manifestLockURL.lastPathComponent)
 
-            let contents = try fileManager.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: [.isRegularFileKey],
-                options: [.skipsSubdirectoryDescendants]
-            )
-            var removedFileCount = 0
-            for url in contents where shouldClear(url: url, cacheOwnedNames: cacheOwnedNames) {
-                try fileManager.removeItem(at: url)
-                removedFileCount += 1
+                let contents = try fileManager.contentsOfDirectory(
+                    at: directory,
+                    includingPropertiesForKeys: [.isRegularFileKey],
+                    options: [.skipsSubdirectoryDescendants]
+                )
+                var removedFileCount = 0
+                for url in contents where shouldClear(url: url, cacheOwnedNames: cacheOwnedNames) {
+                    try fileManager.removeItem(at: url)
+                    removedFileCount += 1
+                }
+                return DerivativeCachePurgeResult(directoryPath: directory.path, removedFileCount: removedFileCount)
+            } catch let error as SidecarError {
+                throw error
+            } catch {
+                throw SidecarError(
+                    code: .renderFailed,
+                    stage: .render,
+                    message: "Unable to clear derivative cache \(directory.path): \(error.localizedDescription)",
+                    recoverable: true
+                )
             }
-            return DerivativeCachePurgeResult(directoryPath: directory.path, removedFileCount: removedFileCount)
-        } catch let error as SidecarError {
-            throw error
-        } catch {
-            throw SidecarError(
-                code: .renderFailed,
-                stage: .render,
-                message: "Unable to clear derivative cache \(directory.path): \(error.localizedDescription)",
-                recoverable: true
-            )
         }
     }
 
@@ -233,6 +231,14 @@ public struct DerivativeCache {
 
     private var manifestURL: URL {
         URL(fileURLWithPath: directoryPath).appendingPathComponent("derivative-cache-index.json")
+    }
+
+    private var manifestLockURL: URL {
+        URL(fileURLWithPath: directoryPath).appendingPathComponent("derivative-cache-index.lock")
+    }
+
+    private func withManifestLock<Result>(_ body: () throws -> Result) throws -> Result {
+        try FileLock(path: manifestLockURL.path).withExclusiveLock(body)
     }
 
     private func loadManifest() throws -> CacheManifest {
