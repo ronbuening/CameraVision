@@ -297,6 +297,7 @@ func phase3DirectDecision(
     flatKeyword: String? = nil,
     hierarchicalKeyword: String? = nil,
     stage: NormalizationDecisionStage = .directModelObservation,
+    status: NormalizationDecisionStatus = .accepted,
     groupID: String? = nil,
     decisionID: String = "",
     observation: CandidateObservation? = nil
@@ -307,7 +308,7 @@ func phase3DirectDecision(
         assetID: assetID,
         groupID: groupID,
         stage: stage,
-        status: .accepted,
+        status: status,
         candidateKind: .canonicalVocabulary,
         canonicalPath: canonicalPath,
         flatKeyword: flat,

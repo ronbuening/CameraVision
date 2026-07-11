@@ -25,6 +25,7 @@ extension NormalizedCandidateKind: CaseIterable {
 public struct KeywordDecisionSummary: Sendable, Equatable {
     /// One asset's contribution to the keyword, for expandable detail rows.
     public struct AssetDetail: Sendable, Equatable {
+        public var decisionID: String
         public var assetID: String
         public var status: NormalizationDecisionStatus
         public var stage: NormalizationDecisionStage
@@ -51,7 +52,7 @@ public struct KeywordDecisionSummary: Sendable, Equatable {
 
     /// Number of assets carrying this keyword (distinct from
     /// `supportingAssetCount`, which counts affinity supporters).
-    public var assetCount: Int { assetDetails.count }
+    public var assetCount: Int { Set(assetDetails.map(\.assetID)).count }
 
     public var unmatchedVocabulary: Bool {
         canonicalPath == nil || skipReasonCounts[.unmatchedVocabulary] != nil
@@ -238,6 +239,7 @@ public enum NormalizationDecisionExplainer {
             }
             details.append(
                 KeywordDecisionSummary.AssetDetail(
+                    decisionID: decision.decisionID,
                     assetID: decision.assetID,
                     status: decision.status,
                     stage: decision.stage,

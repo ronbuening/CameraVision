@@ -119,6 +119,25 @@ final class NormalizationExplainerTests: XCTestCase {
         XCTAssertTrue(lines.contains { $0.contains("carried over as an unreviewed Phase 2 tag") })
     }
 
+    func testRollupCountsDistinctAssetsWhenOneAssetHasMachineAndUserContextDecisions() throws {
+        var session = try makeSession()
+        let index = try XCTUnwrap(session.perAssetDecisions.firstIndex { $0.flatKeyword == "bird" })
+        session.perAssetDecisions[index].status = .withheld
+        var userContext = session.perAssetDecisions[index]
+        userContext.decisionID = "decision-999999"
+        userContext.stage = .userSessionContext
+        userContext.status = .accepted
+        session.perAssetDecisions.append(userContext)
+
+        let bird = try XCTUnwrap(NormalizationDecisionExplainer.summary(for: "bird", in: session))
+
+        XCTAssertEqual(bird.assetDetails.count, 3)
+        XCTAssertEqual(bird.assetCount, 2)
+        XCTAssertEqual(Set(bird.assetDetails.map(\.decisionID)).count, 3)
+        XCTAssertEqual(bird.acceptedCount, 2)
+        XCTAssertEqual(bird.withheldCount, 1)
+    }
+
     func testNeedsAttentionFilterMatchesSummaryFlags() throws {
         let session = try makeSession()
         let flagged = NormalizationDecisionExplainer.needsAttention(in: session)

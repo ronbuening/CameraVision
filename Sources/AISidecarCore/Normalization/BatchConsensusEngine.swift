@@ -267,7 +267,12 @@ public struct BatchConsensusEngine {
                         conflictCount += 1
                         continue
                     }
-                    if decisions.contains(where: { $0.assetID == assetID && $0.canonicalPath == canonicalPath }) {
+                    // FR3-003k: withheld model evidence remains auditable but cannot block explicit user context.
+                    if decisions.contains(where: {
+                        $0.assetID == assetID
+                            && $0.canonicalPath == canonicalPath
+                            && $0.status == .accepted
+                    }) {
                         continue
                     }
                     decisions.append(

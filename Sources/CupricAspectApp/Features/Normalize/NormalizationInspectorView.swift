@@ -319,7 +319,7 @@ struct NormalizationInspectorView: View {
 
     private func expandedDetail(_ summary: KeywordDecisionSummary) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            ForEach(summary.assetDetails, id: \.assetID) { detail in
+            ForEach(summary.assetDetails, id: \.decisionID) { detail in
                 HStack(spacing: 8) {
                     Text(detail.assetID)
                         .font(.system(size: 10.5, design: .monospaced))
