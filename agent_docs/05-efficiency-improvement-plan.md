@@ -63,6 +63,9 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 ### P2. Stop holding the derivative-cache manifest lock during image encode, and stop re-reading files to hash them
 
 > **Scheduling:** execute as part of plan-08 R4-6 (one `DerivativeCache` manifest redesign covering P2 + P3 + R4-6 together).
+>
+> **Implementation status (2026-07-11):** complete in R4-6; the 50–100-image live before/after
+> timing evidence remains open in plan 10's R4-6 acceptance ledger.
 
 - **Priority:** HIGH · **Effort:** Medium · **Risk:** Medium
 - **Files:** `Sources/AISidecarCore/Rendering/DerivativeCache.swift:106-147` (`store`), `DerivativeCache.swift` `sha256(of:)` (~line 226), lock at ~line 24, `loadManifest`/`saveManifest`
@@ -84,6 +87,9 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 ### P3. Reduce derivative-cache manifest disk churn
 
 > **Scheduling:** execute as part of plan-08 R4-6 (one `DerivativeCache` manifest redesign covering P2 + P3 + R4-6 together).
+>
+> **Implementation status (2026-07-11):** complete in R4-6, including cross-process invalidation,
+> write-through caching, a shared analyze cache instance, and focused read-count coverage.
 
 - **Priority:** MEDIUM · **Effort:** Medium · **Risk:** Medium (multi-instance assumptions)
 - **Files:** `Sources/AISidecarCore/Rendering/DerivativeCache.swift` (`loadManifest`/`saveManifest` call sites), `Sources/AISidecarCore/Pipeline/AnalyzePipeline.swift:465-470`

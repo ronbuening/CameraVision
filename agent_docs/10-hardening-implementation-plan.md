@@ -2601,6 +2601,9 @@ before the model loop reads them.
   migration.
 - **Recommendation: Option A** — "simple, sufficient" (plan 08's words), and it composes with P3's
   read cache. The design below assumes Option A.
+- **Decision (2026-07-11): Option A.** Adopted the recommended `flock` file lock. It preserves the
+  existing manifest schema, coordinates the CLI and app through one local lock file, and avoids the
+  migration and directory-enumeration costs of per-entry manifests.
 
 **Change** (one design; four sub-commits, in order):
 1. **(P2) Narrow `store()`.** Run `AtomicFileWriter.writeFile`, the attribute read, and hashing
@@ -2672,14 +2675,24 @@ Existing `testLRUEvictionRemovesOlderArtifactsUnderCap`, `testClearRemovesCacheO
 and `ArtifactCleanupTests` must pass unchanged.
 
 **Acceptance.**
-- [ ] Maintainer decision recorded: flock file lock vs. per-entry manifest files (plan 08 verbatim; recommendation Option A).
-- [ ] Interleaved manifest read-modify-write across instances/processes loses no entries (R4-6).
-- [ ] `evictIfNeeded` protects the current batch's planned artifacts or floors the cap at the working-set size (plan 08 verbatim; R4-6b).
-- [ ] Concurrent `store()` calls for distinct derivatives succeed and the manifest contains both entries (plan 05 P2 verbatim).
-- [ ] No behavioral change to manifest contents, eviction order, or `DerivativeRecord` fields (plan 05 P2 verbatim).
-- [ ] Repeated `cachedRecord()` hits do not re-read the manifest file (plan 05 P3 verbatim).
-- [ ] `DerivativeCacheTests` and `ArtifactCleanupTests` pass; purge still works against a cache written by an analyze run (plan 05 P3 verbatim).
-- [ ] With `--stage-concurrency 4` on a batch, render stage wall time drops (baseline vs. after) (plan 05 P2 verbatim).
+- [x] Maintainer decision recorded: flock file lock vs. per-entry manifest files (plan 08 verbatim; recommendation Option A).
+- [x] Interleaved manifest read-modify-write across instances/processes loses no entries (R4-6).
+- [x] `evictIfNeeded` protects the current batch's planned artifacts or floors the cap at the working-set size (plan 08 verbatim; R4-6b).
+- [x] Concurrent `store()` calls for distinct derivatives succeed and the manifest contains both entries (plan 05 P2 verbatim).
+- [x] No behavioral change to manifest contents, eviction order, or `DerivativeRecord` fields (plan 05 P2 verbatim).
+- [x] Repeated `cachedRecord()` hits do not re-read the manifest file (plan 05 P3 verbatim).
+- [x] `DerivativeCacheTests` and `ArtifactCleanupTests` pass; purge still works against a cache written by an analyze run (plan 05 P3 verbatim).
+- [ ] With `--stage-concurrency 4` on a 50–100-image live-model batch, render stage wall time drops
+  (baseline vs. after) (plan 05 P2 verbatim). No live pre-change batch baseline was captured; keep
+  this performance-evidence item open rather than reconstructing a misleading post-change baseline.
+
+**Verification (2026-07-11).** The release benchmark self-test passed before and after the four
+sub-commits. The same `source-identity-fast` run exited 0 with no XMP output; peak RSS was
+18,743,296 bytes before and 18,694,144 bytes after. The full offline suite passed 541 tests with two
+explicit opt-in skips; `swift run aisidecar --help` and `swift build --product CupricAspect` passed.
+Session-only, dry-run, XMP-write, file-list, and live analyze-and-normalize smoke paths passed in an
+isolated `/tmp` fixture. A subsequent `aisidecar purge` removed the manifest, lock, and derivative
+written by an isolated analyze run. The live timing item above remains a separate evidence task.
 
 **Commit.** Four sub-commits, in order:
 1. `Narrow derivative-cache store lock to manifest mutation and hash bytes once`
