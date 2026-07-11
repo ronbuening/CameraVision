@@ -156,7 +156,9 @@ final class ScannerTests: XCTestCase {
             "normalization-apply-progress-2026-07-10T120000Z.jsonl",
             "normalization-apply-report-2026-07-10T120000Z.json",
             "normalization-apply-summary-2026-07-10T120000Z.md",
-            "model-input-export-2026-07-10T120000Z.json"
+            "model-input-export-2026-07-10T120000Z.json",
+            "Bird.xmp.bak-2026-07-10T12:00:00Z",
+            "Bird.XMP.bak-2026-07-10T120000Z-a3f2"
         ]
         for name in artifactNames {
             _ = try writeFile(name, data: Data("{}".utf8), in: root)
@@ -168,6 +170,7 @@ final class ScannerTests: XCTestCase {
         XCTAssertTrue(result.errors.isEmpty)
         XCTAssertNil(ArtifactCleanup.classify(fileName: "normalization-session-2026-07-10T120000Z.json"))
         XCTAssertNil(ArtifactCleanup.classify(fileName: "model-input-export-2026-07-10T120000Z.json"))
+        XCTAssertNil(ArtifactCleanup.classify(fileName: "Bird.xmp.bak-2026-07-10T120000Z-a3f2"))
     }
 
     func testNonRecursiveUnreadableFolderThrowsStructuredValidationError() throws {

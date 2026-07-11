@@ -19,4 +19,7 @@ public enum ArtifactNames {
     public static let normalizationApplyProgressPrefix = "normalization-apply-progress-"
     public static let normalizationApplyReportPrefix = "normalization-apply-report-"
     public static let normalizationApplySummaryPrefix = "normalization-apply-summary-"
+    /// Infix of backup-and-merge XMP backups (`<name>.xmp.bak-<token>`, written by
+    /// `XMPBackupManager`). Scans ignore them; cleanup never deletes them.
+    public static let xmpBackupInfix = ".xmp.bak-"
 }

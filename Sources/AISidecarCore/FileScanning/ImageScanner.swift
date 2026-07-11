@@ -331,6 +331,9 @@ public struct ImageScanner {
             // source images to analyze or unsupported files to report.
             || lowercasedName.hasSuffix(".ai.json")
             || lowercasedName.hasSuffix(".xmp")
+            // Backup-and-merge XMP backups sit beside the source images and are
+            // protected from cleanup; scans still ignore them.
+            || lowercasedName.contains(ArtifactNames.xmpBackupInfix)
             || ArtifactCleanup.classify(fileName: fileName) != nil
             // Sessions and diagnostic manifests are owned artifacts but are
             // intentionally protected from cleanup; scans still ignore them.
