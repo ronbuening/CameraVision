@@ -146,6 +146,67 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(decision.skipReasons, [.directApplyFlatOnly])
     }
 
+    func testUnknownDecisionEnumValuesFromNewerMinorVersionDoNotFailDocumentDecode() throws {
+        let jsonRoot = try temporaryDirectory()
+        let sourceRoot = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        let source = try writeTestImage("Bird.JPG", in: sourceRoot)
+        let sourceImage = try scannedSourceImage(source, relativePath: "Bird.JPG")
+        _ = try writeRawSidecar(
+            source: sourceImage,
+            named: "Bird.JPG.ai.json",
+            in: jsonRoot,
+            modelRuns: [
+                modelRun(role: .wholeImage, response: response([
+                    .proposedKeywords: .array([candidate("bird", confidence: "high")])
+                ]), index: 0)
+            ]
+        )
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.sourceRoot = sourceRoot.path
+        configuration.outputDir = output.path
+        configuration.sessionOnly = true
+        configuration.normalizationMode = .singleImage
+        let result = try NormalizePipeline().runSessionOnly(
+            mode: .fromJSON(path: jsonRoot.path),
+            configuration: configuration
+        )
+        let sessionURL = URL(fileURLWithPath: try XCTUnwrap(result.session.artifacts.sessionPath))
+
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: sessionURL)) as? [String: Any]
+        )
+        object["schema_version"] = "ai-sidecar-normalization/1.1"
+        var decisions = try XCTUnwrap(object["per_asset_decisions"] as? [[String: Any]])
+        decisions[0]["status"] = "future_status"
+        decisions[0]["candidate_kind"] = "future_candidate_kind"
+        decisions[0]["skip_reasons"] = ["direct_apply_flat_only", "some_future_reason"]
+        object["per_asset_decisions"] = decisions
+        try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: sessionURL)
+
+        let decoded = try NormalizationSessionReader().read(from: sessionURL.path)
+        let decision = try XCTUnwrap(decoded.perAssetDecisions.first)
+        XCTAssertTrue(decision.isForwardCompatUnknown)
+        XCTAssertEqual(decision.status, .withheld)
+        XCTAssertFalse(decision.exportFlatKeyword)
+        XCTAssertFalse(decision.exportHierarchicalKeyword)
+        XCTAssertEqual(decision.skipReasons, [.directApplyFlatOnly])
+
+        let rewrittenURL = output.appendingPathComponent("rewritten-session.json")
+        try NormalizationSessionWriter().write(decoded, to: rewrittenURL.path)
+        let rewritten = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: rewrittenURL)) as? [String: Any]
+        )
+        let rewrittenDecisions = try XCTUnwrap(rewritten["per_asset_decisions"] as? [[String: Any]])
+        XCTAssertEqual(rewrittenDecisions[0]["status"] as? String, "future_status")
+        XCTAssertEqual(rewrittenDecisions[0]["candidate_kind"] as? String, "future_candidate_kind")
+        XCTAssertEqual(
+            rewrittenDecisions[0]["skip_reasons"] as? [String],
+            ["direct_apply_flat_only", "some_future_reason"]
+        )
+    }
+
     func testFromJSONSessionOnlyPersistsCanonicalizedCandidateDecisionsAndReportCounts() throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()

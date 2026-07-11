@@ -381,6 +381,39 @@ public enum NormalizationDecisionStatus: String, Codable, Sendable, Equatable {
     case skipped
 }
 
+private enum TolerantStringEnum<Value: RawRepresentable> where Value.RawValue == String {
+    case known(Value)
+    case unknown(String)
+
+    init(rawValue: String) {
+        if let value = Value(rawValue: rawValue) {
+            self = .known(value)
+        } else {
+            self = .unknown(rawValue)
+        }
+    }
+
+    var rawValue: String {
+        switch self {
+        case .known(let value):
+            value.rawValue
+        case .unknown(let rawValue):
+            rawValue
+        }
+    }
+}
+
+extension TolerantStringEnum: Codable {
+    init(from decoder: Decoder) throws {
+        self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 /// Per-asset decision emitted before later milestones adapt decisions into XMP plans.
 public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
     public var decisionID: String
@@ -406,6 +439,17 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
     public var skipReasons: [NormalizationCandidateSkipReason]
     public var localConsensus: LocalWeightedConsensusRecord?
     public var observations: [CandidateObservation]
+    private var forwardCompatUnknownStatus: String?
+    private var forwardCompatUnknownCandidateKind: String?
+    private var forwardCompatUnknownSkipReasons: [String]
+
+    /// A future additive enum affected this decision. The document remains
+    /// readable, but this decision is fail-closed and cannot export.
+    public var isForwardCompatUnknown: Bool {
+        forwardCompatUnknownStatus != nil
+            || forwardCompatUnknownCandidateKind != nil
+            || !forwardCompatUnknownSkipReasons.isEmpty
+    }
 
     enum CodingKeys: String, CodingKey {
         case decisionID = "decision_id"
@@ -481,6 +525,126 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
         self.skipReasons = skipReasons
         self.localConsensus = localConsensus
         self.observations = observations
+        self.forwardCompatUnknownStatus = nil
+        self.forwardCompatUnknownCandidateKind = nil
+        self.forwardCompatUnknownSkipReasons = []
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        decisionID = try container.decode(String.self, forKey: .decisionID)
+        assetID = try container.decode(String.self, forKey: .assetID)
+        groupID = try container.decodeIfPresent(String.self, forKey: .groupID)
+        stage = try container.decode(NormalizationDecisionStage.self, forKey: .stage)
+
+        let tolerantStatus = try container.decode(
+            TolerantStringEnum<NormalizationDecisionStatus>.self,
+            forKey: .status
+        )
+        switch tolerantStatus {
+        case .known(let value):
+            status = value
+            forwardCompatUnknownStatus = nil
+        case .unknown(let rawValue):
+            status = .withheld
+            forwardCompatUnknownStatus = rawValue
+        }
+
+        let tolerantCandidateKind = try container.decode(
+            TolerantStringEnum<NormalizedCandidateKind>.self,
+            forKey: .candidateKind
+        )
+        switch tolerantCandidateKind {
+        case .known(let value):
+            candidateKind = value
+            forwardCompatUnknownCandidateKind = nil
+        case .unknown(let rawValue):
+            candidateKind = .phase2Fallback
+            forwardCompatUnknownCandidateKind = rawValue
+        }
+
+        canonicalPath = try container.decodeIfPresent(String.self, forKey: .canonicalPath)
+        flatKeyword = try container.decodeIfPresent(String.self, forKey: .flatKeyword)
+        hierarchicalKeyword = try container.decodeIfPresent(String.self, forKey: .hierarchicalKeyword)
+        sourceText = try container.decodeIfPresent(String.self, forKey: .sourceText)
+        contextType = try container.decodeIfPresent(NormalizationSessionContextType.self, forKey: .contextType)
+        namespace = try container.decodeIfPresent(VocabularyNamespace.self, forKey: .namespace)
+        directApplyPolicy = try container.decodeIfPresent(DirectApplyPolicy.self, forKey: .directApplyPolicy)
+        requiresReview = try container.decode(Bool.self, forKey: .requiresReview)
+        exportFlatKeyword = try container.decode(Bool.self, forKey: .exportFlatKeyword)
+        exportHierarchicalKeyword = try container.decode(Bool.self, forKey: .exportHierarchicalKeyword)
+        supportUnits = try container.decode(Int.self, forKey: .supportUnits)
+        supportingAssetIDs = try container.decode([String].self, forKey: .supportingAssetIDs)
+        governingRule = try container.decodeIfPresent(String.self, forKey: .governingRule)
+        observationCount = try container.decode(Int.self, forKey: .observationCount)
+
+        let tolerantSkipReasons = try container.decode(
+            [TolerantStringEnum<NormalizationCandidateSkipReason>].self,
+            forKey: .skipReasons
+        )
+        skipReasons = tolerantSkipReasons.compactMap { reason in
+            guard case .known(let value) = reason else {
+                return nil
+            }
+            return value
+        }
+        forwardCompatUnknownSkipReasons = tolerantSkipReasons.compactMap { reason in
+            guard case .unknown(let rawValue) = reason else {
+                return nil
+            }
+            return rawValue
+        }
+
+        localConsensus = try container.decodeIfPresent(LocalWeightedConsensusRecord.self, forKey: .localConsensus)
+        observations = try container.decode([CandidateObservation].self, forKey: .observations)
+
+        if isForwardCompatUnknown {
+            status = .withheld
+            exportFlatKeyword = false
+            exportHierarchicalKeyword = false
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(decisionID, forKey: .decisionID)
+        try container.encode(assetID, forKey: .assetID)
+        try container.encodeIfPresent(groupID, forKey: .groupID)
+        try container.encode(stage, forKey: .stage)
+        try container.encode(
+            TolerantStringEnum<NormalizationDecisionStatus>(
+                rawValue: forwardCompatUnknownStatus ?? status.rawValue
+            ),
+            forKey: .status
+        )
+        try container.encode(
+            TolerantStringEnum<NormalizedCandidateKind>(
+                rawValue: forwardCompatUnknownCandidateKind ?? candidateKind.rawValue
+            ),
+            forKey: .candidateKind
+        )
+        try container.encodeIfPresent(canonicalPath, forKey: .canonicalPath)
+        try container.encodeIfPresent(flatKeyword, forKey: .flatKeyword)
+        try container.encodeIfPresent(hierarchicalKeyword, forKey: .hierarchicalKeyword)
+        try container.encodeIfPresent(sourceText, forKey: .sourceText)
+        try container.encodeIfPresent(contextType, forKey: .contextType)
+        try container.encodeIfPresent(namespace, forKey: .namespace)
+        try container.encodeIfPresent(directApplyPolicy, forKey: .directApplyPolicy)
+        try container.encode(requiresReview, forKey: .requiresReview)
+        try container.encode(exportFlatKeyword, forKey: .exportFlatKeyword)
+        try container.encode(exportHierarchicalKeyword, forKey: .exportHierarchicalKeyword)
+        try container.encode(supportUnits, forKey: .supportUnits)
+        try container.encode(supportingAssetIDs, forKey: .supportingAssetIDs)
+        try container.encodeIfPresent(governingRule, forKey: .governingRule)
+        try container.encode(observationCount, forKey: .observationCount)
+        let encodedSkipReasons = skipReasons.map {
+            TolerantStringEnum<NormalizationCandidateSkipReason>.known($0)
+        } + forwardCompatUnknownSkipReasons.map {
+            TolerantStringEnum<NormalizationCandidateSkipReason>.unknown($0)
+        }
+        try container.encode(encodedSkipReasons, forKey: .skipReasons)
+        try container.encodeIfPresent(localConsensus, forKey: .localConsensus)
+        try container.encode(observations, forKey: .observations)
     }
 }
 
