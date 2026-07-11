@@ -536,7 +536,7 @@ public struct NormalizationInputResolver {
             rootPath += "/"
         }
         guard path.hasPrefix(rootPath) else {
-            return url.lastPathComponent
+            return path
         }
         return String(path.dropFirst(rootPath.count))
     }

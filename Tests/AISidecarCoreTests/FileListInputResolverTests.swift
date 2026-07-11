@@ -56,6 +56,48 @@ final class FileListInputResolverTests: XCTestCase {
         )
     }
 
+    func testAbsoluteFileListEntriesOutsideListDirectoryStayInSeparateGroups() throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let firstDirectory = root.appendingPathComponent("first-shoot")
+        let secondDirectory = root.appendingPathComponent("second-shoot")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let firstImage = try writeTestImage("IMG_0001.JPG", in: firstDirectory)
+        let secondImage = try writeTestImage("IMG_0001.JPG", in: secondDirectory)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(firstImage.path)\n\(secondImage.path)\n".write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.sameBaseNameGroups.count, 2)
+        XCTAssertEqual(Set(batch.sameBaseNameGroups.map(\.targetRelativePath)).count, 2)
+        XCTAssertEqual(batch.sameBaseNameGroups.map(\.memberAssetIDs.count), [1, 1])
+    }
+
+    func testAbsoluteRawAndJPEGEntriesInSameExternalDirectoryStillPair() throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let imageDirectory = root.appendingPathComponent("external-shoot")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let raw = try writeTestImage("Bird.NEF", in: imageDirectory)
+        let jpeg = try writeTestImage("Bird.JPG", in: imageDirectory)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(raw.path)\n\(jpeg.path)\n".write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.sameBaseNameGroups.count, 1)
+        XCTAssertEqual(batch.sameBaseNameGroups[0].memberAssetIDs.count, 2)
+        XCTAssertEqual(batch.sameBaseNameGroups[0].selectedAssetIDs.count, 2)
+        XCTAssertTrue(batch.sameBaseNameGroups[0].targetRelativePath.hasSuffix("/external-shoot/Bird.xmp"))
+    }
+
     func testFileListPersistsGPSPresenceWithoutCoordinates() throws {
         let root = try temporaryDirectory()
         _ = try writeTestImage("GPSBird.JPG", gps: (latitude: 40.7128, longitude: -74.0060), in: root)
