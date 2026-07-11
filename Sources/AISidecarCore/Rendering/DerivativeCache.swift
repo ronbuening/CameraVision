@@ -104,17 +104,13 @@ public struct DerivativeCache {
         writer: (URL) throws -> Void
     ) throws -> DerivativeRecord {
         let url = artifactURL(source: source, recipeVersion: recipeVersion, role: role, format: format)
-        // PW-015 lets multiple render workers share one derivative cache. The
-        // manifest is a single JSON file, so index reads/writes and eviction
-        // must be serialized even when image preparation runs concurrently.
-        Self.manifestLock.lock()
-        defer { Self.manifestLock.unlock() }
-
         do {
-            try AtomicFileWriter.writeFile(to: url, fileManager: fileManager, writer: writer)
-            let attributes = try fileManager.attributesOfItem(atPath: url.path)
-            let byteCount = (attributes[.size] as? NSNumber)?.int64Value ?? 0
-            let sha256 = try Self.sha256(of: url)
+            let artifactMetadata = try AtomicFileWriter.writeFile(to: url, fileManager: fileManager) { temporaryURL in
+                try writer(temporaryURL)
+                let attributes = try fileManager.attributesOfItem(atPath: temporaryURL.path)
+                let byteCount = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+                return (byteCount: byteCount, sha256: try Self.sha256(of: temporaryURL))
+            }
             let entry = CacheManifestEntry(
                 fileName: url.lastPathComponent,
                 role: role,
@@ -124,15 +120,22 @@ public struct DerivativeCache {
                 colorSpace: colorSpace,
                 appliedOrientation: appliedOrientation,
                 recipeVersion: recipeVersion,
-                sha256: sha256,
+                sha256: artifactMetadata.sha256,
                 sourceIdentity: source.identity,
-                byteCount: byteCount,
+                byteCount: artifactMetadata.byteCount,
                 lastAccessedAt: now()
             )
+
+            // Separate workers may render the same content-addressed artifact concurrently. The
+            // final bytes are equivalent for a deterministic recipe, and cache hits still verify
+            // them against the manifest, so that duplicate-artifact race is benign. Only the
+            // shared index merge and eviction must be serialized.
+            Self.manifestLock.lock()
+            defer { Self.manifestLock.unlock() }
             var manifest = try loadManifest()
             manifest.entries[url.lastPathComponent] = entry
+            try evictIfNeeded(manifest: &manifest, protectedFileName: url.lastPathComponent)
             try saveManifest(manifest)
-            try evictIfNeeded(protectedFileName: url.lastPathComponent)
             return entry.record(cachePath: url.path)
         } catch let error as SidecarError {
             throw error
@@ -253,8 +256,7 @@ public struct DerivativeCache {
         try AtomicFileWriter.write(data, to: manifestURL, fileManager: fileManager)
     }
 
-    private func evictIfNeeded(protectedFileName: String) throws {
-        var manifest = try loadManifest()
+    private func evictIfNeeded(manifest: inout CacheManifest, protectedFileName: String) throws {
         var totalBytes = manifest.entries.values.reduce(Int64(0)) { $0 + $1.byteCount }
         // Keep the artifact that satisfied the current render request even if
         // a tiny cap means the cache remains over budget after older eviction.
@@ -268,7 +270,6 @@ public struct DerivativeCache {
             manifest.entries.removeValue(forKey: entry.fileName)
             totalBytes -= entry.byteCount
         }
-        try saveManifest(manifest)
     }
 
     private func shouldClear(url: URL, cacheOwnedNames: Set<String>) -> Bool {
