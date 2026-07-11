@@ -2205,9 +2205,9 @@ func testAbsoluteFileListEntriesOutsideListDirectoryStayInSeparateGroups() throw
 ```
 
 **Acceptance.**
-- [ ] `FileListInputResolverTests` gains an out-of-root absolute-path case asserting two separate groups/targets (plan 08 verbatim).
-- [ ] Out-of-root RAW+JPEG in the *same* external directory still pairs.
-- [ ] Existing file-list tests (relative paths, duplicates, comments) unchanged and green.
+- [x] `FileListInputResolverTests` gains an out-of-root absolute-path case asserting two separate groups/targets (plan 08 verbatim).
+- [x] Out-of-root RAW+JPEG in the *same* external directory still pairs.
+- [x] Existing file-list tests (relative paths, duplicates, comments) unchanged and green.
 
 **Commit.** `Fix file-list grouping for entries outside the list directory`
 
