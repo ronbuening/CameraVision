@@ -47,6 +47,38 @@ final class XMPOwnedEngineTests: XCTestCase {
         })
     }
 
+    func testParserPrefersDescriptionWhoseAboutMatchesSourceFile() throws {
+        let xmp = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <x:xmpmeta xmlns:x="adobe:ns:meta/">
+          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                   xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+            <rdf:Description rdf:about="file:///photos/Other.JPG">
+              <xmp:Rating>1</xmp:Rating>
+            </rdf:Description>
+            <rdf:Description rdf:about="file:///photos/Bird.JPG">
+              <xmp:Label>Green</xmp:Label>
+            </rdf:Description>
+          </rdf:RDF>
+        </x:xmpmeta>
+        """
+
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/Bird.xmp",
+            sourceFileNames: ["Bird.JPG"]
+        )
+
+        XCTAssertEqual(
+            XMPXML.firstAttributeValue(
+                on: parsed.descriptionElement,
+                namespaceURI: XMPNamespace.rdf,
+                localName: "about"
+            ),
+            "file:///photos/Bird.JPG"
+        )
+    }
+
     func testParserClassifiesMalformedXML() throws {
         XCTAssertThrowsError(try XMPDocumentParser().parse(
             data: Data("<x:xmpmeta><rdf:RDF>".utf8),

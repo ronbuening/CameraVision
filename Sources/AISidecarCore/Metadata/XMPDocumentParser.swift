@@ -8,7 +8,7 @@ struct XMPDocumentParser {
         self.fileManager = fileManager
     }
 
-    func parseFile(at targetXMPPath: String) throws -> XMPParsedDocument {
+    func parseFile(at targetXMPPath: String, sourceFileNames: [String] = []) throws -> XMPParsedDocument {
         let url = URL(fileURLWithPath: targetXMPPath)
         let data: Data
         do {
@@ -19,10 +19,14 @@ struct XMPDocumentParser {
                 message: "Unable to read XMP sidecar \(url.standardizedFileURL.path): \(error.localizedDescription)"
             )
         }
-        return try parse(data: data, targetPath: url.standardizedFileURL.path)
+        return try parse(
+            data: data,
+            targetPath: url.standardizedFileURL.path,
+            sourceFileNames: sourceFileNames
+        )
     }
 
-    func parse(data: Data, targetPath: String) throws -> XMPParsedDocument {
+    func parse(data: Data, targetPath: String, sourceFileNames: [String] = []) throws -> XMPParsedDocument {
         let document: XMLDocument
         do {
             document = try XMLDocument(data: data, options: [.nodePreserveAll])
@@ -43,7 +47,11 @@ struct XMPDocumentParser {
 
         let rdfElement = try locateRDFElement(root: root, targetPath: targetPath)
         try validateManagedRDFShapes(in: rdfElement, targetPath: targetPath)
-        let descriptionElement = try locateOrCreateWritableDescription(in: rdfElement, targetPath: targetPath)
+        let descriptionElement = try locateOrCreateWritableDescription(
+            in: rdfElement,
+            targetPath: targetPath,
+            sourceFileNames: sourceFileNames
+        )
         return XMPParsedDocument(
             document: document,
             rdfElement: rdfElement,
@@ -161,11 +169,20 @@ struct XMPDocumentParser {
 
     private func locateOrCreateWritableDescription(
         in rdfElement: XMLElement,
-        targetPath: String
+        targetPath: String,
+        sourceFileNames: [String]
     ) throws -> XMLElement {
         let descriptions = directDescriptions(in: rdfElement)
         if let withManaged = descriptions.first(where: containsManagedChild) {
             return withManaged
+        }
+        if let sourceMatch = descriptions.first(where: { description in
+            guard let about = rdfAboutValue(description) else {
+                return false
+            }
+            return sourceFileNames.contains { about.hasSuffix($0) }
+        }) {
+            return sourceMatch
         }
         if let aboutEmpty = descriptions.first(where: { rdfAboutValue($0) == "" }) {
             return aboutEmpty

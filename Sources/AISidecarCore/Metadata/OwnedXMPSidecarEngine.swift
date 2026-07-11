@@ -61,7 +61,8 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
         let parsed = try parsedDocumentForWrite(
             targetPath: targetPath,
             existed: existed,
-            includeHierarchicalBag: !request.plan.hierarchicalKeywordsToAdd.isEmpty
+            includeHierarchicalBag: !request.plan.hierarchicalKeywordsToAdd.isEmpty,
+            sourceFileNames: request.plan.sourceMembers.map(\.sourceFileName)
         )
         let outcome = try XMPKeywordMerger().merge(plan: request.plan, into: parsed)
         let shouldWrite = !existed || !outcome.addedFlatKeywords.isEmpty || !outcome.addedHierarchicalKeywords.isEmpty
@@ -110,10 +111,14 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
     private func parsedDocumentForWrite(
         targetPath: String,
         existed: Bool,
-        includeHierarchicalBag: Bool
+        includeHierarchicalBag: Bool,
+        sourceFileNames: [String]
     ) throws -> XMPParsedDocument {
         if existed {
-            return try XMPDocumentParser(fileManager: fileManagerBox.value).parseFile(at: targetPath)
+            return try XMPDocumentParser(fileManager: fileManagerBox.value).parseFile(
+                at: targetPath,
+                sourceFileNames: sourceFileNames
+            )
         }
         return XMPDocumentWriter().makeNewDocument(
             targetPath: targetPath,
