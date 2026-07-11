@@ -2286,9 +2286,9 @@ func testAcceptedDirectObservationStillSuppressesDuplicateUserContext() throws {
 ```
 
 **Acceptance.**
-- [ ] `SessionContextPolicyTests` gains a case with a pre-existing withheld direct decision — context still applies (plan 08 verbatim).
-- [ ] Determinism record updated if policy text changes (plan 08 verbatim).
-- [ ] Accepted-duplicate skip and conflict counting unchanged.
+- [x] `SessionContextPolicyTests` gains a case with a pre-existing withheld direct decision — context still applies (plan 08 verbatim).
+- [x] Determinism record updated if policy text changes (plan 08 verbatim; no policy text changed).
+- [x] Accepted-duplicate skip and conflict counting unchanged.
 
 **Commit.** `Apply user session context over withheld machine decisions`
 
