@@ -2433,6 +2433,9 @@ private mutating func insertAliasLookup(_ value: String, canonicalPath: String) 
      and canonical-fold duplicates (clear authoring mistakes) plus the step-1 runtime guard as
      defense-in-depth; guard-only for flat↔flat duplicates, which can be a deliberate export
      choice (two nodes sharing a display keyword). The step-1 guard lands unconditionally.
+   - **Decision (2026-07-11):** adopted the recommended hybrid. Clear authoring collisions fail
+     validation; duplicate flat display labels remain permitted but ambiguity-guarded. The bundled
+     vocabulary's `People` / `Subject|People` shared display label is retained under that rule.
 4. Confirm the bundled starter vocabulary passes (`StarterVocabularyTests`; FR3-001a routes it
    through the same validator).
 
@@ -2457,10 +2460,10 @@ func testSynonymCollidingWithAnotherEntrysFlatKeywordFailsValidation() throws {
 ```
 
 **Acceptance.**
-- [ ] Mirror `testSeparatorInsensitiveFallbackDoesNotResolveAmbiguousAliases` for exact-fold (plan 08 verbatim).
-- [ ] Exact canonical-path folded matches can never be shadowed or ambiguated by aliases (invariant 10).
-- [ ] Maintainer decision recorded; if Option A, doc 03 gains the new FR line (additive).
-- [ ] Bundled starter vocabulary still loads (`StarterVocabularyTests` green).
+- [x] Mirror `testSeparatorInsensitiveFallbackDoesNotResolveAmbiguousAliases` for exact-fold (plan 08 verbatim).
+- [x] Exact canonical-path folded matches can never be shadowed or ambiguated by aliases (invariant 10).
+- [x] Maintainer decision recorded; the additive FR3-003b-1 records the hybrid validation policy.
+- [x] Bundled starter vocabulary still loads (`StarterVocabularyTests` green).
 
 **Commit.** `Guard exact-fold vocabulary lookups against ambiguous aliases and validate flat-keyword collisions`
 

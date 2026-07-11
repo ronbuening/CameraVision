@@ -323,6 +323,8 @@ FR3-003a - Canonical paths shall be unique across the vocabulary. Violations sha
 
 FR3-003b - A synonym shall map to exactly one canonical path. A synonym appearing under two entries, or a string that is both a canonical term of one entry and a synonym of another, shall fail loading with `E_VOCABULARY_INVALID` and a listing of the collisions.
 
+FR3-003b-1 - Fold-equivalent canonical paths, a synonym colliding with another entry's `flat_keyword`, or a `flat_keyword` colliding with another entry's canonical path shall fail loading with `E_VOCABULARY_INVALID`. Multiple entries may intentionally share a folded `flat_keyword` display label, including when one owner uses that text as its canonical path; lookup shall treat the shared alias as ambiguous instead of choosing an entry, while an exact canonical-path match remains authoritative.
+
 FR3-003c - The hierarchy implied by `parent_path` shall be a strict tree: no cycles and no orphans. Every non-root `parent_path` must exist.
 
 FR3-003d - Primary text folding for synonym matching shall use Unicode NFC, case folding, and whitespace collapsing. Diacritics shall not be folded, and stemming shall not be performed.
