@@ -1,15 +1,15 @@
 # Phase 4 Requirements - GUI Sidecar Tagger MVP
 
-Version: 0.10
-Date: 2026-07-08
-Supersedes: 0.9
-Builds on: Phase 1 Requirements v0.4, Phase 2 Requirements v0.5, Phase 3 Requirements v0.4
+Version: 0.13
+Date: 2026-07-11
+Supersedes: 0.12
+Builds on: Phase 1 Requirements v0.6, Phase 2 Requirements v0.7, Phase 3 Requirements v0.9
 App name: `CupricAspect.app` (resolves the former working name `SidecarTagger.app`)
 Visual design basis: `agent_docs/07-cupricaspect-gui-design.md`
 Core library: `AISidecarCore` (shared with the `aisidecar` CLI by construction, per PW-002)
 Minimum deployment target: macOS 15
 Default vision model: `gemma4:26b-a4b-it-qat`
-Primary output artifact: reviewed XMP sidecar files, with a local working database
+Primary output artifact: reviewed XMP sidecar files; durable sidecar/session state by default, with an experimental opt-in working database
 
 This document inherits the Project-Wide Conventions of the Phase 1 requirements and the owned-XMP export/normalization behavior of Phases 2 and 3. They are not restated except where Phase 4 narrows or clarifies their GUI use.
 
@@ -30,6 +30,7 @@ Each row summarizes what that document version changed relative to the one befor
 | v0.10 | Collapsed revision histories into this table; status pointers refreshed. |
 | v0.11 | Alpha-build Options-page, navigation, and post-write fixes, scheduled in `agent_docs/08-post-review-hardening-plan.md` R1 (before the beta tag): per-run vision-model override on the Options page distinct from the persisted Settings default (FR4-060, AC4-036); the XMP conflict policy surfaced in Options → Advanced with the Core `backup-and-merge` default (FR4-061, AC4-037); Back from the Review step returns to Options non-destructively and a re-run confirms before discarding completed analysis/review data (FR4-062, AC4-038); an opt-in post-write cleanup checkbox that removes the run's intermediate sidecars/artifacts via Core `ArtifactCleanup`, preserving XMP/backups/session JSON (FR4-063, AC4-039). |
 | v0.12 | Further alpha-build Settings and estimate fixes, scheduled in `agent_docs/08-post-review-hardening-plan.md` R1 (before the beta tag, after the v0.11 items): a persistent Settings default for stage concurrency (FR4-064, AC4-040); a persistent Settings default for the existing-XMP conflict policy that the Options control inherits by seeding from config (FR4-065, AC4-041); the existing-`.ai.json` policy control relabeled on Options and Settings so it names the program's own analysis sidecars rather than reading as XMP handling (FR4-066, AC4-042); the Working-step seconds-per-image rate computed against images actually processed so skip-heavy re-runs report a correct figure (FR4-067, AC4-043). |
+| v0.13 | R4 post-implementation safety audit: GUI review edits continue to delegate to Core and now reject coordinate/GPS location metadata as well as empty and hierarchy-bearing text, while allowing a visibly depicted GPS device term (FR4-017a). |
 
 ## 0.1 Current Dependency Status
 
@@ -165,6 +166,8 @@ FR4-016 - The review screen shall show flat keyword, hierarchical keyword, confi
 
 FR4-017 - The user shall be able to approve, reject, edit, or defer each candidate tag.
 
+FR4-017a - Candidate edit validation shall delegate to Core `SessionReview`. Empty text, literal hierarchy separators, coordinate syntax, and GPS-derived location-metadata terms shall be rejected with visible feedback before the edit is stored. A visibly depicted object term such as `GPS Unit` is not location metadata and remains valid. Final normalized planning shall independently enforce the same export-safety boundary.
+
 FR4-018 - The user shall be able to approve or reject tags in batches.
 
 FR4-019 - The user shall be able to apply a corrected tag, with explicit confirmation, to a defined computable scope: the current batch, the current normalization session, the current folder, a same-base-name group, or all images currently carrying a specified candidate tag. "Visually similar" is not a computable scope in the MVP, and the UI shall not offer it until embedding search exists.
@@ -277,7 +280,7 @@ AC4-002 - The GUI can run whole-image analysis, subject-isolated analysis, or bo
 
 AC4-003 - The GUI shows both whole-image and subject-isolated model outputs where available, with instance information for multi-subject frames.
 
-AC4-004 - The user can approve, reject, edit, or defer proposed tags, with confidence bands, evidence, vocabulary match, and provenance visible.
+AC4-004 - The user can approve, reject, edit, or defer proposed tags, with confidence bands, evidence, vocabulary match, and provenance visible; unsafe hierarchy or coordinate/GPS location-metadata edits are rejected visibly through the shared Core policy.
 
 AC4-005 - (Deferred in v0.7 — moved to Section 12 with the vocabulary tooling. No MVP acceptance depends on vocabulary editing.)
 

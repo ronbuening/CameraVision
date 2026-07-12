@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class CandidateExtractorTests: XCTestCase {
@@ -21,7 +22,7 @@ final class CandidateExtractorTests: XCTestCase {
                 "wading bird",
                 "heron",
                 "gray-blue plumage",
-                "long bill"
+                "long bill",
             ]
         )
         XCTAssertEqual(result.hierarchicalKeywords.map(\.term), result.flatKeywords.map(\.term))
@@ -46,20 +47,22 @@ final class CandidateExtractorTests: XCTestCase {
     }
 
     func testConfidenceThresholdFiltersOrdinalBands() throws {
-        let input = try resolvedInput(response: response([
-            .proposedKeywords: .array([
-                candidate("low term", confidence: "low"),
-                candidate("medium term", confidence: "medium"),
-                candidate("high term", confidence: "high")
-            ])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .proposedKeywords: .array([
+                    candidate("low term", confidence: "low"),
+                    candidate("medium term", confidence: "medium"),
+                    candidate("high term", confidence: "high"),
+                ])
+            ]))
 
         XCTAssertEqual(
             CandidateExtractor().extract(from: input, configuration: configuration(minConfidence: .low))
                 .flatKeywords.map(\.term),
             ["low term", "medium term", "high term"]
         )
-        let mediumResult = CandidateExtractor().extract(from: input, configuration: configuration(minConfidence: .medium))
+        let mediumResult = CandidateExtractor().extract(
+            from: input, configuration: configuration(minConfidence: .medium))
         XCTAssertEqual(mediumResult.flatKeywords.map(\.term), ["medium term", "high term"])
         XCTAssertEqual(mediumResult.skippedCandidates.map(\.reason), [.belowConfidenceThreshold])
         XCTAssertEqual(
@@ -70,13 +73,14 @@ final class CandidateExtractorTests: XCTestCase {
     }
 
     func testDuplicatesPreserveFirstCasingAndAllProvenance() throws {
-        let input = try resolvedInput(response: response([
-            .mainSubjects: .array([
-                candidate(" Bird ", confidence: "high"),
-                candidate("bird", confidence: "medium"),
-                candidate("BIRD", confidence: "high")
-            ])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .mainSubjects: .array([
+                    candidate(" Bird ", confidence: "high"),
+                    candidate("bird", confidence: "medium"),
+                    candidate("BIRD", confidence: "high"),
+                ])
+            ]))
 
         let result = CandidateExtractor().extract(from: input, configuration: configuration(minConfidence: .low))
 
@@ -89,60 +93,67 @@ final class CandidateExtractorTests: XCTestCase {
     }
 
     func testKeywordTextNormalizationRejectsEmptyTermsAndHierarchySeparators() throws {
-        let input = try resolvedInput(response: response([
-            .proposedKeywords: .array([
-                candidate(" cafe\u{301}\t bird ", confidence: "high"),
-                candidate("shore|bird", confidence: "high"),
-                candidate("   ", confidence: "high")
-            ])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .proposedKeywords: .array([
+                    candidate(" cafe\u{301}\t bird ", confidence: "high"),
+                    candidate("shore|bird", confidence: "high"),
+                    candidate("   ", confidence: "high"),
+                ])
+            ]))
 
         let result = CandidateExtractor().extract(from: input, configuration: configuration())
 
         XCTAssertEqual(result.flatKeywords.map(\.term), ["café bird"])
-        XCTAssertEqual(result.skippedCandidates.map(\.reason), [
-            .containsHierarchySeparator,
-            .emptyAfterNormalization
-        ])
+        XCTAssertEqual(
+            result.skippedCandidates.map(\.reason),
+            [
+                .containsHierarchySeparator,
+                .emptyAfterNormalization,
+            ])
     }
 
     func testMalformedCandidateShapesProduceIssuesWithoutThrowing() throws {
-        let input = try resolvedInput(response: response([
-            .mainSubjects: .string("not an array"),
-            .proposedKeywords: .array([
-                .string("not an object"),
-                .object(["confidence": .string("high")]),
-                .object([
-                    "term": .string("bad confidence"),
-                    "confidence": .string("certain")
+        let input = try resolvedInput(
+            response: response([
+                .mainSubjects: .string("not an array"),
+                .proposedKeywords: .array([
+                    .string("not an object"),
+                    .object(["confidence": .string("high")]),
+                    .object([
+                        "term": .string("bad confidence"),
+                        "confidence": .string("certain"),
+                    ]),
+                    .object([
+                        "term": .string("valid despite evidence"),
+                        "confidence": .string("high"),
+                        "evidence": .number(1),
+                    ]),
                 ]),
-                .object([
-                    "term": .string("valid despite evidence"),
-                    "confidence": .string("high"),
-                    "evidence": .number(1)
-                ])
-            ])
-        ]))
+            ]))
 
         let result = CandidateExtractor().extract(from: input, configuration: configuration())
 
         XCTAssertEqual(result.flatKeywords.map(\.term), ["valid despite evidence"])
         XCTAssertNil(result.flatKeywords.first?.candidates.first?.evidence)
-        XCTAssertEqual(result.issues.map(\.reason), [
-            .malformedCandidateField,
-            .malformedCandidate,
-            .malformedCandidate,
-            .malformedCandidate,
-            .malformedEvidence
-        ])
+        XCTAssertEqual(
+            result.issues.map(\.reason),
+            [
+                .malformedCandidateField,
+                .malformedCandidate,
+                .malformedCandidate,
+                .malformedCandidate,
+                .malformedEvidence,
+            ])
     }
 
     func testMissingEvidenceIsValidForSceneHabitatAndBehaviorFields() throws {
-        let input = try resolvedInput(response: response([
-            .sceneContext: .array([candidate("outdoor scene", confidence: "high", evidence: nil)]),
-            .habitatOrSetting: .array([candidate("wetland", confidence: "medium", evidence: nil)]),
-            .behaviorOrAction: .array([candidate("standing", confidence: "high", evidence: nil)])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .sceneContext: .array([candidate("outdoor scene", confidence: "high", evidence: nil)]),
+                .habitatOrSetting: .array([candidate("wetland", confidence: "medium", evidence: nil)]),
+                .behaviorOrAction: .array([candidate("standing", confidence: "high", evidence: nil)]),
+            ]))
 
         let result = CandidateExtractor().extract(from: input, configuration: configuration())
 
@@ -152,20 +163,21 @@ final class CandidateExtractorTests: XCTestCase {
     }
 
     func testSpecificTagPolicyCanBeBypassedWithoutBypassingOtherFilters() throws {
-        let input = try resolvedInput(response: response([
-            .species: .array([candidate("great blue heron", confidence: "high")]),
-            .mainSubjects: .array([candidate("great blue heron", confidence: "high")]),
-            .proposedKeywords: .array([
-                candidate("Ardea herodias", confidence: "high"),
-                candidate("Yosemite National Park", confidence: "high"),
-                candidate("Jane Doe", confidence: "high"),
-                candidate("red-tailed hawk", confidence: "high", evidence: "exact ID from field marks"),
-                candidate("bird", confidence: "high"),
-                candidate("shorebird", confidence: "medium"),
-                candidate("lake", confidence: "high"),
-                candidate("low specific", confidence: "low", evidence: "exact identification")
-            ])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .species: .array([candidate("great blue heron", confidence: "high")]),
+                .mainSubjects: .array([candidate("great blue heron", confidence: "high")]),
+                .proposedKeywords: .array([
+                    candidate("Ardea herodias", confidence: "high"),
+                    candidate("Yosemite National Park", confidence: "high"),
+                    candidate("Jane Doe", confidence: "high"),
+                    candidate("red-tailed hawk", confidence: "high", evidence: "exact ID from field marks"),
+                    candidate("bird", confidence: "high"),
+                    candidate("shorebird", confidence: "medium"),
+                    candidate("lake", confidence: "high"),
+                    candidate("low specific", confidence: "low", evidence: "exact identification"),
+                ]),
+            ]))
 
         let defaultResult = CandidateExtractor().extract(from: input, configuration: configuration())
         XCTAssertEqual(defaultResult.flatKeywords.map(\.term), ["great blue heron", "bird", "shorebird", "lake"])
@@ -175,7 +187,7 @@ final class CandidateExtractorTests: XCTestCase {
                 "Ardea herodias",
                 "Yosemite National Park",
                 "Jane Doe",
-                "red-tailed hawk"
+                "red-tailed hawk",
             ]
         )
 
@@ -193,18 +205,25 @@ final class CandidateExtractorTests: XCTestCase {
                 "red-tailed hawk",
                 "bird",
                 "shorebird",
-                "lake"
+                "lake",
             ]
         )
-        XCTAssertTrue(allowedResult.skippedCandidates.contains { $0.reason == .duplicate && $0.term == "great blue heron" })
-        XCTAssertTrue(allowedResult.skippedCandidates.contains { $0.reason == .belowConfidenceThreshold && $0.term == "low specific" })
+        XCTAssertTrue(
+            allowedResult.skippedCandidates.contains { $0.reason == .duplicate && $0.term == "great blue heron" })
+        XCTAssertTrue(
+            allowedResult.skippedCandidates.contains {
+                $0.reason == .belowConfidenceThreshold && $0.term == "low specific"
+            })
     }
 
     func testSpeciesFieldCommonNamesAreIncludedByDefault() throws {
-        let input = try resolvedInput(response: response([
-            .species: .array([candidate("Great Blue Heron", confidence: "high", evidence: "identified as visible bird")]),
-            .mainSubjects: .array([candidate("Great Blue Heron", confidence: "high")])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .species: .array([
+                    candidate("Great Blue Heron", confidence: "high", evidence: "identified as visible bird")
+                ]),
+                .mainSubjects: .array([candidate("Great Blue Heron", confidence: "high")]),
+            ]))
 
         let result = CandidateExtractor().extract(from: input, configuration: configuration())
 
@@ -218,14 +237,15 @@ final class CandidateExtractorTests: XCTestCase {
     }
 
     func testCoordinateTermsAndGPSOnlyEvidenceAreNeverExported() throws {
-        let input = try resolvedInput(response: response([
-            .proposedKeywords: .array([
-                candidate("45.1, -122.7", confidence: "high"),
-                candidate("GPS location", confidence: "high"),
-                candidate("Great Egret", confidence: "high", evidence: "GPS location context narrows the range"),
-                candidate("white wading bird", confidence: "high", evidence: "white plumage and long legs")
-            ])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .proposedKeywords: .array([
+                    candidate("45.1, -122.7", confidence: "high"),
+                    candidate("GPS location", confidence: "high"),
+                    candidate("Great Egret", confidence: "high", evidence: "GPS location context narrows the range"),
+                    candidate("white wading bird", confidence: "high", evidence: "white plumage and long legs"),
+                ])
+            ]))
 
         let result = CandidateExtractor().extract(
             from: input,
@@ -236,6 +256,40 @@ final class CandidateExtractorTests: XCTestCase {
         XCTAssertEqual(
             result.skippedCandidates.map(\.reason),
             [.coordinateLikeTerm, .coordinateLikeTerm, .gpsOnlyEvidence]
+        )
+    }
+
+    func testGPSMetadataTermsAreBlockedButVisibleGPSDevicesRemainExportable() throws {
+        let input = try resolvedInput(
+            response: response([
+                .proposedKeywords: .array([
+                    candidate("GPS fix", evidence: "model-reported GPS fix"),
+                    candidate("GPS reading", evidence: "model-reported GPS reading"),
+                    candidate("GPS-derived location", evidence: "derived place context"),
+                    candidate("GPS Unit", evidence: "visible handheld GPS unit"),
+                    candidate("GPS receiver", evidence: "visible GPS receiver on dashboard"),
+                    candidate("GPS device location", evidence: "visible GPS device at this location"),
+                    candidate("Great Egret", evidence: "GPS reading narrows the range"),
+                    candidate("GPS Unit", evidence: "display shows latitude and longitude"),
+                ])
+            ]))
+
+        let result = CandidateExtractor().extract(
+            from: input,
+            configuration: configuration(allowSpecificTags: true)
+        )
+
+        XCTAssertEqual(result.flatKeywords.map(\.term), ["GPS Unit", "GPS receiver"])
+        XCTAssertEqual(
+            result.skippedCandidates.map(\.reason),
+            [
+                .coordinateLikeTerm,
+                .coordinateLikeTerm,
+                .coordinateLikeTerm,
+                .coordinateLikeTerm,
+                .gpsOnlyEvidence,
+                .gpsOnlyEvidence,
+            ]
         )
     }
 
@@ -251,6 +305,10 @@ final class CandidateExtractorTests: XCTestCase {
             "utm 17",
             "40.446, -79.982",
             "40.446 N, 79.982 W",
+            "GPS fix",
+            "GPS reading",
+            "GPS-derived location",
+            "GPS device location",
         ]
         let allowed = [
             "50mm f/1.8",
@@ -261,6 +319,9 @@ final class CandidateExtractorTests: XCTestCase {
             #"5'10" tall"#,
             "autumn migration",
             "ISO 6400, f/8",
+            "GPS Unit",
+            "GPS receiver",
+            "visible GPS device",
         ]
 
         for term in blocked {
@@ -273,12 +334,13 @@ final class CandidateExtractorTests: XCTestCase {
 
     func testDMSCoordinateCandidateIsSkippedInObservedTagsMode() throws {
         let coordinate = #"40°26'46"N 79°58'56"W"#
-        let input = try resolvedInput(response: response([
-            .proposedKeywords: .array([
-                candidate(coordinate, confidence: "high"),
-                candidate("wetland", confidence: "high"),
-            ])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .proposedKeywords: .array([
+                    candidate(coordinate, confidence: "high"),
+                    candidate("wetland", confidence: "high"),
+                ])
+            ]))
 
         let result = CandidateExtractor().extract(
             from: input,
@@ -295,11 +357,18 @@ final class CandidateExtractorTests: XCTestCase {
     func testSpeciesWithoutBiologicalGenreIsSkipped() throws {
         // Schema 1.5.0 always requires `species`, so the old "species only
         // for wildlife/bird/plant genres" contract is enforced here.
-        let input = try resolvedInput(response: response([
-            .genreOrPhotographyType: .array([candidate("landscape", confidence: "high", evidence: "wide mountain vista")]),
-            .species: .array([candidate("Douglas fir", confidence: "medium", evidence: "conical evergreen silhouette")]),
-            .proposedKeywords: .array([candidate("evergreen forest", confidence: "high", evidence: "dense conifer stand")])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .genreOrPhotographyType: .array([
+                    candidate("landscape", confidence: "high", evidence: "wide mountain vista")
+                ]),
+                .species: .array([
+                    candidate("Douglas fir", confidence: "medium", evidence: "conical evergreen silhouette")
+                ]),
+                .proposedKeywords: .array([
+                    candidate("evergreen forest", confidence: "high", evidence: "dense conifer stand")
+                ]),
+            ]))
 
         let result = CandidateExtractor().extract(from: input, configuration: configuration())
 
@@ -313,9 +382,12 @@ final class CandidateExtractorTests: XCTestCase {
         // The guard only fires when a genre list is present without a
         // biological entry; responses that omit genres entirely (older or
         // partially parsed sidecars) keep their species terms.
-        let input = try resolvedInput(response: response([
-            .species: .array([candidate("Great Egret", confidence: "high", evidence: "white plumage and yellow bill")])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .species: .array([
+                    candidate("Great Egret", confidence: "high", evidence: "white plumage and yellow bill")
+                ])
+            ]))
 
         let result = CandidateExtractor().extract(from: input, configuration: configuration())
 
@@ -324,9 +396,10 @@ final class CandidateExtractorTests: XCTestCase {
     }
 
     func testDisabledFlatAndHierarchicalExportsRecordSkippedReasons() throws {
-        let input = try resolvedInput(response: response([
-            .proposedKeywords: .array([candidate("wading bird", confidence: "high")])
-        ]))
+        let input = try resolvedInput(
+            response: response([
+                .proposedKeywords: .array([candidate("wading bird", confidence: "high")])
+            ]))
 
         let result = CandidateExtractor().extract(
             from: input,
@@ -335,10 +408,12 @@ final class CandidateExtractorTests: XCTestCase {
 
         XCTAssertTrue(result.flatKeywords.isEmpty)
         XCTAssertTrue(result.hierarchicalKeywords.isEmpty)
-        XCTAssertEqual(result.skippedCandidates.map(\.reason), [
-            .disabledFlatExport,
-            .disabledHierarchicalExport
-        ])
+        XCTAssertEqual(
+            result.skippedCandidates.map(\.reason),
+            [
+                .disabledFlatExport,
+                .disabledHierarchicalExport,
+            ])
         XCTAssertEqual(result.skippedCandidates.map(\.term), ["wading bird", "wading bird"])
     }
 
@@ -417,7 +492,7 @@ final class CandidateExtractorTests: XCTestCase {
     private func response(_ fields: [CandidateSourceField: JSONValue]) -> JSONValue {
         var object: [String: JSONValue] = [
             "summary": .string("fixture"),
-            "uncertainty_notes": .string("")
+            "uncertainty_notes": .string(""),
         ]
         for (field, value) in fields {
             object[field.rawValue] = value
@@ -432,7 +507,7 @@ final class CandidateExtractorTests: XCTestCase {
     ) -> JSONValue {
         var object: [String: JSONValue] = [
             "term": .string(term),
-            "confidence": .string(confidence)
+            "confidence": .string(confidence),
         ]
         if let evidence {
             object["evidence"] = .string(evidence)

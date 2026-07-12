@@ -153,7 +153,7 @@ public struct NormalizationDeterministicPolicyRecord: Codable, Sendable, Equatab
             "very_strong": 0.75,
             "strong": 0.55,
             "moderate": 0.35,
-            "weak": 0.15
+            "weak": 0.15,
         ]
         self.edgeSortingOrder = ["from_asset_id", "descending_affinity", "to_asset_id"]
         self.neighborTruncationRule = "descending_affinity_then_ascending_asset_id"
@@ -163,7 +163,7 @@ public struct NormalizationDeterministicPolicyRecord: Codable, Sendable, Equatab
             "support_mass",
             "maximum_supporting_affinity",
             "lower_specificity",
-            "canonical_path"
+            "canonical_path",
         ]
         self.exactAffinityInputsPersisted = exactAffinityInputsPersisted
     }
@@ -439,15 +439,25 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
     public var skipReasons: [NormalizationCandidateSkipReason]
     public var localConsensus: LocalWeightedConsensusRecord?
     public var observations: [CandidateObservation]
+    private var forwardCompatUnknownStage: String?
     private var forwardCompatUnknownStatus: String?
     private var forwardCompatUnknownCandidateKind: String?
+    private var forwardCompatUnknownContextType: String?
+    private var forwardCompatUnknownNamespace: String?
+    private var forwardCompatUnknownDirectApplyPolicy: String?
     private var forwardCompatUnknownSkipReasons: [String]
+    private var forwardCompatOriginalSkipReasonOrder: [String]?
 
-    /// A future additive enum affected this decision. The document remains
-    /// readable, but this decision is fail-closed and cannot export.
+    /// A future additive enum affected one of this decision's direct policy
+    /// fields. The document remains readable, but this decision cannot export.
+    /// Nested observation and audit-record enums remain strict decode boundaries.
     public var isForwardCompatUnknown: Bool {
-        forwardCompatUnknownStatus != nil
+        forwardCompatUnknownStage != nil
+            || forwardCompatUnknownStatus != nil
             || forwardCompatUnknownCandidateKind != nil
+            || forwardCompatUnknownContextType != nil
+            || forwardCompatUnknownNamespace != nil
+            || forwardCompatUnknownDirectApplyPolicy != nil
             || !forwardCompatUnknownSkipReasons.isEmpty
     }
 
@@ -525,9 +535,14 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
         self.skipReasons = skipReasons
         self.localConsensus = localConsensus
         self.observations = observations
+        self.forwardCompatUnknownStage = nil
         self.forwardCompatUnknownStatus = nil
         self.forwardCompatUnknownCandidateKind = nil
+        self.forwardCompatUnknownContextType = nil
+        self.forwardCompatUnknownNamespace = nil
+        self.forwardCompatUnknownDirectApplyPolicy = nil
         self.forwardCompatUnknownSkipReasons = []
+        self.forwardCompatOriginalSkipReasonOrder = nil
     }
 
     public init(from decoder: Decoder) throws {
@@ -535,7 +550,19 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
         decisionID = try container.decode(String.self, forKey: .decisionID)
         assetID = try container.decode(String.self, forKey: .assetID)
         groupID = try container.decodeIfPresent(String.self, forKey: .groupID)
-        stage = try container.decode(NormalizationDecisionStage.self, forKey: .stage)
+
+        let tolerantStage = try container.decode(
+            TolerantStringEnum<NormalizationDecisionStage>.self,
+            forKey: .stage
+        )
+        switch tolerantStage {
+        case .known(let value):
+            stage = value
+            forwardCompatUnknownStage = nil
+        case .unknown(let rawValue):
+            stage = .directModelObservation
+            forwardCompatUnknownStage = rawValue
+        }
 
         let tolerantStatus = try container.decode(
             TolerantStringEnum<NormalizationDecisionStatus>.self,
@@ -567,9 +594,54 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
         flatKeyword = try container.decodeIfPresent(String.self, forKey: .flatKeyword)
         hierarchicalKeyword = try container.decodeIfPresent(String.self, forKey: .hierarchicalKeyword)
         sourceText = try container.decodeIfPresent(String.self, forKey: .sourceText)
-        contextType = try container.decodeIfPresent(NormalizationSessionContextType.self, forKey: .contextType)
-        namespace = try container.decodeIfPresent(VocabularyNamespace.self, forKey: .namespace)
-        directApplyPolicy = try container.decodeIfPresent(DirectApplyPolicy.self, forKey: .directApplyPolicy)
+
+        let tolerantContextType = try container.decodeIfPresent(
+            TolerantStringEnum<NormalizationSessionContextType>.self,
+            forKey: .contextType
+        )
+        switch tolerantContextType {
+        case .known(let value):
+            contextType = value
+            forwardCompatUnknownContextType = nil
+        case .unknown(let rawValue):
+            contextType = nil
+            forwardCompatUnknownContextType = rawValue
+        case nil:
+            contextType = nil
+            forwardCompatUnknownContextType = nil
+        }
+
+        let tolerantNamespace = try container.decodeIfPresent(
+            TolerantStringEnum<VocabularyNamespace>.self,
+            forKey: .namespace
+        )
+        switch tolerantNamespace {
+        case .known(let value):
+            namespace = value
+            forwardCompatUnknownNamespace = nil
+        case .unknown(let rawValue):
+            namespace = nil
+            forwardCompatUnknownNamespace = rawValue
+        case nil:
+            namespace = nil
+            forwardCompatUnknownNamespace = nil
+        }
+
+        let tolerantDirectApplyPolicy = try container.decodeIfPresent(
+            TolerantStringEnum<DirectApplyPolicy>.self,
+            forKey: .directApplyPolicy
+        )
+        switch tolerantDirectApplyPolicy {
+        case .known(let value):
+            directApplyPolicy = value
+            forwardCompatUnknownDirectApplyPolicy = nil
+        case .unknown(let rawValue):
+            directApplyPolicy = nil
+            forwardCompatUnknownDirectApplyPolicy = rawValue
+        case nil:
+            directApplyPolicy = nil
+            forwardCompatUnknownDirectApplyPolicy = nil
+        }
         requiresReview = try container.decode(Bool.self, forKey: .requiresReview)
         exportFlatKeyword = try container.decode(Bool.self, forKey: .exportFlatKeyword)
         exportHierarchicalKeyword = try container.decode(Bool.self, forKey: .exportHierarchicalKeyword)
@@ -594,6 +666,10 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
             }
             return rawValue
         }
+        forwardCompatOriginalSkipReasonOrder =
+            forwardCompatUnknownSkipReasons.isEmpty
+            ? nil
+            : tolerantSkipReasons.map(\.rawValue)
 
         localConsensus = try container.decodeIfPresent(LocalWeightedConsensusRecord.self, forKey: .localConsensus)
         observations = try container.decode([CandidateObservation].self, forKey: .observations)
@@ -610,7 +686,12 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
         try container.encode(decisionID, forKey: .decisionID)
         try container.encode(assetID, forKey: .assetID)
         try container.encodeIfPresent(groupID, forKey: .groupID)
-        try container.encode(stage, forKey: .stage)
+        try container.encode(
+            TolerantStringEnum<NormalizationDecisionStage>(
+                rawValue: forwardCompatUnknownStage ?? stage.rawValue
+            ),
+            forKey: .stage
+        )
         try container.encode(
             TolerantStringEnum<NormalizationDecisionStatus>(
                 rawValue: forwardCompatUnknownStatus ?? status.rawValue
@@ -627,9 +708,30 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
         try container.encodeIfPresent(flatKeyword, forKey: .flatKeyword)
         try container.encodeIfPresent(hierarchicalKeyword, forKey: .hierarchicalKeyword)
         try container.encodeIfPresent(sourceText, forKey: .sourceText)
-        try container.encodeIfPresent(contextType, forKey: .contextType)
-        try container.encodeIfPresent(namespace, forKey: .namespace)
-        try container.encodeIfPresent(directApplyPolicy, forKey: .directApplyPolicy)
+        if let rawValue = forwardCompatUnknownContextType {
+            try container.encode(
+                TolerantStringEnum<NormalizationSessionContextType>(rawValue: rawValue),
+                forKey: .contextType
+            )
+        } else {
+            try container.encodeIfPresent(contextType, forKey: .contextType)
+        }
+        if let rawValue = forwardCompatUnknownNamespace {
+            try container.encode(
+                TolerantStringEnum<VocabularyNamespace>(rawValue: rawValue),
+                forKey: .namespace
+            )
+        } else {
+            try container.encodeIfPresent(namespace, forKey: .namespace)
+        }
+        if let rawValue = forwardCompatUnknownDirectApplyPolicy {
+            try container.encode(
+                TolerantStringEnum<DirectApplyPolicy>(rawValue: rawValue),
+                forKey: .directApplyPolicy
+            )
+        } else {
+            try container.encodeIfPresent(directApplyPolicy, forKey: .directApplyPolicy)
+        }
         try container.encode(requiresReview, forKey: .requiresReview)
         try container.encode(exportFlatKeyword, forKey: .exportFlatKeyword)
         try container.encode(exportHierarchicalKeyword, forKey: .exportHierarchicalKeyword)
@@ -637,11 +739,13 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
         try container.encode(supportingAssetIDs, forKey: .supportingAssetIDs)
         try container.encodeIfPresent(governingRule, forKey: .governingRule)
         try container.encode(observationCount, forKey: .observationCount)
-        let encodedSkipReasons = skipReasons.map {
-            TolerantStringEnum<NormalizationCandidateSkipReason>.known($0)
-        } + forwardCompatUnknownSkipReasons.map {
-            TolerantStringEnum<NormalizationCandidateSkipReason>.unknown($0)
-        }
+        let encodedSkipReasons =
+            forwardCompatOriginalSkipReasonOrder?.map {
+                TolerantStringEnum<NormalizationCandidateSkipReason>(rawValue: $0)
+            }
+            ?? skipReasons.map {
+                TolerantStringEnum<NormalizationCandidateSkipReason>.known($0)
+            }
         try container.encode(encodedSkipReasons, forKey: .skipReasons)
         try container.encodeIfPresent(localConsensus, forKey: .localConsensus)
         try container.encode(observations, forKey: .observations)
@@ -744,6 +848,20 @@ public struct NormalizedXMPWritePlan: Codable, Sendable, Equatable {
     }
 }
 
+// Raw source JSON is retained only for PW-012 rewrites; it is not part of the
+// typed document's value semantics.
+private struct PreservedNormalizationSessionJSON: Sendable, Equatable {
+    var data: Data?
+
+    init(_ data: Data? = nil) {
+        self.data = data
+    }
+
+    static func == (_: Self, _: Self) -> Bool {
+        true
+    }
+}
+
 /// Durable Phase 3 normalization session consumed later by `apply-session`.
 public struct NormalizationSessionDocument: Codable, Sendable, Equatable {
     public var schemaVersion: String
@@ -767,6 +885,7 @@ public struct NormalizationSessionDocument: Codable, Sendable, Equatable {
     public var deterministicPolicy: NormalizationDeterministicPolicyRecord
     public var warnings: [SidecarError]
     public var errors: [SidecarError]
+    fileprivate var preservedSourceJSON = PreservedNormalizationSessionJSON()
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -851,7 +970,16 @@ public struct NormalizationSessionWriter {
 
     public func write(_ session: NormalizationSessionDocument, to path: String) throws {
         do {
-            let data = try encoder.encode(session)
+            let replacementData = try encoder.encode(session)
+            let data: Data
+            if let originalData = session.preservedSourceJSON.data {
+                let original = try JSONDecoder().decode(JSONValue.self, from: originalData)
+                let replacement = try JSONDecoder().decode(JSONValue.self, from: replacementData)
+                let merged = JSONDocumentMerge.preservingUnknowns(original: original, replacement: replacement)
+                data = try encoder.encode(merged)
+            } else {
+                data = replacementData
+            }
             try AtomicFileWriter.write(data, to: URL(fileURLWithPath: path), fileManager: fileManager)
         } catch let error as SidecarError {
             throw error
@@ -900,7 +1028,8 @@ public struct NormalizationSessionReader {
             try Self.validateSchemaVersion(schemaVersion)
 
             let decoder = JSONCoding.decoder()
-            let document = try decoder.decode(NormalizationSessionDocument.self, from: data)
+            var document = try decoder.decode(NormalizationSessionDocument.self, from: data)
+            document.preservedSourceJSON = PreservedNormalizationSessionJSON(data)
             try Self.validateStructuralUniqueness(document)
             return document
         } catch let error as SidecarError {

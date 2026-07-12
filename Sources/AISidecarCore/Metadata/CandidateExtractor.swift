@@ -290,7 +290,8 @@ public enum KeywordTextNormalizer {
     /// Apply Phase 2 keyword normalization: NFC, trim, and internal whitespace collapse.
     public static func normalize(_ term: String) -> String {
         let nfc = term.precomposedStringWithCanonicalMapping
-        return nfc
+        return
+            nfc
             .split(whereSeparator: \.isWhitespace)
             .map(String.init)
             .joined(separator: " ")
@@ -383,7 +384,7 @@ public struct SpecificTagPolicy {
             " marathon",
             " world cup",
             " super bowl",
-            " olympics"
+            " olympics",
         ]
         let padded = " \(lowercased) "
         return namedSignals.contains { padded.contains($0) }
@@ -409,7 +410,7 @@ public struct SpecificTagPolicy {
             "known individual",
             "named person",
             "named place",
-            "landmark"
+            "landmark",
         ]
         return exactSignals.contains { lowercased.contains($0) }
     }
@@ -452,23 +453,25 @@ public struct CandidateExtractor {
 
         for (modelRunIndex, modelRun) in input.document.sidecar.modelRuns.enumerated() {
             guard let parsedResponseJSON = modelRun.parsedResponseJSON else {
-                issues.append(issue(
-                    .missingParsedResponse,
-                    input: input,
-                    sourceImage: sourceImage,
-                    modelRunIndex: modelRunIndex,
-                    message: "Model run has no parsed_response_json."
-                ))
+                issues.append(
+                    issue(
+                        .missingParsedResponse,
+                        input: input,
+                        sourceImage: sourceImage,
+                        modelRunIndex: modelRunIndex,
+                        message: "Model run has no parsed_response_json."
+                    ))
                 continue
             }
             guard let responseObject = parsedResponseJSON.objectValue else {
-                issues.append(issue(
-                    .malformedParsedResponse,
-                    input: input,
-                    sourceImage: sourceImage,
-                    modelRunIndex: modelRunIndex,
-                    message: "Model run parsed_response_json is not a JSON object."
-                ))
+                issues.append(
+                    issue(
+                        .malformedParsedResponse,
+                        input: input,
+                        sourceImage: sourceImage,
+                        modelRunIndex: modelRunIndex,
+                        message: "Model run parsed_response_json is not a JSON object."
+                    ))
                 continue
             }
 
@@ -479,55 +482,59 @@ public struct CandidateExtractor {
                     continue
                 }
                 guard let candidateValues = fieldValue.arrayValue else {
-                    issues.append(issue(
-                        .malformedCandidateField,
-                        input: input,
-                        sourceImage: sourceImage,
-                        modelRunIndex: modelRunIndex,
-                        sourceField: field,
-                        message: "Candidate field \(field.rawValue) is not an array."
-                    ))
+                    issues.append(
+                        issue(
+                            .malformedCandidateField,
+                            input: input,
+                            sourceImage: sourceImage,
+                            modelRunIndex: modelRunIndex,
+                            sourceField: field,
+                            message: "Candidate field \(field.rawValue) is not an array."
+                        ))
                     continue
                 }
 
                 for (candidateIndex, candidateValue) in candidateValues.enumerated() {
                     guard let candidateObject = candidateValue.objectValue else {
-                        issues.append(issue(
-                            .malformedCandidate,
-                            input: input,
-                            sourceImage: sourceImage,
-                            modelRunIndex: modelRunIndex,
-                            sourceField: field,
-                            candidateIndex: candidateIndex,
-                            message: "Candidate entry is not an object."
-                        ))
+                        issues.append(
+                            issue(
+                                .malformedCandidate,
+                                input: input,
+                                sourceImage: sourceImage,
+                                modelRunIndex: modelRunIndex,
+                                sourceField: field,
+                                candidateIndex: candidateIndex,
+                                message: "Candidate entry is not an object."
+                            ))
                         continue
                     }
                     guard let term = candidateObject["term"]?.stringValue else {
-                        issues.append(issue(
-                            .malformedCandidate,
-                            input: input,
-                            sourceImage: sourceImage,
-                            modelRunIndex: modelRunIndex,
-                            sourceField: field,
-                            candidateIndex: candidateIndex,
-                            message: "Candidate is missing a string term."
-                        ))
+                        issues.append(
+                            issue(
+                                .malformedCandidate,
+                                input: input,
+                                sourceImage: sourceImage,
+                                modelRunIndex: modelRunIndex,
+                                sourceField: field,
+                                candidateIndex: candidateIndex,
+                                message: "Candidate is missing a string term."
+                            ))
                         continue
                     }
                     guard
                         let confidenceText = candidateObject["confidence"]?.stringValue,
                         let confidence = XMPMinimumConfidence(rawValue: confidenceText)
                     else {
-                        issues.append(issue(
-                            .malformedCandidate,
-                            input: input,
-                            sourceImage: sourceImage,
-                            modelRunIndex: modelRunIndex,
-                            sourceField: field,
-                            candidateIndex: candidateIndex,
-                            message: "Candidate is missing a valid confidence band."
-                        ))
+                        issues.append(
+                            issue(
+                                .malformedCandidate,
+                                input: input,
+                                sourceImage: sourceImage,
+                                modelRunIndex: modelRunIndex,
+                                sourceField: field,
+                                candidateIndex: candidateIndex,
+                                message: "Candidate is missing a valid confidence band."
+                            ))
                         continue
                     }
 
@@ -539,15 +546,16 @@ public struct CandidateExtractor {
                             evidence = nil
                         } else {
                             evidence = nil
-                            issues.append(issue(
-                                .malformedEvidence,
-                                input: input,
-                                sourceImage: sourceImage,
-                                modelRunIndex: modelRunIndex,
-                                sourceField: field,
-                                candidateIndex: candidateIndex,
-                                message: "Candidate evidence is not a string."
-                            ))
+                            issues.append(
+                                issue(
+                                    .malformedEvidence,
+                                    input: input,
+                                    sourceImage: sourceImage,
+                                    modelRunIndex: modelRunIndex,
+                                    sourceField: field,
+                                    candidateIndex: candidateIndex,
+                                    message: "Candidate evidence is not a string."
+                                ))
                         }
                     } else {
                         evidence = nil
@@ -576,15 +584,18 @@ public struct CandidateExtractor {
                     extractedCandidates.append(candidate)
 
                     guard !candidate.normalizedTerm.isEmpty else {
-                        skippedCandidates.append(SkippedCandidate(reason: .emptyAfterNormalization, candidate: candidate))
+                        skippedCandidates.append(
+                            SkippedCandidate(reason: .emptyAfterNormalization, candidate: candidate))
                         continue
                     }
                     guard !candidate.normalizedTerm.contains("|") else {
-                        skippedCandidates.append(SkippedCandidate(reason: .containsHierarchySeparator, candidate: candidate))
+                        skippedCandidates.append(
+                            SkippedCandidate(reason: .containsHierarchySeparator, candidate: candidate))
                         continue
                     }
                     guard candidate.confidence >= configuration.minConfidence else {
-                        skippedCandidates.append(SkippedCandidate(reason: .belowConfidenceThreshold, candidate: candidate))
+                        skippedCandidates.append(
+                            SkippedCandidate(reason: .belowConfidenceThreshold, candidate: candidate))
                         continue
                     }
                     // GPS may help model selection, but coordinate terms and GPS-only
@@ -601,7 +612,8 @@ public struct CandidateExtractor {
                     // conditional contract by rejecting species terms from
                     // runs whose genre list has no biological entry.
                     guard field != .species || !rejectSpeciesField else {
-                        skippedCandidates.append(SkippedCandidate(reason: .speciesWithoutBiologicalGenre, candidate: candidate))
+                        skippedCandidates.append(
+                            SkippedCandidate(reason: .speciesWithoutBiologicalGenre, candidate: candidate))
                         continue
                     }
 
@@ -615,7 +627,8 @@ public struct CandidateExtractor {
                     }
 
                     if !configuration.allowSpecificTags,
-                       specificTagPolicy.shouldExclude(candidate) {
+                        specificTagPolicy.shouldExclude(candidate)
+                    {
                         skippedCandidates.append(SkippedCandidate(reason: .specificTagPolicy, candidate: candidate))
                         continue
                     }
@@ -637,10 +650,11 @@ public struct CandidateExtractor {
             flatKeywords = acceptedKeywords
         } else {
             flatKeywords = []
-            skippedCandidates.append(contentsOf: disabledSkips(
-                for: acceptedKeywords,
-                reason: .disabledFlatExport
-            ))
+            skippedCandidates.append(
+                contentsOf: disabledSkips(
+                    for: acceptedKeywords,
+                    reason: .disabledFlatExport
+                ))
         }
 
         let hierarchicalKeywords: [ExportableKeyword]
@@ -649,10 +663,11 @@ public struct CandidateExtractor {
             hierarchicalKeywords = acceptedKeywords
         } else {
             hierarchicalKeywords = []
-            skippedCandidates.append(contentsOf: disabledSkips(
-                for: acceptedKeywords,
-                reason: .disabledHierarchicalExport
-            ))
+            skippedCandidates.append(
+                contentsOf: disabledSkips(
+                    for: acceptedKeywords,
+                    reason: .disabledHierarchicalExport
+                ))
         }
 
         return CandidateExtractionResult(
@@ -681,30 +696,7 @@ public struct CandidateExtractor {
     }
 
     static func isCoordinateLikeTerm(_ term: String) -> Bool {
-        let lowercased = term.lowercased()
-        if lowercased.contains("gps")
-            || lowercased.contains("geotag")
-            || lowercased.contains("latitude")
-            || lowercased.contains("longitude")
-            || lowercased.contains("coordinate") {
-            return true
-        }
-
-        let decimalPairPattern = #"(?<!\d)[+-]?\d{1,3}\.\d+\s*[,/ ]\s*[+-]?\d{1,3}\.\d+(?!\d)"#
-        if term.range(of: decimalPairPattern, options: .regularExpression) != nil {
-            return true
-        }
-
-        let coordinatePatterns = [
-            #"\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[NS]\b.*\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[EW]\b"#,
-            #"\d{1,3}\s*[°º]\s*\d{1,2}\s*['′’]\s*\d{1,2}(?:\.\d+)?\s*[\"″”]?\s*[NSEW]"#,
-            #"\b[NS]\s*\d{1,3}(?:\.\d+)?\b.*\b[EW]\s*\d{1,3}(?:\.\d+)?\b"#,
-            #"(?<!\d)[+-]?\d{1,3}(?:\.\d+)?\s*,\s*[+-]\d{1,3}(?:\.\d+)?(?!\d)"#,
-            #"\butm\b\s*\d{1,2}\s*[a-z]?\b"#,
-        ]
-        return coordinatePatterns.contains { pattern in
-            term.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
-        }
+        KeywordSafetyPolicy.isUnsafeKeyword(term)
     }
 
     private static let biologicalGenreTerms: Set<String> = ["wildlife", "bird_photography", "plant_botanical"]
@@ -726,24 +718,7 @@ public struct CandidateExtractor {
     }
 
     private static func evidenceReliesOnGPS(_ evidence: String?) -> Bool {
-        guard let evidence else {
-            return false
-        }
-        let lowercased = evidence.lowercased()
-        let gpsSignals = [
-            "gps",
-            "geotag",
-            "coordinates",
-            "coordinate",
-            "latitude",
-            "longitude",
-            "exif location",
-            "location context",
-            "range map",
-            "common in this location",
-            "common near this location"
-        ]
-        return gpsSignals.contains { lowercased.contains($0) }
+        KeywordSafetyPolicy.evidenceReliesOnLocationMetadata(evidence)
     }
 
     private func issue(

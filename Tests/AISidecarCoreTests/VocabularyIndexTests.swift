@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class VocabularyIndexTests: XCTestCase {
@@ -57,7 +58,7 @@ final class VocabularyIndexTests: XCTestCase {
                 flatKeyword: "Cargo Containers",
                 namespace: .subject,
                 parentPath: "Subject"
-            )
+            ),
         ])
         let vocabulary = try VocabularyLoader.load(
             data: vocabularyData(entries: entries),
@@ -78,7 +79,8 @@ final class VocabularyIndexTests: XCTestCase {
         )
         XCTAssertEqual(vocabulary.index.entry(matching: "cargo_container")?.canonicalPath, "Subject|Cargo Containers")
         XCTAssertEqual(vocabulary.index.entry(matching: "bird's wing")?.canonicalPath, "Subject|Wildlife|Birds|Wing")
-        XCTAssertEqual(vocabulary.index.entry(matching: "bird\u{2019}s wing")?.canonicalPath, "Subject|Wildlife|Birds|Wing")
+        XCTAssertEqual(
+            vocabulary.index.entry(matching: "bird\u{2019}s wing")?.canonicalPath, "Subject|Wildlife|Birds|Wing")
     }
 
     func testSeparatorInsensitiveFallbackDoesNotResolveAmbiguousAliases() throws {
@@ -106,7 +108,7 @@ final class VocabularyIndexTests: XCTestCase {
                 flatKeyword: "A B",
                 namespace: .subject,
                 parentPath: "Subject"
-            )
+            ),
         ]
         let vocabulary = try VocabularyLoader.load(
             data: vocabularyData(entries: entries),
@@ -171,6 +173,77 @@ final class VocabularyIndexTests: XCTestCase {
         XCTAssertEqual(
             index.entry(matching: entries[2].canonicalPath)?.canonicalPath,
             entries[2].canonicalPath
+        )
+    }
+
+    func testAmbiguousPrimaryAliasDoesNotFallThroughToCanonicalOrNumberFallback() throws {
+        let entries = [
+            VocabularyEntry(
+                canonicalPath: "Subject",
+                flatKeyword: "Subject",
+                namespace: .subject,
+                parentPath: nil
+            ),
+            VocabularyEntry(
+                canonicalPath: "Subject|A B",
+                flatKeyword: "shared birds",
+                namespace: .subject,
+                parentPath: "Subject",
+                synonyms: ["shared bird"]
+            ),
+            VocabularyEntry(
+                canonicalPath: "Subject|Other",
+                flatKeyword: "Shared Birds",
+                namespace: .subject,
+                parentPath: "Subject"
+            ),
+        ]
+        let vocabulary = try VocabularyLoader.load(
+            data: vocabularyData(entries: entries),
+            sourcePath: "memory://primary-fallback-ambiguity.json"
+        )
+
+        XCTAssertNil(vocabulary.index.entry(matching: "shared birds"))
+        XCTAssertEqual(
+            vocabulary.index.entry(matching: "Subject|A B")?.canonicalPath,
+            "Subject|A B"
+        )
+    }
+
+    func testSeparatorFallbackCountsCanonicalAndAliasOwnersEqually() throws {
+        let entries = [
+            VocabularyEntry(
+                canonicalPath: "Subject",
+                flatKeyword: "Subject",
+                namespace: .subject,
+                parentPath: nil
+            ),
+            VocabularyEntry(
+                canonicalPath: "Subject|A B",
+                flatKeyword: "Canonical A B",
+                namespace: .subject,
+                parentPath: "Subject"
+            ),
+            VocabularyEntry(
+                canonicalPath: "Subject|Other",
+                flatKeyword: "Subject-A-B",
+                namespace: .subject,
+                parentPath: "Subject"
+            ),
+        ]
+        let vocabulary = try VocabularyLoader.load(
+            data: vocabularyData(entries: entries),
+            sourcePath: "memory://separator-tier-ambiguity.json"
+        )
+
+        XCTAssertEqual(
+            vocabulary.index.entry(matching: "Subject-A-B")?.canonicalPath,
+            "Subject|Other",
+            "the exact flat alias remains authoritative"
+        )
+        XCTAssertNil(
+            vocabulary.index.entry(matching: "Subject_A_B"),
+            "the fallback key belongs to both the canonical path and flat alias"
         )
     }
 }

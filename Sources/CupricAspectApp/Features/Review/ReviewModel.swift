@@ -107,13 +107,16 @@ final class ReviewModel {
                 verdict: verdicts[decision.decisionID] ?? .approved,
                 detail: detailParts.joined(separator: "\n")
             )
-            rows[decision.assetID, default: AssetRow(
-                assetID: decision.assetID,
-                sourcePath: asset?.sourcePath,
-                fileName: asset?.fileName ?? decision.assetID,
-                fileExtension: asset.map { $0.sourceType.rawValue.uppercased() } ?? "",
-                chips: []
-            )].chips.append(chip)
+            rows[
+                decision.assetID,
+                default: AssetRow(
+                    assetID: decision.assetID,
+                    sourcePath: asset?.sourcePath,
+                    fileName: asset?.fileName ?? decision.assetID,
+                    fileExtension: asset.map { $0.sourceType.rawValue.uppercased() } ?? "",
+                    chips: []
+                )
+            ].chips.append(chip)
         }
         return rows.values.sorted { $0.fileName.lowercased() < $1.fileName.lowercased() }
     }
@@ -148,7 +151,8 @@ final class ReviewModel {
         guard !building else { return }
         building = true
         buildError = nil
-        let artifactDir = stateDirectory
+        let artifactDir =
+            stateDirectory
             .appendingPathComponent("review-artifacts", isDirectory: true)
             .appendingPathComponent(UUID().uuidString).path
 
@@ -195,12 +199,13 @@ final class ReviewModel {
     func reportFileError(_ action: String, _ error: Error) {
         let message = "\(action) failed: \((error as? SidecarError)?.message ?? error.localizedDescription)"
         fileError = message
-        try? GUILog.shared.makeLogger().log(LogRecord(
-            level: .error,
-            event: "review.file_operation_failed",
-            message: message,
-            errors: (error as? SidecarError).map { [$0] } ?? []
-        ))
+        try? GUILog.shared.makeLogger().log(
+            LogRecord(
+                level: .error,
+                event: "review.file_operation_failed",
+                message: message,
+                errors: (error as? SidecarError).map { [$0] } ?? []
+            ))
     }
 
     func clearFileError() {
@@ -271,7 +276,8 @@ final class ReviewModel {
     @discardableResult
     func editKeyword(_ decisionID: String, to text: String) -> Bool {
         guard let replacement = SessionReview.sanitizedEdit(text) else {
-            editError = "Keyword edits must be non-empty and cannot contain '|'."
+            editError =
+                "Keyword edits must be non-empty and cannot contain '|', GPS/location metadata, or coordinate syntax."
             return false
         }
         editError = nil
@@ -287,7 +293,8 @@ final class ReviewModel {
         guard let session else { return 0 }
         let folded = keyword.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !folded.isEmpty, let replacement = SessionReview.sanitizedEdit(text) else {
-            editError = "Keyword edits must be non-empty and cannot contain '|'."
+            editError =
+                "Keyword edits must be non-empty and cannot contain '|', GPS/location metadata, or coordinate syntax."
             return 0
         }
         editError = nil

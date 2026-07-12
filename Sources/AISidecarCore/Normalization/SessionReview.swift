@@ -16,10 +16,14 @@ public enum ReviewVerdict: String, Codable, Sendable, Equatable {
 /// review state (NFR4-008, FR4-046a).
 public enum SessionReview {
     /// Flat user edits must remain valid Phase 2 keywords; hierarchy may only
-    /// come from a controlled vocabulary canonical path (FR3-003g/h).
+    /// come from a controlled vocabulary canonical path, and GPS metadata or
+    /// coordinate syntax cannot cross the XMP boundary (FR3-003g/h, invariant 3).
     public static func sanitizedEdit(_ text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.contains("|") else {
+        guard !trimmed.isEmpty,
+            !trimmed.contains("|"),
+            !KeywordSafetyPolicy.isUnsafeKeyword(trimmed)
+        else {
             return nil
         }
         return trimmed
@@ -43,6 +47,9 @@ public enum SessionReview {
         var reviewed = session
         reviewed.perAssetDecisions = session.perAssetDecisions.map { decision in
             var decision = decision
+            guard !decision.isForwardCompatUnknown else {
+                return decision
+            }
             if let editedText = edits[decision.decisionID].flatMap(sanitizedEdit) {
                 if decision.sourceText == nil {
                     decision.sourceText = decision.flatKeyword ?? decision.canonicalPath

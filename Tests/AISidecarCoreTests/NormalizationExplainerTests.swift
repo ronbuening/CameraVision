@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 /// CORE-6: every normalization enum case has explainer text, and the
@@ -89,7 +90,7 @@ final class NormalizationExplainerTests: XCTestCase {
                     .object([
                         "term": .string(term),
                         "confidence": .string("high"),
-                        "evidence": .string("visible in frame")
+                        "evidence": .string("visible in frame"),
                     ])
                 ])
             ]),
@@ -136,6 +137,10 @@ final class NormalizationExplainerTests: XCTestCase {
         XCTAssertEqual(Set(bird.assetDetails.map(\.decisionID)).count, 3)
         XCTAssertEqual(bird.acceptedCount, 2)
         XCTAssertEqual(bird.withheldCount, 1)
+        let repeatedAssetIDs = bird.assetDetails
+            .filter { $0.assetID == session.perAssetDecisions[index].assetID }
+            .map(\.decisionID)
+        XCTAssertEqual(repeatedAssetIDs, repeatedAssetIDs.sorted())
     }
 
     func testNeedsAttentionFilterMatchesSummaryFlags() throws {

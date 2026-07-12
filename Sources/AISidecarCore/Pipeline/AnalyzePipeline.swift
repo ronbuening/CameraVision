@@ -109,10 +109,12 @@ public struct AnalyzePipeline {
         let isBatch = scanResult.inputPath == scanResult.scanRoot
         let timestamp = Timestamp.filenameToken(runStartedAt, suffix: filenameSuffix())
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
-        let progressPath = isBatch && !configuration.dryRun && writesBatchArtifacts
+        let progressPath =
+            isBatch && !configuration.dryRun && writesBatchArtifacts
             ? "\(reportDirectory)/\(ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
             : nil
-        let summaryPath = isBatch && !configuration.dryRun && writesBatchArtifacts
+        let summaryPath =
+            isBatch && !configuration.dryRun && writesBatchArtifacts
             ? "\(reportDirectory)/\(ArtifactNames.batchSummaryPrefix)\(timestamp).json"
             : nil
         let progressLog = try progressPath.map { try ProgressLog(path: $0, fileManager: fileManager) }
@@ -209,7 +211,8 @@ public struct AnalyzePipeline {
         }
 
         if configuration.clearDerivativeCacheAfterSuccess,
-           completedSuccessfully(records: records, interrupted: interrupted) {
+            completedSuccessfully(records: records, interrupted: interrupted)
+        {
             try lifecycleCache.clear()
         }
 
@@ -273,7 +276,9 @@ public struct AnalyzePipeline {
 
         try await withThrowingTaskGroup(of: (Int, PreparedAnalysis).self) { group in
             func fillWorkers() {
-                while inFlight < maxWorkers, nextPendingToSchedule < pendingWork.count {
+                while inFlight + preparedByIndex.count < maxWorkers,
+                    nextPendingToSchedule < pendingWork.count
+                {
                     let work = pendingWork[nextPendingToSchedule]
                     let entry = entries[work.index]
                     nextPendingToSchedule += 1
@@ -329,6 +334,7 @@ public struct AnalyzePipeline {
                         group.cancelAll()
                         break
                     }
+                    fillWorkers()
 
                     let outcome = await finishPrepared(
                         prepared,
@@ -339,6 +345,7 @@ public struct AnalyzePipeline {
                         interruptionMonitor: interruptionMonitor,
                         startedAt: startedAt
                     )
+                    cache.release(prepared.derivatives)
                     switch outcome {
                     case .completed(let record):
                         try emit(record)
@@ -407,6 +414,7 @@ public struct AnalyzePipeline {
                     interruptionMonitor: interruptionMonitor,
                     startedAt: startedAt
                 )
+                cache.release(prepared.derivatives)
                 switch outcome {
                 case .completed(let record):
                     try emit(record)
@@ -610,7 +618,7 @@ public struct AnalyzePipeline {
             )
             let modelMs = durationMs(from: modelStartedAt, to: now())
             guard case .completed(let modelRuns) = modelOutcome,
-                  interruptionMonitor?.isInterrupted != true
+                interruptionMonitor?.isInterrupted != true
             else {
                 return .interrupted
             }
@@ -836,7 +844,7 @@ public struct AnalyzePipeline {
         case .both:
             return [
                 whole.map { (.wholeImage, $0) },
-                subject.map { (.subjectIsolated, $0) }
+                subject.map { (.subjectIsolated, $0) },
             ].compactMap { $0 }
         }
     }
@@ -962,6 +970,15 @@ private enum EntryAction: Sendable {
 private enum PreparedAnalysis: Sendable {
     case prepared(PreparedRenderedAnalysis)
     case renderFailed(SidecarError, renderMs: Int)
+
+    var derivatives: [DerivativeRecord] {
+        switch self {
+        case .prepared(let prepared):
+            return prepared.derivatives
+        case .renderFailed:
+            return []
+        }
+    }
 }
 
 private enum FinishPreparedOutcome: Sendable {
@@ -991,13 +1008,5 @@ private struct PipelineUnavailableForegroundMaskProvider: ForegroundMaskProvider
             message: "Apple Vision foreground masking requires macOS 15 or newer.",
             recoverable: true
         )
-    }
-}
-
-private struct SendableFileManager: @unchecked Sendable {
-    var value: FileManager
-
-    init(_ value: FileManager) {
-        self.value = value
     }
 }

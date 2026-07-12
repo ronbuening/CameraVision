@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class FileListInputResolverTests: XCTestCase {
@@ -75,6 +76,16 @@ final class FileListInputResolverTests: XCTestCase {
         XCTAssertEqual(batch.sameBaseNameGroups.count, 2)
         XCTAssertEqual(Set(batch.sameBaseNameGroups.map(\.targetRelativePath)).count, 2)
         XCTAssertEqual(batch.sameBaseNameGroups.map(\.memberAssetIDs.count), [1, 1])
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.outputDir = root.appendingPathComponent("output").path
+        let plans = try NormalizedXMPChangePlanner().plan(
+            input: batch,
+            decisions: [],
+            candidateSkips: [],
+            configuration: configuration
+        )
+        XCTAssertEqual(Set(plans.changePlan.targetPlans.map(\.targetXMPPath)).count, 2)
     }
 
     func testAbsoluteRawAndJPEGEntriesInSameExternalDirectoryStillPair() throws {
@@ -96,6 +107,39 @@ final class FileListInputResolverTests: XCTestCase {
         XCTAssertEqual(batch.sameBaseNameGroups[0].memberAssetIDs.count, 2)
         XCTAssertEqual(batch.sameBaseNameGroups[0].selectedAssetIDs.count, 2)
         XCTAssertTrue(batch.sameBaseNameGroups[0].targetRelativePath.hasSuffix("/external-shoot/Bird.xmp"))
+    }
+
+    func testAbsoluteEntryDoesNotPairWithMirroredRelativePath() throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let externalDirectory = try temporaryDirectory().appendingPathComponent("shoot")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let externalImage = try writeTestImage("Bird.JPG", in: externalDirectory)
+        let mirroredRelativePath = externalImage.path.drop(while: { $0 == "/" })
+            .replacingOccurrences(of: "Bird.JPG", with: "Bird.NEF")
+        _ = try writeTestImage(mirroredRelativePath, in: listDirectory)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(mirroredRelativePath)\n\(externalImage.path)\n"
+            .write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.sameBaseNameGroups.count, 2)
+        XCTAssertEqual(Set(batch.sameBaseNameGroups.map(\.targetRelativePath)).count, 2)
+        XCTAssertEqual(batch.sameBaseNameGroups.map(\.memberAssetIDs.count), [1, 1])
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.outputDir = root.appendingPathComponent("mirrored-output").path
+        let plans = try NormalizedXMPChangePlanner().plan(
+            input: batch,
+            decisions: [],
+            candidateSkips: [],
+            configuration: configuration
+        )
+        XCTAssertEqual(Set(plans.changePlan.targetPlans.map(\.targetXMPPath)).count, 2)
     }
 
     func testFileListPersistsGPSPresenceWithoutCoordinates() throws {

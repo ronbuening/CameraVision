@@ -4,7 +4,10 @@ import Foundation
 // the raw values themselves are load-bearing and unchanged.
 extension NormalizationDecisionStage: CaseIterable {
     public static var allCases: [NormalizationDecisionStage] {
-        [.directModelObservation, .userSessionContext, .localAffinityPropagation, .globalBackstopPropagation, .phase2Fallback]
+        [
+            .directModelObservation, .userSessionContext, .localAffinityPropagation, .globalBackstopPropagation,
+            .phase2Fallback,
+        ]
     }
 }
 
@@ -16,7 +19,10 @@ extension NormalizationDecisionStatus: CaseIterable {
 
 extension NormalizedCandidateKind: CaseIterable {
     public static var allCases: [NormalizedCandidateKind] {
-        [.canonicalVocabulary, .observedModelTag, .modelSpeciesFallback, .phase2Fallback, .userContextUnnormalized, .userEdited]
+        [
+            .canonicalVocabulary, .observedModelTag, .modelSpeciesFallback, .phase2Fallback, .userContextUnnormalized,
+            .userEdited,
+        ]
     }
 }
 
@@ -225,7 +231,15 @@ public enum NormalizationDecisionExplainer {
         var conflicts: [String] = []
         var details: [KeywordDecisionSummary.AssetDetail] = []
 
-        for decision in decisions.sorted(by: { $0.assetID < $1.assetID }) {
+        for decision in decisions.sorted(by: { lhs, rhs in
+            if lhs.assetID != rhs.assetID {
+                return lhs.assetID < rhs.assetID
+            }
+            if lhs.decisionID != rhs.decisionID {
+                return lhs.decisionID < rhs.decisionID
+            }
+            return lhs.stage.rawValue < rhs.stage.rawValue
+        }) {
             if !stages.contains(decision.stage) { stages.append(decision.stage) }
             if let rule = decision.governingRule, !rules.contains(rule) { rules.append(rule) }
             if !kinds.contains(decision.candidateKind) { kinds.append(decision.candidateKind) }
@@ -279,13 +293,17 @@ public enum NormalizationDecisionExplainer {
             header += "   [needs attention]"
         }
         lines.append(header)
-        lines.append("  outcome: \(summary.acceptedCount) accepted · \(summary.withheldCount) withheld · \(summary.skippedCount) skipped")
+        lines.append(
+            "  outcome: \(summary.acceptedCount) accepted · \(summary.withheldCount) withheld · \(summary.skippedCount) skipped"
+        )
         lines.append("  support: \(summary.assetCount) assets · \(summary.totalSupportUnits) units")
         lines.append("  origin:  " + summary.stages.map(text(for:)).joined(separator: "; "))
         if !summary.governingRules.isEmpty {
             lines.append("  rules:   " + summary.governingRules.joined(separator: ", "))
         }
-        for (reason, count) in summary.skipReasonCounts.sorted(by: { $0.value == $1.value ? $0.key.rawValue < $1.key.rawValue : $0.value > $1.value }) {
+        for (reason, count) in summary.skipReasonCounts.sorted(by: {
+            $0.value == $1.value ? $0.key.rawValue < $1.key.rawValue : $0.value > $1.value
+        }) {
             lines.append("  skipped ×\(count): \(text(for: reason)) (\(reason.rawValue))")
         }
         if !summary.conflictingCanonicalPaths.isEmpty {

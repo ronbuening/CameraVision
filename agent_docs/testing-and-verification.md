@@ -16,6 +16,16 @@ If XCTest is missing because `xcode-select` points at Command Line Tools:
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 ```
 
+### R4 semantic/cache regression gate
+
+When changing normalization semantics, session rewrites, XMP target selection, or derivative-cache coordination, run the focused gate before the full suite:
+
+```bash
+swift test --filter 'FileListInputResolverTests|SessionContextPolicyTests|CandidateExtractorTests|CandidateCanonicalizerTests|VocabularyIndexTests|StarterVocabularyTests|NormalizationSessionTests|SessionReviewTests|NormalizedXMPChangePlanTests|NormalizationExplainerTests|XMPOwnedEngineTests|DerivativeCacheTests|FileLockTests|AnalyzePipelineTests|ModelInputExportPipelineTests|ReviewModelTests'
+```
+
+Coverage must retain the adversarial cases added by the R4 audit: absolute-versus-relative physical directory identity; terminal ambiguity before vocabulary fallbacks; normalization-off context; factual context export results; coordinate/GPS metadata blocked at extraction, context, review, and final planning while visible GPS devices remain allowed; unknown direct-decision enums preserved and withheld; exact decoded `rdf:about` filename selection; concurrent cache stores/purge; cross-instance inode leases; inode-based manifest invalidation; deletion-failure accounting; and final tiny-cap eviction after lease release.
+
 ## Test Conventions
 
 - Core/CLI tests live in `Tests/AISidecarCoreTests`; GUI model tests live in `Tests/CupricAspectAppTests` (same offline/deterministic rules; `swift test` runs both). One file per subject (`FooTests.swift` for `Foo.swift`). Shared helpers use the `*TestSupport.swift` / `*Assertions.swift` pattern (`XMPAssertions`, `VocabularyTestSupport`, `TestImageFixtures`, `Phase3NormalizationTestSupport`).

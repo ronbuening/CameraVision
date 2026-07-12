@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class NormalizedXMPChangePlanTests: XCTestCase {
@@ -60,7 +61,7 @@ final class NormalizedXMPChangePlanTests: XCTestCase {
                 canonicalPath: "Subject|Wildlife|Birds",
                 decisionID: "decision-000002"
             ),
-            unnormalizedContextDecision()
+            unnormalizedContextDecision(),
         ]
 
         let result = try NormalizedXMPChangePlanner().plan(
@@ -76,21 +77,24 @@ final class NormalizedXMPChangePlanTests: XCTestCase {
         XCTAssertEqual(plan.hierarchicalKeywordsToAdd.map(\.term), ["Subject|Wildlife|Birds"])
         XCTAssertEqual(plan.targetXMPPath, "/tmp/normalized/Bird.xmp")
 
-        let birds = try XCTUnwrap(result.writePlans.first?.flatKeywordProvenance.first {
-            $0.term == "Birds"
-        })
+        let birds = try XCTUnwrap(
+            result.writePlans.first?.flatKeywordProvenance.first {
+                $0.term == "Birds"
+            })
         XCTAssertEqual(birds.decisionIDs, ["decision-000001", "decision-000002"])
         XCTAssertEqual(birds.observationIDs, ["obs-000001"])
         XCTAssertEqual(birds.stages, [.directModelObservation])
 
-        let mystery = try XCTUnwrap(result.writePlans.first?.flatKeywordProvenance.first {
-            $0.term == "Folder Mystery"
-        })
+        let mystery = try XCTUnwrap(
+            result.writePlans.first?.flatKeywordProvenance.first {
+                $0.term == "Folder Mystery"
+            })
         XCTAssertEqual(mystery.candidateKinds, [.userContextUnnormalized])
         XCTAssertEqual(mystery.contextTypes, [.subject])
-        XCTAssertTrue(result.writePlans.first?.hierarchicalKeywordProvenance.allSatisfy {
-            !$0.term.contains("Folder Mystery")
-        } == true)
+        XCTAssertTrue(
+            result.writePlans.first?.hierarchicalKeywordProvenance.allSatisfy {
+                !$0.term.contains("Folder Mystery")
+            } == true)
     }
 
     func testSameBaseNameGroupPlansOneTargetAndHonorsPairScopeSelection() throws {
@@ -141,7 +145,7 @@ final class NormalizedXMPChangePlanTests: XCTestCase {
             input: phase3InputBatch(assets: [upper, lower]),
             decisions: [
                 phase3DirectDecision(assetID: upper.assetID, canonicalPath: "Subject|Wildlife|Birds"),
-                phase3DirectDecision(assetID: lower.assetID, canonicalPath: "Subject|Wildlife|Birds")
+                phase3DirectDecision(assetID: lower.assetID, canonicalPath: "Subject|Wildlife|Birds"),
             ],
             candidateSkips: [],
             configuration: configuration
@@ -168,6 +172,108 @@ final class NormalizedXMPChangePlanTests: XCTestCase {
         )
 
         XCTAssertNil(result.changePlan.targetPlans.first?.sourceMembers.first?.sourceSidecarPath)
+    }
+
+    func testAcceptedCoordinateDecisionFailsClosedAtFinalPlanBoundary() throws {
+        var decision = phase3DirectDecision(
+            assetID: "asset-000001",
+            canonicalPath: "Subject|Imported",
+            flatKeyword: "40, -79",
+            decisionID: "decision-coordinate"
+        )
+        decision.hierarchicalKeyword = nil
+        decision.exportHierarchicalKeyword = false
+
+        let result = try NormalizedXMPChangePlanner().plan(
+            input: phase3InputBatch(["Bird.JPG"]),
+            decisions: [decision],
+            candidateSkips: [],
+            configuration: phase3Configuration(normalizationMode: .singleImage)
+        )
+
+        let plan = try XCTUnwrap(result.changePlan.targetPlans.first)
+        XCTAssertTrue(plan.flatKeywordsToAdd.isEmpty)
+        XCTAssertTrue(plan.hierarchicalKeywordsToAdd.isEmpty)
+        XCTAssertEqual(result.writePlans.first?.normalizationSkips.map(\.reason), [.coordinateLikeTerm])
+        XCTAssertEqual(result.writePlans.first?.normalizationSkips.first?.term, "40, -79")
+    }
+
+    func testVisibleGPSObjectRemainsValidAtFinalPlanBoundary() throws {
+        var decision = phase3DirectDecision(
+            assetID: "asset-000001",
+            canonicalPath: "Objects|Electronics|GPS Unit",
+            flatKeyword: "GPS Unit",
+            decisionID: "decision-gps-unit"
+        )
+        decision.hierarchicalKeyword = nil
+        decision.exportHierarchicalKeyword = false
+
+        let result = try NormalizedXMPChangePlanner().plan(
+            input: phase3InputBatch(["Bird.JPG"]),
+            decisions: [decision],
+            candidateSkips: [],
+            configuration: phase3Configuration(normalizationMode: .singleImage)
+        )
+
+        XCTAssertEqual(result.changePlan.targetPlans.first?.flatKeywordsToAdd.map(\.term), ["GPS Unit"])
+        XCTAssertTrue(result.writePlans.first?.normalizationSkips.isEmpty == true)
+    }
+
+    func testGPSMetadataIsSkippedWhileVisibleGPSObjectStillExports() throws {
+        var gpsUnit = phase3DirectDecision(
+            assetID: "asset-000001",
+            canonicalPath: "Objects|Electronics|GPS Unit",
+            flatKeyword: "GPS Unit",
+            decisionID: "decision-gps-unit"
+        )
+        gpsUnit.hierarchicalKeyword = nil
+        gpsUnit.exportHierarchicalKeyword = false
+        var gpsFix = phase3DirectDecision(
+            assetID: "asset-000001",
+            canonicalPath: "Workflow|Imported GPS",
+            flatKeyword: "GPS fix",
+            decisionID: "decision-gps-fix"
+        )
+        gpsFix.hierarchicalKeyword = nil
+        gpsFix.exportHierarchicalKeyword = false
+
+        let result = try NormalizedXMPChangePlanner().plan(
+            input: phase3InputBatch(["Bird.JPG"]),
+            decisions: [gpsUnit, gpsFix],
+            candidateSkips: [],
+            configuration: phase3Configuration(normalizationMode: .singleImage)
+        )
+
+        XCTAssertEqual(result.changePlan.targetPlans.first?.flatKeywordsToAdd.map(\.term), ["GPS Unit"])
+        XCTAssertEqual(result.writePlans.first?.normalizationSkips.map(\.reason), [.coordinateLikeTerm])
+        XCTAssertEqual(result.writePlans.first?.normalizationSkips.first?.term, "GPS fix")
+    }
+
+    func testPlannerNeverExportsForwardUnknownDecisionEvenIfPublicFlagsAreMutated() throws {
+        let original = phase3DirectDecision(
+            assetID: "asset-000001",
+            canonicalPath: "Subject|Wildlife|Birds"
+        )
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any]
+        )
+        object["stage"] = "future_stage"
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        var decoded = try JSONDecoder().decode(PerAssetNormalizationDecision.self, from: data)
+        XCTAssertTrue(decoded.isForwardCompatUnknown)
+
+        decoded.status = .accepted
+        decoded.exportFlatKeyword = true
+        decoded.exportHierarchicalKeyword = true
+        let result = try NormalizedXMPChangePlanner().plan(
+            input: phase3InputBatch(["Bird.JPG"]),
+            decisions: [decoded],
+            candidateSkips: [],
+            configuration: phase3Configuration(normalizationMode: .singleImage)
+        )
+
+        XCTAssertTrue(result.changePlan.targetPlans[0].flatKeywordsToAdd.isEmpty)
+        XCTAssertTrue(result.changePlan.targetPlans[0].hierarchicalKeywordsToAdd.isEmpty)
     }
 
     private func unnormalizedContextDecision() -> PerAssetNormalizationDecision {

@@ -1,5 +1,6 @@
 import CoreGraphics
 import XCTest
+
 @testable import AISidecarCore
 
 final class AnalyzePipelineTests: XCTestCase {
@@ -160,12 +161,14 @@ final class AnalyzePipelineTests: XCTestCase {
         }
         let calls = await runner.capturedCalls()
         let maxInFlight = await runner.maximumInFlight()
-        XCTAssertEqual(calls.map(\.inputRole), [
-            .wholeImage,
-            .subjectIsolated,
-            .wholeImage,
-            .subjectIsolated
-        ])
+        XCTAssertEqual(
+            calls.map(\.inputRole),
+            [
+                .wholeImage,
+                .subjectIsolated,
+                .wholeImage,
+                .subjectIsolated,
+            ])
         XCTAssertEqual(maxInFlight, 1)
     }
 
@@ -475,10 +478,12 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(run.error?.code, .modelSchemaViolation)
         XCTAssertEqual(sidecar.errors.map(\.code), [.modelSchemaViolation])
         XCTAssertEqual(run.responseAttempts?.map(\.kind), [.primary, .repair])
-        XCTAssertEqual(run.responseAttempts?.map { $0.error?.code }, [
-            SidecarErrorCode.modelInvalidJSON,
-            SidecarErrorCode.modelSchemaViolation
-        ])
+        XCTAssertEqual(
+            run.responseAttempts?.map { $0.error?.code },
+            [
+                SidecarErrorCode.modelInvalidJSON,
+                SidecarErrorCode.modelSchemaViolation,
+            ])
     }
 
     func testPrepareFailureFailsBeforeProgressSidecarsSummaryOrCache() async throws {
@@ -569,7 +574,8 @@ final class AnalyzePipelineTests: XCTestCase {
         let image = try writeFile("AlreadyDone.JPG", data: Data("not an image".utf8), in: root)
         let sidecar = output.appendingPathComponent("AlreadyDone.JPG.ai.json")
         let cacheDir = output.appendingPathComponent("cache")
-        let staleArtifact = cacheDir.appendingPathComponent("\(String(repeating: "a", count: 64))-recipe-v1-whole_image.jpg")
+        let staleArtifact = cacheDir.appendingPathComponent(
+            "\(String(repeating: "a", count: 64))-recipe-v1-whole_image.jpg")
         try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         try Data("stale".utf8).write(to: staleArtifact)
@@ -615,6 +621,34 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(result.records.map(\.status), [.written])
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.appendingPathComponent("A.JPG.ai.json").path))
         XCTAssertEqual(try cacheContents(at: cacheDir), ["derivative-cache-index.lock"])
+    }
+
+    func testCompletedRunReleasesWorkingSetAndRestoresTinyCacheCap() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        _ = try writeTestImage("A.JPG", in: root)
+        _ = try writeTestImage("B.JPG", in: root)
+        let cacheDir = output.appendingPathComponent("cache")
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: cacheDir.path,
+                derivativeCacheSizeBytes: 1
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written, .written])
+        let cacheArtifacts = try FileManager.default.contentsOfDirectory(atPath: cacheDir.path)
+            .filter { $0.hasSuffix(".jpg") || $0.hasSuffix(".tiff") }
+        XCTAssertTrue(cacheArtifacts.isEmpty)
     }
 
     func testOwnedBatchArtifactsDoNotBlockPostSuccessCacheClearOnRerun() async throws {
@@ -710,6 +744,7 @@ final class AnalyzePipelineTests: XCTestCase {
         existing: ExistingPolicy = .overwrite,
         mode: AnalysisMode,
         cacheDir: String,
+        derivativeCacheSizeBytes: Int64 = 20 * 1024 * 1024,
         stageConcurrency: Int = 2,
         modelKeepAlive: String = ModelRunOptions.default.keepAlive,
         modelTimeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds,
@@ -735,7 +770,7 @@ final class AnalyzePipelineTests: XCTestCase {
             debugDerivatives: false,
             sourceIdentityPolicy: .sha256,
             derivativeCacheDir: cacheDir,
-            derivativeCacheSizeBytes: 20 * 1024 * 1024,
+            derivativeCacheSizeBytes: derivativeCacheSizeBytes,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess,
             stageConcurrency: stageConcurrency,
@@ -1142,7 +1177,8 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
             recoverable: true
         )
         let repairIsValid = outcome == .success
-        let repairParsed: JSONValue = repairIsValid
+        let repairParsed: JSONValue =
+            repairIsValid
             ? .object(["summary": .string("repaired")])
             : .object(["summary": .number(5)])
         let attempts = [
@@ -1169,7 +1205,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
                 jsonValid: repairIsValid,
                 durationMs: 1,
                 error: repairIsValid ? nil : finalError
-            )
+            ),
         ]
         return record(
             image: image,

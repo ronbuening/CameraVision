@@ -1,10 +1,13 @@
 import XCTest
+
 @testable import AISidecarCore
 
 /// CORE-7 (M4): review verdicts stored in the session document, and the
 /// apply-session guarantee that only the approved set is written (AC4-013).
 final class SessionReviewTests: XCTestCase {
-    private func makeSession(terms: [String], assets: [String] = ["A.JPG"]) throws -> (session: NormalizationSessionDocument, root: URL, sourceRoot: URL) {
+    private func makeSession(terms: [String], assets: [String] = ["A.JPG"]) throws -> (
+        session: NormalizationSessionDocument, root: URL, sourceRoot: URL
+    ) {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let jsonRoot = root.appendingPathComponent("json")
@@ -60,7 +63,7 @@ final class SessionReviewTests: XCTestCase {
                     .object([
                         "term": .string(term),
                         "confidence": .string("high"),
-                        "evidence": .string("visible")
+                        "evidence": .string("visible"),
                     ])
                 ])
             ]),
@@ -70,10 +73,13 @@ final class SessionReviewTests: XCTestCase {
         )
     }
 
-    private func acceptedDecision(for term: String, in session: NormalizationSessionDocument) throws -> PerAssetNormalizationDecision {
-        try XCTUnwrap(session.perAssetDecisions.first {
-            ($0.flatKeyword ?? "").lowercased() == term && $0.status == .accepted
-        })
+    private func acceptedDecision(for term: String, in session: NormalizationSessionDocument) throws
+        -> PerAssetNormalizationDecision
+    {
+        try XCTUnwrap(
+            session.perAssetDecisions.first {
+                ($0.flatKeyword ?? "").lowercased() == term && $0.status == .accepted
+            })
     }
 
     func testVerdictsApplyAndRoundTripThroughTheDocument() throws {
@@ -138,6 +144,25 @@ final class SessionReviewTests: XCTestCase {
         XCTAssertEqual(unchanged, bird)
         XCTAssertNil(SessionReview.sanitizedEdit("Great|Egret"))
         XCTAssertEqual(SessionReview.sanitizedEdit("  Great Egret  "), "Great Egret")
+    }
+
+    func testEditContainingCoordinateSyntaxIsRejected() throws {
+        let (session, _, _) = try makeSession(terms: ["bird"])
+        let bird = try acceptedDecision(for: "bird", in: session)
+
+        let reviewed = SessionReview.applying(
+            verdicts: [bird.decisionID: .approved],
+            edits: [bird.decisionID: "40, -79"],
+            to: session
+        )
+
+        let unchanged = try XCTUnwrap(reviewed.perAssetDecisions.first { $0.decisionID == bird.decisionID })
+        XCTAssertEqual(unchanged, bird)
+        XCTAssertNil(SessionReview.sanitizedEdit("N 40.446 W 79.982"))
+        XCTAssertNil(SessionReview.sanitizedEdit("GPS fix"))
+        XCTAssertNil(SessionReview.sanitizedEdit("GPS device location"))
+        XCTAssertEqual(SessionReview.sanitizedEdit("GPS Unit"), "GPS Unit")
+        XCTAssertEqual(SessionReview.sanitizedEdit("visible GPS receiver"), "visible GPS receiver")
     }
 
     func testReviewedSessionSurvivesWriterReaderRoundTrip() throws {

@@ -45,7 +45,7 @@ public struct RawJSONSidecarDocument: Sendable, Equatable {
     /// Encode the sidecar after merging known-field updates with preserved unknown JSON.
     public func encodedData() throws -> Data {
         let replacement = try Self.jsonValue(for: sidecar)
-        let merged = Self.mergePreservingUnknowns(original: originalJSON, replacement: replacement)
+        let merged = JSONDocumentMerge.preservingUnknowns(original: originalJSON, replacement: replacement)
         let encoder = JSONCoding.documentEncoder(iso8601Dates: false)
         return try encoder.encode(merged)
     }
@@ -53,7 +53,7 @@ public struct RawJSONSidecarDocument: Sendable, Equatable {
     /// Return the merged JSON object without serializing it to bytes.
     public func jsonValue() throws -> JSONValue {
         let replacement = try Self.jsonValue(for: sidecar)
-        return Self.mergePreservingUnknowns(original: originalJSON, replacement: replacement)
+        return JSONDocumentMerge.preservingUnknowns(original: originalJSON, replacement: replacement)
     }
 
     private static let supportedSchemaName = "ai-sidecar-json"
@@ -89,28 +89,4 @@ public struct RawJSONSidecarDocument: Sendable, Equatable {
         return try JSONDecoder().decode(JSONValue.self, from: data)
     }
 
-    private static func mergePreservingUnknowns(original: JSONValue, replacement: JSONValue) -> JSONValue {
-        switch (original, replacement) {
-        case (.object(let originalObject), .object(let replacementObject)):
-            var merged = originalObject
-            for (key, value) in replacementObject {
-                if let originalValue = originalObject[key] {
-                    merged[key] = mergePreservingUnknowns(original: originalValue, replacement: value)
-                } else {
-                    merged[key] = value
-                }
-            }
-            return .object(merged)
-        case (.array(let originalArray), .array(let replacementArray)):
-            let values = replacementArray.enumerated().map { index, value in
-                guard originalArray.indices.contains(index) else {
-                    return value
-                }
-                return mergePreservingUnknowns(original: originalArray[index], replacement: value)
-            }
-            return .array(values)
-        default:
-            return replacement
-        }
-    }
 }

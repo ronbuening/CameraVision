@@ -1,9 +1,9 @@
 # Phase 1 Requirements - CLI Raw JSON Sidecar Generator
 
-Version: 0.5
-Date: 2026-07-08
-Supersedes: 0.4
-Change log: v0.5: removed revision-history and status sections; status now lives in README/AGENTS.
+Version: 0.6
+Date: 2026-07-11
+Supersedes: 0.5
+Change log: v0.6: specified the audited cross-process derivative-cache transaction, active-artifact lease, cap-restoration, and purge rules (FR1-018c).
 Binary: `aisidecar` (subcommands: `analyze`, `benchmark`, `purge`, `cleanup`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15
@@ -244,6 +244,8 @@ FR1-018a - The derivative cache shall use content-addressed keys (`<source-sha25
 
 FR1-018b - Analyze shall retain derivative cache artifacts by default. It shall support opt-in clearing before the run uses the cache and after a fully successful run through JSON config, `AISIDECAR_*` environment overrides, and matching CLI flags. A run with failed per-file records or interruption shall not perform the post-success clear.
 
+FR1-018c - The CLI and GUI shall coordinate a shared derivative cache across processes. Image encode and hash may run concurrently outside the manifest lock, but final artifact rename, manifest mutation, and LRU accounting shall use one persistent cross-process lock and write-through manifest updates. Every artifact returned for consumption shall remain protected by a shared inode lease until released; replacement, eviction, and purge shall require a nonblocking exclusive lease and skip active artifacts. The cache may transiently exceed its configured cap for the active working set; a filesystem deletion failure shall remain manifest-accounted rather than pretending the bytes were removed, and later lifecycle/store operations shall retry eviction. Owning-pipeline teardown shall release all leases and enforce the cap when deletion is available. Manifest-cache invalidation shall distinguish atomic replacements even when modification time and byte count are unchanged.
+
 ## 8. Subject Isolation Requirements
 
 FR1-019 - The subject-isolation path shall use Apple Vision for foreground instance mask generation and Core Image for mask application, crop generation, matte/background compositing, and output rendering.
@@ -465,7 +467,7 @@ Purge-specific flags:
 --cache-dir <path>    Override the resolved derivative cache directory for this purge.
 ```
 
-`aisidecar purge` removes derivative cache artifacts from the resolved cache directory and does not contact Ollama or validate analyze-only model settings. It also accepts the project-wide `--config` flag.
+`aisidecar purge` removes derivative cache artifacts from the resolved cache directory and does not contact Ollama or validate analyze-only model settings. It skips artifacts carrying an active CLI/GUI inode lease, preserves the persistent coordination lock, and may remove only project-owned atomic temporary files older than 24 hours. It also accepts the project-wide `--config` flag.
 
 Cleanup-specific flags:
 

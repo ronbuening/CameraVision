@@ -24,18 +24,18 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
 | `Configuration/` | Config models, precedence (CLI > env > file > default), invocation validation, config-file editing | `ConfigurationResolver`, `AppConfig`, `ConfigFileEditor`, `RunConfiguration`/`ResolvedRunConfiguration`, `XMPExportConfiguration`, `NormalizationConfiguration`, `InvocationRules` |
 | `FileScanning/` | Folder scan, supported extensions, source records, structured directory-read failures, no-hash inventory scan | `ImageScanner` (+ `inventory(inputPath:recursive:)` → `ScanInventory`, CORE-5), `SourceImage`, `ScanResult` |
 | `Identity/` | Source content identity hashing (fast/sha256 policies) | `SourceIdentity` |
-| `Rendering/` | Model-input profiles, render recipes, whole-image rendering, derivative cache | `ImageRenderer`, `DerivativeCache`, `ModelInputProfileRegistry`, `RenderRecipe` |
+| `Rendering/` | Model-input profiles, render recipes, whole-image rendering, cross-process derivative-cache transactions and active-artifact leases | `ImageRenderer`, `DerivativeCache`, `ModelInputProfileRegistry`, `RenderRecipe` |
 | `SubjectIsolation/` | Apple Vision foreground masks, instance selection, two-resolution subject crops | `SubjectIsolationService`, `AppleVisionForegroundMaskProvider`, `InstanceSelectionPolicy` |
 | `ModelRuntime/` | Ollama HTTP client, prompt/schema registry, schema validation + response repair, mock runners | `OllamaVisionRunner`, `OllamaHTTPTransport`, `VisionModelRunner` (protocol), `PromptRegistry`, `JSONSchemaValidator` |
 | `Sidecars/` | Raw `.ai.json` naming, schema records, schema-evolution rewrites, atomic writes, export stamps | `RawJSONSidecar`, `RawJSONSidecarWriter/Reader`, `RawJSONSidecarInputResolver`, `AtomicFileWriter`, `SidecarNaming`, `RawSidecarExportStamp` (CORE-4 `xmp_export` block) |
-| `Metadata/` | Phase 2: candidate extraction, keyword policy, XMP naming/grouping, owned XMP parser/writer engine, backups, merge validation | `CandidateExtractor`, `MetadataWriteEngine` (protocol), `OwnedXMPSidecarEngine`, `XMPDocumentParser/Writer`, `XMPKeywordReader/Merger`, `XMPMetadataSnapshot`, `XMPUnmanagedContentFingerprint`, `XMPBackupManager`, `XMPChangePlan`, `SameBaseNameGroupResolver` |
+| `Metadata/` | Phase 2: candidate extraction, shared coordinate/GPS keyword safety, XMP naming/grouping, owned XMP parser/writer engine, backups, merge validation | `CandidateExtractor`, `KeywordSafetyPolicy`, `MetadataWriteEngine` (protocol), `OwnedXMPSidecarEngine`, `XMPDocumentParser/Writer`, `XMPKeywordReader/Merger`, `XMPMetadataSnapshot`, `XMPUnmanagedContentFingerprint`, `XMPBackupManager`, `XMPChangePlan`, `SameBaseNameGroupResolver` |
 | `Normalization/` | Phase 3: vocabulary load/index/validate, canonicalization, affinity graph, consensus, session documents, decision explainer, GUI review application | `VocabularyLoader/Index/Validator`, `VocabularyTextFolder`, `CandidateCanonicalizer`, `AssetAffinityGraph`, `BatchConsensusEngine`, `NormalizationSessionDocument`, `NormalizedXMPChangePlanner`, `NormalizationDecisionExplainer` (CORE-6), `SessionReview` (CORE-7) |
 | `Pipeline/` | Orchestration of everything above + interruption handling | see entry-point table below |
 | `Reporting/` | Injectable logger, JSONL progress logs, reports, summaries, schema identifiers, shared owned-artifact prefixes | `Logger` (injectable sink), `ProgressLog`, `JSONLWriter`, `BatchSummary`, `XMPExportReport`, `NormalizationReport`, `ArtifactNames` |
 | `Cleanup/` | Scoped removal of owned raw sidecars and run artifacts | `ArtifactCleanup` |
 | `Benchmarking/` | Milestone 9a benchmark harness | `Milestone9BenchmarkRunner` |
 | `Errors/` | Project-wide structured error codes (additive only, stable raw strings) | `SidecarError` |
-| `Support/` | Shared JSON encoder/decoder factories, timestamps, relocation-safe resource locator, product version | `JSONCoding`, `Timestamp`, `AISidecarResourceBundle`, `AISidecarVersion` |
+| `Support/` | Shared JSON encoder/decoder factories and unknown-field merge, cross-process file locking, timestamps, relocation-safe resource locator, product version | `JSONCoding`, `JSONDocumentMerge`, `FileLock`, `Timestamp`, `AISidecarResourceBundle`, `AISidecarVersion` |
 | `Resources/` | Bundled prompts, response schemas, JSON schemas, default vocabulary (~5.8 MB) | loaded via `AISidecarResourceBundle.current` (search order: app `Contents/Resources` → executable-adjacent → `../Resources` → `Bundle.module`; invariant 18) |
 
 ## Pipeline Entry Points
@@ -87,7 +87,9 @@ GUI model tests live in `Tests/CupricAspectAppTests` (offline, deterministic —
 | Progress log / report / summary | `*-progress-*.jsonl` / `*-report-*.json` / `*-summary-*.md` (names in `Reporting/ArtifactNames.swift`) |
 | Normalization session | `normalization-session-*.json`, reusable by `apply-session` |
 | Model-input export manifest | `model-input-export-*.json`, protected diagnostic manifest |
-| Derivative cache | `~/Library/Caches/aisidecar/derivatives` (configurable), manifest JSON + `aisidecar purge` lifecycle |
+| Derivative cache | `~/Library/Caches/aisidecar/derivatives` (configurable), write-through manifest JSON + persistent flock file + leased artifact inodes; `aisidecar purge` skips active leases |
 | Config file | `~/Library/Application Support/aisidecar/config.json` (configurable; the GUI Settings sheet writes through to the same file via `ConfigFileEditor`) |
 | GUI state | `~/Library/Application Support/CupricAspect/` — recovery session, per-run artifact dirs (pruned after 7 days by `StateHousekeeping`), `logs/` diagnostic log |
 | Packaged app | `dist/CupricAspect.app` from `Scripts/build-release.sh` — GUI at `Contents/MacOS`, CLI at `Contents/Helpers/aisidecar`, ONE shared resource bundle in `Contents/Resources` |
+
+Derivative-cache ownership is shared by the CLI and GUI. Expensive encode/hash work is staged outside the manifest flock; final rename, manifest mutation, LRU accounting, and purge decisions use the persistent cache lock. `cachedRecord`/`store` return leased artifacts, and every pipeline that consumes them must release each record plus run a final `releaseRetained()` teardown so the configured byte cap can be restored.

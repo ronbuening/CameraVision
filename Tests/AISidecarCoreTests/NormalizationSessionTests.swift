@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class NormalizationSessionTests: XCTestCase {
@@ -17,7 +18,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.sourceRoot = sourceRoot.path
         configuration.outputDir = output.path
         configuration.sessionOnly = true
-        configuration.sessionSubject = "Birds"
+        configuration.sessionSubject = "bird"
         configuration.allowSessionSubjectPropagation = true
         let timestamp = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -58,7 +59,7 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(decoded.perAssetDecisions[0].contextType, .subject)
         XCTAssertTrue(decoded.xmpWritePlans.isEmpty)
         XCTAssertEqual(decoded.sessionContext.map(\.contextType), [.subject])
-        XCTAssertEqual(decoded.sessionContext[0].foldedText, "birds")
+        XCTAssertEqual(decoded.sessionContext[0].foldedText, "bird")
         XCTAssertEqual(decoded.sessionContext[0].unknownPolicyResult, "matched")
         XCTAssertNotNil(decoded.sessionContext[0].matchedCanonicalPath)
         XCTAssertEqual(decoded.sessionContext[0].exportResult, "applied")
@@ -92,17 +93,19 @@ final class NormalizationSessionTests: XCTestCase {
             named: "Heron.JPG.ai.json",
             in: jsonRoot,
             modelRuns: [
-                modelRun(role: .wholeImage, response: response([
-                    .species: .array([
-                        candidate("great blue herons", confidence: "high"),
-                        candidate("Great Blue Heron", confidence: "medium"),
-                        candidate("Ardea herodias", confidence: "high")
-                    ]),
-                    .proposedKeywords: .array([
-                        candidate("Subject|Wildlife|Birds", confidence: "high"),
-                        candidate("40.7128, -74.0060", confidence: "high", evidence: "GPS coordinates only")
-                    ])
-                ]), index: 0)
+                modelRun(
+                    role: .wholeImage,
+                    response: response([
+                        .species: .array([
+                            candidate("great blue herons", confidence: "high"),
+                            candidate("Great Blue Heron", confidence: "medium"),
+                            candidate("Ardea herodias", confidence: "high"),
+                        ]),
+                        .proposedKeywords: .array([
+                            candidate("Subject|Wildlife|Birds", confidence: "high"),
+                            candidate("40.7128, -74.0060", confidence: "high", evidence: "GPS coordinates only"),
+                        ]),
+                    ]), index: 0)
             ]
         )
 
@@ -157,9 +160,11 @@ final class NormalizationSessionTests: XCTestCase {
             named: "Bird.JPG.ai.json",
             in: jsonRoot,
             modelRuns: [
-                modelRun(role: .wholeImage, response: response([
-                    .proposedKeywords: .array([candidate("bird", confidence: "high")])
-                ]), index: 0)
+                modelRun(
+                    role: .wholeImage,
+                    response: response([
+                        .proposedKeywords: .array([candidate("bird", confidence: "high")])
+                    ]), index: 0)
             ]
         )
 
@@ -178,10 +183,16 @@ final class NormalizationSessionTests: XCTestCase {
             try JSONSerialization.jsonObject(with: Data(contentsOf: sessionURL)) as? [String: Any]
         )
         object["schema_version"] = "ai-sidecar-normalization/1.1"
+        object["future_top_level"] = ["kept": true]
         var decisions = try XCTUnwrap(object["per_asset_decisions"] as? [[String: Any]])
+        decisions[0]["stage"] = "future_stage"
         decisions[0]["status"] = "future_status"
         decisions[0]["candidate_kind"] = "future_candidate_kind"
-        decisions[0]["skip_reasons"] = ["direct_apply_flat_only", "some_future_reason"]
+        decisions[0]["context_type"] = "future_context"
+        decisions[0]["namespace"] = "Future Namespace"
+        decisions[0]["direct_apply_policy"] = "future_policy"
+        decisions[0]["skip_reasons"] = ["some_future_reason", "direct_apply_flat_only"]
+        decisions[0]["future_decision_field"] = ["kept": true]
         object["per_asset_decisions"] = decisions
         try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: sessionURL)
 
@@ -192,6 +203,21 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertFalse(decision.exportFlatKeyword)
         XCTAssertFalse(decision.exportHierarchicalKeyword)
         XCTAssertEqual(decision.skipReasons, [.directApplyFlatOnly])
+        XCTAssertNil(decision.contextType)
+        XCTAssertNil(decision.namespace)
+        XCTAssertNil(decision.directApplyPolicy)
+
+        let reviewed = SessionReview.applying(
+            verdicts: [decision.decisionID: .approved],
+            edits: [decision.decisionID: "replacement"],
+            to: decoded
+        )
+        let reviewedDecision = try XCTUnwrap(reviewed.perAssetDecisions.first)
+        XCTAssertTrue(reviewedDecision.isForwardCompatUnknown)
+        XCTAssertEqual(reviewedDecision.status, .withheld)
+        XCTAssertFalse(reviewedDecision.exportFlatKeyword)
+        XCTAssertFalse(reviewedDecision.exportHierarchicalKeyword)
+        XCTAssertEqual(reviewedDecision.flatKeyword, decision.flatKeyword)
 
         let rewrittenURL = output.appendingPathComponent("rewritten-session.json")
         try NormalizationSessionWriter().write(decoded, to: rewrittenURL.path)
@@ -199,12 +225,46 @@ final class NormalizationSessionTests: XCTestCase {
             try JSONSerialization.jsonObject(with: Data(contentsOf: rewrittenURL)) as? [String: Any]
         )
         let rewrittenDecisions = try XCTUnwrap(rewritten["per_asset_decisions"] as? [[String: Any]])
+        XCTAssertEqual(rewrittenDecisions[0]["stage"] as? String, "future_stage")
         XCTAssertEqual(rewrittenDecisions[0]["status"] as? String, "future_status")
         XCTAssertEqual(rewrittenDecisions[0]["candidate_kind"] as? String, "future_candidate_kind")
+        XCTAssertEqual(rewrittenDecisions[0]["context_type"] as? String, "future_context")
+        XCTAssertEqual(rewrittenDecisions[0]["namespace"] as? String, "Future Namespace")
+        XCTAssertEqual(rewrittenDecisions[0]["direct_apply_policy"] as? String, "future_policy")
         XCTAssertEqual(
             rewrittenDecisions[0]["skip_reasons"] as? [String],
-            ["direct_apply_flat_only", "some_future_reason"]
+            ["some_future_reason", "direct_apply_flat_only"]
         )
+        XCTAssertEqual(
+            (rewrittenDecisions[0]["future_decision_field"] as? [String: Any])?["kept"] as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            (rewritten["future_top_level"] as? [String: Any])?["kept"] as? Bool,
+            true
+        )
+    }
+
+    func testUnknownNestedObservationEnumRemainsCompatibilityBoundary() throws {
+        let observation = phase3Observation(
+            id: "obs-000001",
+            assetID: "asset-000001",
+            term: "bird"
+        )
+        let original = phase3DirectDecision(
+            assetID: "asset-000001",
+            canonicalPath: "Subject|Wildlife|Birds",
+            observation: observation
+        )
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any]
+        )
+        var observations = try XCTUnwrap(object["observations"] as? [[String: Any]])
+        observations[0]["confidence"] = "future_confidence"
+        object["observations"] = observations
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PerAssetNormalizationDecision.self, from: data))
     }
 
     func testFromJSONSessionOnlyPersistsCanonicalizedCandidateDecisionsAndReportCounts() throws {
@@ -219,16 +279,20 @@ final class NormalizationSessionTests: XCTestCase {
             named: "Bird.JPG.ai.json",
             in: jsonRoot,
             modelRuns: [
-                modelRun(role: .wholeImage, response: response([
-                    .mainSubjects: .array([
-                        candidate("bird", confidence: "high")
-                    ])
-                ]), index: 0),
-                modelRun(role: .subjectIsolated, response: response([
-                    .proposedKeywords: .array([
-                        candidate("avian", confidence: "medium")
-                    ])
-                ]), index: 1)
+                modelRun(
+                    role: .wholeImage,
+                    response: response([
+                        .mainSubjects: .array([
+                            candidate("bird", confidence: "high")
+                        ])
+                    ]), index: 0),
+                modelRun(
+                    role: .subjectIsolated,
+                    response: response([
+                        .proposedKeywords: .array([
+                            candidate("avian", confidence: "medium")
+                        ])
+                    ]), index: 1),
             ]
         )
 
@@ -281,11 +345,13 @@ final class NormalizationSessionTests: XCTestCase {
             named: "Bird.JPG.ai.json",
             in: jsonRoot,
             modelRuns: [
-                modelRun(role: .wholeImage, response: response([
-                    .mainSubjects: .array([
-                        candidate("bird", confidence: "high")
-                    ])
-                ]), index: 0)
+                modelRun(
+                    role: .wholeImage,
+                    response: response([
+                        .mainSubjects: .array([
+                            candidate("bird", confidence: "high")
+                        ])
+                    ]), index: 0)
             ]
         )
 
@@ -348,11 +414,13 @@ final class NormalizationSessionTests: XCTestCase {
             named: "Heron.JPG.ai.json",
             in: jsonRoot,
             modelRuns: [
-                modelRun(role: .wholeImage, response: response([
-                    .species: .array([
-                        candidate("Great Blue Heron", confidence: "high")
-                    ])
-                ]), index: 0)
+                modelRun(
+                    role: .wholeImage,
+                    response: response([
+                        .species: .array([
+                            candidate("Great Blue Heron", confidence: "high")
+                        ])
+                    ]), index: 0)
             ]
         )
 
@@ -482,7 +550,8 @@ final class NormalizationSessionTests: XCTestCase {
     }
 
     private func xmpFiles(in root: URL) throws -> [URL] {
-        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey]) else {
+        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey])
+        else {
             return []
         }
         return enumerator.compactMap { element in
@@ -545,7 +614,7 @@ final class NormalizationSessionTests: XCTestCase {
                 synonyms: ["bird", "avian"],
                 requiresReview: false,
                 directApplyPolicy: .allow
-            )
+            ),
         ]).write(to: file)
         return file.path
     }
@@ -573,7 +642,7 @@ final class NormalizationSessionTests: XCTestCase {
     private func response(_ fields: [CandidateSourceField: JSONValue]) -> JSONValue {
         var object: [String: JSONValue] = [
             "summary": .string("fixture"),
-            "uncertainty_notes": .string("")
+            "uncertainty_notes": .string(""),
         ]
         for (field, value) in fields {
             object[field.rawValue] = value
@@ -588,7 +657,7 @@ final class NormalizationSessionTests: XCTestCase {
     ) -> JSONValue {
         var object: [String: JSONValue] = [
             "term": .string(term),
-            "confidence": .string(confidence)
+            "confidence": .string(confidence),
         ]
         if let evidence {
             object["evidence"] = .string(evidence)

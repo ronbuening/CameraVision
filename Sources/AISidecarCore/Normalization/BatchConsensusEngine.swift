@@ -59,7 +59,7 @@ public struct BatchConsensusEngine {
         var decisions = canonicalization.perAssetDecisions
         let eligibleAssetIDs = input.sourceAssets.map(\.assetID).sorted()
 
-        guard configuration.normalizationMode == .batchConservative else {
+        guard configuration.normalizationMode != .off else {
             assignDecisionIDs(&decisions)
             return result(
                 canonicalization: canonicalization,
@@ -81,8 +81,24 @@ public struct BatchConsensusEngine {
             support: support,
             input: input,
             graph: graph,
+            configuration: configuration,
             decisions: &decisions
         )
+        if configuration.normalizationMode == .singleImage {
+            decisions.sort(by: compareDecisions)
+            assignDecisionIDs(&decisions)
+            return result(
+                canonicalization: canonicalizationWithSessionContext(
+                    sessionContext,
+                    canonicalization: canonicalization
+                ),
+                graph: graph,
+                configuration: configuration,
+                batchCandidates: canonicalization.batchCandidates,
+                localConsensus: [],
+                decisions: decisions
+            )
+        }
         support = DirectSupportIndex(
             decisions: decisions,
             vocabulary: vocabulary,
@@ -91,43 +107,43 @@ public struct BatchConsensusEngine {
 
         var localConsensus: [LocalWeightedConsensusRecord] = []
         if configuration.affinityMode == .metadataWeighted {
-            decisions.append(contentsOf: localPropagationDecisions(
-                support: support,
-                input: input,
-                graph: graph,
-                profile: profile,
-                configuration: configuration,
-                localConsensus: &localConsensus
-            ))
+            decisions.append(
+                contentsOf: localPropagationDecisions(
+                    support: support,
+                    input: input,
+                    graph: graph,
+                    profile: profile,
+                    configuration: configuration,
+                    localConsensus: &localConsensus
+                ))
             support = DirectSupportIndex(
                 decisions: decisions,
                 vocabulary: vocabulary,
                 eligibleAssetIDs: eligibleAssetIDs
             )
         }
-        decisions.append(contentsOf: globalBackstopDecisions(
-            support: support,
-            input: input,
-            graph: graph,
-            profile: profile,
-            configuration: configuration
-        ))
+        decisions.append(
+            contentsOf: globalBackstopDecisions(
+                support: support,
+                input: input,
+                graph: graph,
+                profile: profile,
+                configuration: configuration
+            ))
         decisions.sort(by: compareDecisions)
         assignDecisionIDs(&decisions)
         localConsensus.sort(by: compareLocalConsensus)
 
         return result(
-            canonicalization: CandidateCanonicalizationResult(
-                sessionContext: sessionContext,
-                observations: canonicalization.observations,
-                skips: canonicalization.skips,
-                batchCandidates: canonicalization.batchCandidates,
-                perAssetDecisions: canonicalization.perAssetDecisions
+            canonicalization: canonicalizationWithSessionContext(
+                sessionContext,
+                canonicalization: canonicalization
             ),
             graph: graph,
             configuration: configuration,
             batchCandidates: hierarchyAwareBatchCandidates(
-                support: DirectSupportIndex(decisions: decisions, vocabulary: vocabulary, eligibleAssetIDs: eligibleAssetIDs),
+                support: DirectSupportIndex(
+                    decisions: decisions, vocabulary: vocabulary, eligibleAssetIDs: eligibleAssetIDs),
                 decisions: decisions,
                 eligibleAssetIDs: eligibleAssetIDs,
                 configuration: configuration
@@ -163,6 +179,19 @@ public struct BatchConsensusEngine {
         )
     }
 
+    private func canonicalizationWithSessionContext(
+        _ sessionContext: [NormalizationSessionContextRecord],
+        canonicalization: CandidateCanonicalizationResult
+    ) -> CandidateCanonicalizationResult {
+        CandidateCanonicalizationResult(
+            sessionContext: sessionContext,
+            observations: canonicalization.observations,
+            skips: canonicalization.skips,
+            batchCandidates: canonicalization.batchCandidates,
+            perAssetDecisions: canonicalization.perAssetDecisions
+        )
+    }
+
     private func shouldBuildGraph(_ configuration: ResolvedNormalizationConfiguration) -> Bool {
         configuration.normalizationMode == .batchConservative
             && configuration.affinityMode == .metadataWeighted
@@ -182,7 +211,8 @@ public struct BatchConsensusEngine {
                 continue
             }
             let supporting = support.assetsSupporting(canonicalPath).sorted()
-            let observations = decisions
+            let observations =
+                decisions
                 .filter { $0.canonicalPath == canonicalPath && $0.stage == .directModelObservation }
                 .flatMap(\.observations)
             summaries.append(
@@ -206,29 +236,31 @@ public struct BatchConsensusEngine {
             )
         }
 
-        let nonCanonical = decisions
+        let nonCanonical =
+            decisions
             .filter { $0.candidateKind != .canonicalVocabulary && $0.candidateKind != .observedModelTag }
-        summaries.append(contentsOf: Dictionary(grouping: nonCanonical) {
-            "\($0.candidateKind.rawValue)|\($0.flatKeyword ?? "")|\($0.hierarchicalKeyword ?? "")"
-        }.values.map { grouped in
-            let first = grouped[0]
-            let observations = grouped.flatMap(\.observations)
-            return BatchCandidateSummary(
-                candidateKind: first.candidateKind,
-                flatKeyword: first.flatKeyword,
-                hierarchicalKeyword: first.hierarchicalKeyword,
-                supportingAssetIDs: grouped.map(\.assetID).sorted(),
-                directAssetSupportCount: grouped.count,
-                eligibleAssetCount: eligibleCount,
-                agreementFrequency: eligibleCount > 0
-                    ? AffinityScoreFormatter.rounded(Double(grouped.count) / Double(eligibleCount))
-                    : nil,
-                observationCount: observations.count,
-                confidenceBands: counts(observations.map { $0.confidence.rawValue }),
-                sourceFields: counts(observations.map { $0.provenance.sourceField.rawValue }),
-                inputRoles: counts(observations.map { $0.provenance.inputRole.rawValue })
-            )
-        })
+        summaries.append(
+            contentsOf: Dictionary(grouping: nonCanonical) {
+                "\($0.candidateKind.rawValue)|\($0.flatKeyword ?? "")|\($0.hierarchicalKeyword ?? "")"
+            }.values.map { grouped in
+                let first = grouped[0]
+                let observations = grouped.flatMap(\.observations)
+                return BatchCandidateSummary(
+                    candidateKind: first.candidateKind,
+                    flatKeyword: first.flatKeyword,
+                    hierarchicalKeyword: first.hierarchicalKeyword,
+                    supportingAssetIDs: grouped.map(\.assetID).sorted(),
+                    directAssetSupportCount: grouped.count,
+                    eligibleAssetCount: eligibleCount,
+                    agreementFrequency: eligibleCount > 0
+                        ? AffinityScoreFormatter.rounded(Double(grouped.count) / Double(eligibleCount))
+                        : nil,
+                    observationCount: observations.count,
+                    confidenceBands: counts(observations.map { $0.confidence.rawValue }),
+                    sourceFields: counts(observations.map { $0.provenance.sourceField.rawValue }),
+                    inputRoles: counts(observations.map { $0.provenance.inputRole.rawValue })
+                )
+            })
 
         return summaries.sorted { lhs, rhs in
             let lhsKey = lhs.canonicalPath ?? lhs.flatKeyword ?? lhs.hierarchicalKeyword ?? ""
@@ -245,12 +277,18 @@ public struct BatchConsensusEngine {
         support: DirectSupportIndex,
         input: NormalizationResolvedInputBatch,
         graph: AssetAffinityGraph,
+        configuration: ResolvedNormalizationConfiguration,
         decisions: inout [PerAssetNormalizationDecision]
     ) -> [NormalizationSessionContextRecord] {
         var updated: [NormalizationSessionContextRecord] = []
-        let targetAssetIDs = input.sameBaseNameGroups.flatMap(\.selectedAssetIDs).isEmpty
-            ? input.sourceAssets.map(\.assetID)
-            : input.sameBaseNameGroups.flatMap(\.selectedAssetIDs)
+        var acceptedDecisionKeys = Set(
+            decisions.compactMap { decision -> AssetCanonicalPathKey? in
+                guard decision.status == .accepted, let canonicalPath = decision.canonicalPath else {
+                    return nil
+                }
+                return AssetCanonicalPathKey(assetID: decision.assetID, canonicalPath: canonicalPath)
+            })
+        let targetAssetIDs = targetAssetIDs(in: input)
 
         for record in records {
             var record = record
@@ -259,58 +297,119 @@ public struct BatchConsensusEngine {
                 continue
             }
 
-            if let canonicalPath = record.matchedCanonicalPath,
-               let entry = vocabulary.index.entry(canonicalPath: canonicalPath) {
-                var conflictCount = 0
-                for assetID in targetAssetIDs.sorted() {
-                    if hasDirectConflict(assetID: assetID, candidatePath: canonicalPath, support: support) {
-                        conflictCount += 1
-                        continue
-                    }
-                    // FR3-003k: withheld model evidence remains auditable but cannot block explicit user context.
-                    if decisions.contains(where: {
-                        $0.assetID == assetID
-                            && $0.canonicalPath == canonicalPath
-                            && $0.status == .accepted
-                    }) {
-                        continue
-                    }
-                    decisions.append(
-                        userContextDecision(
-                            assetID: assetID,
-                            groupID: graph.nodeIDByAssetID[assetID],
-                            record: record,
-                            entry: entry
-                        )
-                    )
+            guard let canonicalPath = record.matchedCanonicalPath,
+                let entry = vocabulary.index.entry(canonicalPath: canonicalPath)
+            else {
+                if record.exportResult == "pending_session_context_decision" {
+                    record.exportResult = targetAssetIDs.isEmpty ? "no_target_assets" : "withheld_by_policy"
                 }
-                record.conflictCount = conflictCount
-                record.exportResult = conflictCount > 0 ? "applied_with_conflicts" : "applied"
+                updated.append(record)
+                continue
             }
+            guard !targetAssetIDs.isEmpty else {
+                record.conflictCount = 0
+                record.exportResult = "no_target_assets"
+                updated.append(record)
+                continue
+            }
+
+            var conflictCount = 0
+            var acceptedCoverageCount = 0
+            var withheldCount = 0
+            for assetID in targetAssetIDs {
+                if hasDirectConflict(assetID: assetID, candidatePath: canonicalPath, support: support) {
+                    conflictCount += 1
+                    continue
+                }
+                // FR3-003k: withheld model evidence remains auditable but cannot block explicit user context.
+                let decisionKey = AssetCanonicalPathKey(assetID: assetID, canonicalPath: canonicalPath)
+                if acceptedDecisionKeys.contains(decisionKey) {
+                    acceptedCoverageCount += 1
+                    continue
+                }
+                let decision = userContextDecision(
+                    assetID: assetID,
+                    groupID: graph.nodeIDByAssetID[assetID],
+                    record: record,
+                    entry: entry,
+                    configuration: configuration
+                )
+                decisions.append(decision)
+                if decision.status == .accepted {
+                    acceptedCoverageCount += 1
+                    acceptedDecisionKeys.insert(decisionKey)
+                } else {
+                    withheldCount += 1
+                }
+            }
+            record.conflictCount = conflictCount
+            record.exportResult = sessionContextExportResult(
+                targetCount: targetAssetIDs.count,
+                acceptedCoverageCount: acceptedCoverageCount,
+                withheldCount: withheldCount,
+                conflictCount: conflictCount
+            )
             updated.append(record)
         }
         return updated
+    }
+
+    private func targetAssetIDs(in input: NormalizationResolvedInputBatch) -> [String] {
+        if input.sameBaseNameGroups.isEmpty {
+            return input.sourceAssets.map(\.assetID).sorted()
+        }
+        return Array(Set(input.sameBaseNameGroups.flatMap(\.selectedAssetIDs))).sorted()
+    }
+
+    private func sessionContextExportResult(
+        targetCount: Int,
+        acceptedCoverageCount: Int,
+        withheldCount: Int,
+        conflictCount: Int
+    ) -> String {
+        guard targetCount > 0 else {
+            return "no_target_assets"
+        }
+        if acceptedCoverageCount > 0 {
+            return conflictCount > 0 ? "applied_with_conflicts" : "applied"
+        }
+        if conflictCount > 0 {
+            return "not_applied_conflicts"
+        }
+        if withheldCount > 0 {
+            return "withheld_by_policy"
+        }
+        return "withheld_by_policy"
     }
 
     private func userContextDecision(
         assetID: String,
         groupID: String?,
         record: NormalizationSessionContextRecord,
-        entry: ResolvedVocabularyEntry
+        entry: ResolvedVocabularyEntry,
+        configuration: ResolvedNormalizationConfiguration
     ) -> PerAssetNormalizationDecision {
         var flatKeyword: String?
         var hierarchicalKeyword: String?
         var skipReasons: [NormalizationCandidateSkipReason] = []
         switch entry.directApplyPolicy {
         case .allow, .userOnly:
-            if entry.exportFlatKeyword {
+            if configuration.writeFlatKeywords, entry.exportFlatKeyword {
                 flatKeyword = entry.flatKeyword
+            } else {
+                skipReasons.append(.disabledFlatExport)
             }
-            if entry.exportHierarchicalKeyword {
+            if configuration.writeHierarchicalKeywords, entry.exportHierarchicalKeyword {
                 hierarchicalKeyword = entry.canonicalPath
+            } else {
+                skipReasons.append(.disabledHierarchicalExport)
             }
         case .flatOnly:
-            flatKeyword = entry.flatKeyword
+            if configuration.writeFlatKeywords, entry.exportFlatKeyword {
+                flatKeyword = entry.flatKeyword
+            } else {
+                skipReasons.append(.disabledFlatExport)
+            }
             skipReasons.append(.directApplyFlatOnly)
         case .withhold:
             skipReasons.append(.directApplyWithheld)
@@ -370,8 +469,9 @@ public struct BatchConsensusEngine {
             }
             for canonicalPath in candidatePaths {
                 guard let entry = vocabulary.index.entry(canonicalPath: canonicalPath),
-                      !support.asset(assetID, supports: canonicalPath),
-                      !propagated.contains(where: { $0.assetID == assetID && $0.canonicalPath == canonicalPath }) else {
+                    !support.asset(assetID, supports: canonicalPath),
+                    !propagated.contains(where: { $0.assetID == assetID && $0.canonicalPath == canonicalPath })
+                else {
                     continue
                 }
                 let consensus = localConsensusRecord(
@@ -489,10 +589,11 @@ public struct BatchConsensusEngine {
         var decisions: [PerAssetNormalizationDecision] = []
         for canonicalPath in support.supportedCanonicalPaths.sorted() {
             guard let entry = vocabulary.index.entry(canonicalPath: canonicalPath),
-                  entry.autoApplyAllowed,
-                  !entry.requiresReview,
-                  entry.propagationScope == .global,
-                  entry.specificity == .broad else {
+                entry.autoApplyAllowed,
+                !entry.requiresReview,
+                entry.propagationScope == .global,
+                entry.specificity == .broad
+            else {
                 continue
             }
             let supporting = support.assetsSupporting(canonicalPath).sorted()
@@ -535,7 +636,8 @@ public struct BatchConsensusEngine {
         configuration: ResolvedNormalizationConfiguration
     ) -> PerAssetNormalizationDecision {
         let flatKeyword = configuration.writeFlatKeywords && entry.exportFlatKeyword ? entry.flatKeyword : nil
-        let hierarchicalKeyword = configuration.writeHierarchicalKeywords && entry.exportHierarchicalKeyword
+        let hierarchicalKeyword =
+            configuration.writeHierarchicalKeywords && entry.exportHierarchicalKeyword
             ? entry.canonicalPath
             : nil
         let isObservedTags = configuration.vocabularyMode == .observedTags
@@ -584,7 +686,8 @@ public struct BatchConsensusEngine {
             }
         }
         let agreement = eligibleMass > 0 ? supportMass / eligibleMass : nil
-        let blocked = (agreement ?? 0) >= conflictAgreementThreshold(profile.name)
+        let blocked =
+            (agreement ?? 0) >= conflictAgreementThreshold(profile.name)
             && supportMass >= 0.75
         return (supportMass, agreement, paths.sorted(), blocked)
     }
@@ -675,6 +778,11 @@ public struct BatchConsensusEngine {
     }
 }
 
+private struct AssetCanonicalPathKey: Hashable {
+    var assetID: String
+    var canonicalPath: String
+}
+
 private struct DirectSupportIndex {
     var exactPathsByAssetID: [String: Set<String>] = [:]
     var supportedPathsByAssetID: [String: Set<String>] = [:]
@@ -721,9 +829,10 @@ private struct DirectSupportIndex {
     }
 
     func assetsSupporting(_ canonicalPath: String) -> Set<String> {
-        Set(supportedPathsByAssetID.compactMap { assetID, paths in
-            paths.contains(canonicalPath) ? assetID : nil
-        })
+        Set(
+            supportedPathsByAssetID.compactMap { assetID, paths in
+                paths.contains(canonicalPath) ? assetID : nil
+            })
     }
 
     func exactPathsForNode(_ nodeID: String, graph: AssetAffinityGraph) -> Set<String> {

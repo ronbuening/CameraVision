@@ -331,9 +331,10 @@ Frequently used knobs:
 - `--model-retry-limit <n>` / `"model_retry_limit"` — set additional attempts for retryable failures.
 - `--mode whole|subject|both` / `"mode"` — analysis input role.
 - `--stage-concurrency 1` / `"stage_concurrency"` — lower memory pressure by preparing renders serially.
-- `--gps-context off|coarse|exact` / `"gps_context"` — prompt-only GPS context. GPS is never exported as a keyword.
+- `--gps-context off|coarse|exact` / `"gps_context"` — prompt-only GPS context. Coordinates and GPS-derived location metadata are never exported as keywords.
 - `--existing skip|overwrite|fail` / `"existing"` — how raw `.ai.json` collisions are handled.
 - `--pair-scope union|raw-only|jpeg-only` / `"pair_scope"` — RAW/JPEG same-base-name grouping.
+- `--normalization-mode off|single-image|batch-conservative` / `"normalization_mode"` — `off` is the Phase 2 baseline: no vocabulary mapping, affinity, batch propagation, or session-context application.
 
 ---
 
@@ -347,7 +348,7 @@ Frequently used knobs:
 | `*-report-*.json` | Machine-readable run report. |
 | `*-summary-*.md` | Human-readable run summary. |
 | `normalization-session-*.json` | Durable session that `apply-session` can reuse. |
-| `~/Library/Caches/aisidecar/derivatives` | Regenerable render/derivative cache (default location). |
+| `~/Library/Caches/aisidecar/derivatives` | Regenerable render/derivative cache (default location); CLI and GUI coordinate access, and purge skips artifacts in active use. |
 | `~/Library/Application Support/CupricAspect/` | App state (recovery session, per-run artifacts) and a size-capped diagnostic log (path shown in **Settings → About**). |
 
 New run artifacts use a filesystem-portable `yyyy-MM-dd'T'HHmmssZ-<4hex>` token, for example
@@ -369,8 +370,10 @@ using each app's normal XMP workflow to pick up the new keywords.
   reports but never modifies sidecars.
 - **XMP writes are careful:** owned parser/writer, deterministic backups, source-hash
   checks, and post-write semantic validation.
-- **GPS stays out of keywords.** GPS context can influence prompts and provenance, but
-  coordinates and GPS-only evidence are guarded from keyword export.
+- **GPS location data stays out of keywords.** GPS context can influence prompts and
+  provenance, but coordinate syntax, GPS-derived location terms, and GPS-only evidence
+  are guarded at extraction, session context, review, and final planning. A visible
+  object such as a GPS receiver may still be tagged as an object.
 - **`cleanup` is conservative.** It never removes source images, `.xmp` sidecars, XMP
   backups, model-input exports, debug derivatives, the derivative cache, or
   normalization session JSON. It removes UUID-shaped atomic-writer temp files only

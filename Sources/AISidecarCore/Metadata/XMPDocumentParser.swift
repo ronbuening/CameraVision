@@ -65,7 +65,8 @@ struct XMPDocumentParser {
             return root
         }
         if XMPXML.isXMPMeta(root),
-           let rdf = XMPXML.elementDescendants(of: root).first(where: XMPXML.isRDFRoot) {
+            let rdf = XMPXML.elementDescendants(of: root).first(where: XMPXML.isRDFRoot)
+        {
             return rdf
         }
         throw XMPXML.sidecarError(
@@ -109,7 +110,8 @@ struct XMPDocumentParser {
             if !directManaged.contains(ObjectIdentifier(managed)) {
                 throw XMPXML.sidecarError(
                     code: .xmpUnsupportedRDF,
-                    message: "XMP sidecar \(targetPath) has a managed keyword field outside a direct rdf:Description child."
+                    message:
+                        "XMP sidecar \(targetPath) has a managed keyword field outside a direct rdf:Description child."
                 )
             }
         }
@@ -156,12 +158,13 @@ struct XMPDocumentParser {
 
         for child in XMPXML.elementChildren(of: bag) {
             guard XMPXML.isRDFListItem(child),
-                  XMPXML.elementChildren(of: child).isEmpty,
-                  (child.attributes ?? []).isEmpty
+                XMPXML.elementChildren(of: child).isEmpty,
+                (child.attributes ?? []).isEmpty
             else {
                 throw XMPXML.sidecarError(
                     code: .xmpUnsupportedRDF,
-                    message: "XMP sidecar \(targetPath) has unsupported rdf:li content in \(field.qualifiedPropertyName)."
+                    message:
+                        "XMP sidecar \(targetPath) has unsupported rdf:li content in \(field.qualifiedPropertyName)."
                 )
             }
         }
@@ -180,7 +183,9 @@ struct XMPDocumentParser {
             guard let about = rdfAboutValue(description) else {
                 return false
             }
-            return sourceFileNames.contains { about.hasSuffix($0) }
+            return sourceFileNames.contains { sourceFileName in
+                rdfAbout(about, namesSourceFile: sourceFileName)
+            }
         }) {
             return sourceMatch
         }
@@ -207,6 +212,22 @@ struct XMPDocumentParser {
 
     private func rdfAboutValue(_ description: XMLElement) -> String? {
         XMPXML.firstAttributeValue(on: description, namespaceURI: XMPNamespace.rdf, localName: "about")
+    }
+
+    private func rdfAbout(_ value: String, namesSourceFile sourceFileName: String) -> Bool {
+        if let component = URL(string: value)?.lastPathComponent, !component.isEmpty {
+            if component == sourceFileName {
+                return true
+            }
+        }
+
+        // Some third-party packets carry Windows paths rather than URI syntax.
+        // Compare their terminal component without accepting suffix lookalikes.
+        guard value.contains("\\") else {
+            return false
+        }
+        let path = value.replacingOccurrences(of: "\\", with: "/")
+        return path.split(separator: "/", omittingEmptySubsequences: true).last.map(String.init) == sourceFileName
     }
 
     private func managedChildrenIdentity(in descriptions: [XMLElement]) -> [ObjectIdentifier] {

@@ -49,7 +49,7 @@ Default model input profile (to be justified empirically in Milestone 9, not ass
 }
 ```
 
-Derivative cache: default path `~/Library/Caches/aisidecar/derivatives` (see architecture-map.md artifacts table), default cap **20 GiB**, manifest-backed LRU eviction, keys `<source-sha256>-<recipe-version>-<role>.<ext>`. Overridable via `derivative_cache_dir` / `derivative_cache_size_bytes` config or `AISIDECAR_*` env. Only model-input roles (`whole_image`, `subject_isolated`) are cached; the cache index manifest is excluded from role artifacts. `clear_derivative_cache_on_start` / `clear_derivative_cache_after_success` are resolvable via config, env, and CLI flags; post-success clearing runs only when the invocation has no failed records and was not interrupted.
+Derivative cache: default path `~/Library/Caches/aisidecar/derivatives` (see architecture-map.md artifacts table), default cap **20 GiB**, manifest-backed LRU eviction, keys `<source-sha256>-<recipe-version>-<role>.<ext>`. Overridable via `derivative_cache_dir` / `derivative_cache_size_bytes` config or `AISIDECAR_*` env. Only model-input roles (`whole_image`, `subject_isolated`) are cached; the cache index manifest is excluded from role artifacts. `clear_derivative_cache_on_start` / `clear_derivative_cache_after_success` are resolvable via config, env, and CLI flags; post-success clearing runs only when the invocation has no failed records and was not interrupted. The CLI and GUI coordinate through a persistent flock file. Encode/hash is staged outside that flock; final rename and manifest mutation occur under it. Returned artifacts carry shared inode leases, so cross-process eviction and purge skip active inputs and the configured cap is restored at consumer teardown.
 
 Model run option defaults: temperature 0, recorded seed, thinking explicitly disabled and recorded, `keep_alive`
 30m refreshed per request, timeout 180 s, 2 additional attempts on timeout/transport/HTTP 5xx errors, and
@@ -62,12 +62,16 @@ HTTP 4xx fails immediately and a malformed HTTP-success envelope has its own sin
 - **Prompt hashing** is the SHA-256 of the exact LF-normalized prompt text with one trailing newline; `PromptRegistry` parses `PROMPT_VERSION` from the same text.
 - **Model-stage role ordering** is `whole_image` then `subject_isolated`; model calls are serialized single-flight while render/isolation preparation runs in a bounded task group.
 - **`stage_concurrency = 1` selects a lower-memory serial path** that avoids rendering the next source while the current model request is active. Default is physical performance cores with an active-processor fallback; the resolved value is recorded in sidecar provenance.
+- **Derivative-cache reads are leased.** Every `cachedRecord`/`store` result must be released after its model/export consumer finishes, and every owning pipeline must call `releaseRetained()` at teardown. Never delete an artifact or mutate the manifest outside `DerivativeCache`; purge/eviction require a nonblocking exclusive lock on the artifact inode.
 
 ## Boundary rules
 
 - **One extraction path, one write path.** Analyze-and-write (and analyze-and-normalize) call the existing `AnalyzePipeline` and feed the same export planner used by `--from-json`. There are never two candidate-extraction stacks or two XMP write stacks; Phase 3 output is a write plan consumed by the Phase 2 engine (invariants 1 and 4 cover the write-path guarantee).
 - **No XML/RDF details in policy modules.** Candidate extraction, grouping, keyword policy, and every `Normalization/` module produce terms, decisions, provenance, and plans only. XML parsing and writing stay behind `MetadataWriteEngine`, so policy behavior is provable with a mock engine and preservation behavior with focused owned-engine fixtures.
 - **The owned engine never becomes a general metadata library.** `OwnedXMPSidecarEngine` is limited to `.xmp` sidecar files and the two managed keyword fields (`dc:subject`, `lr:hierarchicalSubject`); it preserves unmanaged content semantically and fails closed on unsupported shapes. Embedded metadata or broader XMP authoring requires new requirements. ExifTool is never a runtime dependency.
+- **Keyword safety is a final-boundary rule.** `KeywordSafetyPolicy` distinguishes coordinate/GPS location metadata from a visibly depicted GPS device. Candidate extraction, session preflight, review edits, and final normalized planning all use it; the planner is the independent last guard for imported or hand-edited sessions.
+- **Normalization-off is a Phase 2 baseline.** It applies no session context and performs no vocabulary lookup for context values; supplied context is retained only as an `ignored_normalization_off` audit record.
+- **Same-major session tolerance fails closed per decision.** Direct per-asset decision enum raw values and unknown JSON fields are preserved through `NormalizationSessionWriter`; review and planning ignore affected decisions. Nested observation/provenance and audit-only enums are still strict decoding boundaries, so a future writer must not add such values within schema major 1 until lossless adapters land.
 
 ## Interruption invariant
 
@@ -83,7 +87,7 @@ Fail-closed classification (Phase 2 plan §8):
 - Unsupported RDF shapes → `E_XMP_UNSUPPORTED_RDF`: managed keywords expressed as attributes, duplicate managed properties, managed fields split across multiple `rdf:Description` elements, or managed keyword content that is not an `rdf:Bag`.
 - Both map to structured errors with bounded diagnostic excerpts; neither modifies source files or existing sidecars.
 
-Write pattern: engine writes go through `AtomicFileWriter.writeFile` — the merged sidecar is written to a temporary file, **validated as readable before** atomic replacement of the target. The parser accepts either an `x:xmpmeta` wrapper or a direct `rdf:RDF` root; the merger preserves existing keyword spelling/order, appends planned terms in plan order, and de-duplicates case-insensitively.
+Write pattern: engine writes go through `AtomicFileWriter.writeFile` — the merged sidecar is written to a temporary file, **validated as readable before** atomic replacement of the target. The parser accepts either an `x:xmpmeta` wrapper or a direct `rdf:RDF` root; the merger preserves existing keyword spelling/order, appends planned terms in plan order, and de-duplicates case-insensitively. With multiple writable descriptions, selection is managed-field owner → exact decoded source-filename `rdf:about` → empty `rdf:about` → first description; raw suffix matching is forbidden.
 
 ## Provenance without retained raw sidecars
 
@@ -95,7 +99,7 @@ Doc 03 Appendix B mandates this matrix be maintained; this file is its home. Mai
 
 ```text
 Requirement family        Primary modules                                           Primary tests                                      Milestone
-FR3-CLI / FR3-ERR         NormalizeCommand, ApplySessionCommand, configuration       NormalizeCommandTests, ApplySessionCommandTests    M0
+FR3-CLI / FR3-ERR         NormalizeCommand, ApplySessionCommand, input resolver       NormalizeCommandTests, FileListInputResolverTests  M0/R4
 FR3-001..008              VocabularyLoader, VocabularyEntry, DirectApplyPolicy       VocabularyLoaderTests, DirectApplyPolicyTests     M1
 Appendix A / AC3-030      StarterVocabularyResource, StarterVocabularyFixtures       StarterVocabularyTests                            M1
 FR3-ORD-001..005          NormalizationDecisionOrder, NormalizationDecisionEngine    NormalizationDecisionOrderTests                   M2-M5
@@ -108,9 +112,9 @@ FR3-AFF-014..016          LocalWeightedConsensus                                
 FR3-AFF-017a/b            LocalConflictMass                                         LocalConflictMassTests                            M4
 FR3-013e/f                GlobalBackstopConsensus                                   GlobalBackstopConsensusTests                      M4
 FR3-AFF-020..022          AssetAffinityPrivacy                                      AssetAffinityPrivacyTests, ReportTests            M4/M6
-FR3-021..026f             SessionContextNormalizer, SessionContextPolicy            SessionContextNormalizerTests                     M4
-FR3-027..030k             NormalizationSessionReader/Writer                         NormalizationSessionTests                         M2/M7
-FR3-031..039              NormalizedXMPPlanAdapter, XMPExportPipeline reuse         PlanAdapterTests, NormalizePipelineTests          M5-M8
+FR3-021..026g             CandidateCanonicalizer, BatchConsensusEngine, KeywordSafetyPolicy  SessionContextPolicyTests, CandidateCanonicalizerTests  M4/R4
+FR3-027..030k             NormalizationSessionReader/Writer, SessionReview           NormalizationSessionTests, SessionReviewTests      M2/M7/R4
+FR3-031..039              NormalizedXMPChangePlanner, XMPExportPipeline reuse        NormalizedXMPChangePlanTests, NormalizePipelineTests  M5-M8/R4
 FR3-040..042              NormalizationArtifactPlanner                              NormalizationArtifactPlannerTests                 M6-M7
 AC3-AFF-001..018          Affinity graph, consensus, conflict, privacy modules      Affinity and consensus fixture suite              M4/M10
 Compatibility evidence    OwnedXMPSidecarEngine through Phase 2 writer path         Smoke checklist and release evidence              M11
@@ -133,7 +137,7 @@ Compatibility evidence    OwnedXMPSidecarEngine through Phase 2 writer path     
 - **Local-first affinity, not folder voting:** propagation defaults to metadata-affinity local consensus with support-mass/agreement/neighbor thresholds and conflict-mass blocks, so a wrong tag cannot sweep an unrelated part of a folder.
 - **Gear is a boost only.** Camera/lens match without a primary signal (time, GPS, filename sequence, file-list adjacency) yields zero affinity and `blocked_gear_only_affinity`.
 - **The global backstop needs minimum eligible/supporting counts**, not just a percentage, so it cannot fire in a tiny folder.
-- **Vocabulary matching is exact-first with guarded fallbacks** (invariant 10) — no stemming, no diacritic folding — so synonyms cannot map sideways/downward to false specificity.
+- **Vocabulary matching is exact-first with guarded fallbacks** (invariant 10) — no stemming, no diacritic folding — so synonyms cannot map sideways/downward to false specificity. Ambiguous primary aliases terminate lookup; punctuation or singular/plural fallback cannot rescue them. Separator-fold collisions count canonical, flat, and synonym owners equally.
 - **`apply-session` is deliberately narrow:** stored decisions are authoritative; it verifies source identity (stale fails by default, `--allow-stale` is invocation-only and recorded), recomputes target paths only, and merges against the current on-disk XMP at write time — never a stale session copy, and never recomputing vocabulary, extraction, affinity, or consensus.
 - **Privacy by default in artifacts:** sessions/reports persist derived distances/scores and hashed camera serials; exact GPS coordinates and raw serials require explicit debug/audit configuration.
 - **Fixture-first milestone ordering:** each phase implemented its from-json/offline path before live-model integration, keeping the first half of every phase deterministic and offline.

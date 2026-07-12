@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class CandidateCanonicalizerTests: XCTestCase {
@@ -46,16 +47,22 @@ final class CandidateCanonicalizerTests: XCTestCase {
     func testSynonymsCollapseToCanonicalCasingWithUnitSupportAndRoleProvenance() throws {
         let vocabulary = try loadedVocabulary()
         let extraction = try extractionResult(responses: [
-            (.wholeImage, response([
-                .mainSubjects: .array([
-                    candidate("bird", confidence: "high")
+            (
+                .wholeImage,
+                response([
+                    .mainSubjects: .array([
+                        candidate("bird", confidence: "high")
+                    ])
                 ])
-            ])),
-            (.subjectIsolated, response([
-                .proposedKeywords: .array([
-                    candidate("avian", confidence: "medium")
+            ),
+            (
+                .subjectIsolated,
+                response([
+                    .proposedKeywords: .array([
+                        candidate("avian", confidence: "medium")
+                    ])
                 ])
-            ]))
+            ),
         ])
         var configuration = normalizationConfiguration()
         configuration.normalizationMode = .singleImage
@@ -92,17 +99,20 @@ final class CandidateCanonicalizerTests: XCTestCase {
                 synonyms: ["bird photography"],
                 requiresReview: false,
                 directApplyPolicy: .allow
-            )
+            ),
         ])
         let extraction = try extractionResult(responses: [
-            (.wholeImage, response([
-                .genreOrPhotographyType: .array([
-                    candidate("bird_photography", confidence: "high")
-                ]),
-                .proposedKeywords: .array([
-                    candidate("still-life", confidence: "high")
+            (
+                .wholeImage,
+                response([
+                    .genreOrPhotographyType: .array([
+                        candidate("bird_photography", confidence: "high")
+                    ]),
+                    .proposedKeywords: .array([
+                        candidate("still-life", confidence: "high")
+                    ]),
                 ])
-            ]))
+            )
         ])
 
         let result = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
@@ -121,14 +131,17 @@ final class CandidateCanonicalizerTests: XCTestCase {
     func testConfidenceFilteringPipeRejectionGPSGuardAndUnmatchedVocabulary() throws {
         let vocabulary = try loadedVocabulary()
         let extraction = try extractionResult(responses: [
-            (.wholeImage, response([
-                .proposedKeywords: .array([
-                    candidate("bird", confidence: "low"),
-                    candidate("Subject|Wildlife|Birds", confidence: "high"),
-                    candidate("unknown subject", confidence: "high"),
-                    candidate("45.1, -122.7", confidence: "high")
+            (
+                .wholeImage,
+                response([
+                    .proposedKeywords: .array([
+                        candidate("bird", confidence: "low"),
+                        candidate("Subject|Wildlife|Birds", confidence: "high"),
+                        candidate("unknown subject", confidence: "high"),
+                        candidate("45.1, -122.7", confidence: "high"),
+                    ])
                 ])
-            ]))
+            )
         ])
         var configuration = normalizationConfiguration()
         configuration.minConfidence = .medium
@@ -140,36 +153,50 @@ final class CandidateCanonicalizerTests: XCTestCase {
         )
 
         XCTAssertTrue(result.perAssetDecisions.isEmpty)
-        XCTAssertEqual(result.skips.map(\.reason), [
-            .belowConfidenceThreshold,
-            .containsHierarchySeparator,
-            .unmatchedVocabulary,
-            .coordinateLikeTerm
-        ])
-        XCTAssertEqual(result.skips.compactMap(\.term), [
-            "bird",
-            "Subject|Wildlife|Birds",
-            "unknown subject",
-            "45.1, -122.7"
-        ])
+        XCTAssertEqual(
+            result.skips.map(\.reason),
+            [
+                .belowConfidenceThreshold,
+                .containsHierarchySeparator,
+                .unmatchedVocabulary,
+                .coordinateLikeTerm,
+            ])
+        XCTAssertEqual(
+            result.skips.compactMap(\.term),
+            [
+                "bird",
+                "Subject|Wildlife|Birds",
+                "unknown subject",
+                "45.1, -122.7",
+            ])
     }
 
     func testUnmatchedSpeciesFallbackCollapsesAcrossBatchToFlatDirectModelDecisions() throws {
         let vocabulary = try loadedVocabulary()
-        let first = try extractionResult(fileName: "HeronA.JPG", responses: [
-            (.wholeImage, response([
-                .species: .array([
-                    candidate("great blue herons", confidence: "high")
-                ])
-            ]))
-        ])
-        let second = try extractionResult(fileName: "HeronB.JPG", responses: [
-            (.subjectIsolated, response([
-                .species: .array([
-                    candidate("Great Blue Heron", confidence: "high")
-                ])
-            ]))
-        ])
+        let first = try extractionResult(
+            fileName: "HeronA.JPG",
+            responses: [
+                (
+                    .wholeImage,
+                    response([
+                        .species: .array([
+                            candidate("great blue herons", confidence: "high")
+                        ])
+                    ])
+                )
+            ])
+        let second = try extractionResult(
+            fileName: "HeronB.JPG",
+            responses: [
+                (
+                    .subjectIsolated,
+                    response([
+                        .species: .array([
+                            candidate("Great Blue Heron", confidence: "high")
+                        ])
+                    ])
+                )
+            ])
 
         let result = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
             extractionResults: [first, second],
@@ -179,25 +206,33 @@ final class CandidateCanonicalizerTests: XCTestCase {
 
         XCTAssertTrue(result.skips.isEmpty)
         XCTAssertEqual(result.perAssetDecisions.count, 2)
-        XCTAssertEqual(result.perAssetDecisions.map(\.candidateKind), [
-            .modelSpeciesFallback,
-            .modelSpeciesFallback
-        ])
-        XCTAssertEqual(result.perAssetDecisions.map(\.stage), [
-            .directModelObservation,
-            .directModelObservation
-        ])
+        XCTAssertEqual(
+            result.perAssetDecisions.map(\.candidateKind),
+            [
+                .modelSpeciesFallback,
+                .modelSpeciesFallback,
+            ])
+        XCTAssertEqual(
+            result.perAssetDecisions.map(\.stage),
+            [
+                .directModelObservation,
+                .directModelObservation,
+            ])
         XCTAssertEqual(result.perAssetDecisions.compactMap(\.canonicalPath), [])
-        XCTAssertEqual(result.perAssetDecisions.compactMap(\.flatKeyword), [
-            "Great Blue Heron",
-            "Great Blue Heron"
-        ])
+        XCTAssertEqual(
+            result.perAssetDecisions.compactMap(\.flatKeyword),
+            [
+                "Great Blue Heron",
+                "Great Blue Heron",
+            ])
         XCTAssertEqual(result.perAssetDecisions.compactMap(\.hierarchicalKeyword), [])
         XCTAssertEqual(result.perAssetDecisions.compactMap(\.directApplyPolicy), [.flatOnly, .flatOnly])
-        XCTAssertEqual(result.perAssetDecisions.map(\.skipReasons), [
-            [.directApplyFlatOnly],
-            [.directApplyFlatOnly]
-        ])
+        XCTAssertEqual(
+            result.perAssetDecisions.map(\.skipReasons),
+            [
+                [.directApplyFlatOnly],
+                [.directApplyFlatOnly],
+            ])
 
         let summary = try XCTUnwrap(result.batchCandidates.first)
         XCTAssertEqual(summary.candidateKind, .modelSpeciesFallback)
@@ -211,13 +246,18 @@ final class CandidateCanonicalizerTests: XCTestCase {
 
     func testUnmatchedSpeciesFallbackHonorsSpecificTagPolicy() throws {
         let vocabulary = try loadedVocabulary()
-        let extraction = try extractionResult(allowSpecificTags: false, responses: [
-            (.wholeImage, response([
-                .species: .array([
-                    candidate("Ardea herodias", confidence: "high")
-                ])
-            ]))
-        ])
+        let extraction = try extractionResult(
+            allowSpecificTags: false,
+            responses: [
+                (
+                    .wholeImage,
+                    response([
+                        .species: .array([
+                            candidate("Ardea herodias", confidence: "high")
+                        ])
+                    ])
+                )
+            ])
 
         let result = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
             extractionResults: [extraction],
@@ -233,11 +273,14 @@ final class CandidateCanonicalizerTests: XCTestCase {
     func testOffModeUsesPhase2FallbackWithoutVocabularyMapping() throws {
         let vocabulary = try loadedVocabulary()
         let extraction = try extractionResult(responses: [
-            (.wholeImage, response([
-                .proposedKeywords: .array([
-                    candidate("bird", confidence: "high")
+            (
+                .wholeImage,
+                response([
+                    .proposedKeywords: .array([
+                        candidate("bird", confidence: "high")
+                    ])
                 ])
-            ]))
+            )
         ])
         var configuration = normalizationConfiguration()
         configuration.normalizationMode = .off
@@ -277,15 +320,18 @@ final class CandidateCanonicalizerTests: XCTestCase {
                 synonyms: ["flat tag"],
                 requiresReview: false,
                 directApplyPolicy: .flatOnly
-            )
+            ),
         ])
         let extraction = try extractionResult(responses: [
-            (.wholeImage, response([
-                .proposedKeywords: .array([
-                    candidate("rare bird", confidence: "high"),
-                    candidate("flat tag", confidence: "high")
+            (
+                .wholeImage,
+                response([
+                    .proposedKeywords: .array([
+                        candidate("rare bird", confidence: "high"),
+                        candidate("flat tag", confidence: "high"),
+                    ])
                 ])
-            ]))
+            )
         ])
         var configuration = normalizationConfiguration()
         configuration.allowSpecificTags = true
@@ -343,29 +389,118 @@ final class CandidateCanonicalizerTests: XCTestCase {
         XCTAssertEqual(decision.skipReasons, [.unknownSessionContextFlatOnly])
     }
 
+    func testWriteUnnormalizedSessionContextHonorsDisabledGlobalFlatExport() throws {
+        let vocabulary = try loadedVocabulary()
+        var configuration = normalizationConfiguration()
+        configuration.sessionSubject = "Folder Mystery"
+        configuration.unknownSessionContextPolicy = .writeUnnormalized
+        configuration.allowSessionSubjectPropagation = true
+        configuration.writeFlatKeywords = false
+
+        let result = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+            extractionResults: [],
+            input: inputBatch(),
+            configuration: configuration
+        )
+
+        XCTAssertEqual(result.sessionContext.first?.exportResult, "withheld_by_policy")
+        let decision = try XCTUnwrap(result.perAssetDecisions.first)
+        XCTAssertEqual(decision.status, .withheld)
+        XCTAssertNil(decision.flatKeyword)
+        XCTAssertFalse(decision.exportFlatKeyword)
+        XCTAssertEqual(decision.skipReasons, [.unknownSessionContextFlatOnly, .disabledFlatExport])
+    }
+
+    func testCoordinateSyntaxInSessionContextFailsPreflight() throws {
+        let vocabulary = try loadedVocabulary()
+        var configuration = normalizationConfiguration()
+        configuration.sessionSubject = "40°26′46″N 79°58′56″W"
+        configuration.unknownSessionContextPolicy = .writeUnnormalized
+        configuration.allowSessionSubjectPropagation = true
+
+        XCTAssertThrowsError(
+            try CandidateCanonicalizer.preflightSessionContext(
+                configuration: configuration,
+                vocabulary: vocabulary
+            )
+        ) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .validationFailed)
+            XCTAssertEqual((error as? SidecarError)?.stage, .normalize)
+        }
+    }
+
+    func testVisibleGPSDeviceSessionContextPassesSafetyPreflight() throws {
+        let vocabulary = try loadedVocabulary()
+        var configuration = normalizationConfiguration()
+        configuration.sessionSubject = "GPS Unit"
+        configuration.unknownSessionContextPolicy = .writeUnnormalized
+        configuration.allowSessionSubjectPropagation = true
+
+        XCTAssertNoThrow(
+            try CandidateCanonicalizer.preflightSessionContext(
+                configuration: configuration,
+                vocabulary: vocabulary
+            )
+        )
+    }
+
+    func testOffModeIgnoresSessionContextWithoutSafetyOrVocabularyMapping() throws {
+        let vocabulary = try loadedVocabulary()
+        var configuration = normalizationConfiguration()
+        configuration.normalizationMode = .off
+        configuration.sessionSubject = "wild animal"
+        configuration.sessionHabitat = "40, -79"
+        configuration.allowSessionSubjectPropagation = true
+        configuration.allowSessionHabitatPropagation = true
+
+        XCTAssertNoThrow(
+            try CandidateCanonicalizer.preflightSessionContext(
+                configuration: configuration,
+                vocabulary: vocabulary
+            )
+        )
+        let result = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+            extractionResults: [],
+            input: inputBatch(),
+            configuration: configuration
+        )
+
+        XCTAssertEqual(
+            result.sessionContext.map(\.unknownPolicyResult),
+            ["ignored_normalization_off", "ignored_normalization_off"]
+        )
+        XCTAssertEqual(
+            result.sessionContext.map(\.exportResult),
+            ["ignored_normalization_off", "ignored_normalization_off"]
+        )
+        XCTAssertTrue(result.sessionContext.allSatisfy { $0.matchedCanonicalPath == nil })
+        XCTAssertTrue(result.perAssetDecisions.isEmpty)
+    }
+
     private func loadedVocabulary(entries: [VocabularyEntry]? = nil) throws -> LoadedVocabulary {
         try VocabularyLoader.load(
-            data: vocabularyData(entries: entries ?? [
-                subjectRoot(),
-                VocabularyEntry(
-                    canonicalPath: "Subject|Wildlife",
-                    flatKeyword: "Wildlife",
-                    namespace: .subject,
-                    parentPath: "Subject",
-                    synonyms: ["wild animal"],
-                    requiresReview: false,
-                    directApplyPolicy: .allow
-                ),
-                VocabularyEntry(
-                    canonicalPath: "Subject|Wildlife|Birds",
-                    flatKeyword: "Birds",
-                    namespace: .subject,
-                    parentPath: "Subject|Wildlife",
-                    synonyms: ["bird", "avian"],
-                    requiresReview: false,
-                    directApplyPolicy: .allow
-                )
-            ]),
+            data: vocabularyData(
+                entries: entries ?? [
+                    subjectRoot(),
+                    VocabularyEntry(
+                        canonicalPath: "Subject|Wildlife",
+                        flatKeyword: "Wildlife",
+                        namespace: .subject,
+                        parentPath: "Subject",
+                        synonyms: ["wild animal"],
+                        requiresReview: false,
+                        directApplyPolicy: .allow
+                    ),
+                    VocabularyEntry(
+                        canonicalPath: "Subject|Wildlife|Birds",
+                        flatKeyword: "Birds",
+                        namespace: .subject,
+                        parentPath: "Subject|Wildlife",
+                        synonyms: ["bird", "avian"],
+                        requiresReview: false,
+                        directApplyPolicy: .allow
+                    ),
+                ]),
             sourcePath: "memory://canonicalizer.json"
         )
     }
@@ -525,7 +660,7 @@ final class CandidateCanonicalizerTests: XCTestCase {
     private func response(_ fields: [CandidateSourceField: JSONValue]) -> JSONValue {
         var object: [String: JSONValue] = [
             "summary": .string("fixture"),
-            "uncertainty_notes": .string("")
+            "uncertainty_notes": .string(""),
         ]
         for (field, value) in fields {
             object[field.rawValue] = value
@@ -540,7 +675,7 @@ final class CandidateCanonicalizerTests: XCTestCase {
     ) -> JSONValue {
         var object: [String: JSONValue] = [
             "term": .string(term),
-            "confidence": .string(confidence)
+            "confidence": .string(confidence),
         ]
         if let evidence {
             object["evidence"] = .string(evidence)

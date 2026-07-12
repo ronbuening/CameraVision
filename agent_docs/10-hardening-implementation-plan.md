@@ -2141,6 +2141,8 @@ R4-6 subsumes efficiency-plan items P2 and P3 (`agent_docs/05-efficiency-improve
 one `DerivativeCache` manifest redesign — do not schedule P2/P3 separately later. The normative
 spec for normalization semantics is `agent_docs/03-cli-normalized-batch-tagger-requirements.md`.
 
+**Post-implementation audit (2026-07-11).** The first R4 pass satisfied its original focused tests but left adversarial gaps at the boundaries. The audit corrected absolute-versus-relative file-list identity, single-image/off-mode and factual session-context results, coordinate/GPS safety outside model extraction, terminal primary vocabulary ambiguity, complete direct-decision fail-closed handling, exact `rdf:about` filename matching, and cross-process active-artifact cache safety. The per-item notes below are the as-built rules; older “proposed code” excerpts are historical rationale where they differ.
+
 ### R4-1 — File-list entries outside the list directory collapse into one XMP group
 
 **Goal.** Two same-base-name images from different directories in an absolute-path file list must
@@ -2208,6 +2210,8 @@ func testAbsoluteFileListEntriesOutsideListDirectoryStayInSeparateGroups() throw
 - [x] `FileListInputResolverTests` gains an out-of-root absolute-path case asserting two separate groups/targets (plan 08 verbatim).
 - [x] Out-of-root RAW+JPEG in the *same* external directory still pairs.
 - [x] Existing file-list tests (relative paths, duplicates, comments) unchanged and green.
+
+**Audit correction (2026-07-11).** Preserving the absolute display path was insufficient because splitting path components still erased the leading slash, so an absolute entry could collide with a mirrored list-relative entry. Group identity now includes the standardized physical parent directory. If two physical groups still produce the same display-relative staging target, only those names gain a deterministic 12-hex directory-identity suffix; beside-source `Bird.xmp` naming and external RAW/JPEG pairing remain unchanged. Tests pin both the mirrored absolute/relative adversary and unique planner targets.
 
 **Commit.** `Fix file-list grouping for entries outside the list directory`
 
@@ -2290,6 +2294,8 @@ func testAcceptedDirectObservationStillSuppressesDuplicateUserContext() throws {
 - [x] Determinism record updated if policy text changes (plan 08 verbatim; no policy text changed).
 - [x] Accepted-duplicate skip and conflict counting unchanged.
 
+**Audit correction (2026-07-11).** Context application now runs in `single-image` as well as conservative mode, uses a set for accepted `(asset, canonicalPath)` coverage, and honors `export_flat_keyword` for `flat_only`. `normalization-mode off` is a true Phase 2 baseline: it performs no context vocabulary/unknown-policy decision and records `ignored_normalization_off`. Completed records never retain `pending_session_context_decision`; `applied` requires accepted/already-exporting coverage, while withheld, all-conflicted, no-target, disabled-propagation, and off-mode paths have terminal non-applied results.
+
 **Commit.** `Apply user session context over withheld machine decisions`
 
 ### R4-3 — GPS coordinate-term guard: broaden the regex set
@@ -2362,7 +2368,9 @@ func testDMSCoordinateCandidateIsSkippedInObservedTagsMode() throws {
 
 **Acceptance.**
 - [x] Table-driven cases for each caught format plus non-coordinate negatives ("50mm f/1.8", "Apollo 11", "Room 404") (plan 08 verbatim).
-- [x] Existing coordinate/GPS-evidence test still green (guards extended, not replaced); `evidenceReliesOnGPS` untouched.
+- [x] Existing coordinate/GPS-evidence test still green; the shared classifier distinguishes location metadata from visible GPS devices.
+
+**Audit correction (2026-07-11).** The regexes are compiled once in `KeywordSafetyPolicy`, and the same final-boundary policy is used by candidate extraction, session preflight, review edits, and normalized planning. It blocks coordinate syntax plus GPS metadata phrases such as `GPS fix`, `GPS reading`, and `GPS-derived location`, while allowing a visibly depicted `GPS Unit`/receiver with visual evidence. Final planning partitions safe and blocked decisions once and emits an auditable safety skip, covering imported or hand-edited sessions independently of earlier guards.
 
 **Commit.** `Broaden coordinate-term guard to DMS, cardinal-prefix, signed pairs, and UTM`
 
@@ -2465,6 +2473,8 @@ func testSynonymCollidingWithAnotherEntrysFlatKeywordFailsValidation() throws {
 - [x] Maintainer decision recorded; the additive FR3-003b-1 records the hybrid validation policy.
 - [x] Bundled starter vocabulary still loads (`StarterVocabularyTests` green).
 
+**Audit correction (2026-07-11).** Ambiguity on a primary folded value is terminal; punctuation or final-token singular/plural fallback may not reinterpret it (the bundled shared flat label `Birds` is the regression case). Separator-fold ownership is deliberately untiered: canonical paths, flat keywords, and synonyms all participate, and a collision among any owners makes only that fallback key ambiguous. Exact full canonical paths remain authoritative.
+
 **Commit.** `Guard exact-fold vocabulary lookups against ambiguous aliases and validate flat-keyword collisions`
 
 ### R4-5 — Session/edit hardening lows
@@ -2551,11 +2561,13 @@ func testStampRewritePreservesFloatAndSlashFormatting() throws {
 
 **Acceptance.**
 - [x] Reject/strip `|` in `SessionReview.applying` (Core-level) and surface the rejection in the GUI (plan 08 verbatim).
-- [x] Additive enums decode-tolerant; unknown case fails only the affected decision, not the document (plan 08 verbatim).
+- [x] Direct decision enums decode-tolerant; an unknown case fails only the affected decision, not the document (plan 08 verbatim).
 - [x] Emit nil instead of a non-`.ai.json` path and skip stamping; log the skip (plan 08 verbatim).
 - [x] Merge target prefers a source-matching `rdf:about` before `descriptions.first` (adjusted per discrepancy above; `about=""` preference already present).
 - [x] Stamp rewrite routed through the merge-preserving `JSONCoding` path (plan 08 verbatim).
 - [x] Golden sidecar output remains unchanged; focused stamp formatting coverage pins floats and unescaped slashes.
+
+**Audit correction (2026-07-11).** Tolerance covers every enum directly on a per-asset decision (`stage`, `status`, `candidate_kind`, `context_type`, `namespace`, `direct_apply_policy`, and ordered `skip_reasons`). Unknown raw values and additive JSON fields survive `NormalizationSessionWriter`; the decision is forced withheld and is independently ignored by review and planning. Nested observation/provenance and audit-only enums remain an explicit strict boundary pending a wider lossless-wrapper redesign. Merge-target matching compares decoded terminal filename components—not raw suffixes—and covers percent-encoded file URLs, Windows paths, and the `NotBird.JPG` adversary with precedence managed → exact source → empty → first.
 
 **Commit.** `Session/edit hardening: pipe rejection, tolerant decode, stamp path and serialization, merge-target about` (split per bullet if any grows; each is independently committable)
 
@@ -2605,50 +2617,51 @@ before the model loop reads them.
   existing manifest schema, coordinates the CLI and app through one local lock file, and avoids the
   migration and directory-enumeration costs of per-entry manifests.
 
-**Change** (one design; four sub-commits, in order):
-1. **(P2) Narrow `store()`.** Run `AtomicFileWriter.writeFile`, the attribute read, and hashing
-   *before* any lock; lock only `loadManifest → insert → evictIfNeeded → saveManifest`. Add
-   `sha256(of data: Data)` and hash encoded bytes where the render path holds them in memory; where
-   the encoder writes straight to the temp URL, hash the temp file once inside the writer step —
-   never re-read after rename. Comment the now-benign same-derivative race: atomic temp+rename
-   means last rename wins, manifest updated under the lock (plan 05 P2 step 3).
-2. **(R4-6) Cross-process flock.** New `Sources/AISidecarCore/Support/FileLock.swift`:
+**Change (as built; one coordinated design):**
+1. **(P2) Stage `store()` outside the lock.** `AtomicFileWriter.stageFile` performs image encode,
+   the attribute read, and one SHA-256 pass over the staged temporary file without holding the
+   manifest flock. The final artifact is not re-read just to recompute that digest.
+2. **(R4-6) Cross-process flock and coherent commit.** `Sources/AISidecarCore/Support/FileLock.swift`
+   provides the persistent manifest lock plus shared/exclusive locks on existing artifact inodes:
 
 ```swift
-/// Cross-process advisory lock (flock) for shared cache metadata.
+/// Cross-process advisory lock for cache metadata and artifact inodes.
 struct FileLock {
     let path: String
     func withExclusiveLock<T>(_ body: () throws -> T) throws -> T
-    // open(path, O_CREAT|O_RDWR) → flock(fd, LOCK_EX) → body() → flock(LOCK_UN) → close
+    func lockSharedExisting() throws -> FileLockHandle
+    func tryLockExclusiveExisting() throws -> FileLockAttempt
 }
 ```
 
-   Route every manifest critical section (`cachedRecord`, `store`'s manifest phase, `clear`) through
-   one private `withManifestLock(_:)` taking the flock; delete the static `NSLock`. Treat the lock
-   file as cache-owned coordination metadata but preserve its inode across `clear()`/`purge()`;
-   unlinking a held advisory lock would let a second process create and lock a different inode.
-   Confirm `ArtifactCleanup` ignores it. Only on-disk change: the persistent new `.lock` file.
-3. **(P3) Manifest read cache + shared instance.** Convert to
-   `final class DerivativeCache: @unchecked Sendable` with an instance `NSLock` guarding
-   `cachedManifestState: (manifest: CacheManifest, mtime: Date, size: Int64)?`. `loadManifest()`
-   under the flock stats the file; on mtime+size match it reuses the parsed manifest (no read/
-   decode), else reads and caches. `saveManifest()` writes through (atomic write, refresh cached
-   state) — plan 05 P3 constraint: keep write-through, never batch writes; the win is eliminating
-   repeated *reads*, and `aisidecar purge` keeps working against a cache written by an analyze run.
-   Route manifest reads through `fileManager.contents(atPath:)` for a counting-FileManager test
-   seam. Then hoist construction out of `AnalyzePipeline.prepare` (`:474-476`): one cache built at
-   pipeline setup, passed into `prepare` (verify strict-concurrency acceptance).
-4. **(R4-6b) Working-set protection.** `evictIfNeeded(protecting: Set<String>)`; the cache keeps an
-   in-process `retainedFileNames` set (instance state): `store()` and `cachedRecord()` hits
-   register the artifact; a `releaseRetained()` hook called from pipeline teardown clears it.
-   Eviction skips retained names — the cache may transiently exceed the cap by the working-set size
-   (document as the FR1-018a floor; equivalent to plan 08's cap-floor alternative, without a config
-   change).
+   Every manifest critical section routes through the persistent flock, which `clear()`/`purge()`
+   never unlinks. Under that flock, `store()` validates/reuses an equivalent existing artifact or
+   performs the staged final rename, mutates/evicts, and writes the manifest through. Purge cannot
+   interleave between rename and manifest mutation. Lock/open failures are wrapped as structured
+   recoverable render errors.
+3. **(P3) Inode-aware manifest read cache + shared owners.** `DerivativeCache` is a final locked
+   class. Its cached manifest signature is `(inode, modification time, byte count)`, so an atomic
+   replacement that happens to retain time and size still invalidates another instance's cache.
+   Writes remain atomic and write-through. `AnalyzePipeline`, `AnalyzeShellPipeline`, and
+   `ModelInputExportPipeline` each construct one cache for the run and pass it to their workers.
+4. **(R4-6b) Cross-process working-set leases.** Every `cachedRecord()`/`store()` result holds a
+   shared flock on that artifact's current inode. Logical per-filename counts allow each consumer
+   to release its records without dropping another consumer's lease. Replacement, eviction, and
+   purge use a nonblocking exclusive inode lock and skip busy artifacts. Pipelines release records
+   after consumption and call `releaseRetained()` at teardown; final teardown retries eviction, so
+   the cache exceeds the configured cap only while the active working set requires it or while an
+   accurately-accounted filesystem deletion failure prevents enforcement.
+5. **Recovery/accounting details.** A deletion failure leaves the entry in manifest byte accounting;
+   stale missing entries are pruned; purge age-removes only project-owned atomic temporaries older
+   than one day; the persistent lock inode and unrelated files remain. Prepared analyze work is
+   bounded by `stageConcurrency`, and obsolete unchecked `FileManager` sendability glue is gone.
 
 **Migration/verification story (single).** No manifest migration; existing caches work unchanged.
-Cross-process safety is testable in-process because flock contends between separate fds. Capture
-plan 05's Verification Baseline before sub-commit 1 and after sub-commit 4 on the same inputs and
-record both in the PR description.
+Cross-process safety is testable in-process because flock contends between independently opened
+descriptors and follows the locked inode across path replacement. Plan 05's before/after baseline
+records the initial implementation's performance; the post-audit suite adds lifecycle and
+adversarial concurrency coverage. The active-artifact lease corrections were not live-model
+rebenchmarked, so the next performance change must rerun the controlled corpus baseline.
 
 **Tests.** `Tests/AISidecarCoreTests/DerivativeCacheTests.swift` (conventions: real temp dirs,
 injected `now`) plus a new `FileLockTests.swift`:
@@ -2668,9 +2681,14 @@ func testRepeatedCachedRecordHitsDoNotRereadManifestFile() throws {
     // Counting FileManager: N hits after warm load => 1 manifest read. (P3)
 }
 func testEvictionSkipsRetainedWorkingSetUnderTinyCap() throws {
-    // Cap below working set: retained artifacts survive; releaseRetained() re-enables eviction. (R4-6b)
+    // Cap below working set: cross-instance lease survives; matching release restores cap. (R4-6b)
 }
 ```
+
+Additional post-audit cases cover purge during staged store, two independent artifact leases,
+per-record reference counts, purge while another instance consumes an artifact, inode-signature
+invalidation with equal mtime/size, failed-deletion accounting, owned stale-temp cleanup, structured
+lock failure, and final tiny-cap enforcement in all cache-owning pipelines.
 
 Existing `testLRUEvictionRemovesOlderArtifactsUnderCap`, `testClearRemovesCacheOwnedArtifactsOnly`,
 and `ArtifactCleanupTests` must pass unchanged.
@@ -2687,7 +2705,7 @@ and `ArtifactCleanupTests` must pass unchanged.
   time drops (baseline vs. after) (plan 05 P2 verbatim). Two order-reversed, warmed-source runs on
   the 46-image repository corpus showed the aggregate reduction recorded below.
 
-**Verification (2026-07-11).** The release benchmark self-test passed before and after the four
+**Initial implementation verification (2026-07-11).** The release benchmark self-test passed before and after the four
 sub-commits. The same `source-identity-fast` run exited 0 with no XMP output; peak RSS was
 18,743,296 bytes before and 18,694,144 bytes after. The full offline suite passed 541 tests with two
 explicit opt-in skips; `swift run aisidecar --help` and `swift build --product CupricAspect` passed.
@@ -2738,6 +2756,8 @@ time swift run -c release aisidecar analyze <folder> --recursive --mode both --o
 
 R4-1 additionally warrants one manual smoke: a file list mixing in-root relative paths and
 out-of-root absolute paths with a shared basename must produce one `.xmp` per directory.
+
+**Post-audit R4 exit verification (2026-07-11).** The expanded R4 regression filter passed 176/176. `swift test` passed 581 tests with two explicit opt-in skips and zero failures. Top-level help plus all eight subcommand help routes exited 0; `swift build --product CupricAspect` passed; `aisidecar benchmark --self-test` passed; and an isolated `aisidecar purge --cache-dir /tmp/cameravision-r4-audit-purge-20260711` exited 0. `git diff --check` is clean. Linting only changed Swift files reports one pre-existing advisory (`ModelInputExportPlannedOutput`'s synthesized initializer); repository-wide lint remains advisory and retains its unrelated backlog. The previous isolated normalization/live-model smokes remain valid, and the initial R4-6 timing run remains recorded as historical evidence. This offline audit added integration tests for every changed semantic boundary instead of requiring Ollama or network access; it did not remeasure live-model performance after adding active-artifact leases.
 
 ## Definition of done
 

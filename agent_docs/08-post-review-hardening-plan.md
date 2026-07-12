@@ -265,23 +265,27 @@ Two app instances (or GUI + CLI) share the recovery file path, log path, and con
 
 ## 5. R4 — Normalization/XMP semantic fixes
 
-**Implementation status (2026-07-11):** R4-1 through R4-6 are implemented and the R4 exit gate is
-green (541 tests, CLI help, app build, and normalization/purge smokes). R4-6 also completes
-efficiency items P2/P3. A controlled, order-reversed 46-image comparison also demonstrated a
-14–17% reduction in aggregate render timings; see plan 10 R4-6 for the recorded decision,
-methodology, and measurements.
+**Implementation status (2026-07-11, post-audit):** R4-1 through R4-6 are implemented and the expanded exit gate is green (176 focused tests; 581 full-suite tests with two opt-in skips; all CLI help routes; app build; benchmark self-test; purge smoke; clean diff check). An adversarial review found and corrected boundary gaps beyond the first 541-test gate: physical file-list identity, single-image/off-mode and factual session-context results, GPS safety outside extraction, terminal vocabulary ambiguity, fail-closed imported decisions, exact XMP description matching, and cross-process active-artifact cache safety. R4-6 also completes efficiency items P2/P3. Detailed verification is recorded in plan 10. The initial R4-6 implementation's controlled 46-image comparison measured a 14–17% aggregate render-timing reduction; this offline audit verified the subsequent lease hardening with deterministic concurrency tests but did not repeat the live-model timing run.
 
 ### R4-1 — File-list entries outside the list directory collapse into one XMP group (MEDIUM)
 `NormalizationInputResolver.swift:532-542` (`relativePath(for:root:)` falls back to `lastPathComponent`) feeding `groupKey(for:)` (`:412-418`): two same-base-name images from **different directories** in an absolute-path file list group as one RAW+JPEG pair — keywords union into a single `.xmp` beside whichever asset sorts first; the other image gets nothing. Fix: group key must use the resolved absolute parent directory when the entry is outside the root (never the empty-string directory). Tests: `FileListInputResolverTests` gains an out-of-root absolute-path case asserting two separate groups/targets.
 
+**Audited result.** Grouping uses the standardized physical parent for every resolved source, including the leading-slash absolute-versus-mirrored-relative adversary. Same-directory RAW/JPEG still pair. Only colliding staged target names receive a deterministic directory-identity suffix; beside-source naming is unchanged.
+
 ### R4-2 — `user_only`/`withhold` session context blocked exactly where the model agreed (MEDIUM)
 `BatchConsensusEngine.swift:270` (`applySessionContext`) skips adding the user-context decision when **any** decision with the same `(assetID, canonicalPath)` exists, regardless of status. A direct model observation of a `user_only` entry produces a *withheld* decision, which then blocks the accepted user-context decision — so `--session-event "Migration"` fails to apply precisely on assets where the model also said "migration". Fix: only skip when the existing decision is `accepted` (or user-decided); a withheld/skipped machine decision must be superseded by the user-context decision (replace or add-accepted per the session-context policy record). Tests: `SessionContextPolicyTests` gains a case with a pre-existing withheld direct decision — context still applies; determinism record updated if policy text changes.
+
+**Audited result.** The rule applies in single-image and conservative modes, uses set-backed accepted coverage, and honors `flat_only` export flags. Off mode ignores all session context as a Phase 2 baseline. Completed `export_result` values are factual and terminal: no policy-withheld or all-conflicted context claims `applied`.
 
 ### R4-3 — GPS coordinate-term guard: broaden the regex set (MEDIUM, invariant 3)
 `CandidateExtractor.swift:669-686` (`isCoordinateLikeTerm`) misses (verified by running the regexes): DMS `40°26'46"N 79°58'56"W`, cardinal-prefix `N 40.446 W 79.982`, integer pairs `40, -79`, UTM `UTM 17T 589500 4477000`. In observed-tags mode there is no vocabulary backstop, so a model echoing coordinates can reach `dc:subject`. Fix: extend the pattern set for DMS (degree/quote/double-quote symbols incl. Unicode primes), cardinal-prefixed decimal, bare signed numeric pairs, and UTM; keep patterns conservative (require two coordinate-ish tokens or explicit N/S/E/W context — don't block "35mm" or "Route 66"). Tests: table-driven cases for each caught format plus non-coordinate negatives ("50mm f/1.8", "Apollo 11", "Room 404").
 
+**Audited result.** Precompiled checks live in one `KeywordSafetyPolicy` used at extraction, session preflight, review, and final planning. Coordinate syntax and GPS metadata (`GPS fix`/reading/derived location) fail closed, while a visibly depicted GPS unit/receiver remains a legitimate object tag. Final planning creates an auditable skip for unsafe imported decisions.
+
 ### R4-4 — Vocabulary validation: duplicate/ambiguous flat keywords (MEDIUM, invariant 10 seam)
 `VocabularyValidator.swift:49-72` never cross-checks flat keywords; `VocabularyIndex.swift:117-125` `insertLookup` silently first-wins. Two entries sharing a folded `flat_keyword` (or a synonym of A equal to B's flat keyword) resolve to the lexicographically-first canonical path — the wrong `lr:hierarchicalSubject` with no warning, while the separator-fold map *is* ambiguity-guarded. Fix: (a) validator reports duplicate folded flat keywords and synonym↔flat collisions as errors (or warnings + ambiguity-guard, decide with maintainer: erroring may break existing vocabularies — prefer validation **error** for new/edited vocabularies and an ambiguity-guarded lookup like `insertSeparatorLookup` at runtime for robustness); (b) `insertLookup` gains the same ambiguity-set mechanism as separator lookups. Tests: mirror `testSeparatorInsensitiveFallbackDoesNotResolveAmbiguousAliases` for exact-fold.
+
+**Audited result.** A primary ambiguity is terminal and cannot fall through plural/punctuation matching. Separator fallback treats canonical, flat, and synonym owners equally; any multi-owner fallback key is ambiguous. Exact full canonical paths remain authoritative, and the bundled shared `Birds` label is pinned as ambiguous.
 
 ### R4-5 — Session/edit hardening lows
 - **Pipe in user edits** (`SessionReview.swift:36-47`; GUI `ReviewModel.swift:237-243`): edited keywords bypass the `containsHierarchySeparator` guard — a literal `|` keyword exports. Reject/strip `|` in `SessionReview.applying` (Core-level, so CLI session edits are covered too) and surface the rejection in the GUI.
@@ -290,8 +294,12 @@ methodology, and measurements.
 - **Merge-target selection** (`XMPDocumentParser.swift:162-181`): prefer `rdf:about=""` or about matching the source over `descriptions.first` when no managed fields exist.
 - **Export-stamp serialization drift** (`RawSidecarExportStamp.swift:44-65`): `JSONSerialization` re-encodes the whole sidecar (escaped slashes, float drift like `0.08 → 0.080000000000000002`) diverging from deterministic `JSONCoding` output. Route the rewrite through the merge-preserving `JSONCoding` path used by schema-evolution rewrites.
 
+**Audited result.** Every enum directly on a per-asset decision tolerates/preserves unknown raw values and forces only that decision withheld; review and planning cannot re-enable it. Unknown JSON fields survive the designated session writer. Nested observation/provenance and audit-only enums remain a documented strict compatibility boundary. `rdf:about` matching now uses exact decoded terminal filenames (including percent-encoded URLs and Windows paths), never raw suffixes.
+
 ### R4-6 — Derivative-cache cross-process safety (shared with efficiency plan P2/P3)
 `DerivativeCache.swift:24` protects the manifest with an in-process `NSLock` only; GUI + CLI share `~/Library/Caches/aisidecar/derivatives` and interleave load-modify-save (lost entries → orphaned artifacts that escape the byte-cap accounting, FR1-018a silently unenforced). Fix options (pick with maintainer): an `flock`-based file lock around manifest read-modify-write (simple, sufficient), or per-entry manifest files. Coordinate with efficiency-plan P2/P3 (manifest churn) — one redesign, not two. Also R4-6b (low): `evictIfNeeded` (`:256-272`) protects only the just-stored artifact; with `stage_concurrency > 1` and a small user-set cache cap, prepared-ahead derivatives can be evicted before the model loop reads them — protect the current batch's planned artifacts or floor the cap at the working-set size.
+
+**Audited result.** Encode/hash is staged outside the flock; final rename and manifest mutation are one locked transaction. Shared locks lease active artifact inodes across processes, while replacement/eviction/purge require nonblocking exclusive locks. Lease counts release per consumer and all owning pipelines enforce the cap at teardown. Manifest cache invalidation includes inode, failed deletes remain accounted, and purge removes only aged project-owned temps.
 
 ---
 
@@ -304,6 +312,7 @@ methodology, and measurements.
 - **EXIF orientation 0 strictness** (`RenderRecipe.swift:46-54`) — deliberate; revisit if real-world images hit it.
 - **Per-file `startedAt` at plan time** inflating `durationMs` (`AnalyzePipeline.swift:402-403`) — reporting-quality only.
 - **`RawJSONSidecar.swift:126` `try?` on `subject_isolation`** — verified no data loss on rewrite.
+- **Same-major nested normalization enum tolerance** (R4 post-audit): direct per-asset decision policy enums now preserve unknown raw values and fail only that decision closed, but enum values nested in observations/provenance and audit-only records still reject the document. Full PW-012 coverage there requires lossless wrappers across shared Phase 2/3 record types and is deferred to a dedicated schema-adapter change; schema-major-1 writers must not emit new nested enum values until it lands.
 - **Preflight interruption** (R3 audit, 2026-07-10): `runner.prepare` (`/api/tags`, `/api/show` probes, `/api/version`) runs before the first monitor check and holds no cancellation registration, so Ctrl+C/GUI cancel during preflight waits out the configured timeout per request (CLI escalation still applies; parent-task cancellation propagates). R3-2/R3-4 scoped cancellation to model requests — extend to preflight only if it bites in practice.
 - **Settings tag-list probe timeout** (R3 audit, 2026-07-10): the GUI Settings model dropdown probes via `listInstalledVisionTags` with the built-in 180 s default rather than the configured `model_timeout_seconds`; run preflight is fully covered. Cosmetic inconsistency.
 
@@ -342,9 +351,9 @@ Every R-milestone ends with: `swift test` green; `swift run aisidecar --help`; `
 | Core #5 / XMP L1 (source-hash swallow) | R3-9 |
 | Core #6 / XMP L7 (uniqueKeys crashes) | R3-10 |
 | Core #7, #8, #9, #13; CLI #10, #11 | R3-11 |
-| XMP M1 (file-list grouping) | R4-1 |
-| XMP M2 (user_only inversion) | R4-2 |
-| XMP M3 (GPS regex) | R4-3 |
-| XMP M4 (vocab ambiguity) | R4-4 |
-| XMP L2/L3/L4/L6 + Core #17 (stamp serialization) | R4-5 |
-| CLI #6/#7 (cache cross-process, eviction) | R4-6 |
+| XMP M1 (file-list grouping) | R4-1 — done, post-audit verified 2026-07-11 |
+| XMP M2 (user_only inversion) | R4-2 — done, post-audit verified 2026-07-11 |
+| XMP M3 (GPS regex) | R4-3 — done, post-audit verified 2026-07-11 |
+| XMP M4 (vocab ambiguity) | R4-4 — done, post-audit verified 2026-07-11 |
+| XMP L2/L3/L4/L6 + Core #17 (stamp serialization) | R4-5 — done, post-audit verified 2026-07-11 |
+| CLI #6/#7 (cache cross-process, eviction) | R4-6 — done with P2/P3, post-audit verified 2026-07-11 |

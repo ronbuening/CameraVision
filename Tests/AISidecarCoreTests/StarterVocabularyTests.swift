@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class StarterVocabularyTests: XCTestCase {
@@ -39,7 +40,7 @@ final class StarterVocabularyTests: XCTestCase {
             "Objects|Vehicle",
             "Objects|Building",
             "Workflow|Needs Review",
-            "Workflow|AI Suggested"
+            "Workflow|AI Suggested",
         ]
 
         for canonicalPath in required {
@@ -70,5 +71,19 @@ final class StarterVocabularyTests: XCTestCase {
         let needsReview = try XCTUnwrap(vocabulary.index.entry(canonicalPath: "Workflow|Needs Review"))
         XCTAssertEqual(needsReview.propagationScope, .global)
         XCTAssertEqual(needsReview.specificity, .broad)
+    }
+
+    func testBundledSharedFlatLabelRemainsAmbiguousBeforeNumberFallbacks() throws {
+        let vocabulary = try DefaultVocabulary.load()
+
+        XCTAssertNil(vocabulary.index.entry(matching: "Birds"))
+        XCTAssertEqual(
+            vocabulary.index.entry(matching: "bird")?.canonicalPath,
+            "Subject|Wildlife|Birds"
+        )
+        XCTAssertEqual(
+            vocabulary.index.entry(matching: "Species / Taxonomy|Birds")?.canonicalPath,
+            "Species / Taxonomy|Birds"
+        )
     }
 }
