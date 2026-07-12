@@ -316,7 +316,7 @@ final class ModelInputExportPipelineTests: XCTestCase {
         XCTAssertEqual(result.records.map(\.status), [.exported])
         XCTAssertTrue(FileManager.default.fileExists(atPath: export.appendingPathComponent("A.JPG.aisidecar.whole_image.jpg").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: result.manifestPath))
-        XCTAssertEqual(try cacheContents(at: cache), [])
+        XCTAssertEqual(try cacheContents(at: cache), ["derivative-cache-index.lock"])
     }
 
     func testExportModeRejectsDryRunAndDebugDerivatives() async throws {

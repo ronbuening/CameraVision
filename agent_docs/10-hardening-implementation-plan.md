@@ -2624,9 +2624,10 @@ struct FileLock {
 ```
 
    Route every manifest critical section (`cachedRecord`, `store`'s manifest phase, `clear`) through
-   one private `withManifestLock(_:)` taking the flock; delete the static `NSLock`. Add the lock
-   file's name to `cacheOwnedNames` in `clear()` (`:193`) and confirm `ArtifactCleanup` ignores it.
-   Only on-disk change: the new `.lock` file.
+   one private `withManifestLock(_:)` taking the flock; delete the static `NSLock`. Treat the lock
+   file as cache-owned coordination metadata but preserve its inode across `clear()`/`purge()`;
+   unlinking a held advisory lock would let a second process create and lock a different inode.
+   Confirm `ArtifactCleanup` ignores it. Only on-disk change: the persistent new `.lock` file.
 3. **(P3) Manifest read cache + shared instance.** Convert to
    `final class DerivativeCache: @unchecked Sendable` with an instance `NSLock` guarding
    `cachedManifestState: (manifest: CacheManifest, mtime: Date, size: Int64)?`. `loadManifest()`
@@ -2691,8 +2692,9 @@ sub-commits. The same `source-identity-fast` run exited 0 with no XMP output; pe
 18,743,296 bytes before and 18,694,144 bytes after. The full offline suite passed 541 tests with two
 explicit opt-in skips; `swift run aisidecar --help` and `swift build --product CupricAspect` passed.
 Session-only, dry-run, XMP-write, file-list, and live analyze-and-normalize smoke paths passed in an
-isolated `/tmp` fixture. A subsequent `aisidecar purge` removed the manifest, lock, and derivative
-written by an isolated analyze run.
+isolated `/tmp` fixture. `aisidecar purge` removes the manifest and derivatives written by an
+isolated analyze run while preserving the persistent coordination lock; focused coverage pins that
+inode across `clear()`.
 
 For the timing criterion, release builds at pre-R4-6 commit `fff7984` and the completed branch
 analyzed the same 46-image repository corpus in `both` mode with `stage_concurrency=4`, cold

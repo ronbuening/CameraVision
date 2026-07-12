@@ -77,6 +77,9 @@ final class DerivativeCacheTests: XCTestCase {
         let source = makeSource(identity: SourceIdentity(policy: .sha256, sha256: String(repeating: "e", count: 64)))
         let record = try Self.store(Data("cached".utf8), in: cache, source: source)
         let manifest = root.appendingPathComponent("derivative-cache-index.json")
+        let manifestLock = root.appendingPathComponent("derivative-cache-index.lock")
+        let lockAttributesBefore = try FileManager.default.attributesOfItem(atPath: manifestLock.path)
+        let lockIdentifierBefore = lockAttributesBefore[.systemFileNumber]
         let orphan = root.appendingPathComponent("\(String(repeating: "f", count: 64))-recipe-v1-subject_isolated.jpg")
         let unrelated = root.appendingPathComponent("notes.txt")
         try Data("orphan".utf8).write(to: orphan)
@@ -85,10 +88,13 @@ final class DerivativeCacheTests: XCTestCase {
         let result = try cache.clear()
 
         XCTAssertEqual(result.directoryPath, root.path)
-        XCTAssertEqual(result.removedFileCount, 4)
+        XCTAssertEqual(result.removedFileCount, 3)
         XCTAssertFalse(FileManager.default.fileExists(atPath: record.cachePath))
         XCTAssertFalse(FileManager.default.fileExists(atPath: manifest.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("derivative-cache-index.lock").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: manifestLock.path))
+        let lockAttributesAfter = try FileManager.default.attributesOfItem(atPath: manifestLock.path)
+        let lockIdentifierAfter = lockAttributesAfter[.systemFileNumber]
+        XCTAssertEqual(lockIdentifierAfter as? NSNumber, lockIdentifierBefore as? NSNumber)
         XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: unrelated.path))
     }

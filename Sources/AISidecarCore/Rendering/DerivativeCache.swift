@@ -203,9 +203,17 @@ public final class DerivativeCache: @unchecked Sendable {
                     options: [.skipsSubdirectoryDescendants]
                 )
                 var removedFileCount = 0
-                for url in contents where shouldClear(url: url, cacheOwnedNames: cacheOwnedNames) {
+                for url in contents where url.standardizedFileURL != manifestLockURL.standardizedFileURL
+                    && shouldClear(url: url, cacheOwnedNames: cacheOwnedNames)
+                {
                     try fileManager.removeItem(at: url)
                     removedFileCount += 1
+                }
+                // The advisory lock must keep the same inode across clears. Unlinking it while its
+                // descriptor is locked would let a second process create and lock a different inode.
+                stateLock.withLock {
+                    cachedManifestState = nil
+                    retainedFileNames.removeAll()
                 }
                 return DerivativeCachePurgeResult(directoryPath: directory.path, removedFileCount: removedFileCount)
             } catch let error as SidecarError {

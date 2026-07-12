@@ -614,7 +614,7 @@ final class AnalyzePipelineTests: XCTestCase {
 
         XCTAssertEqual(result.records.map(\.status), [.written])
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.appendingPathComponent("A.JPG.ai.json").path))
-        XCTAssertEqual(try cacheContents(at: cacheDir), [])
+        XCTAssertEqual(try cacheContents(at: cacheDir), ["derivative-cache-index.lock"])
     }
 
     func testOwnedBatchArtifactsDoNotBlockPostSuccessCacheClearOnRerun() async throws {
@@ -655,7 +655,7 @@ final class AnalyzePipelineTests: XCTestCase {
 
         XCTAssertEqual(rerun.records.map(\.status), [.skippedExisting])
         XCTAssertTrue(rerun.scanResult.errors.isEmpty)
-        XCTAssertEqual(try cacheContents(at: cacheDir), [])
+        XCTAssertEqual(try cacheContents(at: cacheDir), ["derivative-cache-index.lock"])
     }
 
     func testClearDerivativeCacheAfterSuccessDoesNotRunForFailedAnalysis() async throws {
