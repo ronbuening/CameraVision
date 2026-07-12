@@ -2683,8 +2683,8 @@ and `ArtifactCleanupTests` must pass unchanged.
 - [x] Repeated `cachedRecord()` hits do not re-read the manifest file (plan 05 P3 verbatim).
 - [x] `DerivativeCacheTests` and `ArtifactCleanupTests` pass; purge still works against a cache written by an analyze run (plan 05 P3 verbatim).
 - [ ] With `--stage-concurrency 4` on a 50–100-image live-model batch, render stage wall time drops
-  (baseline vs. after) (plan 05 P2 verbatim). No live pre-change batch baseline was captured; keep
-  this performance-evidence item open rather than reconstructing a misleading post-change baseline.
+  (baseline vs. after) (plan 05 P2 verbatim). The controlled 46-image comparison below did not
+  demonstrate a render-time reduction, so this performance-evidence item remains open.
 
 **Verification (2026-07-11).** The release benchmark self-test passed before and after the four
 sub-commits. The same `source-identity-fast` run exited 0 with no XMP output; peak RSS was
@@ -2693,6 +2693,14 @@ explicit opt-in skips; `swift run aisidecar --help` and `swift build --product C
 Session-only, dry-run, XMP-write, file-list, and live analyze-and-normalize smoke paths passed in an
 isolated `/tmp` fixture. A subsequent `aisidecar purge` removed the manifest, lock, and derivative
 written by an isolated analyze run. The live timing item above remains a separate evidence task.
+
+For the remaining timing criterion, release builds at pre-R4-6 commit `fff7984` and the completed
+branch analyzed the same 46-image corpus in `both` mode with `stage_concurrency=4`, cold isolated
+caches, a warmed local `gemma4:12b-it-qat`, and one-second/no-retry model timeouts to bound inference.
+Wall time was 77.36 seconds before and 77.06 seconds after. Sidecar `render_ms` median/mean were
+97/98.0 ms before and 104/100.2 ms after; p90 was 138 ms before and 137 ms after. Because the
+render distribution did not improve, this run is recorded as inconclusive rather than acceptance
+evidence. Repeat on the intended 50–100-image calibration corpus without forced model failures.
 
 **Commit.** Four sub-commits, in order:
 1. `Narrow derivative-cache store lock to manifest mutation and hash bytes once`

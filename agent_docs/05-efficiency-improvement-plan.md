@@ -65,7 +65,8 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 > **Scheduling:** execute as part of plan-08 R4-6 (one `DerivativeCache` manifest redesign covering P2 + P3 + R4-6 together).
 >
 > **Implementation status (2026-07-11):** complete in R4-6; the 50–100-image live before/after
-> timing evidence remains open in plan 10's R4-6 acceptance ledger.
+> timing evidence remains open in plan 10's R4-6 acceptance ledger after a controlled 46-image run
+> did not demonstrate lower render time.
 
 - **Priority:** HIGH · **Effort:** Medium · **Risk:** Medium
 - **Files:** `Sources/AISidecarCore/Rendering/DerivativeCache.swift:106-147` (`store`), `DerivativeCache.swift` `sha256(of:)` (~line 226), lock at ~line 24, `loadManifest`/`saveManifest`
