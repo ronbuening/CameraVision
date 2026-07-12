@@ -267,9 +267,9 @@ Two app instances (or GUI + CLI) share the recovery file path, log path, and con
 
 **Implementation status (2026-07-11):** R4-1 through R4-6 are implemented and the R4 exit gate is
 green (541 tests, CLI help, app build, and normalization/purge smokes). R4-6 also completes
-efficiency items P2/P3. The separate 50–100-image live before/after performance evidence remains
-open because the controlled 46-image historical comparison did not demonstrate lower render time;
-see plan 10 R4-6 for the recorded decision, measurements, and exact remaining evidence item.
+efficiency items P2/P3. A controlled, order-reversed 46-image comparison also demonstrated a
+14–17% reduction in aggregate render timings; see plan 10 R4-6 for the recorded decision,
+methodology, and measurements.
 
 ### R4-1 — File-list entries outside the list directory collapse into one XMP group (MEDIUM)
 `NormalizationInputResolver.swift:532-542` (`relativePath(for:root:)` falls back to `lastPathComponent`) feeding `groupKey(for:)` (`:412-418`): two same-base-name images from **different directories** in an absolute-path file list group as one RAW+JPEG pair — keywords union into a single `.xmp` beside whichever asset sorts first; the other image gets nothing. Fix: group key must use the resolved absolute parent directory when the entry is outside the root (never the empty-string directory). Tests: `FileListInputResolverTests` gains an out-of-root absolute-path case asserting two separate groups/targets.
