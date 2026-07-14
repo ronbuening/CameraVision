@@ -2143,6 +2143,8 @@ spec for normalization semantics is `agent_docs/03-cli-normalized-batch-tagger-r
 
 **Post-implementation audit (2026-07-11).** The first R4 pass satisfied its original focused tests but left adversarial gaps at the boundaries. The audit corrected absolute-versus-relative file-list identity, single-image/off-mode and factual session-context results, coordinate/GPS safety outside model extraction, terminal primary vocabulary ambiguity, complete direct-decision fail-closed handling, exact `rdf:about` filename matching, and cross-process active-artifact cache safety. The per-item notes below are the as-built rules; older “proposed code” excerpts are historical rationale where they differ.
 
+**Second audit (2026-07-14).** An independent verification pass re-reviewed every item; R4-2 and R4-4 came back clean, and the “Second audit” notes under R4-1, R4-3, R4-5, and R4-6 record the corrections. Where a second-audit note conflicts with earlier text in the same item, the second-audit note is the as-built rule.
+
 ### R4-1 — File-list entries outside the list directory collapse into one XMP group
 
 **Goal.** Two same-base-name images from different directories in an absolute-path file list must
@@ -2212,6 +2214,8 @@ func testAbsoluteFileListEntriesOutsideListDirectoryStayInSeparateGroups() throw
 - [x] Existing file-list tests (relative paths, duplicates, comments) unchanged and green.
 
 **Audit correction (2026-07-11).** Preserving the absolute display path was insufficient because splitting path components still erased the leading slash, so an absolute entry could collide with a mirrored list-relative entry. Group identity now includes the standardized physical parent directory. If two physical groups still produce the same display-relative staging target, only those names gain a deterministic 12-hex directory-identity suffix; beside-source `Bird.xmp` naming and external RAW/JPEG pairing remain unchanged. Tests pin both the mirrored absolute/relative adversary and unique planner targets.
+
+**Second audit (2026-07-14).** “Standardized” was still lexical: `standardizedFileURL` does not resolve symlink components, so linked and real spellings of one file passed duplicate detection as two assets, and a RAW/JPEG pair listed via linked and real spellings of one directory split into two groups whose beside-source targets were one physical `.xmp`. As built now: file-list duplicate detection keys on `resolvingSymlinksInPath()`, and `groupKey` equality is `(identityDirectory, basename)` where `identityDirectory` is the symlink-resolved physical parent; the display directory (used for `groupDirectory` and staging targets) comes from the group’s first member in sorted order. `FileListInputResolverTests` pins both symlink adversaries.
 
 **Commit.** `Fix file-list grouping for entries outside the list directory`
 
@@ -2372,6 +2376,8 @@ func testDMSCoordinateCandidateIsSkippedInObservedTagsMode() throws {
 
 **Audit correction (2026-07-11).** The regexes are compiled once in `KeywordSafetyPolicy`, and the same final-boundary policy is used by candidate extraction, session preflight, review edits, and normalized planning. It blocks coordinate syntax plus GPS metadata phrases such as `GPS fix`, `GPS reading`, and `GPS-derived location`, while allowing a visibly depicted `GPS Unit`/receiver with visual evidence. Final planning partitions safe and blocked decisions once and emits an auditable safety skip, covering imported or hand-edited sessions independently of earlier guards.
 
+**Second audit (2026-07-14).** The signed-pair patterns accepted only ASCII `[+-]`, so a pair signed with a typographic minus (U+2212) or en dash — which survive NFC normalization — passed every route into XMP; the sign classes now include U+2212 and en/em dashes. Two additional families are blocked: label-prefixed pairs (`Lat 40.446 Lon -79.982`, `latitude: 40.446, longitude: -79.982`, `lat/lon/lng/long` with numbers in lat-then-lon order) and spelled-out cardinal pairs (`40.446 degrees North, 79.982 degrees West`, `40.446 North 79.982 West`). Negatives pin `Garmin GPSMAP 66i`, `long exposure 1.3 seconds`, `North Shore sunset`, and `50 North Plaza` as allowed. MGRS, plus codes, and geohash remain outside the specified format set (noted, not scheduled).
+
 **Commit.** `Broaden coordinate-term guard to DMS, cardinal-prefix, signed pairs, and UTM`
 
 ### R4-4 — Vocabulary validation: duplicate/ambiguous flat keywords
@@ -2424,7 +2430,8 @@ private mutating func insertAliasLookup(_ value: String, canonicalPath: String) 
 }
 ```
 
-   Apply the same two-pass tiering to the separator-fold map for consistency.
+   Apply the same two-pass tiering to the separator-fold map for consistency. *(Superseded — see
+   the Audit correction below: separator-fold ownership is deliberately untiered.)*
 2. **Validator** — add `validateFlatKeywords(_:)` detecting, after `VocabularyTextFolder.fold`:
    flat↔flat duplicates across entries, synonym(A)↔flat(B) collisions, flat↔canonical-fold
    collisions, and fold-duplicate canonical paths; list all collisions in the message, matching
@@ -2568,6 +2575,8 @@ func testStampRewritePreservesFloatAndSlashFormatting() throws {
 - [x] Golden sidecar output remains unchanged; focused stamp formatting coverage pins floats and unescaped slashes.
 
 **Audit correction (2026-07-11).** Tolerance covers every enum directly on a per-asset decision (`stage`, `status`, `candidate_kind`, `context_type`, `namespace`, `direct_apply_policy`, and ordered `skip_reasons`). Unknown raw values and additive JSON fields survive `NormalizationSessionWriter`; the decision is forced withheld and is independently ignored by review and planning. Nested observation/provenance and audit-only enums remain an explicit strict boundary pending a wider lossless-wrapper redesign. Merge-target matching compares decoded terminal filename components—not raw suffixes—and covers percent-encoded file URLs, Windows paths, and the `NotBird.JPG` adversary with precedence managed → exact source → empty → first.
+
+**Second audit (2026-07-14).** Four corrections. (1) The writer’s PW-012 merge started from the original object, so a schema-modeled optional the encoder intentionally omitted was resurrected — an import → review-edit → save round trip restored the original `canonical_path`/`hierarchical_keyword` onto a `user_edited` decision. `JSONDocumentMerge.preservingUnknowns` now takes an owned-keys callback (object-key path from the root; array elements do not extend the path), and `NormalizationSessionWriter` owns `PerAssetNormalizationDecision.schemaOwnedKeys` at `per_asset_decisions`: owned keys follow the replacement including absence, unknown keys are still preserved. (2) The fail-closed coercion of a mixed known/unknown decision (`status`, `export_flat_keyword`, `export_hierarchical_keyword`) was persisted on re-encode, permanently withholding a newer writer’s accepted decision; the decoder now stashes the pre-coercion values in `forwardCompatOriginal*` fields and the encoder emits them, keeping fail-closed in-memory only. (3) `stampSourceSidecars` only ran for written/created targets, so a transiently failed stamp was never retried by an unchanged rerun; unchanged targets now back-fill sidecars that are missing a stamp (presence-checked — stamped sidecars are untouched). (4) Plain (non-URI) `rdf:about` values containing `%`, `#`, or `?` were percent-decoded or truncated by URL parsing before comparison; the matcher now compares the literal terminal component first.
 
 **Commit.** `Session/edit hardening: pipe rejection, tolerant decode, stamp path and serialization, merge-target about` (split per bullet if any grows; each is independently committable)
 
@@ -2723,6 +2732,8 @@ produced 92 sidecar timing records per revision. Aggregate `render_ms` median/me
 An earlier one-second-timeout pass was inference-dominated and inconclusive (77.36 vs. 77.06
 seconds), which is why the render-focused repetitions were used for acceptance.
 
+**Second audit (2026-07-14).** Three corrections and two accepted residuals. (1) A same-key `store()` whose staged bytes differed from the manifest entry (encoder output is not guaranteed bit-stable across processes) fell into the replace path and threw `.busy` against another consumer's lease, failing an image that had a perfectly valid cached artifact; the reuse fast path no longer requires the staged hash to match — any on-disk artifact that verifies against its manifest entry is reused and its provenance returned. (2) `cachedRecord()` hashed the whole artifact inside the cross-process manifest flock on every warm hit, serializing all readers in both processes on file I/O; the hit path now leases and timestamp-refreshes under the lock and verifies the hash outside it (the shared lease pins the inode — replacement and eviction need an exclusive lock — so the bytes cannot change mid-verification; on mismatch it releases, re-enters the lock, and removes as before). (3) `FileLock` never revalidated its inode after `flock`, so a waiter could hold a lock on an orphaned inode while a newcomer locked a replacement file; `lockCreatingFile` now compares `fstat`/`stat` identity after acquisition and retries on mismatch. Accepted residuals: a crash between artifact rename and manifest save leaves one manifest-untracked artifact invisible to the byte cap until the next purge or same-key store re-tracks it (bounded, self-healing); and a holder whose lock-file inode is externally unlinked mid-critical-section cannot be defended by advisory path locks — nothing in-repo unlinks the lock, `clear()` preserves it, and the revalidation closes the remaining internal window.
+
 **Commit.** Four sub-commits, in order:
 1. `Narrow derivative-cache store lock to manifest mutation and hash bytes once`
 2. `Serialize derivative-cache manifest access across processes with a flock file lock`
@@ -2758,6 +2769,8 @@ R4-1 additionally warrants one manual smoke: a file list mixing in-root relative
 out-of-root absolute paths with a shared basename must produce one `.xmp` per directory.
 
 **Post-audit R4 exit verification (2026-07-11).** The expanded R4 regression filter passed 176/176. `swift test` passed 581 tests with two explicit opt-in skips and zero failures. Top-level help plus all eight subcommand help routes exited 0; `swift build --product CupricAspect` passed; `aisidecar benchmark --self-test` passed; and an isolated `aisidecar purge --cache-dir /tmp/cameravision-r4-audit-purge-20260711` exited 0. `git diff --check` is clean. Linting only changed Swift files reports one pre-existing advisory (`ModelInputExportPlannedOutput`'s synthesized initializer); repository-wide lint remains advisory and retains its unrelated backlog. The previous isolated normalization/live-model smokes remain valid, and the initial R4-6 timing run remains recorded as historical evidence. This offline audit added integration tests for every changed semantic boundary instead of requiring Ollama or network access; it did not remeasure live-model performance after adding active-artifact leases.
+
+**Second-audit R4 exit verification (2026-07-14).** After the second-audit corrections, the R4 regression filter (now including `XMPExportPipelineTests`) passed 193/193 and `swift test` passed 589 tests with the same two opt-in skips and zero failures. Every correction landed with a pinning regression test: symlink dedupe/pairing, typographic-minus/label/spelled-out coordinate forms plus false-positive negatives, newer-writer status/flag preservation through rewrite, cleared-field non-resurrection through the disk round trip, unchanged-rerun stamp back-fill, literal `%` `rdf:about` matching, divergent-byte leased-store reuse, and corrupt-artifact miss behavior under a foreign lease. This audit was offline; the FileLock inode revalidation's race window is not deterministically testable without injection hooks and is covered by the existing serialization tests for no-regression.
 
 ## Definition of done
 

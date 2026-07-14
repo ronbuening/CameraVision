@@ -99,22 +99,22 @@ Doc 03 Appendix B mandates this matrix be maintained; this file is its home. Mai
 
 ```text
 Requirement family        Primary modules                                           Primary tests                                      Milestone
-FR3-CLI / FR3-ERR         NormalizeCommand, ApplySessionCommand, input resolver       NormalizeCommandTests, FileListInputResolverTests  M0/R4
+FR3-CLI / FR3-ERR         NormalizeCommand, ApplySessionCommand, input resolver       NormalizationInvocationTests, FileListInputResolverTests  M0/R4
 FR3-001..008              VocabularyLoader, VocabularyEntry, DirectApplyPolicy       VocabularyLoaderTests, DirectApplyPolicyTests     M1
-Appendix A / AC3-030      StarterVocabularyResource, StarterVocabularyFixtures       StarterVocabularyTests                            M1
-FR3-ORD-001..005          NormalizationDecisionOrder, NormalizationDecisionEngine    NormalizationDecisionOrderTests                   M2-M5
-FR3-009..020              NormalizedCandidate, NormalizationDecisionEngine           NormalizationDecisionEngineTests                  M3-M5
-FR3-AFF-003a/b            AssetAffinityInputExtractor                               AssetAffinityInputExtractorTests                  M4
+Appendix A / AC3-030      DefaultVocabulary, bundled Vocabularies resource           StarterVocabularyTests                            M1
+FR3-ORD-001..005          CandidateCanonicalizer, BatchConsensusEngine               BatchConsensusEngineTests, CandidateCanonicalizerTests  M2-M5
+FR3-009..020              CandidateCanonicalizer, VocabularyIndex                    CandidateCanonicalizerTests, VocabularyIndexTests  M3-M5
+FR3-AFF-003a/b            AssetAffinityInputExtractor                               AssetAffinityInputTests                           M4
 FR3-AFF-004..012          Affinity scorers, AssetAffinityProfile                    AssetAffinityScorerTests                          M4
-FR3-AFF-013a/c            AffinityScoreFormatter, AssetAffinityGraph                AffinityScoreFormatterTests, GraphTests           M4
-FR3-AFF-013b              CandidateNeighborGenerator                                CandidateNeighborGeneratorTests                   M4
-FR3-AFF-014..016          LocalWeightedConsensus                                    LocalWeightedConsensusTests                       M4
-FR3-AFF-017a/b            LocalConflictMass                                         LocalConflictMassTests                            M4
-FR3-013e/f                GlobalBackstopConsensus                                   GlobalBackstopConsensusTests                      M4
-FR3-AFF-020..022          AssetAffinityPrivacy                                      AssetAffinityPrivacyTests, ReportTests            M4/M6
+FR3-AFF-013a/c            AffinityScoreFormatter, AssetAffinityGraph                AssetAffinityGraphTests                           M4
+FR3-AFF-013b              CandidateNeighborGenerator                                AffinityNeighborCandidateTests                    M4
+FR3-AFF-014..016          BatchConsensusEngine (local weighted consensus)            LocalWeightedConsensusTests                       M4
+FR3-AFF-017a/b            BatchConsensusEngine (local conflict mass)                 LocalConflictMassTests                            M4
+FR3-013e/f                BatchConsensusEngine (global backstop)                     GlobalBackstopConsensusTests                      M4
+FR3-AFF-020..022          AssetAffinityInputExtractor redaction, session privacy record  NormalizationSessionTests, NormalizationReportTests  M4/M6
 FR3-021..026g             CandidateCanonicalizer, BatchConsensusEngine, KeywordSafetyPolicy  SessionContextPolicyTests, CandidateCanonicalizerTests  M4/R4
 FR3-027..030k             NormalizationSessionReader/Writer, SessionReview           NormalizationSessionTests, SessionReviewTests      M2/M7/R4
-FR3-031..039              NormalizedXMPChangePlanner, XMPExportPipeline reuse        NormalizedXMPChangePlanTests, NormalizePipelineTests  M5-M8/R4
+FR3-031..039              NormalizedXMPChangePlanner, XMPExportPipeline reuse        NormalizedXMPChangePlanTests, NormalizeAndWritePipelineTests  M5-M8/R4
 FR3-040..042              NormalizationArtifactPlanner                              NormalizationArtifactPlannerTests                 M6-M7
 AC3-AFF-001..018          Affinity graph, consensus, conflict, privacy modules      Affinity and consensus fixture suite              M4/M10
 Compatibility evidence    OwnedXMPSidecarEngine through Phase 2 writer path         Smoke checklist and release evidence              M11
@@ -148,8 +148,8 @@ architecture-map.md's `Normalization/` row lists the key types; this adds the pe
 
 | Subsystem | Files | Responsibility |
 |---|---|---|
-| Vocabulary | `VocabularyDocument`, `VocabularyEntry`, `DirectApplyPolicy`, `VocabularyLoader`, `VocabularyValidator`, `VocabularyIndex`, `VocabularyTextFolder`, `DefaultVocabulary`, `StarterVocabularyFixtures` | `ai-sidecar-vocabulary/1.0` load + SHA-256 identity; integrity checks (uniqueness, tree acyclicity, collisions); NFC/case/whitespace folding with ambiguity-guarded fallback aliases; direct-apply vs propagation policy defaults |
-| Session & inputs | `NormalizationInputResolver`, `NormalizationSessionDocument`, `NormalizationSourceAsset`, `NormalizationSchemaIdentifiers`, `NormalizationDecisionOrder`, `NormalizationArtifactPlanner` | folder/file-list/from-json input resolution; `ai-sidecar-normalization/1.0` session bound to source identity hashes; FR3-ORD-001 stage ordering; dry-run/session-only/apply-session artifact truth table |
-| Affinity | `AssetAffinityInputs`, `AssetAffinityInputExtractor`, `AssetAffinityPrivacy`, `AssetAffinityProfile`, `CaptureTimeAffinityScorer`, `GPSAffinityScorer`, `FilenameSequenceAffinityScorer`, `CameraLensAffinityScorer`, `AssetAffinityGraph`, `CandidateNeighborGenerator`, `AffinityScoreFormatter` | metadata extraction with redaction/hashing; named profiles (conservative/balanced/aggressive); deterministic decay scorers; bounded neighbor windows for large batches; six-decimal rounding, score bands, stable ordering |
-| Consensus & decisions | `CandidateObservation`, `CandidateCanonicalizer`, `NormalizationDecision`, `LocalWeightedConsensus`, `LocalConflictMass`, `GlobalBackstopConsensus`, `BatchConsensusEngine`, `SessionContextResolver`, `NormalizationConflictDetector`, `NormalizationClusterBuilder` | observation extraction and canonicalization; support/eligible mass, local agreement, conflict-mass blocks; hierarchy-aware counts and global backstop minimums; user session subject/habitat/event evidence; explanatory clusters (audit-only) |
-| Plan & apply | `NormalizedXMPChangePlanner`, `SessionStalenessChecker`; `Pipeline/NormalizePipeline`, `NormalizeAndWritePipeline`, `ApplySessionPipeline`, `AnalyzeAndNormalizePipeline`, `NormalizationXMPExecutionRecorder`; `Reporting/NormalizationProgressLog`, `NormalizationReport`, `NormalizationSummary` | adapt approved decisions into Phase 2 `XMPChangePlan`s; session staleness checks; pipeline entry points (see architecture-map.md); JSONL progress, `ai-sidecar-normalization-report/1.0`, Markdown summary |
+| Vocabulary | `VocabularyDocument`, `VocabularyEntry`, `DirectApplyPolicy`, `VocabularyLoader`, `VocabularyValidator`, `VocabularyIndex`, `VocabularyTextFolder`, `DefaultVocabulary` (bundled `Vocabularies/` resource) | `ai-sidecar-vocabulary/1.0` load + SHA-256 identity; integrity checks (uniqueness, tree acyclicity, collisions); NFC/case/whitespace folding with ambiguity-guarded fallback aliases; direct-apply vs propagation policy defaults |
+| Session & inputs | `NormalizationInputResolver`, `NormalizationSessionDocument`, `NormalizationSourceAsset`, `Reporting/NormalizationSchemaIdentifiers`, `NormalizationArtifactPlanner` | folder/file-list/from-json input resolution with symlink-resolved physical identity; `ai-sidecar-normalization/1.0` session bound to source identity hashes; dry-run/session-only/apply-session artifact truth table |
+| Affinity | `AssetAffinityInputs`, `AssetAffinityInputExtractor` (incl. redaction/hashing), `AssetAffinityProfile`, `CaptureTimeAffinityScorer`, `GPSAffinityScorer`, `FilenameSequenceAffinityScorer`, `CameraLensAffinityScorer`, `AssetAffinityGraph`, `CandidateNeighborGenerator`, `AffinityScoreFormatter` | metadata extraction with redaction/hashing; named profiles (conservative/balanced/aggressive); deterministic decay scorers; bounded neighbor windows for large batches; six-decimal rounding, score bands, stable ordering |
+| Consensus & decisions | `CandidateObservation`, `CandidateCanonicalizer`, `PerAssetNormalizationDecision`, `LocalWeightedConsensusRecord`, `BatchConsensusEngine` (FR3-ORD stage ordering, local weighted consensus, conflict mass, global backstop, session-context application) | observation extraction and canonicalization; support/eligible mass, local agreement, conflict-mass blocks; hierarchy-aware counts and global backstop minimums; user session subject/habitat/event evidence; explanatory clusters (audit-only) |
+| Plan & apply | `NormalizedXMPChangePlanner`; `Pipeline/NormalizePipeline`, `NormalizeAndWritePipeline`, `ApplySessionPipeline` (incl. session staleness checks), `AnalyzeAndNormalizePipeline`, `NormalizationXMPExecutionRecorder`; `Reporting/NormalizationProgressLog`, `NormalizationReport`, `NormalizationSummary` | adapt approved decisions into Phase 2 `XMPChangePlan`s; session staleness checks; pipeline entry points (see architecture-map.md); JSONL progress, `ai-sidecar-normalization-report/1.0`, Markdown summary |
