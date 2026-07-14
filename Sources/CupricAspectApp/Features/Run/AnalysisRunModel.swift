@@ -130,6 +130,10 @@ final class AnalysisRunModel {
     private(set) var total = 0
     private(set) var currentFile = ""
     private(set) var startedAt: Date?
+    /// Timestamp of the most recent completed image. The average rate is
+    /// measured up to this instant so the currently-processing image (whose
+    /// time is still accumulating) never skews the figure.
+    private(set) var lastCompletedAt: Date?
     private(set) var writtenCount = 0
 
     /// Per-record observer so the import queue can advance asset states live.
@@ -144,10 +148,13 @@ final class AnalysisRunModel {
 
     var isRunning: Bool { phase == .running || phase == .cancelling }
 
-    /// Smoothed seconds per image over the run so far.
+    /// Smoothed seconds per image over the run so far. Measured from the run
+    /// start to the last completed image, so the image currently in flight is
+    /// excluded — its still-accumulating time would otherwise inflate the
+    /// average, badly so early in a run.
     var secondsPerImage: Double {
-        guard let startedAt else { return 0 }
-        let elapsed = Date().timeIntervalSince(startedAt)
+        guard let startedAt, let lastCompletedAt else { return 0 }
+        let elapsed = lastCompletedAt.timeIntervalSince(startedAt)
         return Self.secondsPerImage(elapsed: elapsed, done: done)
     }
 
@@ -185,6 +192,7 @@ final class AnalysisRunModel {
         total = expectedTotal
         currentFile = ""
         startedAt = Date()
+        lastCompletedAt = nil
         let monitor = InterruptionMonitor()
         self.monitor = monitor
 
@@ -193,6 +201,7 @@ final class AnalysisRunModel {
         Task {
             for await record in stream {
                 done += 1
+                lastCompletedAt = Date()
                 reconcileProgressTotal()
                 if record.status == .written { writtenCount += 1 }
                 if let relativePath = record.relativePath { currentFile = relativePath }
@@ -236,12 +245,22 @@ final class AnalysisRunModel {
         writtenCount = 0
         currentFile = ""
         startedAt = nil
+        lastCompletedAt = nil
     }
 
     func applyProgressForTesting(done: Int, total: Int) {
         self.done = done
         self.total = total
         reconcileProgressTotal()
+    }
+
+    /// Seed the timing state so `secondsPerImage` can be exercised without a
+    /// live pipeline run. `lastCompletedAt == nil` models an image in flight
+    /// with nothing completed yet.
+    func applyTimingForTesting(done: Int, startedAt: Date, lastCompletedAt: Date?) {
+        self.done = done
+        self.startedAt = startedAt
+        self.lastCompletedAt = lastCompletedAt
     }
 
     private func reconcileProgressTotal() {
