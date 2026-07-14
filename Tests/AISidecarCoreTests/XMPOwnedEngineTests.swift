@@ -81,6 +81,38 @@ final class XMPOwnedEngineTests: XCTestCase {
         )
     }
 
+    func testParserMatchesPlainAboutContainingPercentLiterally() throws {
+        let xmp = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                <rdf:Description rdf:about="Other.JPG">
+                  <xmp:Rating>1</xmp:Rating>
+                </rdf:Description>
+                <rdf:Description rdf:about="IMG%20001.jpg">
+                  <xmp:Label>Green</xmp:Label>
+                </rdf:Description>
+              </rdf:RDF>
+            </x:xmpmeta>
+            """
+
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/IMG%20001.xmp",
+            sourceFileNames: ["IMG%20001.jpg"]
+        )
+
+        XCTAssertEqual(
+            XMPXML.firstAttributeValue(
+                on: parsed.descriptionElement,
+                namespaceURI: XMPNamespace.rdf,
+                localName: "about"
+            ),
+            "IMG%20001.jpg"
+        )
+    }
+
     func testParserDoesNotTreatLongerFilenameAsSourceMatch() throws {
         let xmp = """
             <?xml version="1.0" encoding="UTF-8"?>

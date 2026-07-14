@@ -245,6 +245,130 @@ final class NormalizationSessionTests: XCTestCase {
         )
     }
 
+    func testRewrittenSessionPreservesNewerWritersKnownStatusAndExportFlags() throws {
+        let jsonRoot = try temporaryDirectory()
+        let sourceRoot = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        let source = try writeTestImage("Bird.JPG", in: sourceRoot)
+        let sourceImage = try scannedSourceImage(source, relativePath: "Bird.JPG")
+        _ = try writeRawSidecar(
+            source: sourceImage,
+            named: "Bird.JPG.ai.json",
+            in: jsonRoot,
+            modelRuns: [
+                modelRun(
+                    role: .wholeImage,
+                    response: response([
+                        .proposedKeywords: .array([candidate("bird", confidence: "high")])
+                    ]), index: 0)
+            ]
+        )
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.sourceRoot = sourceRoot.path
+        configuration.outputDir = output.path
+        configuration.sessionOnly = true
+        configuration.normalizationMode = .singleImage
+        let result = try NormalizePipeline().runSessionOnly(
+            mode: .fromJSON(path: jsonRoot.path),
+            configuration: configuration
+        )
+        let sessionURL = URL(fileURLWithPath: try XCTUnwrap(result.session.artifacts.sessionPath))
+
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: sessionURL)) as? [String: Any]
+        )
+        object["schema_version"] = "ai-sidecar-normalization/1.1"
+        var decisions = try XCTUnwrap(object["per_asset_decisions"] as? [[String: Any]])
+        decisions[0]["status"] = "accepted"
+        decisions[0]["export_flat_keyword"] = true
+        decisions[0]["export_hierarchical_keyword"] = true
+        decisions[0]["namespace"] = "Future Namespace"
+        object["per_asset_decisions"] = decisions
+        try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: sessionURL)
+
+        let decoded = try NormalizationSessionReader().read(from: sessionURL.path)
+        let decision = try XCTUnwrap(decoded.perAssetDecisions.first)
+        XCTAssertTrue(decision.isForwardCompatUnknown)
+        XCTAssertEqual(decision.status, .withheld)
+        XCTAssertFalse(decision.exportFlatKeyword)
+        XCTAssertFalse(decision.exportHierarchicalKeyword)
+
+        let rewrittenURL = output.appendingPathComponent("rewritten-session.json")
+        try NormalizationSessionWriter().write(decoded, to: rewrittenURL.path)
+        let rewritten = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: rewrittenURL)) as? [String: Any]
+        )
+        let rewrittenDecisions = try XCTUnwrap(rewritten["per_asset_decisions"] as? [[String: Any]])
+        XCTAssertEqual(rewrittenDecisions[0]["status"] as? String, "accepted")
+        XCTAssertEqual(rewrittenDecisions[0]["export_flat_keyword"] as? Bool, true)
+        XCTAssertEqual(rewrittenDecisions[0]["export_hierarchical_keyword"] as? Bool, true)
+        XCTAssertEqual(rewrittenDecisions[0]["namespace"] as? String, "Future Namespace")
+    }
+
+    func testEditedSessionFromDiskDoesNotResurrectClearedDecisionFields() throws {
+        let jsonRoot = try temporaryDirectory()
+        let sourceRoot = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        let source = try writeTestImage("Bird.JPG", in: sourceRoot)
+        let sourceImage = try scannedSourceImage(source, relativePath: "Bird.JPG")
+        _ = try writeRawSidecar(
+            source: sourceImage,
+            named: "Bird.JPG.ai.json",
+            in: jsonRoot,
+            modelRuns: [
+                modelRun(
+                    role: .wholeImage,
+                    response: response([
+                        .proposedKeywords: .array([candidate("bird", confidence: "high")])
+                    ]), index: 0)
+            ]
+        )
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.sourceRoot = sourceRoot.path
+        configuration.outputDir = output.path
+        configuration.sessionOnly = true
+        configuration.normalizationMode = .singleImage
+        let result = try NormalizePipeline().runSessionOnly(
+            mode: .fromJSON(path: jsonRoot.path),
+            configuration: configuration
+        )
+        let sessionURL = URL(fileURLWithPath: try XCTUnwrap(result.session.artifacts.sessionPath))
+
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: sessionURL)) as? [String: Any]
+        )
+        var decisions = try XCTUnwrap(object["per_asset_decisions"] as? [[String: Any]])
+        decisions[0]["future_decision_field"] = ["kept": true]
+        object["per_asset_decisions"] = decisions
+        try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: sessionURL)
+
+        let decoded = try NormalizationSessionReader().read(from: sessionURL.path)
+        let decision = try XCTUnwrap(decoded.perAssetDecisions.first)
+        XCTAssertNotNil(decision.canonicalPath)
+
+        let reviewed = SessionReview.applying(
+            verdicts: [decision.decisionID: .approved],
+            edits: [decision.decisionID: "Replacement Term"],
+            to: decoded
+        )
+        let rewrittenURL = output.appendingPathComponent("edited-session.json")
+        try NormalizationSessionWriter().write(reviewed, to: rewrittenURL.path)
+        let rewritten = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: rewrittenURL)) as? [String: Any]
+        )
+        let rewrittenDecisions = try XCTUnwrap(rewritten["per_asset_decisions"] as? [[String: Any]])
+        XCTAssertEqual(rewrittenDecisions[0]["candidate_kind"] as? String, "user_edited")
+        XCTAssertEqual(rewrittenDecisions[0]["flat_keyword"] as? String, "Replacement Term")
+        XCTAssertNil(rewrittenDecisions[0]["canonical_path"])
+        XCTAssertNil(rewrittenDecisions[0]["hierarchical_keyword"])
+        XCTAssertEqual(
+            (rewrittenDecisions[0]["future_decision_field"] as? [String: Any])?["kept"] as? Bool,
+            true
+        )
+    }
+
     func testUnknownNestedObservationEnumRemainsCompatibilityBoundary() throws {
         let observation = phase3Observation(
             id: "obs-000001",

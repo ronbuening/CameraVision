@@ -47,26 +47,48 @@ struct FileLock {
     }
 
     private func lockCreatingFile(operation: Int32) throws -> FileLockHandle {
-        let descriptor: Int32
         while true {
-            let candidate = open(path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
-            if candidate >= 0 {
-                descriptor = candidate
-                break
+            let descriptor = try openCreating()
+            do {
+                try applyLock(descriptor: descriptor, operation: operation)
+            } catch {
+                close(descriptor)
+                throw error
+            }
+            // Revalidate that the locked descriptor still names `path`: if an
+            // external actor unlinked or replaced the lock file between open
+            // and flock, a waiter would otherwise hold a lock on an orphaned
+            // inode while a newcomer locks the replacement, splitting the
+            // mutex. (A holder whose inode is unlinked mid-critical-section
+            // remains unprotected — advisory path locks cannot detect that.)
+            if isCurrentInode(descriptor: descriptor) {
+                return FileLockHandle(descriptor: descriptor)
+            }
+            flock(descriptor, LOCK_UN)
+            close(descriptor)
+        }
+    }
+
+    private func openCreating() throws -> Int32 {
+        while true {
+            let descriptor = open(path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+            if descriptor >= 0 {
+                return descriptor
             }
             let errorNumber = errno
             if errorNumber != EINTR {
                 throw POSIXFileLockError(operation: "open", path: path, errorNumber: errorNumber)
             }
         }
+    }
 
-        do {
-            try applyLock(descriptor: descriptor, operation: operation)
-            return FileLockHandle(descriptor: descriptor)
-        } catch {
-            close(descriptor)
-            throw error
+    private func isCurrentInode(descriptor: Int32) -> Bool {
+        var descriptorInfo = Darwin.stat()
+        var pathInfo = Darwin.stat()
+        guard fstat(descriptor, &descriptorInfo) == 0, stat(path, &pathInfo) == 0 else {
+            return false
         }
+        return descriptorInfo.st_dev == pathInfo.st_dev && descriptorInfo.st_ino == pathInfo.st_ino
     }
 
     private func openExisting() throws -> Int32? {

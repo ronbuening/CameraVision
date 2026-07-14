@@ -532,6 +532,56 @@ final class DerivativeCacheTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: third.cachePath))
     }
 
+    func testStoreReusesValidLeasedArtifactWhenStagedBytesDiffer() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let holdingCache = DerivativeCache(directoryPath: root.path, sizeCapBytes: 1_024)
+        let storingCache = DerivativeCache(directoryPath: root.path, sizeCapBytes: 1_024)
+        let source = makeSource(identity: SourceIdentity(policy: .sha256, sha256: String(repeating: "8", count: 64)))
+        let original = try Self.store(Data("encoder-run-one".utf8), in: holdingCache, source: source)
+
+        let reused = try Self.store(Data("encoder-run-two".utf8), in: storingCache, source: source)
+
+        XCTAssertEqual(reused.sha256, original.sha256)
+        XCTAssertEqual(
+            try Data(contentsOf: URL(fileURLWithPath: reused.cachePath)),
+            Data("encoder-run-one".utf8)
+        )
+        holdingCache.releaseRetained()
+        storingCache.releaseRetained()
+    }
+
+    func testCorruptArtifactLeasedByAnotherInstanceIsMissWithoutRemoval() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let holdingCache = DerivativeCache(directoryPath: root.path, sizeCapBytes: 1_024)
+        let readingCache = DerivativeCache(directoryPath: root.path, sizeCapBytes: 1_024)
+        let source = makeSource(identity: SourceIdentity(policy: .sha256, sha256: String(repeating: "9", count: 64)))
+        let record = try Self.store(Data("good".utf8), in: holdingCache, source: source)
+        // Non-atomic in-place write keeps the inode the active lease pins.
+        try Data("bad!".utf8).write(to: URL(fileURLWithPath: record.cachePath))
+
+        XCTAssertNil(
+            try readingCache.cachedRecord(
+                source: source,
+                recipeVersion: "recipe-v1",
+                role: .wholeImage,
+                format: .jpeg
+            ))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: record.cachePath))
+
+        holdingCache.releaseRetained()
+
+        XCTAssertNil(
+            try readingCache.cachedRecord(
+                source: source,
+                recipeVersion: "recipe-v1",
+                role: .wholeImage,
+                format: .jpeg
+            ))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: record.cachePath))
+    }
+
     private static func store(_ data: Data, in cache: DerivativeCache, source: SourceImage) throws -> DerivativeRecord {
         try cache.store(
             source: source,

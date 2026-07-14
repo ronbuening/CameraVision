@@ -142,6 +142,52 @@ final class FileListInputResolverTests: XCTestCase {
         XCTAssertEqual(Set(plans.changePlan.targetPlans.map(\.targetXMPPath)).count, 2)
     }
 
+    func testSymlinkedAndRealPathsToOneFileDedupeToOneAsset() throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let realDirectory = root.appendingPathComponent("real")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let image = try writeTestImage("IMG_0001.JPG", in: realDirectory)
+        let linkDirectory = root.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(at: linkDirectory, withDestinationURL: realDirectory)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(image.path)\n\(linkDirectory.appendingPathComponent("IMG_0001.JPG").path)\n"
+            .write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.sourceAssets.count, 1)
+        XCTAssertEqual(batch.sameBaseNameGroups.count, 1)
+        XCTAssertEqual(batch.warnings.count, 1)
+        XCTAssertTrue(batch.warnings[0].message.contains("Duplicate file-list entry ignored"))
+    }
+
+    func testSymlinkedDirectoryEntryPairsWithRealPathEntry() throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let realDirectory = root.appendingPathComponent("real")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let raw = try writeTestImage("Bird.NEF", in: realDirectory)
+        _ = try writeTestImage("Bird.JPG", in: realDirectory)
+        let linkDirectory = root.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(at: linkDirectory, withDestinationURL: realDirectory)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(raw.path)\n\(linkDirectory.appendingPathComponent("Bird.JPG").path)\n"
+            .write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.sourceAssets.count, 2)
+        XCTAssertEqual(batch.sameBaseNameGroups.count, 1)
+        XCTAssertEqual(batch.sameBaseNameGroups[0].memberAssetIDs.count, 2)
+    }
+
     func testFileListPersistsGPSPresenceWithoutCoordinates() throws {
         let root = try temporaryDirectory()
         _ = try writeTestImage("GPSBird.JPG", gps: (latitude: 40.7128, longitude: -74.0060), in: root)

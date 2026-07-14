@@ -309,6 +309,16 @@ final class CandidateExtractorTests: XCTestCase {
             "GPS reading",
             "GPS-derived location",
             "GPS device location",
+            "40.446, −79.982",
+            "40, −79",
+            "40.446, –79.982",
+            "−40.4, —79.9",
+            "Lat 40.446 Lon -79.982",
+            "Lat 40.446, Lon -79.982",
+            "latitude: 40.446, longitude: -79.982",
+            "lat 40.446 lng 79.982",
+            "40.446 degrees North, 79.982 degrees West",
+            "40.446 North 79.982 West",
         ]
         let allowed = [
             "50mm f/1.8",
@@ -322,6 +332,10 @@ final class CandidateExtractorTests: XCTestCase {
             "GPS Unit",
             "GPS receiver",
             "visible GPS device",
+            "Garmin GPSMAP 66i",
+            "long exposure 1.3 seconds",
+            "North Shore sunset",
+            "50 North Plaza",
         ]
 
         for term in blocked {

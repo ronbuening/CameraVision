@@ -215,6 +215,12 @@ struct XMPDocumentParser {
     }
 
     private func rdfAbout(_ value: String, namesSourceFile sourceFileName: String) -> Bool {
+        // Literal comparison first: a plain (non-URI) about value may contain
+        // characters URL parsing would percent-decode or truncate (%, #, ?).
+        let literalComponent = value.split(separator: "/", omittingEmptySubsequences: true).last.map(String.init)
+        if literalComponent == sourceFileName {
+            return true
+        }
         if let component = URL(string: value)?.lastPathComponent, !component.isEmpty {
             if component == sourceFileName {
                 return true

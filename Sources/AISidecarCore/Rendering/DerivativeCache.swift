@@ -76,18 +76,32 @@ public final class DerivativeCache: @unchecked Sendable {
             return nil
         }
 
-        return try withManifestLock {
-            guard fileManager.fileExists(atPath: url.path) else {
-                return nil
-            }
-            var manifest = try loadManifest()
-            guard let entry = manifest.entries[url.lastPathComponent] else {
-                return nil
-            }
-            let sha256 = try Self.sha256(of: url)
-            guard sha256 == entry.sha256 else {
-                // Cache artifacts are regenerable; removing corrupt bytes is safer
-                // than returning provenance for a derivative the model did not see.
+        guard let entry = try leaseManifestEntry(at: url) else {
+            return nil
+        }
+
+        // Verify the artifact bytes outside the manifest lock: the shared lease
+        // pins the inode (replacement and eviction both need an exclusive
+        // artifact lock), so warm-path hits no longer serialize whole-file
+        // hashing behind the cross-process manifest lock.
+        let sha256: String
+        do {
+            sha256 = try Self.sha256(of: url)
+        } catch {
+            release(fileNames: [url.lastPathComponent])
+            throw SidecarError(
+                code: .renderFailed,
+                stage: .render,
+                message: "Unable to read derivative cache artifact \(url.path): \(error.localizedDescription)",
+                recoverable: true
+            )
+        }
+        guard sha256 == entry.sha256 else {
+            // Cache artifacts are regenerable; removing corrupt bytes is safer
+            // than returning provenance for a derivative the model did not see.
+            release(fileNames: [url.lastPathComponent])
+            try withManifestLock {
+                var manifest = try loadManifest()
                 switch removeArtifactIfUnlocked(at: url) {
                 case .removed, .missing:
                     manifest.entries.removeValue(forKey: url.lastPathComponent)
@@ -95,9 +109,22 @@ public final class DerivativeCache: @unchecked Sendable {
                 case .busy, .failed:
                     break
                 }
+            }
+            return nil
+        }
+        return entry.record(cachePath: url.path)
+    }
+
+    /// Lease an artifact's manifest entry and refresh its LRU timestamp under the manifest lock.
+    private func leaseManifestEntry(at url: URL) throws -> CacheManifestEntry? {
+        try withManifestLock {
+            guard fileManager.fileExists(atPath: url.path) else {
                 return nil
             }
-
+            var manifest = try loadManifest()
+            guard let entry = manifest.entries[url.lastPathComponent] else {
+                return nil
+            }
             manifest.entries[url.lastPathComponent]?.lastAccessedAt = now()
             try retainArtifact(at: url)
             do {
@@ -106,7 +133,7 @@ public final class DerivativeCache: @unchecked Sendable {
                 release(fileNames: [url.lastPathComponent])
                 throw error
             }
-            return entry.record(cachePath: url.path)
+            return entry
         }
     }
 
@@ -147,8 +174,11 @@ public final class DerivativeCache: @unchecked Sendable {
 
             return try withManifestLock {
                 var manifest = try loadManifest()
+                // Any valid on-disk artifact for this content-addressed key is
+                // interchangeable with the staged bytes even when encoder output
+                // differs run-to-run, so reuse keeps a concurrent same-key store
+                // from failing over a leased artifact it cannot replace.
                 if let existing = manifest.entries[url.lastPathComponent],
-                    existing.sha256 == entry.sha256,
                     fileManager.fileExists(atPath: url.path),
                     try Self.sha256(of: url) == existing.sha256
                 {

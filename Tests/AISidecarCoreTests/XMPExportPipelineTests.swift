@@ -99,6 +99,34 @@ final class XMPExportPipelineTests: XCTestCase {
         XCTAssertTrue(logs.lines.contains { $0.contains("write_xmp.stamp_skipped") })
     }
 
+    func testUnchangedRerunBackfillsMissingSidecarStampWithoutChurningStampedOnes() throws {
+        let fixture = try makeFromJSONFixture()
+        let configuration = exportConfiguration(outputDir: fixture.output.path)
+        _ = try XMPExportPipeline(logger: Logger(sink: { _ in }), filenameSuffix: { "a3f2" })
+            .runFromJSON(fromJSONPath: fixture.jsonRoot.path, configuration: configuration)
+        let sidecar = fixture.jsonRoot.appendingPathComponent("Bird.JPG.ai.json")
+        XCTAssertTrue(RawSidecarExportStamp.isStamped(sidecarPath: sidecar.path))
+
+        // Simulate a run whose XMP write succeeded but whose stamp failed.
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: sidecar)) as? [String: Any]
+        )
+        object.removeValue(forKey: RawSidecarExportStamp.key)
+        try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: sidecar)
+        XCTAssertFalse(RawSidecarExportStamp.isStamped(sidecarPath: sidecar.path))
+
+        let rerun = try XMPExportPipeline(logger: Logger(sink: { _ in }), filenameSuffix: { "b4c1" })
+            .runFromJSON(fromJSONPath: fixture.jsonRoot.path, configuration: configuration)
+
+        XCTAssertEqual(rerun.report?.targetReports.first?.status, .unchanged)
+        XCTAssertTrue(RawSidecarExportStamp.isStamped(sidecarPath: sidecar.path))
+
+        let bytesBefore = try Data(contentsOf: sidecar)
+        _ = try XMPExportPipeline(logger: Logger(sink: { _ in }), filenameSuffix: { "c5d2" })
+            .runFromJSON(fromJSONPath: fixture.jsonRoot.path, configuration: configuration)
+        XCTAssertEqual(try Data(contentsOf: sidecar), bytesBefore)
+    }
+
     func testStampRewritePreservesFloatAndSlashFormatting() throws {
         let fixture = try makeFromJSONFixture()
         let sidecar = fixture.jsonRoot.appendingPathComponent("Bird.JPG.ai.json")

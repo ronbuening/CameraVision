@@ -626,9 +626,11 @@ public struct XMPExportPipeline {
     /// CORE-4 (FR4-049): after a successful XMP write, stamp every selected
     /// contributing raw sidecar with the additive `xmp_export` block. Best
     /// effort — a stamp failure must never fail an export whose XMP write
-    /// and validation already succeeded; the next successful export retries.
+    /// and validation already succeeded. An unchanged rerun back-fills only
+    /// sidecars still missing a stamp, so a transient stamp failure heals
+    /// without churning already-stamped documents.
     private func stampSourceSidecars(for report: XMPExportTargetReport, context: MetadataWriteEngineContext) {
-        guard report.status == .written || report.status == .created else {
+        guard report.status == .written || report.status == .created || report.status == .unchanged else {
             return
         }
         let targetPath = report.plan.targetXMPPath
@@ -654,6 +656,11 @@ public struct XMPExportPipeline {
                     sidecarPath: targetPath,
                     status: "skipped"
                 ))
+                continue
+            }
+            if report.status == .unchanged,
+                RawSidecarExportStamp.isStamped(sidecarPath: sidecarPath, fileManager: fileManager)
+            {
                 continue
             }
             do {

@@ -68,13 +68,17 @@ enum KeywordSafetyPolicy {
         "common near this location",
     ]
 
+    // Signed pairs accept typographic minus variants (U+2212, en/em dash) that
+    // survive NFC normalization, not just the ASCII hyphen (invariant 3).
     private static let coordinateExpressions: [NSRegularExpression] = [
-        #"(?<!\d)[+-]?\d{1,3}\.\d+\s*[,/ ]\s*[+-]?\d{1,3}\.\d+(?!\d)"#,
+        #"(?<!\d)[+\-−–—]?\d{1,3}\.\d+\s*[,/ ]\s*[+\-−–—]?\d{1,3}\.\d+(?!\d)"#,
         #"\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[NS]\b.*\b\d{1,3}(?:\.\d+)?\s*[°º]?\s*[EW]\b"#,
         #"\d{1,3}\s*[°º]\s*\d{1,2}\s*['′’]\s*\d{1,2}(?:\.\d+)?\s*[\"″”]?\s*[NSEW]"#,
         #"\b[NS]\s*\d{1,3}(?:\.\d+)?\b.*\b[EW]\s*\d{1,3}(?:\.\d+)?\b"#,
-        #"(?<!\d)[+-]?\d{1,3}(?:\.\d+)?\s*,\s*[+-]\d{1,3}(?:\.\d+)?(?!\d)"#,
+        #"(?<!\d)[+\-−–—]?\d{1,3}(?:\.\d+)?\s*,\s*[+\-−–—]\d{1,3}(?:\.\d+)?(?!\d)"#,
         #"\butm\b\s*\d{1,2}\s*[a-z]?\b"#,
+        #"\b(?:lat|latitude)\b\.?\s*[:=]?\s*[+\-−–—]?\d{1,3}(?:\.\d+)?\b.*\b(?:lon|lng|long|longitude)\b\.?\s*[:=]?\s*[+\-−–—]?\d{1,3}(?:\.\d+)?"#,
+        #"\b\d{1,3}(?:\.\d+)?\s*(?:degrees?\s*)?(?:north|south)\b.*\b\d{1,3}(?:\.\d+)?\s*(?:degrees?\s*)?(?:east|west)\b"#,
     ].map { pattern in
         // These are fixed source literals; failure would be a programmer error caught by tests.
         try! NSRegularExpression(pattern: pattern, options: [.caseInsensitive])

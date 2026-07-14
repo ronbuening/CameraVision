@@ -447,6 +447,9 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
     private var forwardCompatUnknownDirectApplyPolicy: String?
     private var forwardCompatUnknownSkipReasons: [String]
     private var forwardCompatOriginalSkipReasonOrder: [String]?
+    private var forwardCompatOriginalStatus: NormalizationDecisionStatus?
+    private var forwardCompatOriginalExportFlatKeyword: Bool?
+    private var forwardCompatOriginalExportHierarchicalKeyword: Bool?
 
     /// A future additive enum affected one of this decision's direct policy
     /// fields. The document remains readable, but this decision cannot export.
@@ -461,7 +464,14 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
             || !forwardCompatUnknownSkipReasons.isEmpty
     }
 
-    enum CodingKeys: String, CodingKey {
+    /// JSON keys this schema models on a decision; the session writer's merge
+    /// treats them as writer-owned so cleared optionals stay cleared (PW-012
+    /// preservation applies only to keys outside this set).
+    static var schemaOwnedKeys: Set<String> {
+        Set(CodingKeys.allCases.map(\.rawValue))
+    }
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case decisionID = "decision_id"
         case assetID = "asset_id"
         case groupID = "group_id"
@@ -543,6 +553,9 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
         self.forwardCompatUnknownDirectApplyPolicy = nil
         self.forwardCompatUnknownSkipReasons = []
         self.forwardCompatOriginalSkipReasonOrder = nil
+        self.forwardCompatOriginalStatus = nil
+        self.forwardCompatOriginalExportFlatKeyword = nil
+        self.forwardCompatOriginalExportHierarchicalKeyword = nil
     }
 
     public init(from decoder: Decoder) throws {
@@ -675,6 +688,12 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
         observations = try container.decode([CandidateObservation].self, forKey: .observations)
 
         if isForwardCompatUnknown {
+            // Fail closed in memory only: consumers see a withheld, non-exporting
+            // decision, but re-encoding must hand the newer writer's known status
+            // and export flags back untouched (invariant 8, both directions).
+            forwardCompatOriginalStatus = forwardCompatUnknownStatus == nil ? status : nil
+            forwardCompatOriginalExportFlatKeyword = exportFlatKeyword
+            forwardCompatOriginalExportHierarchicalKeyword = exportHierarchicalKeyword
             status = .withheld
             exportFlatKeyword = false
             exportHierarchicalKeyword = false
@@ -694,7 +713,7 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
         )
         try container.encode(
             TolerantStringEnum<NormalizationDecisionStatus>(
-                rawValue: forwardCompatUnknownStatus ?? status.rawValue
+                rawValue: forwardCompatUnknownStatus ?? (forwardCompatOriginalStatus ?? status).rawValue
             ),
             forKey: .status
         )
@@ -733,8 +752,14 @@ public struct PerAssetNormalizationDecision: Codable, Sendable, Equatable {
             try container.encodeIfPresent(directApplyPolicy, forKey: .directApplyPolicy)
         }
         try container.encode(requiresReview, forKey: .requiresReview)
-        try container.encode(exportFlatKeyword, forKey: .exportFlatKeyword)
-        try container.encode(exportHierarchicalKeyword, forKey: .exportHierarchicalKeyword)
+        try container.encode(
+            forwardCompatOriginalExportFlatKeyword ?? exportFlatKeyword,
+            forKey: .exportFlatKeyword
+        )
+        try container.encode(
+            forwardCompatOriginalExportHierarchicalKeyword ?? exportHierarchicalKeyword,
+            forKey: .exportHierarchicalKeyword
+        )
         try container.encode(supportUnits, forKey: .supportUnits)
         try container.encode(supportingAssetIDs, forKey: .supportingAssetIDs)
         try container.encodeIfPresent(governingRule, forKey: .governingRule)
@@ -975,7 +1000,15 @@ public struct NormalizationSessionWriter {
             if let originalData = session.preservedSourceJSON.data {
                 let original = try JSONDecoder().decode(JSONValue.self, from: originalData)
                 let replacement = try JSONDecoder().decode(JSONValue.self, from: replacementData)
-                let merged = JSONDocumentMerge.preservingUnknowns(original: original, replacement: replacement)
+                let merged = JSONDocumentMerge.preservingUnknowns(
+                    original: original,
+                    replacement: replacement,
+                    ownedKeys: { path in
+                        path == ["per_asset_decisions"]
+                            ? PerAssetNormalizationDecision.schemaOwnedKeys
+                            : []
+                    }
+                )
                 data = try encoder.encode(merged)
             } else {
                 data = replacementData
