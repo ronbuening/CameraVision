@@ -132,6 +132,26 @@ final class AnalysisRunTests: XCTestCase {
     }
 
     @MainActor
+    func testSecondsPerImageExcludesInFlightImage() {
+        let model = AnalysisRunModel()
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+
+        // First image still processing (30s elapsed, none completed): no rate.
+        model.applyTimingForTesting(done: 0, startedAt: start, lastCompletedAt: nil)
+        XCTAssertEqual(model.secondsPerImage, 0)
+
+        // Two images done at t=20s, but the third has been running for a
+        // further 40s (now = t=60s). The average must reflect only the two
+        // completed images (10 s/img), not the in-flight one.
+        model.applyTimingForTesting(
+            done: 2,
+            startedAt: start,
+            lastCompletedAt: start.addingTimeInterval(20)
+        )
+        XCTAssertEqual(model.secondsPerImage, 10.0, accuracy: 0.001)
+    }
+
+    @MainActor
     func testProgressFractionClampsToOneAndReconcilesStaleTotal() {
         let model = AnalysisRunModel()
 
