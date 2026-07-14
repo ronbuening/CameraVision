@@ -526,17 +526,24 @@ struct WizardShellView: View {
         case 5 where step5WriteAvailable:
             startExport()
         case 5:
-            if WizardNavigation.doneNeedsConfirmation(
-                hasSession: reviewModel.session != nil,
-                restoredRecoveryDirty: reviewModel.restoredRecoveryDirty,
-                exported: exportModel.phase == .written
-            ) {
-                showDiscardRestoredReviewConfirmation = true
-            } else {
-                finishCleanly()
-            }
+            requestFinish()
         default:
             break
+        }
+    }
+
+    /// Finish the current run and reset to a fresh Step 1 — shared by Step 5's
+    /// "Done" primary and the "Restart" button (issue #27). Both discard the
+    /// same state, so both route through the unsaved-restored-review guard.
+    private func requestFinish() {
+        if WizardNavigation.doneNeedsConfirmation(
+            hasSession: reviewModel.session != nil,
+            restoredRecoveryDirty: reviewModel.restoredRecoveryDirty,
+            exported: exportModel.phase == .written
+        ) {
+            showDiscardRestoredReviewConfirmation = true
+        } else {
+            finishCleanly()
         }
     }
 
@@ -607,6 +614,19 @@ struct WizardShellView: View {
             .buttonStyle(.plain)
             .opacity(backEnabled ? 1 : 0.35)
             .disabled(!backEnabled)
+
+            if step == 5 {
+                Button(action: requestFinish) {
+                    Text("↺ Restart")
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(theme.text)
+                        .padding(.vertical, 9)
+                        .padding(.horizontal, 16)
+                        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(theme.borderStrong))
+                }
+                .buttonStyle(.plain)
+                .help("Discard this run and start over from Step 1")
+            }
 
             Text(footerHint)
                 .font(.system(size: 12))
