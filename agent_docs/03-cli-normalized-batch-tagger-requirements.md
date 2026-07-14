@@ -1,9 +1,9 @@
 # Phase 3 Requirements - CLI Normalized Batch Tagger
 
-Version: 0.8
-Date: 2026-07-08
-Change log: v0.8: removed revision-history and status sections (status now lives in README/AGENTS); merged FR3-AFF-005 numbers into the FR3-AFF-006 table; traceability matrix pointer updated.
-Builds on: Phase 1 Requirements v0.4 (`01-cli-raw-json-sidecar-requirements.md`) and Phase 2 Requirements v0.5 (`02-cli-xmp-sidecar-requirements-updated.md`)
+Version: 0.9
+Date: 2026-07-11
+Change log: v0.9: incorporated the R4 adversarial audit rules for physical file-list identity, terminal vocabulary ambiguity, normalization-off and factual session context, coordinate/GPS safety at every export route, and fail-closed direct-decision compatibility.
+Builds on: Phase 1 Requirements v0.6 (`01-cli-raw-json-sidecar-requirements.md`) and Phase 2 Requirements v0.7 (`02-cli-xmp-sidecar-requirements-updated.md`)
 Binary: `aisidecar` (subcommands: `normalize`, `apply-session`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15
@@ -225,6 +225,8 @@ FR3-CLI-007 - `--require-review-specific-tags` shall not exist. Review requireme
 
 FR3-CLI-008 - `--file-list <path>` is valid only with `normalize`. The file shall be UTF-8 text with one source-image path per line. Blank lines and lines beginning with `#` are ignored. Relative paths are resolved relative to the file-list document. Duplicates after path normalization shall be collapsed with a report warning.
 
+FR3-CLI-008a - Same-base-name grouping for file-list inputs shall use each resolved source's physical parent directory, not a display-relative path that can erase a leading slash. RAW/JPEG members in one physical directory shall still pair. Physically distinct groups shall remain distinct even when their display-relative target paths collide; beside-source output keeps the ordinary basename, while staged output shall deterministically disambiguate only the colliding target names.
+
 FR3-CLI-009 - `apply-session` shall be model-free, render-free, analysis-free, and normalization-decision-free. Any flag that would require re-analysis or re-normalization shall fail as `E_CONFIG_INVALID`.
 
 FR3-CLI-010 - `--affinity-mode` is valid only with `normalize`. `off` disables affinity scoring and uses the legacy global batch-conservative behavior only where explicitly required for comparison. `metadata-weighted` builds the metadata-affinity graph and is the default.
@@ -323,6 +325,8 @@ FR3-003a - Canonical paths shall be unique across the vocabulary. Violations sha
 
 FR3-003b - A synonym shall map to exactly one canonical path. A synonym appearing under two entries, or a string that is both a canonical term of one entry and a synonym of another, shall fail loading with `E_VOCABULARY_INVALID` and a listing of the collisions.
 
+FR3-003b-1 - Fold-equivalent canonical paths, a synonym colliding with another entry's `flat_keyword`, or a `flat_keyword` colliding with another entry's canonical path shall fail loading with `E_VOCABULARY_INVALID`. Multiple entries may intentionally share a folded `flat_keyword` display label, including when one owner uses that text as its canonical path; lookup shall treat the shared alias as ambiguous instead of choosing an entry, while an exact canonical-path match remains authoritative. An ambiguous primary folded value is terminal and shall not fall through to separator, punctuation, possessive, or singular/plural fallback.
+
 FR3-003c - The hierarchy implied by `parent_path` shall be a strict tree: no cycles and no orphans. Every non-root `parent_path` must exist.
 
 FR3-003d - Primary text folding for synonym matching shall use Unicode NFC, case folding, and whitespace collapsing. Diacritics shall not be folded, and stemming shall not be performed.
@@ -388,7 +392,7 @@ FR3-009 - The program shall create one batch normalization session for each fold
 
 FR3-010 - The session shall aggregate eligible candidates from all images before writing final XMP sidecars unless `--normalization-mode single-image` is selected.
 
-FR3-010a - `--normalization-mode off` shall disable vocabulary mapping, affinity scoring, and batch propagation. It still creates a Phase 3 session/report and uses Phase 2 candidate extraction/export policy. This mode exists for baseline comparison and for diagnosing normalization effects.
+FR3-010a - `--normalization-mode off` shall disable vocabulary mapping, affinity scoring, batch propagation, and session-context application. It still creates a Phase 3 session/report and uses Phase 2 candidate extraction/export policy. Supplied nonempty session context shall create no decisions and shall be recorded with terminal `unknown_policy_result` and `export_result` values of `ignored_normalization_off`, rather than being vocabulary-matched, rejected as unknown, or left pending. This mode exists for baseline comparison and for diagnosing normalization effects.
 
 FR3-010b - `--normalization-mode single-image` shall apply vocabulary matching and synonym collapse independently per asset or same-base-name group. It shall not compute affinity edges and shall not propagate batch-level tags from other assets.
 
@@ -641,9 +645,9 @@ FR3-026d - Session context supplied under `write-unnormalized` may write only fl
 
 FR3-026e - A vocabulary entry with `direct_apply_policy = withhold` shall not be exported from session context unless the vocabulary file explicitly marks it `user_only` or `allow`. `requires_review` does not block explicit user context by itself, but the report shall mark the decision as user-supplied and review-sensitive.
 
-FR3-026f - Session context shall not create GPS-derived named place keywords. A habitat such as `Wetland` may be user-supplied or vocabulary-matched. A named place inferred from coordinates shall not be created by Phase 3.
+FR3-026f - Session context shall not create GPS-derived named place keywords. Coordinate syntax and GPS location-metadata terms shall fail closed at session preflight, review editing, imported-session planning, and final XMP planning; a blocked final decision shall remain auditable as a coordinate/GPS safety skip. A habitat such as `Wetland` may be user-supplied or vocabulary-matched. A visually depicted object such as `GPS Unit` or `GPS receiver` is not location metadata and may be tagged when its evidence is visual rather than coordinate-derived.
 
-FR3-026g - Session context values shall be included in the session file under a structured `session_context` array with original text, folded text, matched canonical path when any, context type, unknown-policy result, direct-apply policy, propagation gate, conflict count, and export result.
+FR3-026g - Session context values shall be included in the session file under a structured `session_context` array with original text, folded text, matched canonical path when any, context type, unknown-policy result, direct-apply policy, propagation gate, conflict count, and export result. `export_result` shall be terminal and factual: `applied`/`applied_with_conflicts` require accepted or already-exporting coverage; policy-withheld, all-conflicted, no-target, propagation-disabled, and normalization-off cases shall record distinct non-applied results and shall never remain `pending_session_context_decision` in a completed session.
 
 ## 9. Normalization Session File Requirements
 
@@ -651,7 +655,7 @@ FR3-027 - The program shall write a normalization session file before any XMP ex
 
 FR3-027a - The session file schema identifier shall be `ai-sidecar-normalization/1.0`.
 
-FR3-027b - The session file shall be valid JSON and shall be governed by PW-011/PW-012.
+FR3-027b - The session file shall be valid JSON and shall be governed by PW-011/PW-012. Same-major unknown fields shall survive a read/rewrite through `NormalizationSessionWriter`. Unknown raw values in a per-asset decision's direct policy enums (`stage`, `status`, `candidate_kind`, `context_type`, `namespace`, `direct_apply_policy`, and `skip_reasons`) shall be preserved; only that decision shall fail closed, and neither review nor XMP planning may re-enable it.
 
 Minimum structure:
 

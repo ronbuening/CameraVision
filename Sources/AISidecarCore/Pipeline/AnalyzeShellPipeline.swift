@@ -81,6 +81,7 @@ public struct AnalyzeShellPipeline {
             fileManager: fileManager,
             now: now
         )
+        defer { cache.releaseRetained() }
         if configuration.clearDerivativeCacheOnStart {
             try cache.clear()
         }
@@ -96,10 +97,12 @@ public struct AnalyzeShellPipeline {
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
         // FR1-012 defines progress and summary artifacts for folder runs; a
         // single file writes only its sidecar and CLI status.
-        let progressPath = isBatch && !configuration.dryRun
+        let progressPath =
+            isBatch && !configuration.dryRun
             ? "\(reportDirectory)/\(ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
             : nil
-        let summaryPath = isBatch && !configuration.dryRun
+        let summaryPath =
+            isBatch && !configuration.dryRun
             ? "\(reportDirectory)/\(ArtifactNames.batchSummaryPrefix)\(timestamp).json"
             : nil
         let progressLog = try progressPath.map { try ProgressLog(path: $0, fileManager: fileManager) }
@@ -174,6 +177,7 @@ public struct AnalyzeShellPipeline {
                     profile: profile,
                     renderer: renderer,
                     subjectIsolationService: subjectIsolationService,
+                    cache: cache,
                     fileStartedAt: fileStartedAt
                 )
             }
@@ -201,7 +205,8 @@ public struct AnalyzeShellPipeline {
         }
 
         if configuration.clearDerivativeCacheAfterSuccess,
-           completedSuccessfully(records: records, interrupted: interrupted) {
+            completedSuccessfully(records: records, interrupted: interrupted)
+        {
             try cache.clear()
         }
 
@@ -260,6 +265,7 @@ public struct AnalyzeShellPipeline {
         profile: ModelInputProfile,
         renderer: ImageRenderer,
         subjectIsolationService: SubjectIsolationService,
+        cache: DerivativeCache,
         fileStartedAt: Date
     ) async -> ProgressRecord {
         if fileManager.fileExists(atPath: entry.sidecarPath) {
@@ -295,6 +301,8 @@ public struct AnalyzeShellPipeline {
             }
         }
 
+        var leasedDerivatives: [DerivativeRecord] = []
+        defer { cache.release(leasedDerivatives) }
         do {
             var derivatives: [DerivativeRecord] = []
             var subjectIsolation: SubjectIsolationRecord?
@@ -308,6 +316,7 @@ public struct AnalyzeShellPipeline {
                     debugDerivatives: configuration.debugDerivatives
                 )
                 derivatives = rendered.derivatives
+                leasedDerivatives.append(contentsOf: rendered.derivatives)
             case .subject, .both:
                 let prepared = try renderer.prepareSourceRender(source: entry.source, profile: profile)
                 if configuration.mode == .both {
@@ -318,6 +327,7 @@ public struct AnalyzeShellPipeline {
                         debugDerivatives: configuration.debugDerivatives
                     )
                     derivatives.append(whole)
+                    leasedDerivatives.append(whole)
                 }
 
                 do {
@@ -332,6 +342,7 @@ public struct AnalyzeShellPipeline {
                     subjectIsolation = isolation.record
                     if let derivative = isolation.derivative {
                         derivatives.append(derivative)
+                        leasedDerivatives.append(derivative)
                     }
                     if let error = isolation.error {
                         errors.append(error)

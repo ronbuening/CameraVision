@@ -1,10 +1,10 @@
 # Phase 2 Requirements - CLI XMP Sidecar Writer
 
-Version: 0.6
-Date: 2026-07-08
-Supersedes: 0.5
-Change log: v0.6: removed revision-history and status sections; status now lives in README/AGENTS.
-Builds on: Phase 1 Requirements v0.4 (`01-cli-raw-json-sidecar-requirements.md`)
+Version: 0.7
+Date: 2026-07-11
+Supersedes: 0.6
+Change log: v0.7: specified deterministic exact-filename `rdf:about` merge-target selection, including encoded URLs and Windows paths (FR2-029e-1).
+Builds on: Phase 1 Requirements v0.6 (`01-cli-raw-json-sidecar-requirements.md`)
 Binary: `aisidecar` (subcommand: `write-xmp`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15
@@ -363,6 +363,8 @@ OwnedXMPSidecarEngine
 FR2-029d - For a new sidecar, the writer shall generate a canonical RDF/XML XMP packet with the XMP wrapper, `rdf:RDF`, an `rdf:Description rdf:about=""`, `dc:subject/rdf:Bag`, and, when enabled, `lr:hierarchicalSubject/rdf:Bag`.
 
 FR2-029e - For an existing sidecar, the parser shall locate or create a suitable `rdf:Description`, locate or create the two managed bags, read existing `rdf:li` values, merge new normalized values, and leave unmanaged nodes semantically intact.
+
+FR2-029e-1 - When several direct `rdf:Description` children are writable, target selection shall be deterministic: prefer a description that already owns a managed keyword field; otherwise prefer an `rdf:about` whose decoded terminal path component exactly equals a source filename; otherwise prefer `rdf:about=""`; otherwise use the first description. Raw suffix matching is forbidden (`NotBird.JPG` is not `Bird.JPG`). File URLs with percent-encoded filenames and Windows backslash paths shall be compared by their decoded terminal filename component.
 
 FR2-029f - Unsupported but well-formed XMP/RDF shapes that cannot be safely merged shall fail closed with `E_XMP_UNSUPPORTED_RDF` rather than being rewritten. Malformed XML or unreadable XMP shall fail as `E_XMP_PARSE_FAILED`.
 

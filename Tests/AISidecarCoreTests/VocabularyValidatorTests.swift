@@ -27,6 +27,50 @@ final class VocabularyValidatorTests: XCTestCase {
         }
     }
 
+    func testRejectsSynonymCollidingWithAnotherEntrysFlatKeyword() throws {
+        var entries = minimalVocabularyEntries()
+        entries[2].synonyms.append(entries[3].flatKeyword)
+
+        assertVocabularyInvalid {
+            _ = try VocabularyLoader.load(
+                data: vocabularyData(entries: entries),
+                sourcePath: "memory://synonym-flat-collision.json"
+            )
+        }
+    }
+
+    func testRejectsFlatKeywordCollidingWithAnotherCanonicalPath() throws {
+        var entries = minimalVocabularyEntries()
+        entries[1].flatKeyword = entries[2].canonicalPath
+
+        assertVocabularyInvalid {
+            _ = try VocabularyLoader.load(
+                data: vocabularyData(entries: entries),
+                sourcePath: "memory://flat-canonical-collision.json"
+            )
+        }
+    }
+
+    func testRejectsCanonicalPathsThatCollideAfterFolding() throws {
+        var entries = minimalVocabularyEntries()
+        entries.append(
+            VocabularyEntry(
+                canonicalPath: "subject",
+                flatKeyword: "Lowercase Subject",
+                namespace: .subject,
+                parentPath: nil,
+                synonyms: []
+            )
+        )
+
+        assertVocabularyInvalid {
+            _ = try VocabularyLoader.load(
+                data: vocabularyData(entries: entries),
+                sourcePath: "memory://folded-canonical-collision.json"
+            )
+        }
+    }
+
     func testRejectsOrphanParentCycleEmptyLevelAndPipeFlatKeyword() throws {
         var orphan = minimalVocabularyEntries()
         orphan[1].parentPath = "Missing"

@@ -16,6 +16,16 @@ If XCTest is missing because `xcode-select` points at Command Line Tools:
 env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 ```
 
+### R4 semantic/cache regression gate
+
+When changing normalization semantics, session rewrites, XMP target selection, or derivative-cache coordination, run the focused gate before the full suite:
+
+```bash
+swift test --filter 'FileListInputResolverTests|SessionContextPolicyTests|CandidateExtractorTests|CandidateCanonicalizerTests|VocabularyIndexTests|StarterVocabularyTests|NormalizationSessionTests|SessionReviewTests|NormalizedXMPChangePlanTests|NormalizationExplainerTests|XMPOwnedEngineTests|XMPExportPipelineTests|DerivativeCacheTests|FileLockTests|AnalyzePipelineTests|ModelInputExportPipelineTests|ReviewModelTests'
+```
+
+Coverage must retain the adversarial cases added by the R4 audits: absolute-versus-relative physical directory identity and symlinked-versus-real spellings of one physical directory; terminal ambiguity before vocabulary fallbacks; normalization-off context; factual context export results; coordinate/GPS metadata blocked at extraction, context, review, and final planning while visible GPS devices remain allowed (including typographic-minus signs, `Lat … Lon …` labels, and spelled-out `degrees North` forms); unknown direct-decision enums preserved and withheld with the newer writer's known status and export flags surviving re-encode; review-cleared decision fields staying cleared through the disk round trip; exact decoded and literal `rdf:about` filename selection; unchanged-rerun back-fill of missing raw-sidecar export stamps; concurrent cache stores/purge including divergent-byte same-key stores against an active lease; cross-instance inode leases; inode-based manifest invalidation; deletion-failure accounting; and final tiny-cap eviction after lease release.
+
 ## Test Conventions
 
 - Core/CLI tests live in `Tests/AISidecarCoreTests`; GUI model tests live in `Tests/CupricAspectAppTests` (same offline/deterministic rules; `swift test` runs both). One file per subject (`FooTests.swift` for `Foo.swift`). Shared helpers use the `*TestSupport.swift` / `*Assertions.swift` pattern (`XMPAssertions`, `VocabularyTestSupport`, `TestImageFixtures`, `Phase3NormalizationTestSupport`).

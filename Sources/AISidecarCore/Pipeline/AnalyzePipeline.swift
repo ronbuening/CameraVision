@@ -84,6 +84,7 @@ public struct AnalyzePipeline {
         let runStartedAt = now()
         let profile = try ModelInputProfileRegistry.resolve(name: configuration.profile)
         let lifecycleCache = cache(for: configuration)
+        defer { lifecycleCache.releaseRetained() }
         if configuration.clearDerivativeCacheOnStart {
             try lifecycleCache.clear()
         }
@@ -108,10 +109,12 @@ public struct AnalyzePipeline {
         let isBatch = scanResult.inputPath == scanResult.scanRoot
         let timestamp = Timestamp.filenameToken(runStartedAt, suffix: filenameSuffix())
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
-        let progressPath = isBatch && !configuration.dryRun && writesBatchArtifacts
+        let progressPath =
+            isBatch && !configuration.dryRun && writesBatchArtifacts
             ? "\(reportDirectory)/\(ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
             : nil
-        let summaryPath = isBatch && !configuration.dryRun && writesBatchArtifacts
+        let summaryPath =
+            isBatch && !configuration.dryRun && writesBatchArtifacts
             ? "\(reportDirectory)/\(ArtifactNames.batchSummaryPrefix)\(timestamp).json"
             : nil
         let progressLog = try progressPath.map { try ProgressLog(path: $0, fileManager: fileManager) }
@@ -182,6 +185,7 @@ public struct AnalyzePipeline {
                 configuration: configuration,
                 profile: profile,
                 runtime: runtime!,
+                cache: lifecycleCache,
                 interruptionMonitor: interruptionMonitor,
                 emit: emit
             )
@@ -207,7 +211,8 @@ public struct AnalyzePipeline {
         }
 
         if configuration.clearDerivativeCacheAfterSuccess,
-           completedSuccessfully(records: records, interrupted: interrupted) {
+            completedSuccessfully(records: records, interrupted: interrupted)
+        {
             try lifecycleCache.clear()
         }
 
@@ -241,12 +246,12 @@ public struct AnalyzePipeline {
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile,
         runtime: ModelRuntimeContext,
+        cache: DerivativeCache,
         interruptionMonitor: InterruptionMonitor?,
         emit: (ProgressRecord) throws -> Void
     ) async throws -> Bool {
         var interrupted = false
         let maxWorkers = max(1, min(configuration.stageConcurrency, pendingWork.count))
-        let fileManagerBox = SendableFileManager(fileManager)
         let maskProvider = maskProvider
         let now = now
 
@@ -257,8 +262,8 @@ public struct AnalyzePipeline {
                 configuration: configuration,
                 profile: profile,
                 runtime: runtime,
+                cache: cache,
                 interruptionMonitor: interruptionMonitor,
-                fileManagerBox: fileManagerBox,
                 maskProvider: maskProvider,
                 now: now,
                 emit: emit
@@ -271,7 +276,9 @@ public struct AnalyzePipeline {
 
         try await withThrowingTaskGroup(of: (Int, PreparedAnalysis).self) { group in
             func fillWorkers() {
-                while inFlight < maxWorkers, nextPendingToSchedule < pendingWork.count {
+                while inFlight + preparedByIndex.count < maxWorkers,
+                    nextPendingToSchedule < pendingWork.count
+                {
                     let work = pendingWork[nextPendingToSchedule]
                     let entry = entries[work.index]
                     nextPendingToSchedule += 1
@@ -281,7 +288,7 @@ public struct AnalyzePipeline {
                             entry: entry,
                             configuration: configuration,
                             profile: profile,
-                            fileManager: fileManagerBox.value,
+                            cache: cache,
                             maskProvider: maskProvider,
                             now: now
                         )
@@ -327,6 +334,7 @@ public struct AnalyzePipeline {
                         group.cancelAll()
                         break
                     }
+                    fillWorkers()
 
                     let outcome = await finishPrepared(
                         prepared,
@@ -337,6 +345,7 @@ public struct AnalyzePipeline {
                         interruptionMonitor: interruptionMonitor,
                         startedAt: startedAt
                     )
+                    cache.release(prepared.derivatives)
                     switch outcome {
                     case .completed(let record):
                         try emit(record)
@@ -365,8 +374,8 @@ public struct AnalyzePipeline {
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile,
         runtime: ModelRuntimeContext,
+        cache: DerivativeCache,
         interruptionMonitor: InterruptionMonitor?,
-        fileManagerBox: SendableFileManager,
         maskProvider: any ForegroundMaskProvider,
         now: @escaping @Sendable () -> Date,
         emit: (ProgressRecord) throws -> Void
@@ -389,7 +398,7 @@ public struct AnalyzePipeline {
                     entry: entries[index],
                     configuration: configuration,
                     profile: profile,
-                    fileManager: fileManagerBox.value,
+                    cache: cache,
                     maskProvider: maskProvider,
                     now: now
                 )
@@ -405,6 +414,7 @@ public struct AnalyzePipeline {
                     interruptionMonitor: interruptionMonitor,
                     startedAt: startedAt
                 )
+                cache.release(prepared.derivatives)
                 switch outcome {
                 case .completed(let record):
                     try emit(record)
@@ -490,18 +500,12 @@ public struct AnalyzePipeline {
         entry: SidecarPlanEntry,
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile,
-        fileManager: FileManager,
+        cache: DerivativeCache,
         maskProvider: any ForegroundMaskProvider,
         now: @escaping @Sendable () -> Date
     ) async -> PreparedAnalysis {
         let renderStartedAt = now()
         do {
-            let cache = DerivativeCache(
-                directoryPath: configuration.derivativeCacheDir,
-                sizeCapBytes: configuration.derivativeCacheSizeBytes,
-                fileManager: fileManager,
-                now: now
-            )
             let renderer = ImageRenderer(cache: cache)
             let subjectIsolationService = SubjectIsolationService(cache: cache, maskProvider: maskProvider)
             var derivatives: [DerivativeRecord] = []
@@ -614,7 +618,7 @@ public struct AnalyzePipeline {
             )
             let modelMs = durationMs(from: modelStartedAt, to: now())
             guard case .completed(let modelRuns) = modelOutcome,
-                  interruptionMonitor?.isInterrupted != true
+                interruptionMonitor?.isInterrupted != true
             else {
                 return .interrupted
             }
@@ -840,7 +844,7 @@ public struct AnalyzePipeline {
         case .both:
             return [
                 whole.map { (.wholeImage, $0) },
-                subject.map { (.subjectIsolated, $0) }
+                subject.map { (.subjectIsolated, $0) },
             ].compactMap { $0 }
         }
     }
@@ -966,6 +970,15 @@ private enum EntryAction: Sendable {
 private enum PreparedAnalysis: Sendable {
     case prepared(PreparedRenderedAnalysis)
     case renderFailed(SidecarError, renderMs: Int)
+
+    var derivatives: [DerivativeRecord] {
+        switch self {
+        case .prepared(let prepared):
+            return prepared.derivatives
+        case .renderFailed:
+            return []
+        }
+    }
 }
 
 private enum FinishPreparedOutcome: Sendable {
@@ -995,13 +1008,5 @@ private struct PipelineUnavailableForegroundMaskProvider: ForegroundMaskProvider
             message: "Apple Vision foreground masking requires macOS 15 or newer.",
             recoverable: true
         )
-    }
-}
-
-private struct SendableFileManager: @unchecked Sendable {
-    var value: FileManager
-
-    init(_ value: FileManager) {
-        self.value = value
     }
 }

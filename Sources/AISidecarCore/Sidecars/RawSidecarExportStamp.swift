@@ -5,10 +5,10 @@ import Foundation
 /// pipeline" is derivable from files alone.
 ///
 /// The stamp preserves every other byte of meaning in the document: it is
-/// applied over the generic JSON object (never a typed decode), so fields
-/// from newer schema versions survive untouched (PW-011/012). Analyze paths
-/// never write it — a fresh analysis rewrites the sidecar and thereby
-/// truthfully clears any stale export stamp.
+/// applied through the raw document's merge-preserving schema-evolution path,
+/// so fields from newer schema versions survive untouched (PW-011/012).
+/// Analyze paths never write it — a fresh analysis rewrites the sidecar and
+/// thereby truthfully clears any stale export stamp.
 public enum RawSidecarExportStamp {
     public static let key = "xmp_export"
 
@@ -42,7 +42,8 @@ public enum RawSidecarExportStamp {
     ) throws {
         let url = URL(fileURLWithPath: sidecarPath)
         let data = try Data(contentsOf: url)
-        guard var object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        let document = try RawJSONSidecarDocument(data: data)
+        guard var object = try document.jsonValue().objectValue else {
             throw SidecarError(
                 code: .validationFailed,
                 stage: .write,
@@ -51,17 +52,14 @@ public enum RawSidecarExportStamp {
             )
         }
         let formatter = ISO8601DateFormatter()
-        object[key] = [
-            "target_xmp_path": contents.targetXMPPath,
-            "xmp_sha256": contents.xmpSHA256,
-            "writer_recipe_version": contents.writerRecipeVersion,
-            "engine_version": contents.engineVersion,
-            "exported_at": formatter.string(from: contents.exportedAt),
-        ]
-        let output = try JSONSerialization.data(
-            withJSONObject: object,
-            options: [.prettyPrinted, .sortedKeys]
-        )
+        object[key] = .object([
+            "target_xmp_path": .string(contents.targetXMPPath),
+            "xmp_sha256": .string(contents.xmpSHA256),
+            "writer_recipe_version": .string(contents.writerRecipeVersion),
+            "engine_version": .string(contents.engineVersion),
+            "exported_at": .string(formatter.string(from: contents.exportedAt)),
+        ])
+        let output = try JSONCoding.documentEncoder(iso8601Dates: false).encode(JSONValue.object(object))
         try AtomicFileWriter.write(output, to: url, fileManager: fileManager)
     }
 

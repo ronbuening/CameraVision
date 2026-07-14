@@ -71,7 +71,7 @@ M1–M8 were built **sidecar-only** (FR4-046) and **Wizard-only** (FR4-040 MVP s
 
 The remaining FR4-011 states are transient in-run states held in memory while a job runs; failed states carry `SidecarError` code + message and are filterable by code for the current session. A fresh analysis rewrites the sidecar and thereby truthfully clears a stale export stamp.
 
-**Review-as-session (M4; CORE-7).** The durable review form is a Phase 3 session document — `SessionReview` (Core) applies verdicts as decision status + additive `user_review_rejected`/`user_review_deferred` skip reasons, and edits as additive `user_edited` candidate kind, so `apply-session` writes exactly the approved set with zero new write paths (AC4-013, proven by `testApplySessionWritesOnlyApprovedKeywords`). The review base session is built model-free via `runSessionOnly` (`fromJSON`, observed-tags + single-image). Durability: FR4-046a autosave (recovery session every 25 decisions or 5 minutes to the GUI state directory, unclean-exit restore offer on relaunch — AC4-027) plus explicit "Save session only" / session import resume (FR4-012b); a GUI-exported session applies cleanly via `swift run aisidecar apply-session` (AC4-013 cross-check).
+**Review-as-session (M4; CORE-7).** The durable review form is a Phase 3 session document — `SessionReview` (Core) applies verdicts as decision status + additive `user_review_rejected`/`user_review_deferred` skip reasons, and edits as additive `user_edited` candidate kind, so `apply-session` writes exactly the approved set with zero new write paths (AC4-013, proven by `testApplySessionWritesOnlyApprovedKeywords`). `SessionReview.sanitizedEdit` is also the single GUI edit validator: empty, hierarchy-bearing, coordinate, and GPS-derived location-metadata edits are rejected, while visible GPS-device object terms remain valid; the final planner independently repeats the safety guard (FR4-017a). The review base session is built model-free via `runSessionOnly` (`fromJSON`, observed-tags + single-image). Durability: FR4-046a autosave (recovery session every 25 decisions or 5 minutes to the GUI state directory, unclean-exit restore offer on relaunch — AC4-027) plus explicit "Save session only" / session import resume (FR4-012b); a GUI-exported session applies cleanly via `swift run aisidecar apply-session` (AC4-013 cross-check).
 
 ### B0 — Beta readiness (requirements v0.9; the first beta ships from here, Wizard-only)
 
@@ -89,7 +89,7 @@ Status: B0-1 (minus Developer ID signing/notarization), B0-2, B0-3, B0-4, and B0
 
 **Not in B0:** Studio (M9), the database (M10), vocabulary tooling, embedded-CLI install action (WI-3), Sparkle/auto-update, CI. Beta distribution is a signed DMG handed out directly.
 
-The remaining pre-tag and post-beta sequence (R1 blockers → B0-5 + signing + tag → R2–R4 → M9) is owned by `agent_docs/08-post-review-hardening-plan.md` §1.1.
+The remaining pre-tag and post-beta sequence (B0-5 + signing + tag → remaining efficiency work → M9; R1–R4 already implemented) is owned by `agent_docs/08-post-review-hardening-plan.md` §1.1.
 
 ### M9 — Studio shell (FR4-040, FR4-041, AC4-021)
 

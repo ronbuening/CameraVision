@@ -4,6 +4,9 @@ import Foundation
 public struct VocabularyIndex: Sendable, Equatable {
     private var byCanonicalPath: [String: ResolvedVocabularyEntry]
     private var canonicalPathByFoldedTerm: [String: String]
+    private var canonicalFoldedTerms: Set<String>
+    private var ambiguousCanonicalFoldedTerms: Set<String>
+    private var ambiguousFoldedAliasTerms: Set<String>
     private var canonicalPathBySeparatorFoldedTerm: [String: String]
     private var ambiguousSeparatorFoldedTerms: Set<String>
     private var childrenByParentPath: [String: [String]]
@@ -13,19 +16,25 @@ public struct VocabularyIndex: Sendable, Equatable {
     public init(entries: [ResolvedVocabularyEntry]) {
         self.byCanonicalPath = Dictionary(uniqueKeysWithValues: entries.map { ($0.canonicalPath, $0) })
         self.canonicalPathByFoldedTerm = [:]
+        self.canonicalFoldedTerms = []
+        self.ambiguousCanonicalFoldedTerms = []
+        self.ambiguousFoldedAliasTerms = []
         self.canonicalPathBySeparatorFoldedTerm = [:]
         self.ambiguousSeparatorFoldedTerms = []
         self.childrenByParentPath = [:]
         self.canonicalPathsByNamespace = [:]
         self.canonicalPathsByMutuallyExclusiveGroup = [:]
 
-        for entry in entries.sorted(by: { $0.canonicalPath < $1.canonicalPath }) {
-            insertLookup(entry.canonicalPath, canonicalPath: entry.canonicalPath)
+        let sortedEntries = entries.sorted(by: { $0.canonicalPath < $1.canonicalPath })
+        for entry in sortedEntries {
+            insertCanonicalLookup(entry.canonicalPath, canonicalPath: entry.canonicalPath)
             insertSeparatorLookup(entry.canonicalPath, canonicalPath: entry.canonicalPath)
-            insertLookup(entry.flatKeyword, canonicalPath: entry.canonicalPath)
+        }
+        for entry in sortedEntries {
+            insertAliasLookup(entry.flatKeyword, canonicalPath: entry.canonicalPath)
             insertSeparatorLookup(entry.flatKeyword, canonicalPath: entry.canonicalPath)
             for synonym in entry.synonyms {
-                insertLookup(synonym, canonicalPath: entry.canonicalPath)
+                insertAliasLookup(synonym, canonicalPath: entry.canonicalPath)
                 insertSeparatorLookup(synonym, canonicalPath: entry.canonicalPath)
             }
             if let parentPath = entry.parentPath {
@@ -54,6 +63,14 @@ public struct VocabularyIndex: Sendable, Equatable {
 
     public func entry(matching value: String) -> ResolvedVocabularyEntry? {
         let folded = VocabularyTextFolder.fold(value)
+        let exactFoldIsAmbiguous =
+            ambiguousCanonicalFoldedTerms.contains(folded)
+            || ambiguousFoldedAliasTerms.contains(folded)
+        // FR3-003b-1: an ambiguous primary key is terminal. Punctuation or
+        // number fallbacks must not reinterpret a shared exact alias.
+        guard !exactFoldIsAmbiguous else {
+            return nil
+        }
         if let canonicalPath = canonicalPathByFoldedTerm[folded] {
             return byCanonicalPath[canonicalPath]
         }
@@ -114,12 +131,30 @@ public struct VocabularyIndex: Sendable, Equatable {
         (canonicalPathsByMutuallyExclusiveGroup[mutuallyExclusiveGroup] ?? []).compactMap { byCanonicalPath[$0] }
     }
 
-    private mutating func insertLookup(_ value: String, canonicalPath: String) {
+    private mutating func insertCanonicalLookup(_ value: String, canonicalPath: String) {
         let folded = VocabularyTextFolder.fold(value)
-        guard !folded.isEmpty else {
+        guard !folded.isEmpty, !ambiguousCanonicalFoldedTerms.contains(folded) else {
             return
         }
-        if canonicalPathByFoldedTerm[folded] == nil {
+        canonicalFoldedTerms.insert(folded)
+        if let existing = canonicalPathByFoldedTerm[folded], existing != canonicalPath {
+            canonicalPathByFoldedTerm.removeValue(forKey: folded)
+            ambiguousCanonicalFoldedTerms.insert(folded)
+        } else {
+            canonicalPathByFoldedTerm[folded] = canonicalPath
+        }
+    }
+
+    private mutating func insertAliasLookup(_ value: String, canonicalPath: String) {
+        let folded = VocabularyTextFolder.fold(value)
+        let isReserved = canonicalFoldedTerms.contains(folded) || ambiguousFoldedAliasTerms.contains(folded)
+        guard !folded.isEmpty, !isReserved else {
+            return
+        }
+        if let existing = canonicalPathByFoldedTerm[folded], existing != canonicalPath {
+            canonicalPathByFoldedTerm.removeValue(forKey: folded)
+            ambiguousFoldedAliasTerms.insert(folded)
+        } else {
             canonicalPathByFoldedTerm[folded] = canonicalPath
         }
     }

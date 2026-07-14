@@ -63,6 +63,13 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 ### P2. Stop holding the derivative-cache manifest lock during image encode, and stop re-reading files to hash them
 
 > **Scheduling:** execute as part of plan-08 R4-6 (one `DerivativeCache` manifest redesign covering P2 + P3 + R4-6 together).
+>
+> **Implementation status (2026-07-11, post-audit):** complete in R4-6. The initial implementation's
+> two order-reversed runs on the 46-image repository corpus reduced aggregate median/mean/p90 render
+> timing by 14–17%; full methodology and measurements are recorded in plan 10's R4-6 acceptance
+> ledger. The subsequent active-artifact lease hardening was verified with deterministic concurrency
+> tests but was not live-model rebenchmarked; rerun this controlled baseline with the next performance
+> change.
 
 - **Priority:** HIGH · **Effort:** Medium · **Risk:** Medium
 - **Files:** `Sources/AISidecarCore/Rendering/DerivativeCache.swift:106-147` (`store`), `DerivativeCache.swift` `sha256(of:)` (~line 226), lock at ~line 24, `loadManifest`/`saveManifest`
@@ -72,9 +79,9 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 2. After writing the derivative, `sha256(of: url)` (line 117) re-reads the entire just-written file from disk purely to hash it.
 
 **Change.**
-1. Restructure `store()`: perform `AtomicFileWriter.writeFile` and the attribute read **outside** the lock; take the lock only around `loadManifest()` → mutate → `saveManifest()` → `evictIfNeeded()`.
-2. Add a `sha256(of data: Data)` overload (CryptoKit `SHA256`) and have the whole-image/subject render paths hash the encoded bytes they already hold in memory where feasible. Where the encoder writes straight to a URL and bytes are never in memory, hashing the temp file once is acceptable — but do not read the file a second time after rename.
-3. Concurrency note: two workers storing the *same* derivative file concurrently was previously prevented by the wide lock. After narrowing, the atomic temp+rename contract makes the race benign (last rename wins, manifest updated under lock), but document this in a comment and keep eviction (`evictIfNeeded`) under the lock.
+1. As built in R4-6, `store()` uses `AtomicFileWriter.stageFile`: image encode, the attribute read, and SHA-256 of the staged temporary file happen **outside** the manifest flock. The temp file is hashed once; the final file is not re-read merely to compute the same digest.
+2. Under the persistent manifest flock, either reuse an already-valid equivalent artifact or perform the staged file's final rename, update the manifest, run eviction, and write the manifest through. Purge and another store therefore cannot observe the old race window between final rename and manifest mutation.
+3. Cache hits and stores acquire shared locks on the returned artifact inode. Eviction, replacement, and purge take a nonblocking exclusive inode lock, so another CLI/GUI process cannot remove a derivative while a model or export consumer is using it. Logical lease counts release per record; owning pipelines run final teardown eviction to restore the configured cap.
 
 **Acceptance criteria.**
 - `DerivativeCacheTests` pass; add a test that concurrent `store()` calls for distinct derivatives succeed and the manifest contains both entries.
@@ -84,15 +91,19 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 ### P3. Reduce derivative-cache manifest disk churn
 
 > **Scheduling:** execute as part of plan-08 R4-6 (one `DerivativeCache` manifest redesign covering P2 + P3 + R4-6 together).
+>
+> **Implementation status (2026-07-11, post-audit):** complete in R4-6, including inode-aware
+> cross-process invalidation, write-through caching, one cache instance per owning pipeline,
+> active-artifact leases, and focused read-count/lifecycle coverage.
 
 - **Priority:** MEDIUM · **Effort:** Medium · **Risk:** Medium (multi-instance assumptions)
 - **Files:** `Sources/AISidecarCore/Rendering/DerivativeCache.swift` (`loadManifest`/`saveManifest` call sites), `Sources/AISidecarCore/Pipeline/AnalyzePipeline.swift:465-470`
 
 **Problem.** Every cache read/write loads the manifest JSON from disk and writes it back. Additionally, `AnalyzePipeline.prepare()` constructs a *separate* `DerivativeCache` instance per worker (line 465-470), so nothing amortizes.
 
-**Change.** Two independent sub-steps; do them in order and stop after 1 if measurements say it's enough:
-1. Share **one** `DerivativeCache` instance across workers: hoist construction out of the per-worker `prepare()` and pass it in. The class is already lock-guarded (verify `Sendable` conformance compiles under strict concurrency; wrap in a final class + lock or actor if needed).
-2. Keep the parsed manifest in memory (instance state), re-reading from disk only on first access, and write-through on mutation. **Constraint:** `aisidecar purge` and concurrent CLI processes may touch the same manifest directory; keep write-through (do not batch writes), so cross-process behavior stays what it is today — the win is eliminating repeated *reads*.
+**Change (as built).**
+1. Share **one** `DerivativeCache` instance across workers and pass it through every owning pipeline (`AnalyzePipeline`, `AnalyzeShellPipeline`, and `ModelInputExportPipeline`). The final class uses locked state and remains valid under Swift 6 strict concurrency.
+2. Keep the parsed manifest in memory and re-read only when the on-disk signature changes. The signature is `(inode, modification time, byte count)`, because atomic replacement can preserve time and size while changing content. Keep every mutation write-through; do not batch manifest writes across process boundaries.
 
 **Acceptance criteria.**
 - `DerivativeCacheTests` and `ArtifactCleanupTests` pass; purge still works against a cache written by an analyze run.
@@ -243,18 +254,18 @@ Small repeated file-existence/sha256/backup snippets exist across `Metadata/XMPB
 - **Do not** change base64 image transport to Ollama — protocol requirement; cost is small vs. inference.
 - **Do not** batch/buffer manifest or report *writes* across process boundaries — cross-process consumers (`purge`, `cleanup`) rely on on-disk state.
 
-## Suggested Execution Order
+## Remaining Suggested Execution Order
+
+P2/P3 are complete inside plan-08 R4-6 and are intentionally absent from this remaining-work table. Do not schedule a second derivative-cache pass.
 
 | Order | Item | Why this order |
 |---|---|---|
 | 1 | R1, R2 | Zero-risk warmups; shrink the surface later items touch |
 | 2 | P1 | Highest per-image win; isolated |
-| 3 | P2 | Highest concurrency win; do before P3 (same file) |
-| 4 | P3 | Builds on P2's restructured `store()` |
-| 5 | P5, P7, P8 | Independent low-risk wins, any order |
-| 6 | P4 | Needs the durability discussion in review |
-| 7 | R3 | Mechanical but message-sensitive |
-| 8 | R4 | Largest single cleanup; needs audit judgment |
-| 9 | P6 | Only if normalization profiling shows it matters |
+| 3 | P5, P7, P8 | Independent low-risk wins, any order |
+| 4 | P4 | Needs the durability discussion in review |
+| 5 | R3 | Mechanical but message-sensitive |
+| 6 | R4 | Largest single cleanup; needs audit judgment |
+| 7 | P6 | Only if normalization profiling shows it matters |
 
-After items 1-4 land, rerun the Verification Baseline and record before/after numbers in the PR descriptions.
+The P2/P3 verification baseline is already recorded in plan 10 R4-6. Rerun the relevant baseline after each remaining performance item and record before/after numbers in the PR description.

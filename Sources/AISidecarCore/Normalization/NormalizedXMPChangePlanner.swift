@@ -96,16 +96,43 @@ public struct NormalizedXMPChangePlanner {
     ) -> NormalizedXMPWritePlan {
         let memberIDs = Set(group.memberAssetIDs)
         let selectedIDs = Set(group.selectedAssetIDs)
-        let groupDecisions = decisions
+        let acceptedGroupDecisions =
+            decisions
             .filter { selectedIDs.contains($0.assetID) && $0.status == .accepted }
+            .filter { !$0.isForwardCompatUnknown }
             .sorted(by: compareDecisions)
-        let groupSkips = candidateSkips
+        var groupDecisions: [PerAssetNormalizationDecision] = []
+        var blockedDecisions: [UnsafeKeywordDecision] = []
+        for decision in acceptedGroupDecisions {
+            if let term = unsafeExportTerm(in: decision, configuration: configuration) {
+                blockedDecisions.append(UnsafeKeywordDecision(decision: decision, term: term))
+            } else {
+                groupDecisions.append(decision)
+            }
+        }
+        let safetySkips = blockedDecisions.enumerated().map { offset, blocked in
+            NormalizationCandidateSkip(
+                skipID: "skip-export-safety-\(group.groupID)-\(String(format: "%06d", offset + 1))",
+                reason: .coordinateLikeTerm,
+                assetID: blocked.decision.assetID,
+                groupID: blocked.decision.groupID,
+                term: blocked.term,
+                normalizedTerm: KeywordTextNormalizer.normalize(blocked.term),
+                foldedTerm: VocabularyTextFolder.fold(blocked.term),
+                canonicalPath: blocked.decision.canonicalPath,
+                sourceSidecar: sidecarsByAssetID[blocked.decision.assetID]?.sidecarPath,
+                sourceImage: assetsByID[blocked.decision.assetID]?.sourcePath
+            )
+        }
+        let groupSkips =
+            (candidateSkips
             .filter { skip in
                 if let assetID = skip.assetID {
                     return memberIDs.contains(assetID)
                 }
                 return skip.groupID == group.groupID
             }
+            + safetySkips)
             .sorted(by: compareSkips)
 
         let flat = plannedKeywords(
@@ -189,15 +216,18 @@ public struct NormalizedXMPChangePlanner {
                 term = decision.hierarchicalKeyword
                 exportEnabled = decision.exportHierarchicalKeyword
             }
-            guard exportEnabled, let normalizedTerm = term.map(KeywordTextNormalizer.normalize), !normalizedTerm.isEmpty else {
+            guard exportEnabled, let normalizedTerm = term.map(KeywordTextNormalizer.normalize), !normalizedTerm.isEmpty
+            else {
                 continue
             }
             let key = KeywordTextNormalizer.deduplicationKey(for: normalizedTerm)
-            var accumulator = accumulators[key] ?? PlannedKeywordAccumulator(
-                term: normalizedTerm,
-                normalizedKey: key,
-                bag: bag
-            )
+            var accumulator =
+                accumulators[key]
+                ?? PlannedKeywordAccumulator(
+                    term: normalizedTerm,
+                    normalizedKey: key,
+                    bag: bag
+                )
             accumulator.decisions.append(decision)
             accumulator.candidates.append(contentsOf: decision.observations.map { extractedCandidate(from: $0) })
             accumulators[key] = accumulator
@@ -215,6 +245,28 @@ public struct NormalizedXMPChangePlanner {
         )
     }
 
+    private func unsafeExportTerm(
+        in decision: PerAssetNormalizationDecision,
+        configuration: ResolvedNormalizationConfiguration
+    ) -> String? {
+        let candidates: [(enabled: Bool, term: String?)] = [
+            (configuration.writeFlatKeywords && decision.exportFlatKeyword, decision.flatKeyword),
+            (
+                configuration.writeHierarchicalKeywords && decision.exportHierarchicalKeyword,
+                decision.hierarchicalKeyword
+            ),
+        ]
+        return candidates.lazy.compactMap { candidate in
+            guard candidate.enabled,
+                let term = candidate.term.map(KeywordTextNormalizer.normalize),
+                KeywordSafetyPolicy.isUnsafeKeyword(term)
+            else {
+                return nil
+            }
+            return term
+        }.first
+    }
+
     private func sourceMemberPlan(
         assetID: String,
         selected: Bool,
@@ -228,12 +280,18 @@ public struct NormalizedXMPChangePlanner {
         }
         let assetDecisions = selected ? decisions.filter { $0.assetID == assetID } : []
         let sourcePath = asset.sourcePath
+        let sourceSidecarPath: String?
+        if let candidate = sidecar?.sidecarPath, candidate.lowercased().hasSuffix(".ai.json") {
+            sourceSidecarPath = candidate
+        } else {
+            sourceSidecarPath = nil
+        }
         return SourceMemberPlan(
             sourcePath: sourcePath,
             sourceRelativePath: asset.sourceRelativePath,
             sourceFileName: asset.fileName,
             sourceType: asset.sourceType,
-            sourceSidecarPath: sidecar?.sidecarPath ?? sourcePath ?? asset.sourceRelativePath,
+            sourceSidecarPath: sourceSidecarPath,
             sourceSidecarRelativePath: sidecar?.relativePath,
             sourceIdentityStatus: asset.sourceIdentityStatus ?? .skipped,
             pairKind: XMPSourcePairKind(sourceType: asset.sourceType),
@@ -278,9 +336,11 @@ public struct NormalizedXMPChangePlanner {
             )
         }
         let representativeIDs = group.selectedAssetIDs.isEmpty ? group.memberAssetIDs : group.selectedAssetIDs
-        if let sourcePath = representativeIDs
+        if let sourcePath =
+            representativeIDs
             .compactMap({ assetsByID[$0]?.sourcePath })
-            .first {
+            .first
+        {
             let target = URL(fileURLWithPath: sourcePath)
                 .standardizedFileURL
                 .deletingLastPathComponent()
@@ -296,7 +356,8 @@ public struct NormalizedXMPChangePlanner {
             SidecarError(
                 code: .sourceMissing,
                 stage: .write,
-                message: "Unable to derive beside-source XMP path without a resolved source image: \(group.targetRelativePath)",
+                message:
+                    "Unable to derive beside-source XMP path without a resolved source image: \(group.targetRelativePath)",
                 recoverable: true
             )
         )
@@ -317,7 +378,8 @@ public struct NormalizedXMPChangePlanner {
                 SidecarError(
                     code: .validationFailed,
                     stage: .write,
-                    message: "Same-base-name group detected for \(group.targetRelativePath) using pair scope \(pairScope.rawValue).",
+                    message:
+                        "Same-base-name group detected for \(group.targetRelativePath) using pair scope \(pairScope.rawValue).",
                     recoverable: true
                 )
             )
@@ -327,7 +389,8 @@ public struct NormalizedXMPChangePlanner {
                 SidecarError(
                     code: .validationFailed,
                     stage: .write,
-                    message: "Pair scope \(pairScope.rawValue) skipped \(group.skippedAssetIDs.count) member(s) for \(group.targetRelativePath).",
+                    message:
+                        "Pair scope \(pairScope.rawValue) skipped \(group.skippedAssetIDs.count) member(s) for \(group.targetRelativePath).",
                     recoverable: true
                 )
             )
@@ -339,7 +402,8 @@ public struct NormalizedXMPChangePlanner {
         SidecarError(
             code: .sidecarCollision,
             stage: .write,
-            message: "Case-insensitive XMP target collision for \(targetPath): \(group.memberAssetIDs.joined(separator: ", "))",
+            message:
+                "Case-insensitive XMP target collision for \(targetPath): \(group.memberAssetIDs.joined(separator: ", "))",
             recoverable: true
         )
     }
@@ -394,6 +458,11 @@ public struct NormalizedXMPChangePlanner {
     }
 }
 
+private struct UnsafeKeywordDecision {
+    var decision: PerAssetNormalizationDecision
+    var term: String
+}
+
 private struct TargetInfo {
     var group: NormalizationSourceGroup
     var targetPath: String
@@ -427,8 +496,8 @@ private struct PlannedKeywordAccumulator {
     }
 }
 
-private extension SkippedCandidateReason {
-    init(normalizationReason: NormalizationCandidateSkipReason) {
+extension SkippedCandidateReason {
+    fileprivate init(normalizationReason: NormalizationCandidateSkipReason) {
         switch normalizationReason {
         case .belowConfidenceThreshold:
             self = .belowConfidenceThreshold

@@ -13,15 +13,17 @@ public struct DerivativeCachePurgeResult: Sendable, Equatable {
 }
 
 /// Content-addressed derivative cache with manifest-backed LRU eviction.
-public struct DerivativeCache {
-    public var directoryPath: String
-    public var sizeCapBytes: Int64
+public final class DerivativeCache: @unchecked Sendable {
+    public let directoryPath: String
+    public let sizeCapBytes: Int64
 
     private let fileManager: FileManager
     private let now: @Sendable () -> Date
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
-    private static let manifestLock = NSLock()
+    private let stateLock = NSLock()
+    private var cachedManifestState: CachedManifestState?
+    private var retainedArtifacts: [String: RetainedArtifact] = [:]
 
     public init(
         directoryPath: String,
@@ -29,7 +31,8 @@ public struct DerivativeCache {
         fileManager: FileManager = .default,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
-        self.directoryPath = URL(fileURLWithPath: (directoryPath as NSString).expandingTildeInPath)
+        self.directoryPath =
+            URL(fileURLWithPath: (directoryPath as NSString).expandingTildeInPath)
             .standardizedFileURL
             .path
         self.sizeCapBytes = sizeCapBytes
@@ -40,7 +43,9 @@ public struct DerivativeCache {
     }
 
     /// Default application cache location for regenerable derivative artifacts.
-    public static func defaultDirectoryPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
+    public static func defaultDirectoryPath(environment: [String: String] = ProcessInfo.processInfo.environment)
+        -> String
+    {
         let home = environment["HOME"] ?? NSHomeDirectory()
         return "\(home)/Library/Caches/aisidecar/derivatives"
     }
@@ -49,9 +54,13 @@ public struct DerivativeCache {
     public static let defaultSizeCapBytes: Int64 = 20 * 1_024 * 1_024 * 1_024
 
     /// Return the deterministic cache URL for a rendered derivative.
-    public func artifactURL(source: SourceImage, recipeVersion: String, role: DerivativeRole, format: DerivativeFormat) -> URL {
+    public func artifactURL(source: SourceImage, recipeVersion: String, role: DerivativeRole, format: DerivativeFormat)
+        -> URL
+    {
         URL(fileURLWithPath: directoryPath)
-            .appendingPathComponent("\(source.identity.sha256)-\(recipeVersion)-\(role.rawValue).\(format.fileExtension)")
+            .appendingPathComponent(
+                "\(source.identity.sha256)-\(recipeVersion)-\(role.rawValue).\(format.fileExtension)"
+            )
             .standardizedFileURL
     }
 
@@ -67,29 +76,65 @@ public struct DerivativeCache {
             return nil
         }
 
-        Self.manifestLock.lock()
-        defer { Self.manifestLock.unlock() }
+        guard let entry = try leaseManifestEntry(at: url) else {
+            return nil
+        }
 
-        guard fileManager.fileExists(atPath: url.path) else {
-            return nil
+        // Verify the artifact bytes outside the manifest lock: the shared lease
+        // pins the inode (replacement and eviction both need an exclusive
+        // artifact lock), so warm-path hits no longer serialize whole-file
+        // hashing behind the cross-process manifest lock.
+        let sha256: String
+        do {
+            sha256 = try Self.sha256(of: url)
+        } catch {
+            release(fileNames: [url.lastPathComponent])
+            throw SidecarError(
+                code: .renderFailed,
+                stage: .render,
+                message: "Unable to read derivative cache artifact \(url.path): \(error.localizedDescription)",
+                recoverable: true
+            )
         }
-        var manifest = try loadManifest()
-        guard let entry = manifest.entries[url.lastPathComponent] else {
-            return nil
-        }
-        let sha256 = try Self.sha256(of: url)
         guard sha256 == entry.sha256 else {
             // Cache artifacts are regenerable; removing corrupt bytes is safer
             // than returning provenance for a derivative the model did not see.
-            try? fileManager.removeItem(at: url)
-            manifest.entries.removeValue(forKey: url.lastPathComponent)
-            try saveManifest(manifest)
+            release(fileNames: [url.lastPathComponent])
+            try withManifestLock {
+                var manifest = try loadManifest()
+                switch removeArtifactIfUnlocked(at: url) {
+                case .removed, .missing:
+                    manifest.entries.removeValue(forKey: url.lastPathComponent)
+                    try saveManifest(manifest)
+                case .busy, .failed:
+                    break
+                }
+            }
             return nil
         }
-
-        manifest.entries[url.lastPathComponent]?.lastAccessedAt = now()
-        try saveManifest(manifest)
         return entry.record(cachePath: url.path)
+    }
+
+    /// Lease an artifact's manifest entry and refresh its LRU timestamp under the manifest lock.
+    private func leaseManifestEntry(at url: URL) throws -> CacheManifestEntry? {
+        try withManifestLock {
+            guard fileManager.fileExists(atPath: url.path) else {
+                return nil
+            }
+            var manifest = try loadManifest()
+            guard let entry = manifest.entries[url.lastPathComponent] else {
+                return nil
+            }
+            manifest.entries[url.lastPathComponent]?.lastAccessedAt = now()
+            try retainArtifact(at: url)
+            do {
+                try saveManifest(manifest)
+            } catch {
+                release(fileNames: [url.lastPathComponent])
+                throw error
+            }
+            return entry
+        }
     }
 
     /// Store a newly encoded artifact, update the manifest, and evict older entries.
@@ -104,17 +149,14 @@ public struct DerivativeCache {
         writer: (URL) throws -> Void
     ) throws -> DerivativeRecord {
         let url = artifactURL(source: source, recipeVersion: recipeVersion, role: role, format: format)
-        // PW-015 lets multiple render workers share one derivative cache. The
-        // manifest is a single JSON file, so index reads/writes and eviction
-        // must be serialized even when image preparation runs concurrently.
-        Self.manifestLock.lock()
-        defer { Self.manifestLock.unlock() }
-
         do {
-            try AtomicFileWriter.writeFile(to: url, fileManager: fileManager, writer: writer)
-            let attributes = try fileManager.attributesOfItem(atPath: url.path)
-            let byteCount = (attributes[.size] as? NSNumber)?.int64Value ?? 0
-            let sha256 = try Self.sha256(of: url)
+            let staged = try AtomicFileWriter.stageFile(to: url, fileManager: fileManager) { temporaryURL in
+                try writer(temporaryURL)
+                let attributes = try fileManager.attributesOfItem(atPath: temporaryURL.path)
+                let byteCount = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+                return (byteCount: byteCount, sha256: try Self.sha256(of: temporaryURL))
+            }
+            defer { staged.discard() }
             let entry = CacheManifestEntry(
                 fileName: url.lastPathComponent,
                 role: role,
@@ -124,16 +166,46 @@ public struct DerivativeCache {
                 colorSpace: colorSpace,
                 appliedOrientation: appliedOrientation,
                 recipeVersion: recipeVersion,
-                sha256: sha256,
+                sha256: staged.result.sha256,
                 sourceIdentity: source.identity,
-                byteCount: byteCount,
+                byteCount: staged.result.byteCount,
                 lastAccessedAt: now()
             )
-            var manifest = try loadManifest()
-            manifest.entries[url.lastPathComponent] = entry
-            try saveManifest(manifest)
-            try evictIfNeeded(protectedFileName: url.lastPathComponent)
-            return entry.record(cachePath: url.path)
+
+            return try withManifestLock {
+                var manifest = try loadManifest()
+                // Any valid on-disk artifact for this content-addressed key is
+                // interchangeable with the staged bytes even when encoder output
+                // differs run-to-run, so reuse keeps a concurrent same-key store
+                // from failing over a leased artifact it cannot replace.
+                if let existing = manifest.entries[url.lastPathComponent],
+                    fileManager.fileExists(atPath: url.path),
+                    try Self.sha256(of: url) == existing.sha256
+                {
+                    try retainArtifact(at: url)
+                    do {
+                        manifest.entries[url.lastPathComponent]?.lastAccessedAt = entry.lastAccessedAt
+                        try evictIfNeeded(manifest: &manifest)
+                        try saveManifest(manifest)
+                    } catch {
+                        release(fileNames: [url.lastPathComponent])
+                        throw error
+                    }
+                    return existing.record(cachePath: url.path)
+                }
+
+                try commit(staged: staged, replacing: url)
+                manifest.entries[url.lastPathComponent] = entry
+                try retainArtifact(at: url)
+                do {
+                    try evictIfNeeded(manifest: &manifest)
+                    try saveManifest(manifest)
+                } catch {
+                    release(fileNames: [url.lastPathComponent])
+                    throw error
+                }
+                return entry.record(cachePath: url.path)
+            }
         } catch let error as SidecarError {
             throw error
         } catch {
@@ -150,7 +222,9 @@ public struct DerivativeCache {
     public func copyDebugArtifact(record: DerivativeRecord, source: SourceImage) throws -> DerivativeRecord {
         let destination = URL(fileURLWithPath: source.path)
             .deletingLastPathComponent()
-            .appendingPathComponent("\(source.fileName).aisidecar.\(record.role.rawValue).\(record.format.fileExtension)")
+            .appendingPathComponent(
+                "\(source.fileName).aisidecar.\(record.role.rawValue).\(record.format.fileExtension)"
+            )
             .standardizedFileURL
         do {
             let data = try Data(contentsOf: URL(fileURLWithPath: record.cachePath))
@@ -177,32 +251,87 @@ public struct DerivativeCache {
     /// directory is less likely to lose unrelated user files.
     @discardableResult
     public func clear() throws -> DerivativeCachePurgeResult {
-        Self.manifestLock.lock()
-        defer { Self.manifestLock.unlock() }
-
         let directory = URL(fileURLWithPath: directoryPath).standardizedFileURL
         guard fileManager.fileExists(atPath: directory.path) else {
             return DerivativeCachePurgeResult(directoryPath: directory.path, removedFileCount: 0)
         }
 
+        releaseAllHandles()
         do {
-            var cacheOwnedNames = Set<String>()
-            if let manifest = try? loadManifest() {
-                cacheOwnedNames.formUnion(manifest.entries.keys)
-            }
-            cacheOwnedNames.insert(manifestURL.lastPathComponent)
+            return try withManifestLock {
+                let loadedManifest = try? loadManifest()
+                var manifest = loadedManifest ?? CacheManifest()
+                let cacheOwnedNames = Set(manifest.entries.keys)
+                let manifestExisted = fileManager.fileExists(atPath: manifestURL.path)
+                let contents = try fileManager.contentsOfDirectory(
+                    at: directory,
+                    includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+                    options: [.skipsSubdirectoryDescendants]
+                )
+                var removedFileCount = 0
+                var preservedUntrackedArtifact = false
+                var firstRemovalError: Error?
 
-            let contents = try fileManager.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: [.isRegularFileKey],
-                options: [.skipsSubdirectoryDescendants]
-            )
-            var removedFileCount = 0
-            for url in contents where shouldClear(url: url, cacheOwnedNames: cacheOwnedNames) {
-                try fileManager.removeItem(at: url)
-                removedFileCount += 1
+                for url in contents {
+                    let standardizedURL = url.standardizedFileURL
+                    if standardizedURL == manifestLockURL.standardizedFileURL
+                        || standardizedURL == manifestURL.standardizedFileURL
+                    {
+                        continue
+                    }
+                    if shouldClearExpiredTemporary(url: url) {
+                        do {
+                            try fileManager.removeItem(at: url)
+                            removedFileCount += 1
+                        } catch {
+                            firstRemovalError = firstRemovalError ?? error
+                        }
+                        continue
+                    }
+                    guard shouldClearArtifact(url: url, cacheOwnedNames: cacheOwnedNames) else {
+                        continue
+                    }
+
+                    switch removeArtifactIfUnlocked(at: url) {
+                    case .removed:
+                        manifest.entries.removeValue(forKey: url.lastPathComponent)
+                        removedFileCount += 1
+                    case .missing:
+                        manifest.entries.removeValue(forKey: url.lastPathComponent)
+                    case .busy:
+                        preservedUntrackedArtifact =
+                            preservedUntrackedArtifact
+                            || manifest.entries[url.lastPathComponent] == nil
+                    case .failed(let error):
+                        preservedUntrackedArtifact =
+                            preservedUntrackedArtifact
+                            || manifest.entries[url.lastPathComponent] == nil
+                        firstRemovalError = firstRemovalError ?? error
+                    }
+                }
+
+                for fileName in Array(manifest.entries.keys) {
+                    let url = directory.appendingPathComponent(fileName)
+                    if !fileManager.fileExists(atPath: url.path) {
+                        manifest.entries.removeValue(forKey: fileName)
+                    }
+                }
+
+                if loadedManifest != nil, !manifest.entries.isEmpty || preservedUntrackedArtifact {
+                    try saveManifest(manifest)
+                } else if manifestExisted, !preservedUntrackedArtifact {
+                    try fileManager.removeItem(at: manifestURL)
+                    removedFileCount += 1
+                    stateLock.withLock {
+                        cachedManifestState = nil
+                    }
+                }
+
+                if let firstRemovalError {
+                    throw firstRemovalError
+                }
+                return DerivativeCachePurgeResult(directoryPath: directory.path, removedFileCount: removedFileCount)
             }
-            return DerivativeCachePurgeResult(directoryPath: directory.path, removedFileCount: removedFileCount)
         } catch let error as SidecarError {
             throw error
         } catch {
@@ -221,6 +350,25 @@ public struct DerivativeCache {
         try clear()
     }
 
+    /// Release selected active-use leases after their model or export consumer has finished.
+    public func release(_ records: [DerivativeRecord]) {
+        release(fileNames: records.map { URL(fileURLWithPath: $0.cachePath).lastPathComponent })
+    }
+
+    /// Release all active-use leases and restore the configured cap when possible.
+    public func releaseRetained() {
+        releaseAllHandles()
+        try? withManifestLock {
+            guard fileManager.fileExists(atPath: manifestURL.path) else {
+                return
+            }
+            var manifest = try loadManifest()
+            if try evictIfNeeded(manifest: &manifest) {
+                try saveManifest(manifest)
+            }
+        }
+    }
+
     /// Compute the SHA-256 digest of artifact bytes for derivative provenance.
     public static func sha256(of url: URL) throws -> String {
         let data = try Data(contentsOf: url)
@@ -232,12 +380,45 @@ public struct DerivativeCache {
         URL(fileURLWithPath: directoryPath).appendingPathComponent("derivative-cache-index.json")
     }
 
+    private var manifestLockURL: URL {
+        URL(fileURLWithPath: directoryPath).appendingPathComponent("derivative-cache-index.lock")
+    }
+
+    private func withManifestLock<Result>(_ body: () throws -> Result) throws -> Result {
+        do {
+            return try FileLock(path: manifestLockURL.path).withExclusiveLock(body)
+        } catch let error as SidecarError {
+            throw error
+        } catch {
+            throw SidecarError(
+                code: .renderFailed,
+                stage: .render,
+                message: "Unable to coordinate derivative cache \(directoryPath): \(error.localizedDescription)",
+                recoverable: true
+            )
+        }
+    }
+
     private func loadManifest() throws -> CacheManifest {
         guard fileManager.fileExists(atPath: manifestURL.path) else {
+            stateLock.withLock {
+                cachedManifestState = nil
+            }
             return CacheManifest()
         }
         do {
-            return try decoder.decode(CacheManifest.self, from: Data(contentsOf: manifestURL))
+            let signature = try manifestSignature()
+            if let cached = stateLock.withLock({ cachedManifestState }), cached.signature == signature {
+                return cached.manifest
+            }
+            guard let data = fileManager.contents(atPath: manifestURL.path) else {
+                throw CocoaError(.fileReadUnknown)
+            }
+            let manifest = try decoder.decode(CacheManifest.self, from: data)
+            stateLock.withLock {
+                cachedManifestState = CachedManifestState(manifest: manifest, signature: signature)
+            }
+            return manifest
         } catch {
             throw SidecarError(
                 code: .renderFailed,
@@ -251,32 +432,148 @@ public struct DerivativeCache {
     private func saveManifest(_ manifest: CacheManifest) throws {
         let data = try encoder.encode(manifest)
         try AtomicFileWriter.write(data, to: manifestURL, fileManager: fileManager)
+        stateLock.withLock {
+            cachedManifestState = try? CachedManifestState(manifest: manifest, signature: manifestSignature())
+        }
     }
 
-    private func evictIfNeeded(protectedFileName: String) throws {
-        var manifest = try loadManifest()
+    private func manifestSignature() throws -> ManifestSignature {
+        let attributes = try fileManager.attributesOfItem(atPath: manifestURL.path)
+        return ManifestSignature(
+            fileIdentifier: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0,
+            modifiedAt: attributes[.modificationDate] as? Date ?? .distantPast,
+            byteCount: (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        )
+    }
+
+    private func retainArtifact(at url: URL) throws {
+        let handle = try FileLock(path: url.path).lockSharedExisting()
+        stateLock.withLock {
+            if var retained = retainedArtifacts[url.lastPathComponent] {
+                retained.count += 1
+                retainedArtifacts[url.lastPathComponent] = retained
+            } else {
+                retainedArtifacts[url.lastPathComponent] = RetainedArtifact(handle: handle, count: 1)
+            }
+        }
+    }
+
+    private func release(fileNames: [String]) {
+        var released: [RetainedArtifact] = []
+        stateLock.withLock {
+            for fileName in fileNames {
+                guard var retained = retainedArtifacts[fileName] else {
+                    continue
+                }
+                retained.count -= 1
+                if retained.count == 0 {
+                    released.append(retained)
+                    retainedArtifacts.removeValue(forKey: fileName)
+                } else {
+                    retainedArtifacts[fileName] = retained
+                }
+            }
+        }
+        withExtendedLifetime(released) {}
+    }
+
+    private func releaseAllHandles() {
+        let released = stateLock.withLock { () -> [RetainedArtifact] in
+            let retained = Array(retainedArtifacts.values)
+            retainedArtifacts.removeAll()
+            return retained
+        }
+        withExtendedLifetime(released) {}
+    }
+
+    @discardableResult
+    private func evictIfNeeded(manifest: inout CacheManifest) throws -> Bool {
         var totalBytes = manifest.entries.values.reduce(Int64(0)) { $0 + $1.byteCount }
-        // Keep the artifact that satisfied the current render request even if
-        // a tiny cap means the cache remains over budget after older eviction.
+        guard totalBytes > sizeCapBytes else {
+            return false
+        }
+
         let candidates = manifest.entries.values
-            .filter { $0.fileName != protectedFileName }
             .sorted { $0.lastAccessedAt < $1.lastAccessedAt }
+        var changed = false
 
         for entry in candidates where totalBytes > sizeCapBytes {
             let url = URL(fileURLWithPath: directoryPath).appendingPathComponent(entry.fileName)
-            try? fileManager.removeItem(at: url)
-            manifest.entries.removeValue(forKey: entry.fileName)
-            totalBytes -= entry.byteCount
+            switch removeArtifactIfUnlocked(at: url) {
+            case .removed, .missing:
+                manifest.entries.removeValue(forKey: entry.fileName)
+                totalBytes -= entry.byteCount
+                changed = true
+            case .busy, .failed:
+                continue
+            }
         }
-        try saveManifest(manifest)
+        return changed
     }
 
-    private func shouldClear(url: URL, cacheOwnedNames: Set<String>) -> Bool {
+    private func commit<Result>(staged: AtomicFileWriter.StagedFile<Result>, replacing url: URL) throws {
+        if fileManager.fileExists(atPath: url.path) {
+            switch try FileLock(path: url.path).tryLockExclusiveExisting() {
+            case .acquired(let handle):
+                try staged.commit()
+                withExtendedLifetime(handle) {}
+            case .missing:
+                try staged.commit()
+            case .busy:
+                throw SidecarError(
+                    code: .renderFailed,
+                    stage: .render,
+                    message: "Unable to replace active derivative cache artifact \(url.path).",
+                    recoverable: true
+                )
+            }
+        } else {
+            try staged.commit()
+        }
+    }
+
+    private func removeArtifactIfUnlocked(at url: URL) -> ArtifactRemovalResult {
+        do {
+            switch try FileLock(path: url.path).tryLockExclusiveExisting() {
+            case .missing:
+                return .missing
+            case .busy:
+                return .busy
+            case .acquired(let handle):
+                try fileManager.removeItem(at: url)
+                withExtendedLifetime(handle) {}
+                return .removed
+            }
+        } catch {
+            if !fileManager.fileExists(atPath: url.path) {
+                return .missing
+            }
+            return .failed(error)
+        }
+    }
+
+    private func shouldClearArtifact(url: URL, cacheOwnedNames: Set<String>) -> Bool {
         guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
             return false
         }
         let fileName = url.lastPathComponent
         return cacheOwnedNames.contains(fileName) || Self.looksLikeDerivativeArtifact(fileName)
+    }
+
+    private func shouldClearExpiredTemporary(url: URL) -> Bool {
+        guard
+            let destinationFileName = AtomicFileWriter.destinationFileName(
+                forTemporaryFileName: url.lastPathComponent
+            ),
+            destinationFileName == manifestURL.lastPathComponent
+                || Self.looksLikeDerivativeArtifact(destinationFileName),
+            let modifiedAt = try? url.resourceValues(
+                forKeys: [.contentModificationDateKey]
+            ).contentModificationDate
+        else {
+            return false
+        }
+        return modifiedAt < now().addingTimeInterval(-86_400)
     }
 
     private static func looksLikeDerivativeArtifact(_ fileName: String) -> Bool {
@@ -296,8 +593,31 @@ public struct DerivativeCache {
     }
 }
 
-private extension DerivativeFormat {
-    var fileExtension: String {
+private struct CachedManifestState {
+    var manifest: CacheManifest
+    var signature: ManifestSignature
+}
+
+private struct ManifestSignature: Equatable {
+    var fileIdentifier: UInt64
+    var modifiedAt: Date
+    var byteCount: Int64
+}
+
+private struct RetainedArtifact {
+    var handle: FileLockHandle
+    var count: Int
+}
+
+private enum ArtifactRemovalResult {
+    case removed
+    case missing
+    case busy
+    case failed(Error)
+}
+
+extension DerivativeFormat {
+    fileprivate var fileExtension: String {
         switch self {
         case .jpeg:
             return "jpg"

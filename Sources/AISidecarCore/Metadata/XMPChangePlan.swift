@@ -18,7 +18,7 @@ public struct SourceMemberPlan: Codable, Sendable, Equatable {
     public var sourceRelativePath: String
     public var sourceFileName: String
     public var sourceType: SupportedImageType
-    public var sourceSidecarPath: String
+    public var sourceSidecarPath: String?
     public var sourceSidecarRelativePath: String?
     public var sourceIdentityStatus: SourceIdentityStatus
     public var pairKind: XMPSourcePairKind
@@ -47,7 +47,7 @@ public struct SourceMemberPlan: Codable, Sendable, Equatable {
         sourceRelativePath: String,
         sourceFileName: String,
         sourceType: SupportedImageType,
-        sourceSidecarPath: String,
+        sourceSidecarPath: String?,
         sourceSidecarRelativePath: String?,
         sourceIdentityStatus: SourceIdentityStatus,
         pairKind: XMPSourcePairKind,

@@ -41,6 +41,120 @@ final class XMPExportPipelineTests: XCTestCase {
         XCTAssertTrue(summary.contains("Capture One"))
     }
 
+    func testStampSkipsMembersWithoutRawSidecarAndNeverWritesToImagePaths() throws {
+        let root = try temporaryDirectory()
+        let source = root.appendingPathComponent("Bird.JPG")
+        let target = root.appendingPathComponent("Bird.xmp")
+        let sourceData = Data("source image bytes".utf8)
+        try sourceData.write(to: source)
+        let logs = XMPLogSink()
+        let member = SourceMemberPlan(
+            sourcePath: source.path,
+            sourceRelativePath: "Bird.JPG",
+            sourceFileName: "Bird.JPG",
+            sourceType: .jpg,
+            sourceSidecarPath: nil,
+            sourceSidecarRelativePath: nil,
+            sourceIdentityStatus: .matched,
+            pairKind: .jpeg,
+            selected: true,
+            skipReason: nil,
+            flatKeywordContributionCount: 1,
+            hierarchicalKeywordContributionCount: 0
+        )
+        let plan = XMPChangePlan(
+            status: .planned,
+            targetXMPPath: target.path,
+            targetRelativePath: "Bird.xmp",
+            pairScope: .union,
+            sourceMembers: [member],
+            flatKeywordsToAdd: [PlannedKeyword(term: "bird", normalizedKey: "bird", candidates: [])],
+            hierarchicalKeywordsToAdd: [],
+            skippedCandidates: [],
+            candidateExtractionIssues: [],
+            sourceVerificationWarnings: [],
+            groupWarnings: [],
+            existingPolicy: .backupAndMerge,
+            backupPlan: BackupPlan(
+                backupSidecars: true,
+                backupRequiredBeforeMerge: true,
+                conflictPolicy: .backupAndMerge
+            ),
+            validationPlan: .phase2Default,
+            failures: []
+        )
+        let document = XMPChangePlanDocument(dryRun: false, targetPlans: [plan], inputFailures: [])
+
+        let result = try XMPExportPipeline(
+            logger: Logger(sink: logs.append)
+        ).runChangePlan(
+            document,
+            inputPath: root.path,
+            configuration: exportConfiguration(outputDir: root.path)
+        )
+
+        XCTAssertEqual(result.report?.targetReports.first?.status, .created)
+        XCTAssertEqual(try Data(contentsOf: source), sourceData)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
+        XCTAssertTrue(logs.lines.contains { $0.contains("write_xmp.stamp_skipped") })
+    }
+
+    func testUnchangedRerunBackfillsMissingSidecarStampWithoutChurningStampedOnes() throws {
+        let fixture = try makeFromJSONFixture()
+        let configuration = exportConfiguration(outputDir: fixture.output.path)
+        _ = try XMPExportPipeline(logger: Logger(sink: { _ in }), filenameSuffix: { "a3f2" })
+            .runFromJSON(fromJSONPath: fixture.jsonRoot.path, configuration: configuration)
+        let sidecar = fixture.jsonRoot.appendingPathComponent("Bird.JPG.ai.json")
+        XCTAssertTrue(RawSidecarExportStamp.isStamped(sidecarPath: sidecar.path))
+
+        // Simulate a run whose XMP write succeeded but whose stamp failed.
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: sidecar)) as? [String: Any]
+        )
+        object.removeValue(forKey: RawSidecarExportStamp.key)
+        try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: sidecar)
+        XCTAssertFalse(RawSidecarExportStamp.isStamped(sidecarPath: sidecar.path))
+
+        let rerun = try XMPExportPipeline(logger: Logger(sink: { _ in }), filenameSuffix: { "b4c1" })
+            .runFromJSON(fromJSONPath: fixture.jsonRoot.path, configuration: configuration)
+
+        XCTAssertEqual(rerun.report?.targetReports.first?.status, .unchanged)
+        XCTAssertTrue(RawSidecarExportStamp.isStamped(sidecarPath: sidecar.path))
+
+        let bytesBefore = try Data(contentsOf: sidecar)
+        _ = try XMPExportPipeline(logger: Logger(sink: { _ in }), filenameSuffix: { "c5d2" })
+            .runFromJSON(fromJSONPath: fixture.jsonRoot.path, configuration: configuration)
+        XCTAssertEqual(try Data(contentsOf: sidecar), bytesBefore)
+    }
+
+    func testStampRewritePreservesFloatAndSlashFormatting() throws {
+        let fixture = try makeFromJSONFixture()
+        let sidecar = fixture.jsonRoot.appendingPathComponent("Bird.JPG.ai.json")
+        var sidecarJSON = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: sidecar))
+        var fixtureObject = try XCTUnwrap(sidecarJSON.objectValue)
+        fixtureObject["future_path"] = .string("/future/path")
+        sidecarJSON = .object(fixtureObject)
+        try JSONCoding.documentEncoder(iso8601Dates: false).encode(sidecarJSON).write(to: sidecar)
+
+        try RawSidecarExportStamp.stamp(
+            sidecarPath: sidecar.path,
+            contents: RawSidecarExportStamp.Contents(
+                targetXMPPath: "/exports/Bird.xmp",
+                xmpSHA256: String(repeating: "a", count: 64),
+                writerRecipeVersion: OwnedXMPSidecarEngine.writerRecipeVersion,
+                engineVersion: OwnedXMPSidecarEngine.engineVersion,
+                exportedAt: Date(timeIntervalSince1970: 1_800_000_000)
+            )
+        )
+
+        let rewritten = try String(contentsOf: sidecar, encoding: .utf8)
+        XCTAssertTrue(rewritten.contains(#""subject_crop_margin_fraction" : 0.08"#))
+        XCTAssertFalse(rewritten.contains("0.080000000000000002"))
+        XCTAssertTrue(rewritten.contains(#""future_path" : "/future/path""#))
+        XCTAssertTrue(rewritten.contains(#""target_xmp_path" : "/exports/Bird.xmp""#))
+        XCTAssertFalse(rewritten.contains(#"\/future\/path"#))
+    }
+
     func testUnreadableSourceAtExportStartRecordsFailedHashCheckAndFailsTarget() throws {
         try XCTSkipIf(getuid() == 0, "chmod 000 is not enforced for root")
         let fixture = try makeFromJSONFixture()
@@ -334,6 +448,17 @@ private struct FromJSONFixture {
     var jsonRoot: URL
     var output: URL
     var source: URL
+}
+
+private final class XMPLogSink: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var lines: [String] = []
+
+    func append(_ line: String) {
+        lock.lock()
+        lines.append(line)
+        lock.unlock()
+    }
 }
 
 private struct ValidationFailingEngine: MetadataWriteEngine {

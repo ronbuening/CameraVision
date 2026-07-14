@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class XMPOwnedEngineTests: XCTestCase {
@@ -42,25 +43,255 @@ final class XMPOwnedEngineTests: XCTestCase {
 
         XCTAssertEqual(snapshot.flatKeywords, [])
         XCTAssertEqual(snapshot.hierarchicalKeywords, [])
-        XCTAssertTrue(snapshot.unmanagedContentFingerprint.canonicalEntries.contains {
-            $0.contains("rating") || $0.contains("Exposure2012")
-        })
+        XCTAssertTrue(
+            snapshot.unmanagedContentFingerprint.canonicalEntries.contains {
+                $0.contains("rating") || $0.contains("Exposure2012")
+            })
+    }
+
+    func testParserPrefersDescriptionWhoseAboutMatchesSourceFile() throws {
+        let xmp = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                <rdf:Description rdf:about="file:///photos/Other.JPG">
+                  <xmp:Rating>1</xmp:Rating>
+                </rdf:Description>
+                <rdf:Description rdf:about="file:///photos/Bird.JPG">
+                  <xmp:Label>Green</xmp:Label>
+                </rdf:Description>
+              </rdf:RDF>
+            </x:xmpmeta>
+            """
+
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/Bird.xmp",
+            sourceFileNames: ["Bird.JPG"]
+        )
+
+        XCTAssertEqual(
+            XMPXML.firstAttributeValue(
+                on: parsed.descriptionElement,
+                namespaceURI: XMPNamespace.rdf,
+                localName: "about"
+            ),
+            "file:///photos/Bird.JPG"
+        )
+    }
+
+    func testParserMatchesPlainAboutContainingPercentLiterally() throws {
+        let xmp = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                <rdf:Description rdf:about="Other.JPG">
+                  <xmp:Rating>1</xmp:Rating>
+                </rdf:Description>
+                <rdf:Description rdf:about="IMG%20001.jpg">
+                  <xmp:Label>Green</xmp:Label>
+                </rdf:Description>
+              </rdf:RDF>
+            </x:xmpmeta>
+            """
+
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/IMG%20001.xmp",
+            sourceFileNames: ["IMG%20001.jpg"]
+        )
+
+        XCTAssertEqual(
+            XMPXML.firstAttributeValue(
+                on: parsed.descriptionElement,
+                namespaceURI: XMPNamespace.rdf,
+                localName: "about"
+            ),
+            "IMG%20001.jpg"
+        )
+    }
+
+    func testParserDoesNotTreatLongerFilenameAsSourceMatch() throws {
+        let xmp = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                <rdf:Description rdf:about="file:///photos/NotBird.JPG">
+                  <xmp:Rating>1</xmp:Rating>
+                </rdf:Description>
+                <rdf:Description rdf:about="file:///photos/Bird.JPG">
+                  <xmp:Label>Green</xmp:Label>
+                </rdf:Description>
+              </rdf:RDF>
+            </x:xmpmeta>
+            """
+
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/Bird.xmp",
+            sourceFileNames: ["Bird.JPG"]
+        )
+
+        XCTAssertEqual(
+            XMPXML.firstAttributeValue(
+                on: parsed.descriptionElement,
+                namespaceURI: XMPNamespace.rdf,
+                localName: "about"
+            ),
+            "file:///photos/Bird.JPG"
+        )
+    }
+
+    func testParserDecodesSourceFilenameAndPrefersItOverEmptyAbout() throws {
+        let xmp = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                <rdf:Description rdf:about="">
+                  <xmp:Rating>1</xmp:Rating>
+                </rdf:Description>
+                <rdf:Description rdf:about="file:///photos/Great%20Bird.JPG">
+                  <xmp:Label>Green</xmp:Label>
+                </rdf:Description>
+              </rdf:RDF>
+            </x:xmpmeta>
+            """
+
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/Great Bird.xmp",
+            sourceFileNames: ["Great Bird.JPG"]
+        )
+
+        XCTAssertEqual(
+            XMPXML.firstAttributeValue(
+                on: parsed.descriptionElement,
+                namespaceURI: XMPNamespace.rdf,
+                localName: "about"
+            ),
+            "file:///photos/Great%20Bird.JPG"
+        )
+    }
+
+    func testParserMatchesWindowsAboutPathByTerminalComponent() throws {
+        let xmp = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                <rdf:Description rdf:about="">
+                  <xmp:Rating>1</xmp:Rating>
+                </rdf:Description>
+                <rdf:Description rdf:about="C:\\photos\\Bird.JPG">
+                  <xmp:Label>Green</xmp:Label>
+                </rdf:Description>
+              </rdf:RDF>
+            </x:xmpmeta>
+            """
+
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/Bird.xmp",
+            sourceFileNames: ["Bird.JPG"]
+        )
+
+        XCTAssertEqual(
+            XMPXML.firstAttributeValue(
+                on: parsed.descriptionElement,
+                namespaceURI: XMPNamespace.rdf,
+                localName: "about"
+            ),
+            "C:\\photos\\Bird.JPG"
+        )
+    }
+
+    func testParserPrefersManagedDescriptionOverSourceMatch() throws {
+        let xmp = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:dc="http://purl.org/dc/elements/1.1/"
+                       xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                <rdf:Description rdf:about="file:///photos/Bird.JPG">
+                  <xmp:Rating>1</xmp:Rating>
+                </rdf:Description>
+                <rdf:Description rdf:about="file:///photos/Other.JPG">
+                  <dc:subject><rdf:Bag><rdf:li>existing</rdf:li></rdf:Bag></dc:subject>
+                </rdf:Description>
+              </rdf:RDF>
+            </x:xmpmeta>
+            """
+
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/Bird.xmp",
+            sourceFileNames: ["Bird.JPG"]
+        )
+
+        XCTAssertEqual(
+            XMPXML.firstAttributeValue(
+                on: parsed.descriptionElement,
+                namespaceURI: XMPNamespace.rdf,
+                localName: "about"
+            ),
+            "file:///photos/Other.JPG"
+        )
+    }
+
+    func testParserPrefersEmptyAboutOverUnrelatedFirstDescription() throws {
+        let xmp = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                <rdf:Description rdf:about="file:///photos/Other.JPG">
+                  <xmp:Rating>1</xmp:Rating>
+                </rdf:Description>
+                <rdf:Description rdf:about="">
+                  <xmp:Label>Green</xmp:Label>
+                </rdf:Description>
+              </rdf:RDF>
+            </x:xmpmeta>
+            """
+
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/Bird.xmp",
+            sourceFileNames: ["Bird.JPG"]
+        )
+
+        XCTAssertEqual(
+            XMPXML.firstAttributeValue(
+                on: parsed.descriptionElement,
+                namespaceURI: XMPNamespace.rdf,
+                localName: "about"
+            ),
+            ""
+        )
     }
 
     func testParserClassifiesMalformedXML() throws {
-        XCTAssertThrowsError(try XMPDocumentParser().parse(
-            data: Data("<x:xmpmeta><rdf:RDF>".utf8),
-            targetPath: "/tmp/Malformed.xmp"
-        )) { error in
+        XCTAssertThrowsError(
+            try XMPDocumentParser().parse(
+                data: Data("<x:xmpmeta><rdf:RDF>".utf8),
+                targetPath: "/tmp/Malformed.xmp"
+            )
+        ) { error in
             XCTAssertEqual((error as? SidecarError)?.code, .xmpParseFailed)
         }
     }
 
     func testParserClassifiesUnsupportedManagedRDFShape() throws {
-        XCTAssertThrowsError(try XMPDocumentParser().parse(
-            data: Data(unsupportedManagedShapeXMP.utf8),
-            targetPath: "/tmp/Unsupported.xmp"
-        )) { error in
+        XCTAssertThrowsError(
+            try XMPDocumentParser().parse(
+                data: Data(unsupportedManagedShapeXMP.utf8),
+                targetPath: "/tmp/Unsupported.xmp"
+            )
+        ) { error in
             XCTAssertEqual((error as? SidecarError)?.code, .xmpUnsupportedRDF)
         }
     }
@@ -91,11 +322,13 @@ final class XMPOwnedEngineTests: XCTestCase {
         let target = root.appendingPathComponent("Bird.xmp")
         let engine = OwnedXMPSidecarEngine()
 
-        let result = try engine.apply(XMPWriteRequest(plan: changePlan(
-            targetPath: target.path,
-            flat: ["wading bird"],
-            hierarchical: ["wading bird"]
-        )))
+        let result = try engine.apply(
+            XMPWriteRequest(
+                plan: changePlan(
+                    targetPath: target.path,
+                    flat: ["wading bird"],
+                    hierarchical: ["wading bird"]
+                )))
         let snapshot = try engine.readSnapshot(at: target.path)
 
         XCTAssertTrue(result.created)
@@ -114,11 +347,13 @@ final class XMPOwnedEngineTests: XCTestCase {
         let engine = OwnedXMPSidecarEngine()
         let preSnapshot = try engine.readSnapshot(at: target.path)
 
-        let result = try engine.apply(XMPWriteRequest(plan: changePlan(
-            targetPath: target.path,
-            flat: ["marsh"],
-            hierarchical: ["habitat"]
-        )))
+        let result = try engine.apply(
+            XMPWriteRequest(
+                plan: changePlan(
+                    targetPath: target.path,
+                    flat: ["marsh"],
+                    hierarchical: ["habitat"]
+                )))
         let postSnapshot = try engine.readSnapshot(at: target.path)
 
         XCTAssertFalse(result.created)
@@ -139,11 +374,13 @@ final class XMPOwnedEngineTests: XCTestCase {
         let engine = OwnedXMPSidecarEngine()
         let preSnapshot = try engine.readSnapshot(at: target.path)
 
-        _ = try engine.apply(XMPWriteRequest(plan: changePlan(
-            targetPath: target.path,
-            flat: ["landscape"],
-            hierarchical: ["landscape"]
-        )))
+        _ = try engine.apply(
+            XMPWriteRequest(
+                plan: changePlan(
+                    targetPath: target.path,
+                    flat: ["landscape"],
+                    hierarchical: ["landscape"]
+                )))
         let postSnapshot = try engine.readSnapshot(at: target.path)
 
         XCTAssertEqual(postSnapshot.flatKeywords, ["landscape"])
@@ -161,11 +398,15 @@ final class XMPOwnedEngineTests: XCTestCase {
         let original = unsupportedManagedShapeXMP
         try original.write(to: target, atomically: true, encoding: .utf8)
 
-        XCTAssertThrowsError(try OwnedXMPSidecarEngine().apply(XMPWriteRequest(plan: changePlan(
-            targetPath: target.path,
-            flat: ["new keyword"],
-            hierarchical: []
-        )))) { error in
+        XCTAssertThrowsError(
+            try OwnedXMPSidecarEngine().apply(
+                XMPWriteRequest(
+                    plan: changePlan(
+                        targetPath: target.path,
+                        flat: ["new keyword"],
+                        hierarchical: []
+                    )))
+        ) { error in
             XCTAssertEqual((error as? SidecarError)?.code, .xmpUnsupportedRDF)
         }
 
@@ -239,76 +480,76 @@ final class XMPOwnedEngineTests: XCTestCase {
 }
 
 private let alternatePrefixXMP = """
-<?xml version="1.0" encoding="UTF-8"?>
-<meta:xmpmeta xmlns:meta="adobe:ns:meta/">
-  <r:RDF xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-         xmlns:d="http://purl.org/dc/elements/1.1/"
-         xmlns:lightroom="http://ns.adobe.com/lightroom/1.0/">
-    <r:Description r:about="">
-      <d:subject>
-        <r:Bag>
-          <r:li>existing bird</r:li>
-        </r:Bag>
-      </d:subject>
-      <lightroom:hierarchicalSubject>
-        <r:Bag>
-          <r:li>existing habitat</r:li>
-        </r:Bag>
-      </lightroom:hierarchicalSubject>
-    </r:Description>
-  </r:RDF>
-</meta:xmpmeta>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <meta:xmpmeta xmlns:meta="adobe:ns:meta/">
+      <r:RDF xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+             xmlns:d="http://purl.org/dc/elements/1.1/"
+             xmlns:lightroom="http://ns.adobe.com/lightroom/1.0/">
+        <r:Description r:about="">
+          <d:subject>
+            <r:Bag>
+              <r:li>existing bird</r:li>
+            </r:Bag>
+          </d:subject>
+          <lightroom:hierarchicalSubject>
+            <r:Bag>
+              <r:li>existing habitat</r:li>
+            </r:Bag>
+          </lightroom:hierarchicalSubject>
+        </r:Description>
+      </r:RDF>
+    </meta:xmpmeta>
+    """
 
 private let noManagedBagXMP = """
-<?xml version="1.0" encoding="UTF-8"?>
-<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-         xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
-         xmlns:aux="http://ns.adobe.com/exif/1.0/aux/">
-  <rdf:Description rdf:about="">
-    <crs:Exposure2012>+0.35</crs:Exposure2012>
-    <aux:rating>5</aux:rating>
-  </rdf:Description>
-</rdf:RDF>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+             xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+             xmlns:aux="http://ns.adobe.com/exif/1.0/aux/">
+      <rdf:Description rdf:about="">
+        <crs:Exposure2012>+0.35</crs:Exposure2012>
+        <aux:rating>5</aux:rating>
+      </rdf:Description>
+    </rdf:RDF>
+    """
 
 private let existingDevelopSettingsXMP = """
-<?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-           xmlns:dc="http://purl.org/dc/elements/1.1/"
-           xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
-           xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
-    <rdf:Description rdf:about="">
-      <dc:subject>
-        <rdf:Bag>
-          <rdf:li>existing bird</rdf:li>
-        </rdf:Bag>
-      </dc:subject>
-      <lr:hierarchicalSubject>
-        <rdf:Bag>
-          <rdf:li>existing habitat</rdf:li>
-        </rdf:Bag>
-      </lr:hierarchicalSubject>
-      <crs:Exposure2012>+0.35</crs:Exposure2012>
-      <crs:Contrast2012>12</crs:Contrast2012>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/"
+               xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
+               xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
+        <rdf:Description rdf:about="">
+          <dc:subject>
+            <rdf:Bag>
+              <rdf:li>existing bird</rdf:li>
+            </rdf:Bag>
+          </dc:subject>
+          <lr:hierarchicalSubject>
+            <rdf:Bag>
+              <rdf:li>existing habitat</rdf:li>
+            </rdf:Bag>
+          </lr:hierarchicalSubject>
+          <crs:Exposure2012>+0.35</crs:Exposure2012>
+          <crs:Contrast2012>12</crs:Contrast2012>
+        </rdf:Description>
+      </rdf:RDF>
+    </x:xmpmeta>
+    """
 
 private let unsupportedManagedShapeXMP = """
-<?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-           xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <rdf:Description rdf:about="">
-      <dc:subject>
-        <rdf:Seq>
-          <rdf:li>existing bird</rdf:li>
-        </rdf:Seq>
-      </dc:subject>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <x:xmpmeta xmlns:x="adobe:ns:meta/">
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <rdf:Description rdf:about="">
+          <dc:subject>
+            <rdf:Seq>
+              <rdf:li>existing bird</rdf:li>
+            </rdf:Seq>
+          </dc:subject>
+        </rdf:Description>
+      </rdf:RDF>
+    </x:xmpmeta>
+    """

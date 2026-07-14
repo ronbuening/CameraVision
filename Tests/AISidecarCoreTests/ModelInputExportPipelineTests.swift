@@ -1,5 +1,6 @@
 import CoreGraphics
 import XCTest
+
 @testable import AISidecarCore
 
 final class ModelInputExportPipelineTests: XCTestCase {
@@ -8,7 +9,7 @@ final class ModelInputExportPipelineTests: XCTestCase {
         let decomposed = "Cafe\u{301}.NEF"
         let sources = [
             makeSource(fileName: composed, relativePath: composed, path: "/photos/\(composed)"),
-            makeSource(fileName: decomposed, relativePath: decomposed, path: "/photos/\(decomposed)")
+            makeSource(fileName: decomposed, relativePath: decomposed, path: "/photos/\(decomposed)"),
         ]
         let profile = try ModelInputProfileRegistry.resolve(name: "gemma4-26b-default")
 
@@ -51,8 +52,12 @@ final class ModelInputExportPipelineTests: XCTestCase {
             result.manifestPath,
             export.appendingPathComponent("model-input-export-2027-01-15T081640Z-a3f2.json").path
         )
-        XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("A.JPG.aisidecar.full_resolution.tiff").path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("A.JPG.aisidecar.subject_isolated.jpg").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("A.JPG.aisidecar.full_resolution.tiff").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("A.JPG.aisidecar.subject_isolated.jpg").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("A.JPG.ai.json").path))
         XCTAssertEqual(manifest.schemaVersion, "ai-sidecar-model-input-export/1.0")
         XCTAssertEqual(manifest.mode, .whole)
@@ -84,9 +89,15 @@ final class ModelInputExportPipelineTests: XCTestCase {
         )
 
         XCTAssertEqual(result.records.map(\.status), [.exported, .exported])
-        XCTAssertTrue(FileManager.default.fileExists(atPath: export.appendingPathComponent("2026/06/_DSC1234.JPG.aisidecar.whole_image.jpg").path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: export.appendingPathComponent("2026/07/_DSC1234.JPG.aisidecar.whole_image.jpg").path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("_DSC1234.JPG.aisidecar.whole_image.jpg").path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("2026/06/_DSC1234.JPG.aisidecar.whole_image.jpg").path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("2026/07/_DSC1234.JPG.aisidecar.whole_image.jpg").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("_DSC1234.JPG.aisidecar.whole_image.jpg").path))
         XCTAssertEqual(try decodeManifest(result).summary.totalImages, 2)
     }
 
@@ -100,9 +111,11 @@ final class ModelInputExportPipelineTests: XCTestCase {
         let image = try writeTestImage("Subject.JPG", width: 120, height: 80, in: root)
         let cache = root.appendingPathComponent("cache")
 
-        let result = try await pipeline(maskProvider: StaticForegroundMaskProvider([
-            StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
-        ])).run(
+        let result = try await pipeline(
+            maskProvider: StaticForegroundMaskProvider([
+                StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
+            ])
+        ).run(
             inputPath: image.path,
             exportDirectoryPath: export.path,
             configuration: config(
@@ -116,9 +129,15 @@ final class ModelInputExportPipelineTests: XCTestCase {
         XCTAssertEqual(manifest.records.map(\.status), [.exported])
         XCTAssertEqual(manifest.records.first?.outputs.map(\.role), [.subjectIsolated])
         XCTAssertEqual(manifest.records.first?.subjectIsolation?.status, .success)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: export.appendingPathComponent("Subject.JPG.aisidecar.subject_isolated.jpg").path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("Subject.JPG.aisidecar.whole_image.jpg").path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("Subject.JPG.aisidecar.full_resolution.tiff").path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("Subject.JPG.aisidecar.subject_isolated.jpg").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("Subject.JPG.aisidecar.whole_image.jpg").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("Subject.JPG.aisidecar.full_resolution.tiff").path))
         let cacheNames = try cacheContents(at: cache)
         XCTAssertFalse(cacheNames.contains { $0.contains("whole_image") })
         XCTAssertFalse(cacheNames.contains { $0.contains("full_resolution") })
@@ -148,8 +167,12 @@ final class ModelInputExportPipelineTests: XCTestCase {
         XCTAssertEqual(manifest.records.first?.errors.first?.code, .subjectIsolationNoForeground)
         XCTAssertEqual(manifest.records.first?.outputs.map(\.role), [.wholeImage])
         XCTAssertEqual(manifest.summary.partial, 1)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: export.appendingPathComponent("Both.JPG.aisidecar.whole_image.jpg").path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("Both.JPG.aisidecar.subject_isolated.jpg").path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("Both.JPG.aisidecar.whole_image.jpg").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("Both.JPG.aisidecar.subject_isolated.jpg").path))
     }
 
     func testSubjectModeNoForegroundRecordsFailureWithoutOutput() async throws {
@@ -177,7 +200,9 @@ final class ModelInputExportPipelineTests: XCTestCase {
         XCTAssertEqual(manifest.records.first?.errors.first?.code, .subjectIsolationNoForeground)
         XCTAssertTrue(manifest.records.first?.outputs.isEmpty == true)
         XCTAssertEqual(manifest.summary.failed, 1)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: export.appendingPathComponent("NoForeground.JPG.aisidecar.subject_isolated.jpg").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("NoForeground.JPG.aisidecar.subject_isolated.jpg").path))
     }
 
     func testExportModeDoesNotCreateXMPFiles() async throws {
@@ -190,9 +215,11 @@ final class ModelInputExportPipelineTests: XCTestCase {
         let image = try writeTestImage("NoXMP.JPG", width: 120, height: 80, in: root)
         let cache = root.appendingPathComponent("cache")
 
-        let result = try await pipeline(maskProvider: StaticForegroundMaskProvider([
-            StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
-        ])).run(
+        let result = try await pipeline(
+            maskProvider: StaticForegroundMaskProvider([
+                StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
+            ])
+        ).run(
             inputPath: image.path,
             exportDirectoryPath: export.path,
             configuration: config(
@@ -314,9 +341,41 @@ final class ModelInputExportPipelineTests: XCTestCase {
         )
 
         XCTAssertEqual(result.records.map(\.status), [.exported])
-        XCTAssertTrue(FileManager.default.fileExists(atPath: export.appendingPathComponent("A.JPG.aisidecar.whole_image.jpg").path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("A.JPG.aisidecar.whole_image.jpg").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: result.manifestPath))
-        XCTAssertEqual(try cacheContents(at: cache), [])
+        XCTAssertEqual(try cacheContents(at: cache), ["derivative-cache-index.lock"])
+    }
+
+    func testExportReleasesWorkingSetAndRestoresTinyCacheCap() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        let cache = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+            try? FileManager.default.removeItem(at: cache)
+        }
+        _ = try writeTestImage("A.JPG", in: root)
+        _ = try writeTestImage("B.JPG", in: root)
+
+        let result = try await pipeline().run(
+            inputPath: root.path,
+            exportDirectoryPath: output.path,
+            configuration: config(
+                recursive: false,
+                mode: .whole,
+                cacheDir: cache.path,
+                derivativeCacheSizeBytes: 1
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.exported, .exported])
+        XCTAssertEqual(result.records.flatMap(\.outputs).count, 2)
+        let cacheArtifacts = try FileManager.default.contentsOfDirectory(atPath: cache.path)
+            .filter { $0.hasSuffix(".jpg") || $0.hasSuffix(".tiff") }
+        XCTAssertTrue(cacheArtifacts.isEmpty)
     }
 
     func testExportModeRejectsDryRunAndDebugDerivatives() async throws {
@@ -340,7 +399,7 @@ final class ModelInputExportPipelineTests: XCTestCase {
                 mode: .whole,
                 debugDerivatives: true,
                 cacheDir: root.appendingPathComponent("debug-cache").path
-            )
+            ),
         ] {
             do {
                 _ = try await pipeline().run(
@@ -371,6 +430,7 @@ final class ModelInputExportPipelineTests: XCTestCase {
         dryRun: Bool = false,
         debugDerivatives: Bool = false,
         cacheDir: String,
+        derivativeCacheSizeBytes: Int64 = 20 * 1024 * 1024,
         clearDerivativeCacheOnStart: Bool = false,
         clearDerivativeCacheAfterSuccess: Bool = false
     ) -> ResolvedRunConfiguration {
@@ -388,7 +448,7 @@ final class ModelInputExportPipelineTests: XCTestCase {
             debugDerivatives: debugDerivatives,
             sourceIdentityPolicy: .sha256,
             derivativeCacheDir: cacheDir,
-            derivativeCacheSizeBytes: 20 * 1024 * 1024,
+            derivativeCacheSizeBytes: derivativeCacheSizeBytes,
             clearDerivativeCacheOnStart: clearDerivativeCacheOnStart,
             clearDerivativeCacheAfterSuccess: clearDerivativeCacheAfterSuccess
         )

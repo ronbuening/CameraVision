@@ -231,7 +231,8 @@ public struct NormalizationInputResolver {
 
     private func buildAssets(
         from inputs: [ResolvedRawSidecarInput]
-    ) -> (assets: [NormalizationSourceAsset], sidecars: [NormalizationSourceAISidecarRecord], warnings: [SidecarError]) {
+    ) -> (assets: [NormalizationSourceAsset], sidecars: [NormalizationSourceAISidecarRecord], warnings: [SidecarError])
+    {
         var assets: [NormalizationSourceAsset] = []
         var sidecars: [NormalizationSourceAISidecarRecord] = []
         var warnings: [SidecarError] = []
@@ -372,12 +373,28 @@ public struct NormalizationInputResolver {
             comparePaths($0.sourceRelativePath, $1.sourceRelativePath)
         }
         let grouped = Dictionary(grouping: sortedAssets) { groupKey(for: $0) }
+        // Display paths come from each group's first member in sorted order, so a
+        // group merged across symlinked spellings of one physical directory keeps
+        // a deterministic directory and target path.
+        let displayDirectories = grouped.mapValues { members in
+            displayDirectory(for: members[0])
+        }
         let keys = grouped.keys.sorted { lhs, rhs in
-            if lhs.directory == rhs.directory {
+            let lhsDirectory = displayDirectories[lhs] ?? ""
+            let rhsDirectory = displayDirectories[rhs] ?? ""
+            if lhsDirectory == rhsDirectory {
+                if lhs.basename == rhs.basename {
+                    return lhs.identityDirectory < rhs.identityDirectory
+                }
                 return lhs.basename < rhs.basename
             }
-            return lhs.directory < rhs.directory
+            return lhsDirectory < rhsDirectory
         }
+        let baseTargetPaths = Dictionary(
+            uniqueKeysWithValues: keys.map { key in
+                (key, targetRelativePath(directory: displayDirectories[key] ?? "", basename: key.basename))
+            })
+        let targetPathCounts = Dictionary(grouping: baseTargetPaths.values, by: { $0 }).mapValues(\.count)
 
         var groupIDByAsset: [String: String] = [:]
         let groups = keys.enumerated().map { index, key in
@@ -389,10 +406,20 @@ public struct NormalizationInputResolver {
             let selected = members.filter { isSelected($0, pairScope: pairScope) }
             let selectedIDs = selected.map(\.assetID)
             let skippedIDs = members.map(\.assetID).filter { !selectedIDs.contains($0) }
-            let targetRelativePath = targetRelativePath(directory: key.directory, basename: key.basename)
+            let groupDirectory = displayDirectories[key] ?? ""
+            let baseTargetPath =
+                baseTargetPaths[key]
+                ?? targetRelativePath(
+                    directory: groupDirectory,
+                    basename: key.basename
+                )
+            let targetRelativePath =
+                targetPathCounts[baseTargetPath, default: 0] > 1
+                ? disambiguatedTargetRelativePath(for: key, directory: groupDirectory)
+                : baseTargetPath
             return NormalizationSourceGroup(
                 groupID: groupID,
-                groupDirectory: key.directory,
+                groupDirectory: groupDirectory,
                 groupBasename: key.basename,
                 targetRelativePath: targetRelativePath,
                 memberAssetIDs: members.map(\.assetID),
@@ -412,9 +439,26 @@ public struct NormalizationInputResolver {
     private func groupKey(for asset: NormalizationSourceAsset) -> NormalizationGroupBuildKey {
         let components = asset.sourceRelativePath.split(separator: "/").map(String.init)
         let fileName = components.last ?? asset.fileName
-        let directory = Array(components.dropLast()).joined(separator: "/")
+        // Resolve symlinks so identity is physical: a linked and a real path to
+        // the same directory must share one group (and one XMP target), never two.
+        let identityDirectory =
+            asset.sourcePath.map {
+                URL(fileURLWithPath: $0)
+                    .standardizedFileURL
+                    .resolvingSymlinksInPath()
+                    .deletingLastPathComponent()
+                    .path
+            } ?? displayDirectory(for: asset)
         let basename = (fileName as NSString).deletingPathExtension
-        return NormalizationGroupBuildKey(directory: directory, basename: basename)
+        return NormalizationGroupBuildKey(
+            identityDirectory: identityDirectory,
+            basename: basename
+        )
+    }
+
+    private func displayDirectory(for asset: NormalizationSourceAsset) -> String {
+        let components = asset.sourceRelativePath.split(separator: "/").map(String.init)
+        return Array(components.dropLast()).joined(separator: "/")
     }
 
     private func isSelected(_ asset: NormalizationSourceAsset, pairScope: XMPPairScope) -> Bool {
@@ -430,6 +474,15 @@ public struct NormalizationInputResolver {
 
     private func targetRelativePath(directory: String, basename: String) -> String {
         let fileName = "\(basename).xmp"
+        return directory.isEmpty ? fileName : "\(directory)/\(fileName)"
+    }
+
+    private func disambiguatedTargetRelativePath(
+        for key: NormalizationGroupBuildKey,
+        directory: String
+    ) -> String {
+        let identitySuffix = AssetAffinityInputBuilder.stableSessionHash(key.identityDirectory).prefix(12)
+        let fileName = "\(key.basename)-\(identitySuffix).xmp"
         return directory.isEmpty ? fileName : "\(directory)/\(fileName)"
     }
 
@@ -462,13 +515,16 @@ public struct NormalizationInputResolver {
                 continue
             }
             let url = resolvedFileListURL(trimmed, baseURL: baseURL)
-            let key = url.path
+            // Dedupe on the physical path: symlinked and real spellings of one
+            // file are one entry, not two assets writing the same sidecar.
+            let key = url.resolvingSymlinksInPath().path
             guard seen.insert(key).inserted else {
                 warnings.append(
                     SidecarError(
                         code: .validationFailed,
                         stage: .scan,
-                        message: "Duplicate file-list entry ignored at \(listURL.lastPathComponent):\(lineOffset + 1): \(trimmed)",
+                        message:
+                            "Duplicate file-list entry ignored at \(listURL.lastPathComponent):\(lineOffset + 1): \(trimmed)",
                         recoverable: true
                     )
                 )
@@ -536,7 +592,7 @@ public struct NormalizationInputResolver {
             rootPath += "/"
         }
         guard path.hasPrefix(rootPath) else {
-            return url.lastPathComponent
+            return path
         }
         return String(path.dropFirst(rootPath.count))
     }
@@ -572,7 +628,7 @@ private struct FileListResolvedEntry: Sendable, Equatable {
 }
 
 private struct NormalizationGroupBuildKey: Hashable, Sendable {
-    var directory: String
+    var identityDirectory: String
     var basename: String
 }
 

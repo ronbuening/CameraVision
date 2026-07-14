@@ -311,6 +311,7 @@ public struct ModelInputExportPipeline {
             fileManager: fileManager,
             now: now
         )
+        defer { cache.releaseRetained() }
         if configuration.clearDerivativeCacheOnStart {
             try cache.clear()
         }
@@ -374,6 +375,7 @@ public struct ModelInputExportPipeline {
                 profile: profile,
                 renderer: renderer,
                 subjectIsolationService: subjectIsolationService,
+                cache: cache,
                 sourceStartedAt: sourceStartedAt
             )
             records.append(record)
@@ -405,7 +407,8 @@ public struct ModelInputExportPipeline {
         try writeManifest(manifest, to: manifestPath)
 
         if configuration.clearDerivativeCacheAfterSuccess,
-           completedSuccessfully(records: records, interrupted: interrupted) {
+            completedSuccessfully(records: records, interrupted: interrupted)
+        {
             try cache.clear()
         }
 
@@ -424,11 +427,15 @@ public struct ModelInputExportPipeline {
         profile: ModelInputProfile,
         renderer: ImageRenderer,
         subjectIsolationService: SubjectIsolationService,
+        cache: DerivativeCache,
         sourceStartedAt: Date
     ) async -> ModelInputExportRecord {
+        var leasedDerivatives: [DerivativeRecord] = []
+        defer { cache.release(leasedDerivatives) }
         do {
             if configuration.existing == .fail,
-               let existingOutput = entry.plannedOutputs.first(where: { fileManager.fileExists(atPath: $0.path) }) {
+                let existingOutput = entry.plannedOutputs.first(where: { fileManager.fileExists(atPath: $0.path) })
+            {
                 return failedRecord(
                     source: entry.source,
                     startedAt: sourceStartedAt,
@@ -452,6 +459,7 @@ public struct ModelInputExportPipeline {
                     profile: profile,
                     debugDerivatives: false
                 )
+                leasedDerivatives.append(rendered.wholeImage)
                 if let wholeOutput = entry.plannedOutput(for: .wholeImage) {
                     outputs.append(
                         try exportArtifact(
@@ -470,6 +478,7 @@ public struct ModelInputExportPipeline {
                         profile: profile,
                         debugDerivatives: false
                     )
+                    leasedDerivatives.append(whole)
                     outputs.append(
                         try exportArtifact(
                             whole,
@@ -487,15 +496,17 @@ public struct ModelInputExportPipeline {
                         configuration: configuration
                     )
                     subjectIsolation = isolation.record
-                    if let derivative = isolation.derivative,
-                       let subjectOutput = entry.plannedOutput(for: .subjectIsolated) {
-                        outputs.append(
-                            try exportArtifact(
-                                derivative,
-                                to: subjectOutput,
-                                existing: configuration.existing
+                    if let derivative = isolation.derivative {
+                        leasedDerivatives.append(derivative)
+                        if let subjectOutput = entry.plannedOutput(for: .subjectIsolated) {
+                            outputs.append(
+                                try exportArtifact(
+                                    derivative,
+                                    to: subjectOutput,
+                                    existing: configuration.existing
+                                )
                             )
-                        )
+                        }
                     }
                     if let error = isolation.error {
                         errors.append(error)
@@ -769,7 +780,8 @@ enum ModelInputExportNaming {
                 .flatMap { $0.value.map(\.0.path) }
         )
 
-        let collisions = grouped
+        let collisions =
+            grouped
             .filter { collidingKeys.contains($0.key) }
             .map { _, pairs in
                 let sources = pairs.map(\.0).sorted { $0.relativePath < $1.relativePath }
@@ -780,14 +792,16 @@ enum ModelInputExportNaming {
                     error: SidecarError(
                         code: .sidecarCollision,
                         stage: .write,
-                        message: "Multiple sources resolve to the same model-input export path \(outputPath): \(relativePaths)",
+                        message:
+                            "Multiple sources resolve to the same model-input export path \(outputPath): \(relativePaths)",
                         recoverable: true
                     )
                 )
             }
 
         return ModelInputExportPlan(
-            entries: provisional
+            entries:
+                provisional
                 .filter { !collidingSourcePaths.contains($0.source.path) }
                 .sorted { $0.source.relativePath < $1.source.relativePath },
             collisions: collisions
@@ -851,8 +865,8 @@ enum ModelInputExportNaming {
     }
 }
 
-private extension DerivativeFormat {
-    var fileExtension: String {
+extension DerivativeFormat {
+    fileprivate var fileExtension: String {
         switch self {
         case .jpeg:
             return "jpg"

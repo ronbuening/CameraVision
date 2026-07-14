@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class FileListInputResolverTests: XCTestCase {
@@ -54,6 +55,137 @@ final class FileListInputResolverTests: XCTestCase {
             Set(batch.sourceAssets.map(\.affinityInputs.sameBaseNameGroupID)),
             Set(["group-000001"])
         )
+    }
+
+    func testAbsoluteFileListEntriesOutsideListDirectoryStayInSeparateGroups() throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let firstDirectory = root.appendingPathComponent("first-shoot")
+        let secondDirectory = root.appendingPathComponent("second-shoot")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let firstImage = try writeTestImage("IMG_0001.JPG", in: firstDirectory)
+        let secondImage = try writeTestImage("IMG_0001.JPG", in: secondDirectory)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(firstImage.path)\n\(secondImage.path)\n".write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.sameBaseNameGroups.count, 2)
+        XCTAssertEqual(Set(batch.sameBaseNameGroups.map(\.targetRelativePath)).count, 2)
+        XCTAssertEqual(batch.sameBaseNameGroups.map(\.memberAssetIDs.count), [1, 1])
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.outputDir = root.appendingPathComponent("output").path
+        let plans = try NormalizedXMPChangePlanner().plan(
+            input: batch,
+            decisions: [],
+            candidateSkips: [],
+            configuration: configuration
+        )
+        XCTAssertEqual(Set(plans.changePlan.targetPlans.map(\.targetXMPPath)).count, 2)
+    }
+
+    func testAbsoluteRawAndJPEGEntriesInSameExternalDirectoryStillPair() throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let imageDirectory = root.appendingPathComponent("external-shoot")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let raw = try writeTestImage("Bird.NEF", in: imageDirectory)
+        let jpeg = try writeTestImage("Bird.JPG", in: imageDirectory)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(raw.path)\n\(jpeg.path)\n".write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.sameBaseNameGroups.count, 1)
+        XCTAssertEqual(batch.sameBaseNameGroups[0].memberAssetIDs.count, 2)
+        XCTAssertEqual(batch.sameBaseNameGroups[0].selectedAssetIDs.count, 2)
+        XCTAssertTrue(batch.sameBaseNameGroups[0].targetRelativePath.hasSuffix("/external-shoot/Bird.xmp"))
+    }
+
+    func testAbsoluteEntryDoesNotPairWithMirroredRelativePath() throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let externalDirectory = try temporaryDirectory().appendingPathComponent("shoot")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let externalImage = try writeTestImage("Bird.JPG", in: externalDirectory)
+        let mirroredRelativePath = externalImage.path.drop(while: { $0 == "/" })
+            .replacingOccurrences(of: "Bird.JPG", with: "Bird.NEF")
+        _ = try writeTestImage(mirroredRelativePath, in: listDirectory)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(mirroredRelativePath)\n\(externalImage.path)\n"
+            .write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.sameBaseNameGroups.count, 2)
+        XCTAssertEqual(Set(batch.sameBaseNameGroups.map(\.targetRelativePath)).count, 2)
+        XCTAssertEqual(batch.sameBaseNameGroups.map(\.memberAssetIDs.count), [1, 1])
+
+        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
+        configuration.outputDir = root.appendingPathComponent("mirrored-output").path
+        let plans = try NormalizedXMPChangePlanner().plan(
+            input: batch,
+            decisions: [],
+            candidateSkips: [],
+            configuration: configuration
+        )
+        XCTAssertEqual(Set(plans.changePlan.targetPlans.map(\.targetXMPPath)).count, 2)
+    }
+
+    func testSymlinkedAndRealPathsToOneFileDedupeToOneAsset() throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let realDirectory = root.appendingPathComponent("real")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let image = try writeTestImage("IMG_0001.JPG", in: realDirectory)
+        let linkDirectory = root.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(at: linkDirectory, withDestinationURL: realDirectory)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(image.path)\n\(linkDirectory.appendingPathComponent("IMG_0001.JPG").path)\n"
+            .write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.sourceAssets.count, 1)
+        XCTAssertEqual(batch.sameBaseNameGroups.count, 1)
+        XCTAssertEqual(batch.warnings.count, 1)
+        XCTAssertTrue(batch.warnings[0].message.contains("Duplicate file-list entry ignored"))
+    }
+
+    func testSymlinkedDirectoryEntryPairsWithRealPathEntry() throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let realDirectory = root.appendingPathComponent("real")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let raw = try writeTestImage("Bird.NEF", in: realDirectory)
+        _ = try writeTestImage("Bird.JPG", in: realDirectory)
+        let linkDirectory = root.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(at: linkDirectory, withDestinationURL: realDirectory)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(raw.path)\n\(linkDirectory.appendingPathComponent("Bird.JPG").path)\n"
+            .write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.sourceAssets.count, 2)
+        XCTAssertEqual(batch.sameBaseNameGroups.count, 1)
+        XCTAssertEqual(batch.sameBaseNameGroups[0].memberAssetIDs.count, 2)
     }
 
     func testFileListPersistsGPSPresenceWithoutCoordinates() throws {
