@@ -99,7 +99,6 @@ Two ways to get CupricAspect: download a prebuilt app, or build from source.
 [Releases page](https://github.com/ronbuening/CameraVision/releases):
 
 - **`CupricAspect-<version>.dmg`** — open it and drag `CupricAspect.app` to Applications.
-- `CupricAspect-<version>.zip` — the same app, for scripted installs (and future auto-updates).
 - `SHA256SUMS` — checksums for verifying your download.
 
 Beta builds are **not notarized by Apple**, so on first launch macOS warns that it

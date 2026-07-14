@@ -11,7 +11,7 @@ Audience: junior engineer or Sonnet-level coding agent. Each work item is self-c
 
 Goal shift (2026-07-14): stop distributing the beta as source-only and start shipping **downloadable, unsigned builds from GitHub Releases**, while laying the track for a second **signed/notarized stable channel** later — both visible on the same Releases page. This realizes the distribution work the packaging plan handed to roadmap F4 (`06-packaging-single-app-plan.md` status ledger: "CLI install action, CI, Sparkle auto-update — owned by roadmap F4").
 
-The build side already exists: `Scripts/build-release.sh` assembles `dist/CupricAspect.app` + a DMG, single-sources the version from `AISidecarVersion.swift`, and ad-hoc signs by default with a `--sign "Developer ID…"` path stubbed in. What is missing is (a) a tag-triggered CI workflow that publishes a GitHub Release, (b) a couple of small script additions (zip + checksums), and (c) user-facing download/Gatekeeper docs. This plan covers exactly that.
+The build side already exists: `Scripts/build-release.sh` assembles `dist/CupricAspect.app` + a DMG, single-sources the version from `AISidecarVersion.swift`, and ad-hoc signs by default with a `--sign "Developer ID…"` path stubbed in. What is missing is (a) a tag-triggered CI workflow that publishes a GitHub Release, (b) a small script addition (checksums), and (c) user-facing download/Gatekeeper docs. This plan covers exactly that.
 
 **Not in scope:** Sparkle auto-update (roadmap F4-R2), the "Install Command Line Tool" GUI action (F4-R1). The tag scheme here is deliberately Sparkle-compatible so F4-R2 slots in later without rework.
 
@@ -36,8 +36,8 @@ On Apple Silicon a binary must carry at least an ad-hoc signature to execute at 
 **D4 — Build in CI on tag push, not locally.**
 `on: push: tags: ['v*']` fires regardless of branch. CI produces a reproducible universal (arm64 + x86_64) build from a clean checkout, so Intel Macs are covered and no build-machine state leaks into the artifact. Local `build-release.sh` remains the dev/debug path; it is not the publish path.
 
-**D5 — Artifacts: DMG + zipped `.app` + `SHA256SUMS`.**
-The DMG is the drag-to-Applications installer. A zipped `.app` is added because it is the format Sparkle will consume later (F4-R2) and is friendlier for scripted installs. `SHA256SUMS` covers both. Rationale for both formats: near-zero extra cost now, avoids a packaging change when auto-update lands.
+**D5 — Artifacts: DMG + `SHA256SUMS`, nothing else.**
+The DMG is the drag-to-Applications installer; `SHA256SUMS` verifies it. No zipped `.app` — that was an earlier over-reach justified by "Sparkle needs a zip," which is false: Sparkle 2 delivers updates from a `.dmg` directly. Adding a zip later, if a concrete need appears (e.g. a scripted-install path), is a few lines in `build-release.sh`, the workflow's attestation `subject-path`, and the `gh release create` asset list — cheap and reversible. So the beta ships one artifact plus its checksum; keep the Releases page uncluttered until a second format earns its place.
 
 **D6 — Trust substitutes while unsigned: checksums + build provenance.**
 Every Release carries `SHA256SUMS`, and CI emits a **GitHub build attestation** (SLSA provenance) via `actions/attest-build-provenance`. A downloader can run `gh attestation verify` to confirm the artifact was produced by this repo's CI from a specific commit — a partial, verifiable trust signal that stands in for Apple notarization during the beta. This is defense-in-depth, not a Gatekeeper bypass (it does not remove the quarantine prompt).
@@ -50,7 +50,7 @@ Because D1 makes the tag the channel gate, you can either (a) keep a long-lived 
 
 ## 2. The user download experience (the Gatekeeper reality)
 
-This is the whole cost of the unsigned beta, and it is documented, not coded around. When a user downloads the DMG/zip, macOS attaches a `com.apple.quarantine` attribute. Because the app is ad-hoc signed and **not notarized**, Gatekeeper blocks the first launch with a message like *"Apple could not verify … is free of malware."* On macOS Sequoia (15) the old right-click → Open shortcut is gone. The two supported paths, both of which go in the README (W3):
+This is the whole cost of the unsigned beta, and it is documented, not coded around. When a user downloads the DMG, macOS attaches a `com.apple.quarantine` attribute. Because the app is ad-hoc signed and **not notarized**, Gatekeeper blocks the first launch with a message like *"Apple could not verify … is free of malware."* On macOS Sequoia (15) the old right-click → Open shortcut is gone. The two supported paths, both of which go in the README (W3):
 
 1. **GUI path** — try to open the app once, then **System Settings → Privacy & Security → scroll to the blocked-app notice → "Open Anyway."** Subsequent launches are unobstructed.
 2. **Terminal path** — `xattr -dr com.apple.quarantine /Applications/CupricAspect.app` removes the flag directly.
@@ -61,20 +61,19 @@ Users who want assurance first verify the download against the published `SHA256
 
 Order: **W1 → W2 → W3 → W4**. W5 is deferred (secret-gated, executed when/if Developer ID is adopted). Each item is independently committable with `swift test` green; docs and code commit separately (invariant 17, and repo memory "commit at breakpoints").
 
-### W1 — Extend `build-release.sh`: zip artifact, checksums, CI-universal default
+### W1 — Extend `build-release.sh`: checksums, CI-universal default
 
 **Goal.** Make the script emit everything a Release needs, so `release.yml` is a thin caller.
 
 **Location.** `Scripts/build-release.sh`.
 
 **Change.**
-- After the DMG step, produce a zipped `.app`: `ditto -c -k --keepParent "$APP" "$DIST/CupricAspect-$VERSION.zip"` (`ditto` preserves the bundle's signature and resource forks; `zip` does not — do not substitute).
-- Emit a `SHA256SUMS` in `dist/` covering the DMG and zip: `shasum -a 256` over the artifact basenames, written with paths relative to `dist/` so the file verifies from inside the download folder.
+- Inside the DMG step, emit a `SHA256SUMS` in `dist/` covering the DMG: `shasum -a 256` over the artifact basename, written with the path relative to `dist/` so the file verifies from inside the download folder. Gated on the DMG existing (`--no-dmg` produces no distributable, so no checksum file).
 - Add a `--for-release` convenience flag (or have `release.yml` pass the existing flags) that implies `--universal`. Keep local default as-is (host arch, fast) so dev builds stay quick. Do **not** change the default of a bare `Scripts/build-release.sh` invocation.
 - Leave the ad-hoc-vs-`--sign` logic untouched; W5 extends it.
 
 **Acceptance.**
-- `Scripts/build-release.sh --universal` yields `dist/CupricAspect-<v>.dmg`, `dist/CupricAspect-<v>.zip`, and `dist/SHA256SUMS`.
+- `Scripts/build-release.sh --universal` yields `dist/CupricAspect-<v>.dmg` and `dist/SHA256SUMS`.
 - `shasum -a 256 -c dist/SHA256SUMS` passes when run with `dist/` as the working directory.
 - `lipo -archs dist/CupricAspect.app/Contents/MacOS/CupricAspect` lists both `arm64` and `x86_64`.
 - The embedded-CLI version cross-check and plist-version check (existing lines 78–84) still pass.
@@ -92,12 +91,12 @@ Order: **W1 → W2 → W3 → W4**. W5 is deferred (secret-gated, executed when/
 - Runs on `macos-15`, checks out at SHA-pinned `actions/checkout` (same pin as `ci.yml`).
 - **Version/tag guard:** read `AISidecarVersion.current`; assert the pushed tag equals `v$VERSION`. Mismatch → fail the job. This makes the tag and the single-sourced version physically incapable of disagreeing (invariant 19 extended to the tag).
 - Build: `Scripts/build-release.sh --universal` (signing auto-selected — see W5; absent secrets → ad-hoc).
-- Attest: `actions/attest-build-provenance` (SHA-pinned) over the DMG and zip.
-- Publish with `gh release create "$TAG" dist/CupricAspect-*.dmg dist/CupricAspect-*.zip dist/SHA256SUMS --title … --notes-file … --prerelease=<derived>` where prerelease is true iff the tag contains a `-` (semver pre-release suffix). Bare `vX.Y.Z` publishes as a full release; `gh` marks it Latest by default.
+- Attest: `actions/attest-build-provenance` (SHA-pinned) over the DMG.
+- Publish with `gh release create "$TAG" dist/CupricAspect-*.dmg dist/SHA256SUMS --title … --generate-notes --prerelease` where `--prerelease` is passed iff the tag contains a `-` (semver pre-release suffix). Bare `vX.Y.Z` publishes as a full release; `gh` marks it Latest by default.
 - Release notes: point `--notes-file` at a generated file or `--generate-notes` for the auto changelog; refine later.
 
 **Acceptance.**
-- Pushing `v0.1.0-beta.2` (after the source version is bumped to match) produces a **prerelease** GitHub Release carrying the DMG, zip, and `SHA256SUMS`, with a verifiable provenance attestation.
+- Pushing `v0.1.0-beta.2` (after the source version is bumped to match) produces a **prerelease** GitHub Release carrying the DMG and `SHA256SUMS`, with a verifiable provenance attestation.
 - Pushing a tag whose version does not match `AISidecarVersion.current` fails the job before publishing.
 - The job requests no permission beyond the four listed.
 - Re-running does not silently move a tag (see checklist: bump, never re-tag).
@@ -109,7 +108,7 @@ Order: **W1 → W2 → W3 → W4**. W5 is deferred (secret-gated, executed when/
 **Location.** `README.md`, the block currently at lines ~96–113 ("During the beta, CameraVision is distributed as source…").
 
 **Change.**
-- Lead with a link to the Releases page and which asset to grab (DMG for install, zip for Sparkle/scripts later).
+- Lead with a link to the Releases page and which asset to grab (the DMG).
 - Include both Gatekeeper paths verbatim from §2 (Privacy & Security "Open Anyway"; `xattr -dr com.apple.quarantine`).
 - Include the checksum verification one-liner (`shasum -a 256 -c SHA256SUMS`) and a note on `gh attestation verify` for the security-minded.
 - Keep the "build from source" path as a secondary option, not the headline.
@@ -136,10 +135,10 @@ Order: **W1 → W2 → W3 → W4**. W5 is deferred (secret-gated, executed when/
 **Change (recorded now for completeness).**
 - Secrets: `MACOS_CERTIFICATE` (base64 p12), `MACOS_CERTIFICATE_PWD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` (app-specific password). Never in the repo.
 - Workflow imports the p12 into a throwaway keychain, then calls `build-release.sh --universal --sign "$IDENTITY"`.
-- Script, when `--sign` is present: after codesign, `xcrun notarytool submit "$DMG" --apple-id … --team-id … --password … --wait`, then `xcrun stapler staple "$DMG"` (and the `.app` before zipping). The DMG step must remain last (any file added after signing invalidates the seal — packaging plan §4).
+- Script, when `--sign` is present: after codesign, `xcrun notarytool submit "$DMG" --apple-id … --team-id … --password … --wait`, then `xcrun stapler staple "$DMG"`. The DMG step must remain last (any file added after signing invalidates the seal — packaging plan §4).
 - `release.yml` selects `--sign` iff the certificate secret is present, so the same tag flow degrades gracefully to ad-hoc when it is not.
 
-**Acceptance (when adopted).** `spctl --assess --type execute` passes on the downloaded, unzipped app; `xcrun stapler validate` passes on the DMG; a stable `vX.Y.Z` tag publishes a notarized artifact that launches on a clean machine with **no** Gatekeeper prompt.
+**Acceptance (when adopted).** `spctl --assess --type execute` passes on the app copied out of the mounted DMG; `xcrun stapler validate` passes on the DMG; a stable `vX.Y.Z` tag publishes a notarized artifact that launches on a clean machine with **no** Gatekeeper prompt.
 
 ## 4. Open maintainer decisions (STOP items)
 

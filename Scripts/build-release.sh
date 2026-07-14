@@ -105,16 +105,6 @@ else
 fi
 codesign --verify --deep "$APP"
 
-# Zipped .app: the format Sparkle will consume (roadmap F4-R2) and a
-# scripting-friendly alternative to the DMG. ditto preserves the code
-# signature and resource forks; `zip` corrupts both — do not substitute.
-# Built after the .app is fully signed and before the DMG, so a future
-# stapled build (plan 11 W5) can staple the .app first, then the DMG last.
-ZIP="$DIST/CupricAspect-$VERSION.zip"
-echo "==> $ZIP"
-rm -f "$ZIP"
-ditto -c -k --keepParent "$APP" "$ZIP"
-
 if [ "$WITH_DMG" = 1 ]; then
     DMG="$DIST/CupricAspect-$VERSION.dmg"
     echo "==> $DMG"
@@ -128,17 +118,13 @@ if [ "$WITH_DMG" = 1 ]; then
     if [ -n "$SIGN_IDENTITY" ]; then
         codesign --force --timestamp -s "$SIGN_IDENTITY" "$DMG"
     fi
-fi
 
-# SHA256SUMS over the distributable artifacts, with basenames only so that
-# `shasum -a 256 -c SHA256SUMS` verifies from inside the download folder
-# (plan 11 W1). The subshell cd keeps the recorded paths relative to dist/.
-echo "==> $DIST/SHA256SUMS"
-(
-    cd "$DIST"
-    SUM_FILES=("CupricAspect-$VERSION.zip")
-    [ "$WITH_DMG" = 1 ] && SUM_FILES+=("CupricAspect-$VERSION.dmg")
-    shasum -a 256 "${SUM_FILES[@]}" > SHA256SUMS
-)
+    # SHA256SUMS over the DMG, basename only so `shasum -a 256 -c SHA256SUMS`
+    # verifies from inside the download folder (plan 11 W1). The DMG is the
+    # sole distributable; a zipped .app can be re-added here if Sparkle
+    # auto-update (roadmap F4-R2) ever needs one.
+    echo "==> $DIST/SHA256SUMS"
+    ( cd "$DIST" && shasum -a 256 "CupricAspect-$VERSION.dmg" > SHA256SUMS )
+fi
 
 echo "PASS: $APP assembled (version $VERSION$([ "$WITH_CLI" = 1 ] && echo ", CLI embedded"))"

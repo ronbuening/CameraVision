@@ -2,7 +2,7 @@ name: Release
 
 # Tag-driven release (plan agent_docs/11-release-channels-and-distribution-plan.md,
 # roadmap F4-R3). A push of a `v*` tag builds a universal CupricAspect.app,
-# packages the DMG + zip + SHA256SUMS, attests build provenance, and publishes
+# packages the DMG + SHA256SUMS, attests build provenance, and publishes
 # a GitHub Release. The tag NAME is the channel gate: a semver pre-release
 # suffix (e.g. v0.1.0-beta.2) publishes as a prerelease; a bare vX.Y.Z
 # publishes as a full release ("Latest").
@@ -85,9 +85,7 @@ jobs:
         # in for Apple notarization during the beta.
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be
         with:
-          subject-path: |
-            dist/CupricAspect-${{ env.VERSION }}.dmg
-            dist/CupricAspect-${{ env.VERSION }}.zip
+          subject-path: dist/CupricAspect-${{ env.VERSION }}.dmg
 
       - name: Publish GitHub Release
         # First-party gh CLI (preinstalled) rather than a marketplace action,
@@ -106,7 +104,6 @@ jobs:
           fi
           gh release create "$TAG" \
             "dist/CupricAspect-${VERSION}.dmg" \
-            "dist/CupricAspect-${VERSION}.zip" \
             "dist/SHA256SUMS" \
             --title "CupricAspect ${VERSION}" \
             --generate-notes \

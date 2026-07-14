@@ -23,7 +23,7 @@ The branch you tag from does not change the channel — the tag name does. (Bran
 2. **Tests green locally.** `swift test` — 0 failures. If XCTest is missing, prefix with `DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer` (same toolchain as CI).
 3. **Bump the version — single source.** Edit `Sources/AISidecarCore/Support/AISidecarVersion.swift` so `current` equals the tag minus its leading `v` (tag `v0.1.0-beta.2` → `current = "0.1.0-beta.2"`). Nothing else carries a version number; the About card, `aisidecar --version`, and `CFBundleShortVersionString` all derive from this (packaging plan §6 / invariant 19). Commit this bump on its own.
 4. **Changelog / release notes.** Note what changed since the last tag; this becomes the Release body.
-5. **Local build sanity (optional but recommended).** `Scripts/build-release.sh --universal` and confirm `dist/` contains the DMG, zip, and `SHA256SUMS`, and that `shasum -a 256 -c dist/SHA256SUMS` passes from inside `dist/`.
+5. **Local build sanity (optional but recommended).** `Scripts/build-release.sh --universal` and confirm `dist/` contains the DMG and `SHA256SUMS`, and that `shasum -a 256 -c dist/SHA256SUMS` passes from inside `dist/`.
 
 ## Cutting the tag
 
@@ -37,8 +37,8 @@ git push origin v0.1.0-beta.2
 The push triggers `release.yml`, which:
 
 - asserts the tag equals `v$AISidecarVersion.current` (mismatch fails the build — this is why step 3 above matters);
-- builds a universal (arm64 + x86_64) `.app`, DMG, zip, and `SHA256SUMS` via `Scripts/build-release.sh --universal`;
-- emits a build-provenance attestation over the DMG and zip;
+- builds a universal (arm64 + x86_64) `.app`, DMG, and `SHA256SUMS` via `Scripts/build-release.sh --universal`;
+- emits a build-provenance attestation over the DMG;
 - creates the GitHub Release, marking it **prerelease** iff the tag has a pre-release suffix, and attaches all three artifacts.
 
 ## After CI publishes — smoke test on a clean profile
@@ -68,6 +68,6 @@ This section activates plan W5. Until Developer ID is adopted, skip it entirely.
 
 - One-time: create a **Developer ID Application** certificate; export as p12; store CI secrets `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PWD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` (app-specific password). Never commit any of these.
 - With the certificate secret present, `release.yml` builds with `--sign "$IDENTITY"`; the script codesigns inside-out with hardened runtime, `xcrun notarytool submit --wait`, then `xcrun stapler staple` (DMG last — any file added after signing invalidates the seal).
-- Stable smoke test replaces step 4 above: there should be **no** Gatekeeper prompt. Verify with `spctl --assess --type execute` on the unzipped app and `xcrun stapler validate` on the DMG.
+- Stable smoke test replaces step 4 above: there should be **no** Gatekeeper prompt. Verify with `spctl --assess --type execute` on the app copied out of the mounted DMG and `xcrun stapler validate` on the DMG.
 
 Full runbook: `agent_docs/06-packaging-single-app-plan.md` §4.
