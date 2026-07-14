@@ -26,8 +26,12 @@ while [ $# -gt 0 ]; do
         --no-cli) WITH_CLI=0 ;;
         --no-dmg) WITH_DMG=0 ;;
         --universal) UNIVERSAL=1 ;;
+        # Convenience for the release workflow (WI plan 11 W1): a release build
+        # is always universal so Intel Macs are covered. Local bare invocations
+        # stay host-arch/fast.
+        --for-release) UNIVERSAL=1 ;;
         --sign) SIGN_IDENTITY="$2"; shift ;;
-        *) echo "usage: $0 [--no-cli] [--no-dmg] [--universal] [--sign identity]" >&2; exit 2 ;;
+        *) echo "usage: $0 [--no-cli] [--no-dmg] [--universal] [--for-release] [--sign identity]" >&2; exit 2 ;;
     esac
     shift
 done
@@ -101,6 +105,16 @@ else
 fi
 codesign --verify --deep "$APP"
 
+# Zipped .app: the format Sparkle will consume (roadmap F4-R2) and a
+# scripting-friendly alternative to the DMG. ditto preserves the code
+# signature and resource forks; `zip` corrupts both — do not substitute.
+# Built after the .app is fully signed and before the DMG, so a future
+# stapled build (plan 11 W5) can staple the .app first, then the DMG last.
+ZIP="$DIST/CupricAspect-$VERSION.zip"
+echo "==> $ZIP"
+rm -f "$ZIP"
+ditto -c -k --keepParent "$APP" "$ZIP"
+
 if [ "$WITH_DMG" = 1 ]; then
     DMG="$DIST/CupricAspect-$VERSION.dmg"
     echo "==> $DMG"
@@ -115,5 +129,16 @@ if [ "$WITH_DMG" = 1 ]; then
         codesign --force --timestamp -s "$SIGN_IDENTITY" "$DMG"
     fi
 fi
+
+# SHA256SUMS over the distributable artifacts, with basenames only so that
+# `shasum -a 256 -c SHA256SUMS` verifies from inside the download folder
+# (plan 11 W1). The subshell cd keeps the recorded paths relative to dist/.
+echo "==> $DIST/SHA256SUMS"
+(
+    cd "$DIST"
+    SUM_FILES=("CupricAspect-$VERSION.zip")
+    [ "$WITH_DMG" = 1 ] && SUM_FILES+=("CupricAspect-$VERSION.dmg")
+    shasum -a 256 "${SUM_FILES[@]}" > SHA256SUMS
+)
 
 echo "PASS: $APP assembled (version $VERSION$([ "$WITH_CLI" = 1 ] && echo ", CLI embedded"))"
