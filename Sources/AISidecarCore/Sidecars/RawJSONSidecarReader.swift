@@ -57,7 +57,7 @@ public struct RawJSONSidecarReader {
             let slashIndex = schemaVersion.firstIndex(of: "/"),
             schemaVersion[..<slashIndex] == supportedSchemaName
         else {
-            throw validationError("JSON file is not a Phase 1 raw sidecar: \(schemaVersion)", recoverable: true)
+            throw validationError("JSON file is not a raw sidecar: \(schemaVersion)", recoverable: true)
         }
 
         let version = schemaVersion[schemaVersion.index(after: slashIndex)...]
