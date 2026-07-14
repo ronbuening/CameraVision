@@ -5,14 +5,14 @@ import AISidecarCore
 struct NormalizeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "normalize",
-        abstract: "Build Phase 3 normalized metadata decisions for a batch.",
+        abstract: "Build normalized metadata decisions for a batch.",
         discussion: BatchExitHelp.discussion
     )
 
     @Argument(help: "Image file or folder to analyze before normalization.")
     var inputPath: String?
 
-    @Option(name: .customLong("from-json"), help: "Phase 1 .ai.json sidecar file or folder to normalize.")
+    @Option(name: .customLong("from-json"), help: ".ai.json sidecar file or folder to normalize.")
     var fromJSON: String?
 
     @Option(name: .customLong("file-list"), help: "UTF-8 newline-delimited source image list.")
@@ -108,7 +108,7 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Option(help: "Minimum candidate confidence to normalize: low, medium, or high.")
     var minConfidence: XMPMinimumConfidence?
 
-    @Flag(help: "Allow Phase 2 fallback specific tags when normalization policy permits fallback.")
+    @Flag(help: "Allow fallback specific tags when normalization policy permits fallback.")
     var allowSpecificTags = false
 
     @Option(help: "Same-base-name pair scope: union, raw-only, or jpeg-only.")

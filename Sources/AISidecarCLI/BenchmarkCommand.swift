@@ -5,7 +5,7 @@ import AISidecarCore
 struct BenchmarkCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "benchmark",
-        abstract: "Run Phase 1 Milestone 9 benchmark specs."
+        abstract: "Run benchmark specs."
     )
 
     @Option(help: "Sample manifest path.")
