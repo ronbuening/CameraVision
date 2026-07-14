@@ -26,8 +26,12 @@ while [ $# -gt 0 ]; do
         --no-cli) WITH_CLI=0 ;;
         --no-dmg) WITH_DMG=0 ;;
         --universal) UNIVERSAL=1 ;;
+        # Convenience for the release workflow (WI plan 11 W1): a release build
+        # is always universal so Intel Macs are covered. Local bare invocations
+        # stay host-arch/fast.
+        --for-release) UNIVERSAL=1 ;;
         --sign) SIGN_IDENTITY="$2"; shift ;;
-        *) echo "usage: $0 [--no-cli] [--no-dmg] [--universal] [--sign identity]" >&2; exit 2 ;;
+        *) echo "usage: $0 [--no-cli] [--no-dmg] [--universal] [--for-release] [--sign identity]" >&2; exit 2 ;;
     esac
     shift
 done
@@ -114,6 +118,13 @@ if [ "$WITH_DMG" = 1 ]; then
     if [ -n "$SIGN_IDENTITY" ]; then
         codesign --force --timestamp -s "$SIGN_IDENTITY" "$DMG"
     fi
+
+    # SHA256SUMS over the DMG, basename only so `shasum -a 256 -c SHA256SUMS`
+    # verifies from inside the download folder (plan 11 W1). The DMG is the
+    # sole distributable; a zipped .app can be re-added here if Sparkle
+    # auto-update (roadmap F4-R2) ever needs one.
+    echo "==> $DIST/SHA256SUMS"
+    ( cd "$DIST" && shasum -a 256 "CupricAspect-$VERSION.dmg" > SHA256SUMS )
 fi
 
 echo "PASS: $APP assembled (version $VERSION$([ "$WITH_CLI" = 1 ] && echo ", CLI embedded"))"

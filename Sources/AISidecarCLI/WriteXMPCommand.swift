@@ -5,14 +5,14 @@ import AISidecarCore
 struct WriteXMPCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "write-xmp",
-        abstract: "Export accepted Phase 1 sidecar candidates to XMP sidecars.",
+        abstract: "Export accepted sidecar candidates to XMP sidecars.",
         discussion: BatchExitHelp.discussion
     )
 
     @Argument(help: "Image file or folder to analyze before writing XMP.")
     var inputPath: String?
 
-    @Option(name: .customLong("from-json"), help: "Phase 1 .ai.json sidecar file or folder to export.")
+    @Option(name: .customLong("from-json"), help: ".ai.json sidecar file or folder to export.")
     var fromJSON: String?
 
     @Option(help: "Map raw sidecar source.relative_path values back to this image root.")

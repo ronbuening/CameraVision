@@ -91,25 +91,51 @@ or in **Settings** (app).
 ollama pull gemma4:26b-a4b-it-qat
 ```
 
-### 3. Build CameraVision
+### 3. Install CameraVision
 
-During the beta, CameraVision is distributed as source. Clone the repo, then run the
-app directly:
+Two ways to get CupricAspect: download a prebuilt app, or build from source.
+
+**Download (recommended for the beta).** Grab the latest build from the
+[Releases page](https://github.com/ronbuening/CameraVision/releases):
+
+- **`CupricAspect-<version>.dmg`** — open it and drag `CupricAspect.app` to Applications.
+- `SHA256SUMS` — checksums for verifying your download.
+
+Beta builds are **not notarized by Apple**, so on first launch macOS warns that it
+"could not verify" the app. This is expected. Clear it once, either way:
+
+- open **System Settings → Privacy & Security**, scroll to the note that CupricAspect
+  was blocked, and click **Open Anyway**; or
+- run `xattr -dr com.apple.quarantine /Applications/CupricAspect.app`.
+
+After that the app launches normally. (Once a signed, notarized release channel
+exists, that channel will not show this prompt at all.)
+
+**Verify your download (optional).** From the folder holding the downloaded files:
+
+```bash
+shasum -a 256 -c SHA256SUMS
+```
+
+Every release is also built by GitHub Actions with a provenance attestation. With the
+GitHub CLI you can confirm an artifact came from this repo's CI:
+
+```bash
+gh attestation verify CupricAspect-<version>.dmg --repo ronbuening/CameraVision
+```
+
+**Build from source.** Prefer to run from source? Clone the repo and run the app directly:
 
 ```bash
 swift run CupricAspect
 ```
 
-To install it as a normal `.app`, produce a packaged build and drag it to
-Applications:
+Or produce your own packaged `.app` + DMG in `dist/` (a local, untracked folder):
 
 ```bash
 Scripts/build-release.sh
 ```
 
-The release script writes `CupricAspect.app` and a DMG into `dist/` (a local,
-untracked folder). During the beta the build is not yet Developer ID–signed, so on
-first launch you may need to allow it in **System Settings → Privacy & Security**.
 See [Building From Source](#building-from-source) for the full command set.
 
 ---

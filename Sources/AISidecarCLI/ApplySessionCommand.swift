@@ -5,7 +5,7 @@ import AISidecarCore
 struct ApplySessionCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "apply-session",
-        abstract: "Apply a frozen Phase 3 normalization session without model runs.",
+        abstract: "Apply a frozen normalization session without model runs.",
         discussion: BatchExitHelp.discussion
     )
 

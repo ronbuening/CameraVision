@@ -1,0 +1,110 @@
+name: Release
+
+# Tag-driven release (plan agent_docs/11-release-channels-and-distribution-plan.md,
+# roadmap F4-R3). A push of a `v*` tag builds a universal CupricAspect.app,
+# packages the DMG + SHA256SUMS, attests build provenance, and publishes
+# a GitHub Release. The tag NAME is the channel gate: a semver pre-release
+# suffix (e.g. v0.1.0-beta.2) publishes as a prerelease; a bare vX.Y.Z
+# publishes as a full release ("Latest").
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Least privilege for what publishing needs, nothing more:
+#   contents:     create the Release and upload assets
+#   id-token:     OIDC token for the provenance attestation
+#   attestations: write the build-provenance attestation
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Same toolchain pin as ci.yml — keep these two in lockstep. If ci.yml moves
+  # to a new Xcode, move this the same day so releases build on the toolchain
+  # the suite is verified against.
+  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+
+jobs:
+  release:
+    name: Build and publish (macOS)
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2, pinned to a commit SHA (matches ci.yml).
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Verify pinned toolchain
+        run: |
+          if [ ! -d "$DEVELOPER_DIR" ]; then
+            echo "::error::Pinned Xcode not found at $DEVELOPER_DIR."
+            echo "Installed Xcodes on this runner:"
+            ls -d /Applications/Xcode*.app || true
+            echo "Update DEVELOPER_DIR in .github/workflows/release.yml (and ci.yml) to one of the above."
+            exit 1
+          fi
+          swift --version
+          xcodebuild -version
+
+      - name: Verify tag matches the single-sourced version
+        # Extends invariant 19 (one version number for everything) to the tag:
+        # the pushed tag MUST equal v$AISidecarVersion.current. This makes a
+        # mistagged release physically impossible to publish.
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="$(sed -n 's/.*static let current = "\(.*\)".*/\1/p' \
+            Sources/AISidecarCore/Support/AISidecarVersion.swift)"
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not read AISidecarVersion.current"
+            exit 1
+          fi
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::Tag '$TAG' does not match source version 'v$VERSION'. Bump AISidecarVersion.swift or fix the tag."
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build release artifacts (universal)
+        # --for-release implies --universal (arm64 + x86_64). No Developer ID
+        # secret is present today, so build-release.sh ad-hoc signs — the beta
+        # ships unsigned/not-notarized. When Developer ID is adopted (plan 11
+        # W5), the cert import + `--sign "$IDENTITY"` slot in immediately
+        # above this step, secret-gated, with no other change here.
+        run: Scripts/build-release.sh --for-release
+
+      - name: Attest build provenance
+        # actions/attest-build-provenance v2, SHA-pinned (annotated tag v2 ->
+        # commit e8998f9). Produces a verifiable SLSA provenance statement so a
+        # downloader can run `gh attestation verify <file> --repo <owner>/<repo>`
+        # even while the artifact is unsigned — a partial trust signal standing
+        # in for Apple notarization during the beta.
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be
+        with:
+          subject-path: dist/CupricAspect-${{ env.VERSION }}.dmg
+
+      - name: Publish GitHub Release
+        # First-party gh CLI (preinstalled) rather than a marketplace action,
+        # matching the repo's supply-chain posture. Prerelease iff the tag
+        # carries a semver pre-release suffix (contains '-').
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ "$TAG" == *-* ]]; then
+            PRERELEASE="--prerelease"
+            echo "Channel: BETA (prerelease) — $TAG"
+          else
+            PRERELEASE=""
+            echo "Channel: STABLE (latest) — $TAG"
+          fi
+          gh release create "$TAG" \
+            "dist/CupricAspect-${VERSION}.dmg" \
+            "dist/SHA256SUMS" \
+            --title "CupricAspect ${VERSION}" \
+            --generate-notes \
+            $PRERELEASE
