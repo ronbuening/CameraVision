@@ -87,7 +87,7 @@ public enum NormalizationDecisionExplainer {
         case .globalBackstopPropagation:
             "propagated by batch-wide consensus"
         case .phase2Fallback:
-            "carried over as an unreviewed Phase 2 tag"
+            "carried over as an unreviewed fallback tag"
         }
     }
 
@@ -104,7 +104,7 @@ public enum NormalizationDecisionExplainer {
         case .canonicalVocabulary: "matched a vocabulary entry"
         case .observedModelTag: "model output with no vocabulary match"
         case .modelSpeciesFallback: "model species without a vocabulary hierarchy"
-        case .phase2Fallback: "Phase 2 fallback term"
+        case .phase2Fallback: "fallback term"
         case .userContextUnnormalized: "user context written without vocabulary normalization"
         case .userEdited: "keyword text edited during review"
         }

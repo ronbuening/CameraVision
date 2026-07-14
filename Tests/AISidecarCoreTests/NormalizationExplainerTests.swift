@@ -117,7 +117,7 @@ final class NormalizationExplainerTests: XCTestCase {
         let lines = NormalizationDecisionExplainer.renderLines(bird, verbose: true)
         XCTAssertTrue(lines.first?.contains("bird") == true)
         XCTAssertTrue(lines.contains { $0.contains("outcome:") })
-        XCTAssertTrue(lines.contains { $0.contains("carried over as an unreviewed Phase 2 tag") })
+        XCTAssertTrue(lines.contains { $0.contains("carried over as an unreviewed fallback tag") })
     }
 
     func testRollupCountsDistinctAssetsWhenOneAssetHasMachineAndUserContextDecisions() throws {
