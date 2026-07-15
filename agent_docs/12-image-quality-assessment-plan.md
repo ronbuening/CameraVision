@@ -103,7 +103,7 @@ These facts shape the whole Stream D/E design. Each row must be re-verified live
 |---|---|---|---|---|
 | Star rating | `xmp:Rating` (0–5) | Reads & writes; filterable | Reads & writes; filterable | **Primary channel.** The only fully standardized, symmetric field. |
 | Rejected marker | `xmp:Rating = -1` (XMP spec "rejected") | **Ignored** (flags are catalog-local) | Not supported | Opt-in only (Bridge honors it); off by default. |
-| Color label | `xmp:Label` (free text) | Reads & writes; matches text against the user's configured label set (default set: `Red`, `Yellow`, `Green`, `Blue`, `Purple`); non-matching text shows as a white/custom label | *Writes* `None/Red/Orange/Yellow/Green/Blue/Pink/Purple`; historically **reads `photoshop:Urgency` rather than `xmp:Label`** (asymmetric; newer builds reportedly prefer the label name — must verify live) | **Secondary channel.** Default label values chosen from the LR-default ∩ C1 set (`Red`, `Yellow`, `Green`, `Blue`, `Purple`); text fully configurable. `photoshop:Urgency` is explicitly out of scope V1 (§9 D-4). |
+| Color label | `xmp:Label` (free text) | Reads & writes; matches text against the user's configured label set (default set: `Red`, `Yellow`, `Green`, `Blue`, `Purple`); non-matching text shows as a white/custom label | *Writes* `None/Red/Orange/Yellow/Green/Blue/Pink/Purple`; historically **reads `photoshop:Urgency` rather than `xmp:Label`** (asymmetric; newer builds reportedly prefer the label name — must verify live) | **Secondary channel.** Default label values chosen from the LR-default ∩ C1 set (`Red`, `Yellow`, `Green`, `Blue`, `Purple`); text fully configurable. `photoshop:Urgency` ships as a companion managed scalar (D-4, resolved 2026-07-15) so Capture One label reading works regardless of its `xmp:Label` behavior; its value mapping is captured empirically before defaults ship (§6 IQ-M4 prework). |
 | Pick/Reject flag | — (none exists) | Flags are catalog-only; **never written to or read from XMP** | No flag concept (uses color tags) | **No portable flag exists.** Issue #38's "Flags (Pick, Reject)" is delivered as a *mapping convention*: reject tier → label and/or keyword and/or optional `Rating=-1`, documented as such. |
 | Keywords | `dc:subject` + `lr:hierarchicalSubject` | Full support, filterable | Full support, filterable | **Always-works channel**; already implemented by the engine. Quality tiers as hierarchical keywords are the most portable filter of all. |
 
@@ -146,7 +146,7 @@ The four attached addendum files are adopted as the substance of the v1.6.0 cont
 - **Making `quality_assessment` optional in one always-active schema** — rejected: the grammar can't enforce optional-when-configured, and the v1.4.0 conditional-species failure is the direct precedent. Opt-in is expressed by *version selection* (1.5.0 vs 1.6.0), not by optional fields.
 - **A 5-point overall enum** to feed star ratings directly — rejected: pushes a hard calibration problem into the model (where it's opaque and unfixable) instead of the grading policy (where it's configurable and replayable).
 - **Injecting the quality addendum as a runtime prompt block** (the GPS-context pattern) — rejected: the GPS block carries *data* with fixed rules; quality changes the *response schema*, which the injection mechanism cannot do. Version selection is the correct lever, and it keeps prompt+schema pairs atomic.
-- **Writing `photoshop:Urgency` for Capture One label reading** — deferred to §9 D-4: it's a third managed field in a second new namespace with an unverified value mapping. The managed-scalar mechanism (§5.6) is designed so adding it later is one enum case + tests.
+- **Writing `photoshop:Urgency` for Capture One label reading** — initially deferred; **resolved 2026-07-15 (D-4): in scope for IQ-M4** as the third managed scalar. Because its tier→value mapping is not reliably documented, the mapping is captured empirically from Capture One itself (IQ-M4 prework, §6) before default values ship.
 
 ---
 
@@ -196,18 +196,20 @@ The four attached addendum files are adopted as the substance of the v1.6.0 cont
 
 ### Stream E — XMP managed scalars + export integration (issue #39 → IQ-M4)
 
-- **FR-IQ-040** New managed scalar support in the owned engine: `xmp:Rating` and `xmp:Label` (namespace `http://ns.adobe.com/xap/1.0/`, prefix `xmp`), modeled by a new `XMPManagedScalar` enum parallel to (not shoehorned into) the bag-shaped `XMPManagedField`. Parser reads **both** storage forms (attribute on `rdf:Description`, or child element); writer updates in place preserving the existing form, and uses attribute form for new writes (the form LR/C1 emit). Multiple conflicting occurrences across descriptions → fail closed (`xmpUnsupportedRDF`), consistent with the engine's narrow posture.
+- **FR-IQ-040** New managed scalar support in the owned engine: `xmp:Rating` and `xmp:Label` (namespace `http://ns.adobe.com/xap/1.0/`, prefix `xmp`) and `photoshop:Urgency` (namespace `http://ns.adobe.com/photoshop/1.0/`, prefix `photoshop`; integer 1–8 serialized as text, written only alongside a label — its sole purpose is Capture One label reading), modeled by a new `XMPManagedScalar` enum parallel to (not shoehorned into) the bag-shaped `XMPManagedField`. Parser reads **both** storage forms (attribute on `rdf:Description`, or child element); writer updates in place preserving the existing form, and uses attribute form for new writes (the form LR/C1 emit). Multiple conflicting occurrences across descriptions → fail closed (`xmpUnsupportedRDF`), consistent with the engine's narrow posture.
 - **FR-IQ-041** `XMPUnmanagedContentFingerprint` excludes managed scalars; `algorithmVersion` bumps to `xmp-unmanaged-content-fingerprint/2.0` (comparisons are within-run, so the bump is safe). `XMPMergeValidator` gains scalar expectation checks (planned value present post-write) and scalar preservation checks (unplanned scalars unchanged pre→post).
 - **FR-IQ-042** `XMPChangePlan`/`XMPWriteRequest`/`XMPWritePreview`/`XMPWriteResult`/`XMPExportProgressRecord`/`XMPExportReport` gain additive scalar fields carrying old→new values and per-scalar action (`write`/`skip_existing`/`overwrite`). Change-plan and export-report schema ids bump `1.0` → `1.1` (additive minor; update `testSchemaIdentifierConstantsAreStable` deliberately).
-- **FR-IQ-043** Conflict policy for scalars, independent of the keyword conflict policy: default `preserve` (write only when the property is absent or equal); `overwrite` opt-in per run. A skipped conflicting write is reported with both values. Dry-run shows all of this before anything is written (GUI change-plan sheet inherits it for free).
-- **FR-IQ-044** All invariant-4 guarantees hold unchanged for scalar writes: deterministic backups, source-image SHA-256 pre/post checks, post-write readable validation, restore-on-validation-failure. The `xmp_export` stamp in contributing raw sidecars additionally records written rating/label values.
+- **FR-IQ-043** Conflict policy for scalars, independent of the keyword conflict policy, with three modes: `preserve` (default — write only when the property is absent or equal), `refresh` (like `preserve`, plus overwrite a value that exactly matches what a previous run's `xmp_export` stamp recorded as written by us — i.e., re-grade our own unchanged writes; a value changed by the user or another app is skipped and reported; a missing stamp degrades to `preserve` behavior), and `overwrite` (always, opt-in per run). Every skipped conflicting write is reported with both values. Dry-run shows all of this before anything is written (GUI change-plan sheet inherits it for free).
+- **FR-IQ-044** All invariant-4 guarantees hold unchanged for scalar writes: deterministic backups, source-image SHA-256 pre/post checks, post-write readable validation, restore-on-validation-failure. The `xmp_export` stamp in contributing raw sidecars additionally records the written rating/label/urgency values and the derived tier (this stamp is what powers `refresh`).
 - **FR-IQ-045** Quality keywords route through the **existing** keyword machinery (`PlannedKeyword` → merger → `dc:subject`/`lr:hierarchicalSubject`), pass `KeywordSafetyPolicy`, and are deterministic policy outputs (never model candidates, never normalization inputs). Root defaults to `AI Quality`.
-- **FR-IQ-046** `write-xmp` grows a quality-grading surface: `--quality-grading` master switch (default off — the command is keywords-only by default, unchanged), `--write-rating/--no-write-rating`, `--write-label/--no-write-label`, `--write-quality-keywords/--no-write-quality-keywords`, `--quality-conflicts <preserve|overwrite>`, `--quality-min-confidence <high|medium|low>`; matching `AISIDECAR_XMP_QUALITY_*` env keys and `xmp_quality_*` config keys; tier maps configurable via config file only (structured values don't belong on flags).
+- **FR-IQ-046** `write-xmp` grows a quality-grading surface: `--quality-grading` master switch (default off — the command is keywords-only by default, unchanged), `--write-rating/--no-write-rating`, `--write-label/--no-write-label`, `--write-quality-keywords/--no-write-quality-keywords`, `--write-urgency/--no-write-urgency`, `--quality-conflicts <preserve|refresh|overwrite>`, `--quality-min-confidence <high|medium|low>`; matching `AISIDECAR_XMP_QUALITY_*` env keys and `xmp_quality_*` config keys; tier maps configurable via config file only (structured values don't belong on flags).
 - **AC-IQ-E1** New-file write: rating 4 + label `Green` + `AI Quality|good` keywords produce an XMP read back by the engine's own snapshot with those values, keyword bags intact, and a stable unmanaged fingerprint for untouched content.
 - **AC-IQ-E2** Merge into a foreign XMP carrying `crs:*` develop settings, an existing user rating, and unknown namespaces: with `preserve`, the user rating survives, the skip is reported, label/keywords merge, and every unmanaged byte of content is semantically preserved (fingerprint gate green).
 - **AC-IQ-E3** With `overwrite`, the plan shows `3 → 2` before the write and the report shows it after; backup exists; a forced validation failure restores the original file.
 - **AC-IQ-E4** Attribute-form and element-form fixtures both round-trip; mixed/conflicting occurrences fail closed without writing.
 - **AC-IQ-E5** `NoXMPRegressionTests` still proves `analyze`/`assess-quality` paths write no XMP.
+- **AC-IQ-E6** `refresh` matrix: value matches our stamp → overwritten with the new grade; value differs from our stamp → skipped and reported; no stamp → behaves as `preserve`; stamp present but property absent → written.
+- **AC-IQ-E7** A label-bearing grade writes `photoshop:Urgency` per the captured map alongside `xmp:Label` (attribute/element forms and fail-closed conflicts covered like the other scalars); tiers without a label mapping write no urgency.
 
 ### Cross-cutting
 
@@ -347,6 +349,8 @@ Return only the JSON object.
 
 (~230 words — well under the ~700-word base-prompt budget; quality-only calls are the cheap path.)
 
+GPS-context injection is **suppressed** for `.qualityOnly` runs: assessments must not use external context (the addendum's own rule), so the `MODEL INPUT CONTEXT` block would be dead weight at best and a contamination vector at worst. Combined-mode runs keep the block (tagging still uses it; the quality section instructs the model not to). Add a regression test beside the existing no-GPS prompt tests.
+
 ### 5.3 Configuration plumbing (IQ-M1)
 
 Follow the `recursive` template end-to-end. Touch points, in dependency order:
@@ -425,6 +429,8 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
     public var minimumConfidence: QualityAssessmentRecord.Confidence = .medium
     public var writeRating = true
     public var writeLabel = true
+    public var writeUrgency = true                 // photoshop:Urgency companion for C1 label reading;
+                                                   // only emitted for tiers that also produce a label
     public var writeKeywords = true
     public var rejectAsMinusOne = false            // xmp:Rating = -1 instead of the map value
     public var perCriterionProblemKeywords = false // adds e.g. "AI Quality|problems|focus"
@@ -435,6 +441,9 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
     public var labelMap: [QualityTier: String] = [
         .reject: "Red", .excellent: "Green",       // other tiers: no label by default
     ]
+    /// Values 1–8. Built-in defaults are set from the IQ-M4 prework capture
+    /// (Capture One's own label→Urgency numbers); empty means "never write".
+    public var urgencyMap: [QualityTier: Int] = [:]
     public static let builtInDefaults = QualityGradingPolicy()
 }
 
@@ -442,6 +451,7 @@ public struct QualityGrade: Sendable, Equatable {
     public let tier: QualityTier
     public let rating: Int?          // nil = channel off or no map entry
     public let label: String?
+    public let urgency: Int?         // photoshop:Urgency companion to label (C1 label reading)
     public let keywords: [String]    // hierarchical paths ("AI Quality|good"); the planner
                                      // derives the flat dc:subject form by space-joining components
     public let explanation: [String] // ordered human-readable rule hits
@@ -492,6 +502,7 @@ public enum QualityTierDeriver {
             ? (tier == .reject && policy.rejectAsMinusOne ? -1 : policy.ratingMap[tier])
             : nil
         let label = policy.writeLabel ? policy.labelMap[tier] : nil
+        let urgency: Int? = (policy.writeUrgency && label != nil) ? policy.urgencyMap[tier] : nil
         var keywords: [String] = []
         if policy.writeKeywords {
             keywords.append("\(policy.keywordRoot)|\(tier.rawValue)")
@@ -502,7 +513,7 @@ public enum QualityTierDeriver {
                 }
             }
         }
-        return QualityGrade(tier: tier, rating: rating, label: label,
+        return QualityGrade(tier: tier, rating: rating, label: label, urgency: urgency,
                             keywords: keywords, explanation: explanation)
     }
 }
@@ -528,6 +539,7 @@ Do **not** widen `XMPManagedField` (its contract is bag-of-`rdf:li`; every consu
 enum XMPNamespace {
     // existing: x, rdf, dc, lr
     static let xmp = "http://ns.adobe.com/xap/1.0/"
+    static let photoshop = "http://ns.adobe.com/photoshop/1.0/"
 }
 
 /// Managed single-value XMP properties. Unlike XMPManagedField (keyword bags),
@@ -535,15 +547,27 @@ enum XMPNamespace {
 /// or as a simple child element. Reading accepts both forms; updates preserve
 /// the form found; new writes use the attribute form (what LR/C1 emit).
 enum XMPManagedScalar: CaseIterable {
-    case rating   // xmp:Rating — "-1" | "0"..."5"
-    case label    // xmp:Label — free text, app-matched
+    case rating    // xmp:Rating — "-1" | "0"..."5"
+    case label     // xmp:Label — free text, app-matched
+    case urgency   // photoshop:Urgency — "1"..."8", C1 label-read companion
 
-    var namespaceURI: String { XMPNamespace.xmp }
-    var preferredPrefix: String { "xmp" }
+    var namespaceURI: String {
+        switch self {
+        case .rating, .label: return XMPNamespace.xmp
+        case .urgency: return XMPNamespace.photoshop
+        }
+    }
+    var preferredPrefix: String {
+        switch self {
+        case .rating, .label: return "xmp"
+        case .urgency: return "photoshop"
+        }
+    }
     var localName: String {
         switch self {
         case .rating: return "Rating"
         case .label: return "Label"
+        case .urgency: return "Urgency"
         }
     }
 }
@@ -592,7 +616,7 @@ Rating values are validated at plan time (integer −1…5, serialized without s
 ```swift
 public struct PlannedScalarWrite: Codable, Sendable, Equatable {
     public enum Action: String, Codable, Sendable { case write, skipExisting = "skip_existing", overwrite }
-    public let field: String          // "xmp:Rating" | "xmp:Label"
+    public let field: String          // "xmp:Rating" | "xmp:Label" | "photoshop:Urgency"
     public let plannedValue: String
     public let existingValue: String?
     public let action: Action
@@ -600,6 +624,7 @@ public struct PlannedScalarWrite: Codable, Sendable, Equatable {
 // on XMPChangePlan:
 public var ratingWrite: PlannedScalarWrite?
 public var labelWrite: PlannedScalarWrite?
+public var urgencyWrite: PlannedScalarWrite?
 public var qualityExplanation: [String]?   // from QualityGrade.explanation
 ```
 
@@ -616,12 +641,12 @@ The `xmp_export` stamp (`RawSidecarExportStamp`) additionally records `{ "rating
 ```swift
 public struct ResolvedQualityGradingConfiguration: Codable, Sendable, Equatable {
     public var enabled: Bool                 // --quality-grading, default false
-    public var conflictPolicy: ScalarConflictPolicy  // preserve | overwrite, default preserve
+    public var conflictPolicy: ScalarConflictPolicy  // preserve | refresh | overwrite, default preserve
     public var policy: QualityGradingPolicy  // maps/gates, config-file-configurable
 }
 ```
 
-`XMPChangePlanner.plan(...)` — when grading is enabled — additionally calls `QualityAssessmentExtractor` + `QualityTierDeriver` per target, resolves conflicts against the pre-read snapshot (`preserve`: absent-or-equal → `write`/`skipExisting`; `overwrite`: always `overwrite` with old value recorded), merges quality keywords into the planned keyword lists, and attaches the explanation. Everything downstream (dry-run document, GUI change-plan sheet, reports) inherits the new data because it lives on the plan.
+`XMPChangePlanner.plan(...)` — when grading is enabled — additionally calls `QualityAssessmentExtractor` + `QualityTierDeriver` per target, resolves conflicts against the pre-read snapshot (`preserve`: absent-or-equal → `write`/`skipExisting`; `refresh`: as `preserve`, plus `overwrite` when the existing value exactly equals the value recorded in the newest `xmp_export` stamp among the contributing sidecars — a value changed by the user or another app is skipped and reported, and a missing stamp degrades to `preserve`; `overwrite`: always, with the old value recorded), merges quality keywords into the planned keyword lists, and attaches the explanation. Everything downstream (dry-run document, GUI change-plan sheet, reports) inherits the new data because it lives on the plan.
 
 `write-xmp --from-json` thus covers combined-mode sidecars out of the box; FR-IQ-023's resolver work makes it also see `.quality.ai.json` siblings. A composed `assess-quality → write-xmp` single command is deliberately **not** in scope (the two-command flow matches the analyze/write-xmp separation users already know); if demanded later, `AnalyzeAndXMPPipeline` is the template.
 
@@ -631,7 +656,7 @@ public struct ResolvedQualityGradingConfiguration: Codable, Sendable, Equatable 
 |---|---|
 | `analyze` | `--assess-quality` (combined mode) |
 | `assess-quality <input>` | new subcommand: `--mode whole\|subject\|both`, `--recursive`, `--dry-run`, `--existing skip\|overwrite\|fail`, `--output-dir`, shared model/runtime options |
-| `write-xmp` | `--quality-grading`, `--write-rating/--no-write-rating`, `--write-label/--no-write-label`, `--write-quality-keywords/--no-write-quality-keywords`, `--quality-conflicts preserve\|overwrite`, `--quality-min-confidence high\|medium\|low` |
+| `write-xmp` | `--quality-grading`, `--write-rating/--no-write-rating`, `--write-label/--no-write-label`, `--write-urgency/--no-write-urgency`, `--write-quality-keywords/--no-write-quality-keywords`, `--quality-conflicts preserve\|refresh\|overwrite`, `--quality-min-confidence high\|medium\|low` |
 | `cleanup` | recognizes `.quality.ai.json` + new batch-artifact prefixes (no new flags) |
 
 Example subcommand skeleton (follows `AnalyzeCommand` conventions exactly):
@@ -708,19 +733,20 @@ Acceptance: AC-IQ-D1..D3. Nothing user-visible yet; pure Core commit.
 
 Order inside the milestone matters; keep each step green:
 
-1. `XMPNamespace.xmp`, `XMPManagedScalar`, `XMPScalarReader`, scalar merge (§5.6.1). Unit tests: both forms, round-trip, fail-closed conflicts (AC-IQ-E4).
+0. **Prework (no code, can happen any time earlier):** capture Capture One's label→`photoshop:Urgency` mapping empirically — in C1, apply each color tag to a test image with sidecar sync on Full Sync, then read the written `xmp:Label`/`photoshop:Urgency` values from the sidecars. Record the table in `agent_docs/release-evidence/` and use it as `urgencyMap`'s `builtInDefaults` (tiers map through their label color).
+1. `XMPNamespace.xmp` + `.photoshop`, `XMPManagedScalar` (rating/label/urgency), `XMPScalarReader`, scalar merge (§5.6.1). Unit tests: both forms, round-trip, fail-closed conflicts (AC-IQ-E4, E7).
 2. Fingerprint v2 + snapshot fields + `XMPMergeValidator` scalar checks (§5.6.2); update the affected `XMPOwnedEngineTests` fixtures deliberately.
 3. Plan/preview/result/report/progress additive fields + schema-id bumps (§5.6.3); update `testSchemaIdentifierConstantsAreStable`.
 4. `ResolvedQualityGradingConfiguration` + builder + `write-xmp` flags/env/config keys; planner hookup (§5.6.4) including quality keywords through `KeywordSafetyPolicy`; export-stamp extension.
-5. End-to-end tests AC-IQ-E1..E3, E5; dry-run change-plan snapshot test showing scalar rows; conflict-policy matrix (absent/equal/different × preserve/overwrite).
+5. End-to-end tests AC-IQ-E1..E3, E5, E6; dry-run change-plan snapshot test showing scalar rows; conflict-policy matrix (absent/equal/different/stamp-match/stamp-missing × preserve/refresh/overwrite).
 6. Docs: `02-cli-xmp-sidecar-requirements-updated.md` addendum note (new managed fields under F12 rules), `architecture-map.md` Metadata row.
 
-Acceptance: AC-IQ-E1..E5.
+Acceptance: AC-IQ-E1..E7.
 
 ### IQ-M5 — Live verification and evidence — size S (manual)
 
 1. Real-model benchmark on the TestingFileSet: token deltas (`runtime_metrics.eval_count` distribution for 1.6.0 vs 1.5.0 and quality-only), repair-rate check, spot-check assessment sanity. Record under `benchmarks/`.
-2. Release-evidence run (pattern in `agent_docs/testing-and-verification.md`): write rating/label/keywords for a small set; verify in Lightroom Classic (rating filter, label filter, keyword filter; confirm label text matches the default label set) and Capture One (rating; determine empirically whether the installed C1 version reads `xmp:Label` — record the answer either way; keyword filter). Record under `agent_docs/release-evidence/`.
+2. Release-evidence run (pattern in `agent_docs/testing-and-verification.md`): write rating/label/urgency/keywords for a small set; verify in Lightroom Classic (rating filter, label filter, keyword filter; confirm label text matches the default label set; confirm the extra `photoshop:Urgency` doesn't perturb LR) and Capture One (rating; confirm color tags appear via the written urgency values; determine empirically whether the installed C1 version also reads `xmp:Label` — record the answer either way; keyword filter). Exercise a `refresh` re-grade end-to-end on real files. Record under `agent_docs/release-evidence/`.
 3. Update §2.2's matrix and user-facing docs with verified facts; revisit §9 D-4 (Urgency) with data.
 
 Acceptance: FR-IQ-052 satisfied; evidence files committed.
@@ -750,18 +776,29 @@ All offline (invariant 12). The only non-CI verification is IQ-M5's live probe/b
 
 Covered by IQ-M5 (§6). The two claims that **must not** ship in user-facing docs without evidence: "Capture One picks up the color label from our sidecars" (historically false via `xmp:Label`; verify on the current version) and token/latency cost of enabling quality by default. Everything else (LR rating/label/keyword filters, C1 rating) is expected to verify cleanly but is recorded anyway per the release-evidence pattern.
 
-## 9. Open decisions for the maintainer
+## 9. Maintainer decisions
 
-Defaults below are what the plan implements if unchallenged; none block IQ-M0–M3.
+### 9.1 Resolved 2026-07-15 (maintainer)
 
-| ID | Decision | Default in this plan | Alternatives |
+| ID | Decision | Resolution |
+|---|---|---|
+| D-1 | Star map | **Full 1–5 map**, with stars derived from the weighted rule table in §5.5.2 (overall level adjusted by strong/problem counts and confidence). |
+| D-2 | Reject representation | **Keyword + Red label**; `rejectAsMinusOne` stays available but off by default. |
+| D-3 | `refresh` conflict mode | **In scope for IQ-M4** (FR-IQ-043): overwrite only values whose current content matches what our export stamp recorded; user/app-changed values are skipped and reported. Default mode remains `preserve` (see D-6 rationale). |
+| D-4 | `photoshop:Urgency` | **In scope for IQ-M4** as the third managed scalar, written only alongside a label; tier→value mapping captured empirically from Capture One (IQ-M4 prework) before defaults ship. |
+| D-5 | Subcommand name | **`assess-quality`**. |
+| D-6 | Folding quality into the default contract | **Never fold in — quality remains permanently opt-in.** Rationale recorded: avoid any risk of touching prior work, even with safeguards. The `.tagging` contract line stays quality-free; reopening requires new acceptance criteria (invariant 17's spirit). |
+
+### 9.2 Still open (plan defaults proceed if unchallenged; none block IQ-M0–M3)
+
+| ID | Decision | Default in this plan | Notes |
 |---|---|---|---|
-| D-1 | Star map for `below_average`/`reject` (write 2★/1★ or write no rating below `neutral`?) | Write the full map (culling by `rating < 3` is the point); `preserve` conflict policy protects user values | Sparse map via config edit — already supported, just change the default |
-| D-2 | Reject representation | Keyword + Red label; `Rating=-1` off by default (LR ignores it) | Flip `rejectAsMinusOne` on for Bridge-centric workflows |
-| D-3 | `refresh` conflict mode (overwrite only values we previously wrote, using the export stamp) | Not in V1; stamp records enough to add it later | Include in IQ-M4 (+small) |
-| D-4 | `photoshop:Urgency` for C1 label reading | Out of scope V1; revisit after IQ-M5 evidence | Add as third managed scalar (mechanism supports it; needs verified value mapping + `photoshop` namespace) |
-| D-5 | Subcommand name `assess-quality` | As specified | `quality`, `assess` |
-| D-6 | Whether `.tagging` eventually advances past 1.5.0 (folding quality in permanently) | Revisit after IQ-M5 token data | — |
+| D-7 | `urgencyMap` default values and whether `writeUrgency` stays on by default | On, with values from the IQ-M4 prework capture | If the capture shows current C1 reads `xmp:Label` directly, consider flipping `writeUrgency` default off (less foreign metadata written). |
+| D-8 | `perCriterionProblemKeywords` default | Off (tier keyword only) | On gives "why" filters (`AI Quality\|problems\|focus`) at the cost of keyword-list noise. |
+| D-9 | `minimumConfidence` gate default | `medium` | `high` grades fewer images but with fewer embarrassing calls; tune after IQ-M5 sanity checks. |
+| D-10 | `assess-quality` default `--mode` | Inherit the analyze default | `whole`-only would halve cost per asset; the subject pass only adds the focus veto. |
+| D-11 | Label text for middle tiers | None (only reject→Red, excellent→Green) | Users with 5-color workflows can map all tiers in config. |
+| D-12 | IQ-M6 GUI scheduling | Deferred until GUI work is scheduled | Placement (Wizard vs Studio) follows whatever M9 establishes. |
 
 ## 10. Documentation updates shipped with this plan
 
