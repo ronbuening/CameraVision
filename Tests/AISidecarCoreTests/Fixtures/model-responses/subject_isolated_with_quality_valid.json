@@ -7,5 +7,5 @@
   "behavior_or_action": [{"term":"standing","confidence":"medium"}],
   "proposed_keywords": [{"term":"long bill","confidence":"high","evidence":"straight pointed bill is visible"}],
   "uncertainty_notes": "",
-  "quality_assessment": {"focus":"strong","exposure_and_tone":"acceptable","lighting_and_color":"acceptable","detail_and_texture":"strong","pose_expression_or_moment":"acceptable","technical_cleanliness":"acceptable","overall_subject_quality":"strong","strengths":["Fine feather detail remains visible.","The eye is sharply focused."],"concerns":[],"confidence":"high"}
+  "quality_assessment": {"focus":"strong","exposure_and_tone":"acceptable","lighting_and_color":"acceptable","detail_and_texture":"strong","pose_expression_or_moment":"unrated","technical_cleanliness":"acceptable","overall_subject_quality":"strong","strengths":["crisp feather texture"],"concerns":["slight highlight clipping on wing"],"confidence":"medium"}
 }

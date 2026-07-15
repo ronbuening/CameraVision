@@ -33,12 +33,12 @@ Update Status (`pending` / `in progress` / `done` / `blocked`) and Notes as stag
 
 | Stage | Title | Depends on | Size | Status | Notes |
 |---|---|---|---|---|---|
-| S0.1 | Response schemas v1.6.0 + quality-only v1.0.0 | — | M | done | `swift test` passed (594 tests, 2 skipped) on 2026-07-15. |
-| S0.2 | Prompts v1.6.0 + quality-only v1.0.0 | S0.1 | S | done | `swift test` passed (595 tests, 2 skipped) on 2026-07-15. |
+| S0.1 | Response schemas v1.6.0 + quality-only v1.0.0 | — | M | done | `swift test` passed (594 tests, 2 skipped) on 2026-07-15. Audit 2026-07-15: positive-path test fixtures were not the Appendix A.4 objects — realigned post-audit; subject 1.6.0 schema `title` reads "Subject Isolated" (1.5.0 hyphen dropped) — accepted, `$id` correct. |
+| S0.2 | Prompts v1.6.0 + quality-only v1.0.0 | S0.1 | S | done | `swift test` passed (595 tests, 2 skipped) on 2026-07-15. Audit 2026-07-15: B.4's neutral-matte paragraph was missing from `subject_isolated_quality_v1.0.0.txt` — restored pre-release (no pinned hash affected); v1.6.0 QUALITY ASSESSMENT sections reworded vs B.1/B.2 (bulleted QUALITY LEVELS heading, minor word swaps) — semantics preserved, accepted. |
 | S0.3 | `ModelTaskProfile` + task-aware registries | S0.1, S0.2 | S | done | `swift test` passed (596 tests, 2 skipped) on 2026-07-15. |
-| S0.4 | Wire-schema proofs + model-response fixtures | S0.3 | S | done | `swift test` passed (598 tests, 2 skipped) on 2026-07-15. |
-| S1.1 | `quality_assessment` config plumbing | S0.3 | M | done | `swift test` passed (600 tests, 2 skipped) on 2026-07-15. |
-| S1.2 | `--assess-quality` flag + pipeline selection | S1.1 | M | done | `swift test` passed (602 tests, 2 skipped) on 2026-07-15. |
+| S0.4 | Wire-schema proofs + model-response fixtures | S0.3 | S | done | `swift test` passed (598 tests, 2 skipped) on 2026-07-15. Audit 2026-07-15: fixture quality objects were not the Appendix A.4 objects and the truncated fixture was not a prefix of the valid one — both realigned post-audit (quality golden regenerated to match). |
+| S1.1 | `quality_assessment` config plumbing | S0.3 | M | done | `swift test` passed (600 tests, 2 skipped) on 2026-07-15. Audit 2026-07-15: also updated golden `phase1-both-normalized.json` (`task_profile` key, forced by the non-optional field) — outside the stage's file list, recorded here per §0 rule 7. |
+| S1.2 | `--assess-quality` flag + pipeline selection | S1.1 | M | done | `swift test` passed (602 tests, 2 skipped) on 2026-07-15. Audit 2026-07-15: also added `--assess-quality` to write-xmp (`WriteXMPCommand.swift`, `XMPExportConfiguration.swift` incl. from-json rejection) — outside the stage's file list, recorded here per §0 rule 7; S4.7 must account for the existing flag. |
 | S1.3 | Quality golden sidecar + repair coverage + docs | S1.2 | S | done | Code + documentation commits complete; `swift test` passed (604 tests, 2 skipped) on 2026-07-15. |
 | S2.1 | Quality sidecar naming, artifact names, cleanup | S0.3 | S | done | `swift test` passed (605 tests, 2 skipped) on 2026-07-15. |
 | S2.2 | `QualityAssessPipeline` + GPS suppression | S1.2, S2.1 | M | done | `swift test` passed (611 tests, 2 skipped) on 2026-07-15. |
