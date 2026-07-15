@@ -452,14 +452,14 @@ final class PromptSchemaTests: XCTestCase {
     private func wholeQualityAssessment() -> JSONValue {
         .object([
             "focus": .string("strong"),
-            "composition": .string("strong"),
+            "composition": .string("acceptable"),
             "exposure_and_tone": .string("acceptable"),
-            "lighting_and_color": .string("acceptable"),
-            "subject_background_relationship": .string("strong"),
+            "lighting_and_color": .string("strong"),
+            "subject_background_relationship": .string("acceptable"),
             "moment_or_expression": .string("unrated"),
             "technical_cleanliness": .string("acceptable"),
-            "overall_effectiveness": .string("strong"),
-            "strengths": .array([.string("The bird is sharply resolved against calm water.")]),
+            "overall_effectiveness": .string("acceptable"),
+            "strengths": .array([.string("sharp eye detail"), .string("warm directional light")]),
             "concerns": .array([]),
             "confidence": .string("high"),
         ])
@@ -471,12 +471,12 @@ final class PromptSchemaTests: XCTestCase {
             "exposure_and_tone": .string("acceptable"),
             "lighting_and_color": .string("acceptable"),
             "detail_and_texture": .string("strong"),
-            "pose_expression_or_moment": .string("acceptable"),
+            "pose_expression_or_moment": .string("unrated"),
             "technical_cleanliness": .string("acceptable"),
             "overall_subject_quality": .string("strong"),
-            "strengths": .array([.string("Fine feather detail remains visible."), .string("The eye is sharply focused.")]),
-            "concerns": .array([]),
-            "confidence": .string("high"),
+            "strengths": .array([.string("crisp feather texture")]),
+            "concerns": .array([.string("slight highlight clipping on wing")]),
+            "confidence": .string("medium"),
         ])
     }
 

@@ -771,7 +771,7 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.6.0")
         XCTAssertEqual(
             record.parsedResponseJSON?.objectValue?["quality_assessment"]?.objectValue?["overall_effectiveness"]?.stringValue,
-            "strong"
+            "acceptable"
         )
         let attempts = try XCTUnwrap(record.responseAttempts)
         XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
