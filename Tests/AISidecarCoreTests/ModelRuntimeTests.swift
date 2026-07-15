@@ -799,6 +799,46 @@ final class ModelRuntimeTests: XCTestCase {
         }
     }
 
+    func testQualityWireSchemasPreserveGrammarBounds() throws {
+        let contracts: [(ModelInputRole, ModelTaskProfile)] = [
+            (.wholeImage, .taggingWithQuality), (.subjectIsolated, .taggingWithQuality),
+            (.wholeImage, .qualityOnly), (.subjectIsolated, .qualityOnly),
+        ]
+
+        for (role, task) in contracts {
+            let wire = OllamaWireSchema.wireSchema(from: try ResponseSchemas.schema(for: role, task: task).schema)
+            let encoded = String(decoding: try JSONEncoder().encode(wire), as: UTF8.self)
+            for forbidden in ["$ref", "$defs", "pattern", "description", "$schema", "$id", "title"] {
+                XCTAssertFalse(encoded.contains("\"\(forbidden)\""), "\(role.rawValue)/\(task.rawValue) contains \(forbidden)")
+            }
+            let root = try XCTUnwrap(wire.objectValue)
+            XCTAssertTrue(try XCTUnwrap(root["required"]?.arrayValue?.compactMap(\.stringValue)).contains("quality_assessment"))
+            let assessment = try XCTUnwrap(root["properties"]?.objectValue?["quality_assessment"]?.objectValue)
+            XCTAssertEqual(assessment["additionalProperties"], .bool(false))
+            let properties = try XCTUnwrap(assessment["properties"]?.objectValue)
+            for name in ["strengths", "concerns"] {
+                let notes = try XCTUnwrap(properties[name]?.objectValue)
+                XCTAssertEqual(notes["maxItems"]?.numberValue, 2)
+                let item = try XCTUnwrap(notes["items"]?.objectValue)
+                XCTAssertEqual(item["minLength"]?.numberValue, 1)
+                XCTAssertEqual(item["maxLength"]?.numberValue, 160)
+            }
+        }
+    }
+
+    func testQualityResponseFixturesValidateAgainstTheirContracts() throws {
+        let fixtures: [(String, ModelInputRole, ModelTaskProfile)] = [
+            ("whole_image_with_quality_valid", .wholeImage, .taggingWithQuality),
+            ("subject_isolated_with_quality_valid", .subjectIsolated, .taggingWithQuality),
+            ("whole_image_quality_only_valid", .wholeImage, .qualityOnly),
+        ]
+        for (name, role, task) in fixtures {
+            let value = try JSONDecoder().decode(JSONValue.self, from: fixtureData(named: name, extension: "json"))
+            try JSONSchemaValidator.validate(value, against: ResponseSchemas.schema(for: role, task: task))
+        }
+        XCTAssertThrowsError(try JSONDecoder().decode(JSONValue.self, from: fixtureData(named: "whole_image_quality_truncated", extension: "txt")))
+    }
+
     func testAnalyzeRepairsSyntheticVisibleTextTermFragmentFixture() async throws {
         let imageURL = try writeModelInput()
         let malformed = try malformedVisibleTextTermFragmentFixture()
@@ -1238,4 +1278,12 @@ private func decodeJSONObject(from data: Data) throws -> [String: JSONValue] {
         throw XCTSkip("Expected JSON object")
     }
     return object
+}
+
+private func fixtureData(named name: String, extension fileExtension: String) throws -> Data {
+    let url = try XCTUnwrap(
+        Bundle.module.url(forResource: name, withExtension: fileExtension, subdirectory: "model-responses")
+            ?? Bundle.module.url(forResource: name, withExtension: fileExtension)
+    )
+    return try Data(contentsOf: url)
 }
