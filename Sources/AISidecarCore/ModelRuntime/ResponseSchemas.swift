@@ -3,18 +3,30 @@ import Foundation
 /// Loads the JSON Schema contracts sent to Ollama's structured-output `format` field.
 public enum ResponseSchemas {
     /// Return the response schema for the requested model-input role.
-    public static func schema(for role: ModelInputRole) throws -> JSONSchemaDocument {
-        let schema = try resourceSchema(named: resourceName(for: role))
-        let version = try schemaID(from: schema, resourceName: resourceName(for: role))
+    public static func schema(
+        for role: ModelInputRole,
+        task: ModelTaskProfile = .tagging
+    ) throws -> JSONSchemaDocument {
+        let resourceName = resourceName(for: role, task: task)
+        let schema = try resourceSchema(named: resourceName)
+        let version = try schemaID(from: schema, resourceName: resourceName)
         return JSONSchemaDocument(version: version, schema: schema)
     }
 
-    private static func resourceName(for role: ModelInputRole) -> String {
-        switch role {
-        case .wholeImage:
+    private static func resourceName(for role: ModelInputRole, task: ModelTaskProfile) -> String {
+        switch (role, task) {
+        case (.wholeImage, .tagging):
             return "whole_image_v1.5.0"
-        case .subjectIsolated:
+        case (.wholeImage, .taggingWithQuality):
+            return "whole_image_v1.6.0"
+        case (.wholeImage, .qualityOnly):
+            return "whole_image_quality_v1.0.0"
+        case (.subjectIsolated, .tagging):
             return "subject_isolated_v1.5.0"
+        case (.subjectIsolated, .taggingWithQuality):
+            return "subject_isolated_v1.6.0"
+        case (.subjectIsolated, .qualityOnly):
+            return "subject_isolated_quality_v1.0.0"
         }
     }
 

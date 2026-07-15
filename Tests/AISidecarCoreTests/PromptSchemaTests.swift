@@ -47,6 +47,33 @@ final class PromptSchemaTests: XCTestCase {
         )
     }
 
+    func testTaskAwareRegistriesSelectEveryContract() throws {
+        let expectations: [(ModelInputRole, ModelTaskProfile, String, String)] = [
+            (.wholeImage, .tagging, "aisidecar.prompt.whole_image/1.5.0", "urn:aisidecar:response:whole-image:1.5.0"),
+            (.wholeImage, .taggingWithQuality, "aisidecar.prompt.whole_image/1.6.0", "urn:aisidecar:response:whole-image:1.6.0"),
+            (.wholeImage, .qualityOnly, "aisidecar.prompt.whole_image_quality/1.0.0", "urn:aisidecar:response:whole-image-quality:1.0.0"),
+            (.subjectIsolated, .tagging, "aisidecar.prompt.subject_isolated/1.5.0", "urn:aisidecar:response:subject-isolated:1.5.0"),
+            (.subjectIsolated, .taggingWithQuality, "aisidecar.prompt.subject_isolated/1.6.0", "urn:aisidecar:response:subject-isolated:1.6.0"),
+            (.subjectIsolated, .qualityOnly, "aisidecar.prompt.subject_isolated_quality/1.0.0", "urn:aisidecar:response:subject-isolated-quality:1.0.0"),
+        ]
+
+        for (role, task, promptVersion, schemaVersion) in expectations {
+            XCTAssertEqual(try PromptRegistry.prompt(for: role, task: task).version, promptVersion)
+            XCTAssertEqual(try ResponseSchemas.schema(for: role, task: task).version, schemaVersion)
+        }
+
+        for role in ModelInputRole.allCases {
+            XCTAssertEqual(
+                try PromptRegistry.prompt(for: role).version,
+                try PromptRegistry.prompt(for: role, task: .tagging).version
+            )
+            XCTAssertEqual(
+                try ResponseSchemas.schema(for: role).version,
+                try ResponseSchemas.schema(for: role, task: .tagging).version
+            )
+        }
+    }
+
     func testPromptContextAppendsDeterministicGPSBlockWhenAvailable() throws {
         let context = ModelInputContext(gps: GPSModelInputContext(
             mode: .coarse,

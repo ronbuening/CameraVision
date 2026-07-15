@@ -18,6 +18,13 @@ public enum ModelInputRole: String, Codable, CaseIterable, Sendable, Equatable {
     }
 }
 
+/// What the model is asked to do with a rendered input.
+public enum ModelTaskProfile: String, Codable, Sendable, CaseIterable {
+    case tagging = "tagging"
+    case taggingWithQuality = "tagging_with_quality"
+    case qualityOnly = "quality_only"
+}
+
 /// Versioned model prompt with a stable content hash for provenance.
 public struct VersionedPrompt: Codable, Sendable, Equatable {
     public var version: String
