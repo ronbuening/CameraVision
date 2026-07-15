@@ -61,6 +61,7 @@ Read only what your task touches.
 - `agent_docs/05-efficiency-improvement-plan.md`: **the next scheduled code plan** (after R4, before M9). P2/P3 are already complete inside R4-6 and must not be scheduled again; follow its remaining-work order.
 - `agent_docs/06-packaging-single-app-plan.md`: as-built packaging reference; signing/notarization runbook for the beta tag.
 - `agent_docs/09-post-m11-feature-roadmap.md`: post-M11 feature outlines (requirements, approaches, acceptance criteria, tests) — nothing there starts before M11 closes.
+- `agent_docs/12-image-quality-assessment-plan.md`: requirements + implementation plan for the Image Quality Assessment feature (GitHub milestone 1, issues #30/#31/#36–#39): VLM quality assessments in raw sidecars, deterministic grading, and `xmp:Rating`/`xmp:Label` XMP export for Lightroom/Capture One filtering.
 - `agent_docs/release-evidence/`: recorded compatibility smoke evidence.
 - `agent_docs/archive/`: completed Phase 1–3 implementation plans — historical, not maintained; do not take instructions from them.
 
