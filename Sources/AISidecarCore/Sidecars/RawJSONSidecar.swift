@@ -138,7 +138,7 @@ public struct RawJSONSidecar: Codable, Sendable, Equatable {
         try container.encode(modelInputProfile, forKey: .modelInputProfile)
         try container.encode(derivatives, forKey: .derivatives)
         if let subjectIsolation {
-        try container.encode(subjectIsolation, forKey: .subjectIsolation)
+            try container.encode(subjectIsolation, forKey: .subjectIsolation)
         } else {
             try container.encode(EmptyJSONObject(), forKey: .subjectIsolation)
         }

@@ -24,7 +24,11 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 endpoint: configuration.modelEndpoint,
                 timeoutSeconds: configuration.modelTimeoutSeconds
             )
-            guard let model = tags.models.first(where: { $0.name == configuration.model || $0.model == configuration.model }) else {
+            guard
+                let model = tags.models.first(where: {
+                    $0.name == configuration.model || $0.model == configuration.model
+                })
+            else {
                 throw tagNotFound(
                     configuration.model,
                     visionTags: visionProbe.tags,
@@ -424,7 +428,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
             do {
                 return try decodeChatResponse(response)
             } catch let error as SidecarError
-                where error.code == .modelResponseInvalid && decodeRetriesRemaining > 0 {
+                where error.code == .modelResponseInvalid && decodeRetriesRemaining > 0
+            {
                 try Self.checkInterruption(isInterrupted)
                 decodeRetriesRemaining -= 1
             }
@@ -456,7 +461,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 }
                 try Self.checkInterruption(isInterrupted)
                 if let transportError = error as? OllamaHTTPTransportError,
-                    case .clientError = transportError {
+                    case .clientError = transportError
+                {
                     throw endpointUnreachable(error)
                 }
                 lastError = error
@@ -509,7 +515,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
 
     private static func ollamaErrorMessage(from data: Data) -> String? {
         guard data.count <= 65_536,
-            let response = try? decoder().decode(OllamaErrorResponse.self, from: data) else {
+            let response = try? decoder().decode(OllamaErrorResponse.self, from: data)
+        else {
             return nil
         }
         let message = response.error.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -528,7 +535,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
         )
     }
 
-    private func evaluateModelResponse(_ rawResponseText: String, schema: JSONSchemaDocument) -> ModelResponseEvaluation {
+    private func evaluateModelResponse(_ rawResponseText: String, schema: JSONSchemaDocument) -> ModelResponseEvaluation
+    {
         let strippedText = Self.strippingMarkdownFence(from: rawResponseText)
         do {
             let parsed = try Self.decoder().decode(JSONValue.self, from: Data(strippedText.utf8))
@@ -606,31 +614,31 @@ public struct OllamaVisionRunner: VisionModelRunner {
         let schemaData = try Self.encoder().encode(OllamaWireSchema.wireSchema(from: schema.schema))
         let schemaText = String(decoding: schemaData, as: UTF8.self)
         let text = """
-        PROMPT_VERSION: aisidecar.prompt.model_response_repair/1.1.0
+            PROMPT_VERSION: aisidecar.prompt.model_response_repair/1.1.0
 
-        Return exactly one JSON object matching the JSON Schema below.
-        Do not analyze an image; no image is attached.
-        Repair only the provided model output.
-        If the output repeats the same JSON object multiple times, repair the first copy and discard the rest.
-        Do not add facts that are not already present in the provided model output.
-        If a field cannot be recovered from the provided output, use the schema-compliant empty value.
-        Do not wrap the response in Markdown.
-        Do not include code fences.
-        Do not include comments.
+            Return exactly one JSON object matching the JSON Schema below.
+            Do not analyze an image; no image is attached.
+            Repair only the provided model output.
+            If the output repeats the same JSON object multiple times, repair the first copy and discard the rest.
+            Do not add facts that are not already present in the provided model output.
+            If a field cannot be recovered from the provided output, use the schema-compliant empty value.
+            Do not wrap the response in Markdown.
+            Do not include code fences.
+            Do not include comments.
 
-        JSON Schema:
-        \(schemaText)
+            JSON Schema:
+            \(schemaText)
 
-        Validation error:
-        \(error.code.rawValue): \(error.message)
+            Validation error:
+            \(error.code.rawValue): \(error.message)
 
-        Model output to repair:
-        ```text
-        \(Self.truncatedRepairInput(rawResponseText))
-        ```
+            Model output to repair:
+            ```text
+            \(Self.truncatedRepairInput(rawResponseText))
+            ```
 
-        Return only the repaired JSON object.
-        """
+            Return only the repaired JSON object.
+            """
         return VersionedPrompt(version: "aisidecar.prompt.model_response_repair/1.1.0", text: text)
     }
 
@@ -695,13 +703,15 @@ public struct OllamaVisionRunner: VisionModelRunner {
         probeFailureCount: Int
     ) -> SidecarError {
         let installed = visionTags.isEmpty ? "none" : visionTags.joined(separator: ", ")
-        let probeDetail = probeFailureCount == 0
+        let probeDetail =
+            probeFailureCount == 0
             ? ""
             : ". \(probeFailureCount) installed tag(s) could not be probed"
         return SidecarError(
             code: .modelTagNotFound,
             stage: .model,
-            message: "Ollama model tag not found or not vision-capable: \(model). Installed vision-capable tags: \(installed)\(probeDetail)",
+            message:
+                "Ollama model tag not found or not vision-capable: \(model). Installed vision-capable tags: \(installed)\(probeDetail)",
             recoverable: false
         )
     }
@@ -728,7 +738,8 @@ public struct OllamaVisionRunner: VisionModelRunner {
         }
         var body = String(trimmed[trimmed.index(after: newline)...])
         if body.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("```"),
-           let fenceStart = body.range(of: "```", options: .backwards)?.lowerBound {
+            let fenceStart = body.range(of: "```", options: .backwards)?.lowerBound
+        {
             body = String(body[..<fenceStart])
         }
         return body.trimmingCharacters(in: .whitespacesAndNewlines)

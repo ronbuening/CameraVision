@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class AssetAffinityGraphTests: XCTestCase {
@@ -10,7 +11,7 @@ final class AssetAffinityGraphTests: XCTestCase {
         jpeg.affinityInputs.sameBaseNameGroupID = "group-000001"
         let groups = [
             phase3Group(index: 1, assets: [raw, jpeg]),
-            phase3Group(index: 2, assets: [other])
+            phase3Group(index: 2, assets: [other]),
         ]
 
         let graph = AssetAffinityGraphBuilder().build(
@@ -31,7 +32,7 @@ final class AssetAffinityGraphTests: XCTestCase {
         let assets = [
             phase3Asset(index: 1, relativePath: "seq/IMG_0001.JPG", camera: "nikon-z8", lens: "500pf"),
             phase3Asset(index: 2, relativePath: "seq/IMG_0002.JPG", camera: "nikon-z8", lens: "500pf"),
-            phase3Asset(index: 3, relativePath: "seq/IMG_0100.JPG")
+            phase3Asset(index: 3, relativePath: "seq/IMG_0100.JPG"),
         ]
         let input = phase3InputBatch(assets: assets)
 

@@ -293,10 +293,10 @@ public enum XMPExportInvocationValidator {
         let inputPath = InvocationRules.normalizedPath(request.inputPath)
         let fromJSONPath = InvocationRules.normalizedPath(request.fromJSONPath)
         switch (inputPath, fromJSONPath) {
-        case let (.some(inputPath), .none):
+        case (.some(let inputPath), .none):
             try validateAnalyzeAndWriteOnlyOptions(request)
             return .analyzeAndWrite(inputPath: inputPath)
-        case let (.none, .some(fromJSONPath)):
+        case (.none, .some(let fromJSONPath)):
             try validateFromJSONOnlyOptions(request)
             return .fromJSON(path: fromJSONPath)
         case (.some, .some):
@@ -347,7 +347,7 @@ public enum XMPExportInvocationValidator {
             ("clear-derivative-cache-after-success", request.clearDerivativeCacheAfterSuccess),
             ("stage-concurrency", request.stageConcurrency != nil),
             ("model-response-repair-attempts", request.modelResponseRepairAttempts != nil),
-            ("gps-context", request.gpsContext != nil)
+            ("gps-context", request.gpsContext != nil),
         ])
         if request.writeAIJSON || request.noWriteAIJSON {
             throw SidecarError.configInvalid("--write-ai-json is valid only with analyze-and-write mode.")

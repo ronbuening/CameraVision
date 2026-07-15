@@ -53,7 +53,8 @@ enum WizardNavigation {
                 cleanupText = ""
             }
             return WrittenBannerContent(
-                message: "\(written) XMP sidecar\(written == 1 ? "" : "s") written · backups saved · validated\(cleanupText) — ready to import in Lightroom / Capture One",
+                message:
+                    "\(written) XMP sidecar\(written == 1 ? "" : "s") written · backups saved · validated\(cleanupText) — ready to import in Lightroom / Capture One",
                 isWarning: false
             )
         }

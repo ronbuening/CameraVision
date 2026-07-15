@@ -24,7 +24,7 @@ public enum OllamaWireSchema {
         "$id",
         "title",
         "description",
-        "pattern"
+        "pattern",
     ]
 
     /// Return the grammar-safe wire form of an authoritative response schema.

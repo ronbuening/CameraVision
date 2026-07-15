@@ -357,23 +357,27 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.mode = try container.decode(AnalysisMode.self, forKey: .mode)
         self.existing = try container.decode(ExistingPolicy.self, forKey: .existing)
         self.recursive = try container.decode(Bool.self, forKey: .recursive)
-        self.taskProfile = try container.decodeIfPresent(ModelTaskProfile.self, forKey: .taskProfile)
+        self.taskProfile =
+            try container.decodeIfPresent(ModelTaskProfile.self, forKey: .taskProfile)
             ?? Self.builtInDefaults.taskProfile
         self.outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
         self.model = try container.decode(String.self, forKey: .model)
         self.modelEndpoint = try container.decode(URL.self, forKey: .modelEndpoint)
-        self.modelKeepAlive = try container.decodeIfPresent(
-            String.self,
-            forKey: .modelKeepAlive
-        ) ?? Self.builtInDefaults.modelKeepAlive
-        self.modelTimeoutSeconds = try container.decodeIfPresent(
-            Double.self,
-            forKey: .modelTimeoutSeconds
-        ) ?? Self.builtInDefaults.modelTimeoutSeconds
-        self.modelRetryLimit = try container.decodeIfPresent(
-            Int.self,
-            forKey: .modelRetryLimit
-        ) ?? Self.builtInDefaults.modelRetryLimit
+        self.modelKeepAlive =
+            try container.decodeIfPresent(
+                String.self,
+                forKey: .modelKeepAlive
+            ) ?? Self.builtInDefaults.modelKeepAlive
+        self.modelTimeoutSeconds =
+            try container.decodeIfPresent(
+                Double.self,
+                forKey: .modelTimeoutSeconds
+            ) ?? Self.builtInDefaults.modelTimeoutSeconds
+        self.modelRetryLimit =
+            try container.decodeIfPresent(
+                Int.self,
+                forKey: .modelRetryLimit
+            ) ?? Self.builtInDefaults.modelRetryLimit
         self.profile = try container.decode(String.self, forKey: .profile)
         self.logLevel = try container.decode(LogLevel.self, forKey: .logLevel)
         self.logFormat = try container.decode(LogFormat.self, forKey: .logFormat)
@@ -383,25 +387,30 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.derivativeCacheDir = try container.decode(String.self, forKey: .derivativeCacheDir)
         self.derivativeCacheSizeBytes = try container.decode(Int64.self, forKey: .derivativeCacheSizeBytes)
         self.clearDerivativeCacheOnStart = try container.decode(Bool.self, forKey: .clearDerivativeCacheOnStart)
-        self.clearDerivativeCacheAfterSuccess = try container.decode(Bool.self, forKey: .clearDerivativeCacheAfterSuccess)
+        self.clearDerivativeCacheAfterSuccess = try container.decode(
+            Bool.self, forKey: .clearDerivativeCacheAfterSuccess)
         self.subjectCropMarginFraction = try container.decode(Double.self, forKey: .subjectCropMarginFraction)
         self.subjectMergeDominanceThreshold = try container.decode(Double.self, forKey: .subjectMergeDominanceThreshold)
         self.stageConcurrency = try container.decode(Int.self, forKey: .stageConcurrency)
-        self.modelResponseRepairAttempts = try container.decodeIfPresent(
-            Int.self,
-            forKey: .modelResponseRepairAttempts
-        ) ?? Self.builtInDefaults.modelResponseRepairAttempts
-        self.gpsContext = try container.decodeIfPresent(
-            GPSContextMode.self,
-            forKey: .gpsContext
-        ) ?? Self.builtInDefaults.gpsContext
-        self.modelContextWindow = try container.decodeIfPresent(
-            Int.self,
-            forKey: .modelContextWindow
-        ) ?? Self.builtInDefaults.modelContextWindow
-        self.modelMaxResponseTokens = try container.decodeIfPresent(
-            Int.self,
-            forKey: .modelMaxResponseTokens
-        ) ?? Self.builtInDefaults.modelMaxResponseTokens
+        self.modelResponseRepairAttempts =
+            try container.decodeIfPresent(
+                Int.self,
+                forKey: .modelResponseRepairAttempts
+            ) ?? Self.builtInDefaults.modelResponseRepairAttempts
+        self.gpsContext =
+            try container.decodeIfPresent(
+                GPSContextMode.self,
+                forKey: .gpsContext
+            ) ?? Self.builtInDefaults.gpsContext
+        self.modelContextWindow =
+            try container.decodeIfPresent(
+                Int.self,
+                forKey: .modelContextWindow
+            ) ?? Self.builtInDefaults.modelContextWindow
+        self.modelMaxResponseTokens =
+            try container.decodeIfPresent(
+                Int.self,
+                forKey: .modelMaxResponseTokens
+            ) ?? Self.builtInDefaults.modelMaxResponseTokens
     }
 }

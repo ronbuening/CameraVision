@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class ApplySessionPipelineTests: XCTestCase {
@@ -116,11 +117,12 @@ final class ApplySessionPipelineTests: XCTestCase {
         XCTAssertEqual(result.exportReport?.inputFailures.map(\.error.code), [.interrupted])
         XCTAssertEqual(result.report.errors.map(\.code), [.interrupted])
         XCTAssertEqual(try Data(contentsOf: fixture.sourceURL), originalSourceData)
-        XCTAssertTrue(try decodeProgress(at: result.report.artifacts.progressPath).contains {
-            $0.stage == .xmpTarget
-                && $0.status == .failed
-                && $0.errors.map(\.code) == [.interrupted]
-        })
+        XCTAssertTrue(
+            try decodeProgress(at: result.report.artifacts.progressPath).contains {
+                $0.stage == .xmpTarget
+                    && $0.status == .failed
+                    && $0.errors.map(\.code) == [.interrupted]
+            })
     }
 
     func testApplySessionFailsClosedForMalformedCurrentXMP() throws {
@@ -298,7 +300,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         configuration.normalizationMode = .singleImage
         configuration.dryRun = dryRun
 
-        let result = dryRun
+        let result =
+            dryRun
             ? try NormalizePipeline().runDryRun(
                 mode: .fromJSON(path: jsonRoot.path),
                 configuration: configuration,
@@ -383,7 +386,7 @@ final class ApplySessionPipelineTests: XCTestCase {
                     .object([
                         "term": .string(term),
                         "confidence": .string("high"),
-                        "evidence": .string("visible bird")
+                        "evidence": .string("visible bird"),
                     ])
                 ])
             ]),
@@ -397,7 +400,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let text = try String(contentsOf: URL(fileURLWithPath: path), encoding: .utf8)
-        return try text
+        return
+            try text
             .split(separator: "\n")
             .map { try decoder.decode(NormalizationProgressRecord.self, from: Data($0.utf8)) }
     }
@@ -439,26 +443,26 @@ private struct ValidationFailingOwnedEngine: MetadataWriteEngine {
 }
 
 private let existingDevelopSettingsXMPForApplySession = """
-<?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-           xmlns:dc="http://purl.org/dc/elements/1.1/"
-           xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
-           xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
-    <rdf:Description rdf:about="">
-      <dc:subject>
-        <rdf:Bag>
-          <rdf:li>existing bird</rdf:li>
-        </rdf:Bag>
-      </dc:subject>
-      <lr:hierarchicalSubject>
-        <rdf:Bag>
-          <rdf:li>existing habitat</rdf:li>
-        </rdf:Bag>
-      </lr:hierarchicalSubject>
-      <crs:Exposure2012>+0.35</crs:Exposure2012>
-      <crs:Contrast2012>12</crs:Contrast2012>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/"
+               xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
+               xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
+        <rdf:Description rdf:about="">
+          <dc:subject>
+            <rdf:Bag>
+              <rdf:li>existing bird</rdf:li>
+            </rdf:Bag>
+          </dc:subject>
+          <lr:hierarchicalSubject>
+            <rdf:Bag>
+              <rdf:li>existing habitat</rdf:li>
+            </rdf:Bag>
+          </lr:hierarchicalSubject>
+          <crs:Exposure2012>+0.35</crs:Exposure2012>
+          <crs:Contrast2012>12</crs:Contrast2012>
+        </rdf:Description>
+      </rdf:RDF>
+    </x:xmpmeta>
+    """

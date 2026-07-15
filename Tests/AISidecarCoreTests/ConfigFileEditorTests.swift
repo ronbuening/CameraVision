@@ -1,5 +1,6 @@
 import Darwin
 import XCTest
+
 @testable import AISidecarCore
 
 /// CORE-9: settings write-through must never clobber what it doesn't know

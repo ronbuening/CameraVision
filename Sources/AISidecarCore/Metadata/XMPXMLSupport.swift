@@ -118,7 +118,8 @@ enum XMPXML {
     }
 
     static func bounded(_ value: String) -> String {
-        let normalized = value
+        let normalized =
+            value
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
         if normalized.count <= diagnosticLimit {

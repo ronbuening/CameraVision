@@ -57,10 +57,13 @@ struct Step5ReviewView: View {
             .padding(.top, 16)
         }
         .padding(EdgeInsets(top: 24, leading: 34, bottom: 40, trailing: 34))
-        .alert("Edit keyword", isPresented: Binding(
-            get: { editing != nil },
-            set: { if !$0 { editing = nil } }
-        )) {
+        .alert(
+            "Edit keyword",
+            isPresented: Binding(
+                get: { editing != nil },
+                set: { if !$0 { editing = nil } }
+            )
+        ) {
             TextField("Keyword", text: $editText)
             Button("Apply") {
                 if let chip = editing {
@@ -119,7 +122,8 @@ struct Step5ReviewView: View {
         if let runOutcome {
             parts.append("\(runOutcome.written + runOutcome.skipped) analyzed")
         }
-        parts.append("\(review.approvedCount) approved · \(review.rejectedCount) rejected · \(review.deferredCount) deferred")
+        parts.append(
+            "\(review.approvedCount) approved · \(review.rejectedCount) rejected · \(review.deferredCount) deferred")
         return parts.joined(separator: " · ")
     }
 
@@ -153,8 +157,10 @@ struct Step5ReviewView: View {
             Spacer()
             headerButton("Discard") { review.discardRecovery() }
             headerButton("Restore", filled: true) {
-                do { try review.restoreFromRecovery(); review.clearFileError() }
-                catch { review.reportFileError("Restore recovered review", error) }
+                do {
+                    try review.restoreFromRecovery()
+                    review.clearFileError()
+                } catch { review.reportFileError("Restore recovered review", error) }
             }
         }
         .padding(EdgeInsets(top: 12, leading: 15, bottom: 12, trailing: 15))
@@ -194,12 +200,12 @@ struct Step5ReviewView: View {
                         batchEditNotice = nil
                         review.acceptAll(assetID: row.assetID)
                     }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.textDim)
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
-                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(theme.borderStrong))
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.textDim)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 10)
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(theme.borderStrong))
                 }
                 FlowLayout(spacing: 7) {
                     ForEach(row.chips) { chip in
@@ -216,11 +222,12 @@ struct Step5ReviewView: View {
     }
 
     private func chipView(_ chip: ReviewModel.Chip) -> some View {
-        let (mark, fg, bg, border): (String, Color, Color, Color) = switch chip.verdict {
-        case .approved: ("✓", theme.green, theme.greenSoft, theme.green)
-        case .rejected: ("+", theme.textDim, theme.panel2, theme.borderStrong)
-        case .deferred: ("~", theme.accent.accent, theme.accent.soft, theme.accent.accent)
-        }
+        let (mark, fg, bg, border): (String, Color, Color, Color) =
+            switch chip.verdict {
+            case .approved: ("✓", theme.green, theme.greenSoft, theme.green)
+            case .rejected: ("+", theme.textDim, theme.panel2, theme.borderStrong)
+            case .deferred: ("~", theme.accent.accent, theme.accent.soft, theme.accent.accent)
+            }
         return Button {
             batchEditNotice = nil
             review.toggle(chip.decisionID)
@@ -272,8 +279,10 @@ struct Step5ReviewView: View {
         panel.nameFieldStringValue = "review-session.json"
         panel.allowedContentTypes = [.json]
         if panel.runModal() == .OK, let url = panel.url {
-            do { try review.saveSession(to: url); review.clearFileError() }
-            catch { review.reportFileError("Save session", error) }
+            do {
+                try review.saveSession(to: url)
+                review.clearFileError()
+            } catch { review.reportFileError("Save session", error) }
         }
     }
 
@@ -282,8 +291,10 @@ struct Step5ReviewView: View {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
-            do { try review.importSession(from: url); review.clearFileError() }
-            catch { review.reportFileError("Import session", error) }
+            do {
+                try review.importSession(from: url)
+                review.clearFileError()
+            } catch { review.reportFileError("Import session", error) }
         }
     }
 }

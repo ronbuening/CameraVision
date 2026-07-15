@@ -100,9 +100,11 @@ struct SettingsSheet: View {
                     modelPicker
                 }
                 if settings.configuredModelUnavailable, !settings.visionTags.isEmpty {
-                    Text("The configured model isn't installed (or isn't vision-capable) at this endpoint — pick another or `ollama pull` it.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(theme.danger)
+                    Text(
+                        "The configured model isn't installed (or isn't vision-capable) at this endpoint — pick another or `ollama pull` it."
+                    )
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.danger)
                 }
                 emptyModelGuidance
                 Divider().overlay(theme.border)
@@ -267,9 +269,11 @@ struct SettingsSheet: View {
                         .foregroundStyle(theme.textDim)
                 }
                 if !settings.environmentOverrides.isEmpty {
-                    Text("Environment overrides active: \(settings.environmentOverrides.joined(separator: ", ")) — these take precedence over the file.")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(theme.accent.accent)
+                    Text(
+                        "Environment overrides active: \(settings.environmentOverrides.joined(separator: ", ")) — these take precedence over the file."
+                    )
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(theme.accent.accent)
                 }
                 Divider().overlay(theme.border)
                 settingRow("Default render mode") {
@@ -315,7 +319,8 @@ struct SettingsSheet: View {
                 Divider().overlay(theme.border)
                 settingRow(
                     "Model image size",
-                    caption: "Longest edge of the render sent to the model — smaller is faster, larger keeps fine detail."
+                    caption:
+                        "Longest edge of the render sent to the model — smaller is faster, larger keeps fine detail."
                 ) {
                     CVSegmentedControl(
                         options: ModelTuning.profileNamesBySize,
@@ -326,7 +331,8 @@ struct SettingsSheet: View {
                 Divider().overlay(theme.border)
                 settingRow(
                     "Model context window",
-                    caption: "Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
+                    caption:
+                        "Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
                 ) {
                     contextWindowMenu
                 }
@@ -454,7 +460,8 @@ struct SettingsSheet: View {
             card {
                 settingRow(
                     "Nonlinear UI",
-                    caption: FeatureFlags.studioUI ? "Switch between the Wizard and Studio layouts." : "Studio layout — coming soon."
+                    caption: FeatureFlags.studioUI
+                        ? "Switch between the Wizard and Studio layouts." : "Studio layout — coming soon."
                 ) {
                     Toggle("", isOn: FeatureFlags.studioUI ? $nonlinear : .constant(false))
                         .toggleStyle(.switch)
@@ -475,9 +482,11 @@ struct SettingsSheet: View {
                         Text("CupricAspect \(AppInfo.version)")
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundStyle(theme.text)
-                        Text("XMP engine \(OwnedXMPSidecarEngine.engineVersion) · recipe \(OwnedXMPSidecarEngine.writerRecipeVersion)")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(theme.textDim)
+                        Text(
+                            "XMP engine \(OwnedXMPSidecarEngine.engineVersion) · recipe \(OwnedXMPSidecarEngine.writerRecipeVersion)"
+                        )
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(theme.textDim)
                     }
                     Spacer()
                 }

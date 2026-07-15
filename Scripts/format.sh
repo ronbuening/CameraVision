@@ -3,7 +3,7 @@
 # Format (or lint) Swift sources with the toolchain's swift-format, using the
 # repo-root .swift-format configuration (4-space indent, 120-col lines).
 #
-#   Scripts/format.sh          Format Sources/ and Tests/ in place.
+#   Scripts/format.sh          Format all Swift source, test, script, benchmark, and manifest files in place.
 #   Scripts/format.sh --lint   Check only; exit non-zero on any violation.
 #
 # swift-format ships with the Swift 6 toolchain, so no extra install is needed.
@@ -14,7 +14,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-paths=(Sources Tests)
+paths=(Package.swift Sources Tests Scripts benchmarks)
 
 if [[ "${1:-}" == "--lint" ]]; then
     swift format lint --strict --recursive "${paths[@]}"

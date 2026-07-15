@@ -26,7 +26,8 @@ final class FolderImportModel {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         if let path = defaults.string(forKey: DefaultsKeys.lastSource),
-           FileManager.default.fileExists(atPath: path) {
+            FileManager.default.fileExists(atPath: path)
+        {
             reopenCandidate = URL(fileURLWithPath: path, isDirectory: true)
         }
     }
@@ -34,7 +35,8 @@ final class FolderImportModel {
     func reopenLastFolder() {
         guard let reopenCandidate else { return }
         if let outputPath = defaults.string(forKey: DefaultsKeys.lastOutput),
-           FileManager.default.fileExists(atPath: outputPath) {
+            FileManager.default.fileExists(atPath: outputPath)
+        {
             outputFolder = URL(fileURLWithPath: outputPath, isDirectory: true)
         }
         chooseSource(reopenCandidate)
@@ -105,7 +107,8 @@ final class FolderImportModel {
     /// disk, so this is display state only — never persisted.
     func apply(_ record: ProgressRecord) {
         guard let path = record.sourcePath,
-              let index = assets.firstIndex(where: { $0.path == path }) else {
+            let index = assets.firstIndex(where: { $0.path == path })
+        else {
             return
         }
         switch record.status {
@@ -169,9 +172,11 @@ final class FolderImportModel {
                 }
                 return RescanOutcome(records: records, issues: issues)
             } catch {
-                return RescanOutcome(records: [], issues: [
-                    Self.scanIssue(for: inputPath, error: error)
-                ])
+                return RescanOutcome(
+                    records: [],
+                    issues: [
+                        Self.scanIssue(for: inputPath, error: error)
+                    ])
             }
         }.value
 

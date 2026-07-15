@@ -66,7 +66,8 @@ private func textWithContext(_ text: String, context: ModelInputContext?) -> Str
 }
 
 private func normalizeFinalNewline(_ text: String) -> String {
-    var normalized = text
+    var normalized =
+        text
         .replacingOccurrences(of: "\r\n", with: "\n")
         .replacingOccurrences(of: "\r", with: "\n")
     while normalized.last == "\n" {

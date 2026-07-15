@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class ConfigResolutionTests: XCTestCase {
@@ -226,7 +227,7 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_STAGE_CONCURRENCY": "5",
                 "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2",
                 "AISIDECAR_GPS_CONTEXT": "off",
-                "AISIDECAR_MODEL_CONTEXT_WINDOW": "4096"
+                "AISIDECAR_MODEL_CONTEXT_WINDOW": "4096",
             ],
             defaultConfigPath: configPath
         )
@@ -286,7 +287,7 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_MIN_CONFIDENCE": "low",
                 "AISIDECAR_ALLOW_SPECIFIC_TAGS": "true",
                 "AISIDECAR_PAIR_SCOPE": "jpeg-only",
-                "AISIDECAR_WRITE_AI_JSON": "false"
+                "AISIDECAR_WRITE_AI_JSON": "false",
             ],
             defaultConfigPath: configPath
         )
@@ -393,7 +394,7 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_STAGE_CONCURRENCY": "5",
                 "AISIDECAR_MODEL_RESPONSE_REPAIR_ATTEMPTS": "2",
                 "AISIDECAR_GPS_CONTEXT": "off",
-                "AISIDECAR_MODEL_CONTEXT_WINDOW": "4096"
+                "AISIDECAR_MODEL_CONTEXT_WINDOW": "4096",
             ],
             defaultConfigPath: missingConfigPath()
         )
@@ -446,7 +447,7 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_MIN_CONFIDENCE": "low",
                 "AISIDECAR_ALLOW_SPECIFIC_TAGS": "true",
                 "AISIDECAR_PAIR_SCOPE": "jpeg-only",
-                "AISIDECAR_WRITE_AI_JSON": "false"
+                "AISIDECAR_WRITE_AI_JSON": "false",
             ],
             defaultConfigPath: missingConfigPath()
         )
@@ -505,7 +506,7 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_DERIVATIVE_CACHE_SIZE_BYTES": "2097152",
                 "AISIDECAR_GPS_CONTEXT": "precise",
                 "AISIDECAR_MODEL_TIMEOUT_SECONDS": "not-a-number",
-                "AISIDECAR_MODEL_RETRY_LIMIT": "not-a-number"
+                "AISIDECAR_MODEL_RETRY_LIMIT": "not-a-number",
             ],
             defaultConfigPath: configPath
         )

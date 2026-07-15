@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 /// WI-2 groundwork: the resource locator must find every bundled resource

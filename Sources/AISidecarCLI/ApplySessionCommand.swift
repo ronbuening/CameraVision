@@ -1,6 +1,6 @@
-import Foundation
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
+import Foundation
 
 struct ApplySessionCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(

@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class ArtifactCleanupTests: XCTestCase {
@@ -18,7 +19,7 @@ final class ArtifactCleanupTests: XCTestCase {
             "normalization-summary-2026-06-16T120000Z.md",
             "normalization-apply-progress-2026-06-16T120000Z.jsonl",
             "normalization-apply-report-2026-06-16T120000Z.json",
-            "normalization-apply-summary-2026-06-16T120000Z.md"
+            "normalization-apply-summary-2026-06-16T120000Z.md",
         ]
         let protected = [
             "Bird.JPG",
@@ -29,9 +30,11 @@ final class ArtifactCleanupTests: XCTestCase {
             "model-input-export-2026-06-16T120000Z.json",
             "normalization-session-2026-06-16T120000Z.json",
             "notes.json",
-            ".Hidden.JPG.ai.json"
+            ".Hidden.JPG.ai.json",
         ]
-        try (removable + protected).forEach { try write("artifact", named: $0, in: root) }
+        for name in removable + protected {
+            try write("artifact", named: name, in: root)
+        }
 
         let report = try ArtifactCleanup().run(rootPath: root.path, recursive: false, dryRun: true)
 
@@ -82,7 +85,9 @@ final class ArtifactCleanupTests: XCTestCase {
         let protected = [".DS_Store", ".Hidden.JPG.ai.json", ".notes.not-a-uuid.tmp"]
         try write("old", named: oldTemp, in: root)
         try write("fresh", named: freshTemp, in: root)
-        try protected.forEach { try write("protected", named: $0, in: root) }
+        for name in protected {
+            try write("protected", named: name, in: root)
+        }
         try FileManager.default.setAttributes(
             [.modificationDate: now.addingTimeInterval(-172_800)],
             ofItemAtPath: root.appendingPathComponent(oldTemp).path

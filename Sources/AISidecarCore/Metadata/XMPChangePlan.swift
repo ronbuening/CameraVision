@@ -340,7 +340,8 @@ public struct XMPChangePlanner {
                         error: SidecarError(
                             code: .validationFailed,
                             stage: .write,
-                            message: "Unable to derive XMP plan for \(input.sidecarPath.path): \(error.localizedDescription)",
+                            message:
+                                "Unable to derive XMP plan for \(input.sidecarPath.path): \(error.localizedDescription)",
                             recoverable: true
                         )
                     )

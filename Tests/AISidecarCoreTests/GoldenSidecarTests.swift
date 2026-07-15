@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class GoldenSidecarTests: XCTestCase {
@@ -33,11 +34,12 @@ final class GoldenSidecarTests: XCTestCase {
         XCTAssertEqual(result.records.map(\.status), [.written])
         let sidecarURL = output.appendingPathComponent("Bird.JPG.ai.json")
         let actual = try normalizedJSONString(for: try sidecarJSON(at: sidecarURL))
-        let expected = try normalizedJSONString(for: try fixtureJSON(
-            name: "phase1-both-normalized",
-            extension: "json",
-            subdirectory: "golden-sidecars"
-        ))
+        let expected = try normalizedJSONString(
+            for: try fixtureJSON(
+                name: "phase1-both-normalized",
+                extension: "json",
+                subdirectory: "golden-sidecars"
+            ))
 
         XCTAssertEqual(actual, expected)
         try assertNoXMPFiles(in: [root, output, cacheDir])
@@ -76,11 +78,12 @@ final class GoldenSidecarTests: XCTestCase {
         XCTAssertEqual(result.records.map(\.status), [.written])
         let sidecarURL = output.appendingPathComponent("Bird.JPG.ai.json")
         let actual = try normalizedJSONString(for: try sidecarJSON(at: sidecarURL))
-        let expected = try normalizedJSONString(for: try fixtureJSON(
-            name: "phase1-quality-combined",
-            extension: "json",
-            subdirectory: "golden-sidecars"
-        ))
+        let expected = try normalizedJSONString(
+            for: try fixtureJSON(
+                name: "phase1-quality-combined",
+                extension: "json",
+                subdirectory: "golden-sidecars"
+            ))
 
         XCTAssertEqual(actual, expected)
         try assertNoXMPFiles(in: [root, output, cacheDir])
@@ -147,7 +150,7 @@ final class GoldenSidecarTests: XCTestCase {
                         ? "subject_isolated_with_quality_valid"
                         : "subject_isolated_valid_v1_3",
                     task: configuration.taskProfile
-                )
+                ),
             ]
         )
     }
@@ -263,7 +266,8 @@ final class GoldenSidecarTests: XCTestCase {
             return .string("<directory>")
         case "created_at", "modified_at":
             return .string("<timestamp>")
-        case "duration_ms", "file_size", "pipeline_elapsed_ms", "render_ms", "subject_isolation_ms", "model_ms", "write_ms":
+        case "duration_ms", "file_size", "pipeline_elapsed_ms", "render_ms", "subject_isolation_ms", "model_ms",
+            "write_ms":
             return .number(0)
         case "sha256":
             return .string("<sha256>")

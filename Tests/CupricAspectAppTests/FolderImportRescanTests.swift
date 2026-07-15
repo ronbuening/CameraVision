@@ -1,6 +1,7 @@
 import AISidecarCore
 import Foundation
 import XCTest
+
 @testable import CupricAspectApp
 
 final class FolderImportRescanTests: XCTestCase {
@@ -61,7 +62,8 @@ final class FolderImportRescanTests: XCTestCase {
         gate.release.signal()
         await firstScan.value
 
-        XCTAssertEqual(model.assets.map(\.fileName), ["C.JPG"], "stale slow-scan results must not overwrite the newer scan")
+        XCTAssertEqual(
+            model.assets.map(\.fileName), ["C.JPG"], "stale slow-scan results must not overwrite the newer scan")
         XCTAssertFalse(model.scanning)
     }
 

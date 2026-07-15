@@ -89,9 +89,11 @@ struct AssetPreviewSheet: View {
                             .font(.system(size: 11, weight: .bold, design: .monospaced))
                             .foregroundStyle(theme.accent.accent)
                         if !details.selectedInstanceIndices.isEmpty {
-                            Text("· selected \(details.selectedInstanceIndices.map(String.init).joined(separator: ", "))")
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(theme.textDim)
+                            Text(
+                                "· selected \(details.selectedInstanceIndices.map(String.init).joined(separator: ", "))"
+                            )
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(theme.textDim)
                         }
                         if let status = details.isolationStatus {
                             Text("· \(status)")

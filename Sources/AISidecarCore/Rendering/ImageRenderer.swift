@@ -57,7 +57,7 @@ public struct ImageRenderer {
         if let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) {
             self.context = CIContext(options: [
                 .workingColorSpace: colorSpace,
-                .outputColorSpace: colorSpace
+                .outputColorSpace: colorSpace,
             ])
         } else {
             self.context = CIContext()
@@ -232,12 +232,14 @@ public struct ImageRenderer {
                 recoverable: true
             )
         }
-        guard let imageDestination = CGImageDestinationCreateWithURL(
-            destination as CFURL,
-            typeIdentifier as CFString,
-            1,
-            nil
-        ) else {
+        guard
+            let imageDestination = CGImageDestinationCreateWithURL(
+                destination as CFURL,
+                typeIdentifier as CFString,
+                1,
+                nil
+            )
+        else {
             throw SidecarError(
                 code: .renderFailed,
                 stage: .render,
@@ -275,8 +277,8 @@ private struct LoadedImage {
     var properties: [CFString: Any]
 }
 
-private extension SupportedImageType {
-    var isRAW: Bool {
+extension SupportedImageType {
+    fileprivate var isRAW: Bool {
         switch self {
         case .nef, .nrw, .cr3, .cr2, .arw, .raf, .orf, .rw2, .dng:
             return true

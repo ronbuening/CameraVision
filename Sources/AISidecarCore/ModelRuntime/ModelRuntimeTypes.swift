@@ -164,10 +164,11 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
         self.contextWindow = try container.decodeIfPresent(Int.self, forKey: .contextWindow)
         // Absent in pre-1.5.1 records, whose runs genuinely had no cap.
         self.maxResponseTokens = try container.decodeIfPresent(Int.self, forKey: .maxResponseTokens)
-        self.responseRepairAttempts = try container.decodeIfPresent(
-            Int.self,
-            forKey: .responseRepairAttempts
-        ) ?? Self.default.responseRepairAttempts
+        self.responseRepairAttempts =
+            try container.decodeIfPresent(
+                Int.self,
+                forKey: .responseRepairAttempts
+            ) ?? Self.default.responseRepairAttempts
     }
 }
 

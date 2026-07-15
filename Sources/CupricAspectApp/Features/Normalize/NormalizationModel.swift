@@ -62,13 +62,14 @@ final class NormalizationModel {
 
     var filteredSummaries: [KeywordDecisionSummary] {
         summaries.filter { summary in
-            let outcomeMatch: Bool = switch outcomeFilter {
-            case .all: true
-            case .accepted: summary.acceptedCount > 0
-            case .withheld: summary.withheldCount > 0
-            case .skipped: summary.skippedCount > 0
-            case .needsAttention: summary.needsAttention
-            }
+            let outcomeMatch: Bool =
+                switch outcomeFilter {
+                case .all: true
+                case .accepted: summary.acceptedCount > 0
+                case .withheld: summary.withheldCount > 0
+                case .skipped: summary.skippedCount > 0
+                case .needsAttention: summary.needsAttention
+                }
             let stageMatch = stageFilter.map { summary.stages.contains($0) } ?? true
             return outcomeMatch && stageMatch
         }
@@ -96,7 +97,8 @@ final class NormalizationModel {
     func run(jsonRoot: String, sourceRoot: String) {
         guard phase != .running else { return }
         phase = .running
-        let artifactDir = stateDirectory
+        let artifactDir =
+            stateDirectory
             .appendingPathComponent("normalize-artifacts", isDirectory: true)
             .appendingPathComponent(UUID().uuidString).path
         let configuration = buildConfiguration(sourceRoot: sourceRoot, outputDir: artifactDir)
@@ -162,12 +164,13 @@ final class NormalizationModel {
     func reportFileError(_ action: String, _ error: Error) {
         let message = "\(action) failed: \((error as? SidecarError)?.message ?? error.localizedDescription)"
         fileError = message
-        try? GUILog.shared.makeLogger().log(LogRecord(
-            level: .error,
-            event: "normalize.file_operation_failed",
-            message: message,
-            errors: (error as? SidecarError).map { [$0] } ?? []
-        ))
+        try? GUILog.shared.makeLogger().log(
+            LogRecord(
+                level: .error,
+                event: "normalize.file_operation_failed",
+                message: message,
+                errors: (error as? SidecarError).map { [$0] } ?? []
+            ))
     }
 
     func clearFileError() {

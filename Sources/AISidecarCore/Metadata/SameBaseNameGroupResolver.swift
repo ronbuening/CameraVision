@@ -181,7 +181,8 @@ public struct SameBaseNameGroupResolver {
             SidecarError(
                 code: .validationFailed,
                 stage: .write,
-                message: "Same-base-name group detected for \(group.targetRelativePath) using pair scope \(pairScope.rawValue).",
+                message:
+                    "Same-base-name group detected for \(group.targetRelativePath) using pair scope \(pairScope.rawValue).",
                 recoverable: true
             )
         ]
@@ -191,7 +192,8 @@ public struct SameBaseNameGroupResolver {
         SidecarError(
             code: .validationFailed,
             stage: .write,
-            message: "Pair scope \(pairScope.rawValue) skipped \(group.members.count - selectedCount(group, pairScope: pairScope)) member(s) for \(group.targetRelativePath).",
+            message:
+                "Pair scope \(pairScope.rawValue) skipped \(group.members.count - selectedCount(group, pairScope: pairScope)) member(s) for \(group.targetRelativePath).",
             recoverable: true
         )
     }
@@ -227,8 +229,8 @@ public struct SameBaseNameGroupResolver {
     }
 }
 
-public extension XMPSourcePairKind {
-    init(sourceType: SupportedImageType) {
+extension XMPSourcePairKind {
+    public init(sourceType: SupportedImageType) {
         switch sourceType {
         case .nef, .nrw, .cr3, .cr2, .arw, .raf, .orf, .rw2, .dng:
             self = .rawLike

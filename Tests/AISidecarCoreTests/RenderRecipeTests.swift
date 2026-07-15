@@ -1,7 +1,8 @@
-import Foundation
 import CoreImage
+import Foundation
 import ImageIO
 import XCTest
+
 @testable import AISidecarCore
 
 final class RenderRecipeTests: XCTestCase {

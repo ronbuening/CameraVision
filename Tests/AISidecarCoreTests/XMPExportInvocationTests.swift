@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class XMPExportInvocationTests: XCTestCase {
@@ -43,7 +44,7 @@ final class XMPExportInvocationTests: XCTestCase {
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelResponseRepairAttempts: 1),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", gpsContext: .coarse),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeAIJSON: true),
-            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", noWriteAIJSON: true)
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", noWriteAIJSON: true),
         ]
 
         for request in invalidRequests {
@@ -76,7 +77,7 @@ final class XMPExportInvocationTests: XCTestCase {
                 noWriteHierarchicalKeywords: true
             ),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", backupSidecars: true, noBackupSidecars: true),
-            XMPExportInvocationRequest(inputPath: "Image.JPG", writeAIJSON: true, noWriteAIJSON: true)
+            XMPExportInvocationRequest(inputPath: "Image.JPG", writeAIJSON: true, noWriteAIJSON: true),
         ]
 
         for request in invalidRequests {

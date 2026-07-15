@@ -87,11 +87,14 @@ public struct RawJSONSidecarInputResolver {
         }
 
         guard isRawSidecar(inputURL), isRegularFile(inputURL) else {
-            throw validationError("Direct --from-json input must be a .ai.json file: \(inputURL.path)", recoverable: false)
+            throw validationError(
+                "Direct --from-json input must be a .ai.json file: \(inputURL.path)", recoverable: false)
         }
 
         return RawJSONSidecarInputBatch(
-            inputs: [try resolveCandidate(inputURL, relativePath: inputURL.lastPathComponent, configuration: configuration)],
+            inputs: [
+                try resolveCandidate(inputURL, relativePath: inputURL.lastPathComponent, configuration: configuration)
+            ],
             failures: []
         )
     }
@@ -180,8 +183,9 @@ public struct RawJSONSidecarInputResolver {
         // FR2-000d allows staging from raw sidecars when the later XMP target
         // can be derived from source.relative_path and --output-dir.
         if configuration.sourceVerification == .skip,
-           configuration.outputDir != nil,
-           !sourceRelativePath.isEmpty {
+            configuration.outputDir != nil,
+            !sourceRelativePath.isEmpty
+        {
             return nil
         }
 
@@ -244,25 +248,27 @@ public struct RawJSONSidecarInputResolver {
     ) throws -> (urls: [URL], failures: [RawJSONSidecarInputFailure]) {
         if recursive {
             let enumerationFailures = SynchronousInputFailureAccumulator()
-            guard let enumerator = fileManager.enumerator(
-                at: root,
-                includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-                options: [.skipsPackageDescendants],
-                errorHandler: { url, error in
-                    let url = url.standardizedFileURL
-                    enumerationFailures.append(
-                        RawJSONSidecarInputFailure(
-                            sidecarPath: url,
-                            relativePath: relativePath(for: url, root: root),
-                            error: validationError(
-                                "Unable to read directory during raw sidecar scan: \(url.path): \(error.localizedDescription)",
-                                recoverable: true
+            guard
+                let enumerator = fileManager.enumerator(
+                    at: root,
+                    includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                    options: [.skipsPackageDescendants],
+                    errorHandler: { url, error in
+                        let url = url.standardizedFileURL
+                        enumerationFailures.append(
+                            RawJSONSidecarInputFailure(
+                                sidecarPath: url,
+                                relativePath: relativePath(for: url, root: root),
+                                error: validationError(
+                                    "Unable to read directory during raw sidecar scan: \(url.path): \(error.localizedDescription)",
+                                    recoverable: true
+                                )
                             )
                         )
-                    )
-                    return true
-                }
-            ) else {
+                        return true
+                    }
+                )
+            else {
                 throw validationError("Unable to enumerate raw sidecar folder: \(root.path)", recoverable: false)
             }
 

@@ -137,7 +137,8 @@ public struct ArtifactCleanup {
                     record.error = SidecarError(
                         code: .writeFailed,
                         stage: .write,
-                        message: "Unable to remove cleanup artifact \(candidate.url.path): \(error.localizedDescription)",
+                        message:
+                            "Unable to remove cleanup artifact \(candidate.url.path): \(error.localizedDescription)",
                         recoverable: true
                     )
                 }
@@ -204,11 +205,13 @@ public struct ArtifactCleanup {
     private func cleanupCandidates(in root: URL, recursive: Bool) throws -> [CleanupCandidate] {
         let urls: [URL]
         if recursive {
-            guard let enumerator = fileManager.enumerator(
-                at: root,
-                includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-                options: [.skipsPackageDescendants]
-            ) else {
+            guard
+                let enumerator = fileManager.enumerator(
+                    at: root,
+                    includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                    options: [.skipsPackageDescendants]
+                )
+            else {
                 return []
             }
             var collected: [URL] = []
@@ -271,9 +274,9 @@ public struct ArtifactCleanup {
         }
         let components = fileName.split(separator: ".", omittingEmptySubsequences: false)
         guard components.count >= 4,
-              components.first?.isEmpty == true,
-              components.dropFirst().dropLast(2).contains(where: { !$0.isEmpty }),
-              components.last?.isEmpty == false
+            components.first?.isEmpty == true,
+            components.dropFirst().dropLast(2).contains(where: { !$0.isEmpty }),
+            components.last?.isEmpty == false
         else {
             return false
         }

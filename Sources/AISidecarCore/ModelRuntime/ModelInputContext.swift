@@ -46,22 +46,23 @@ public struct GPSModelInputContext: Codable, Sendable, Equatable {
     /// external context, not output metadata or candidate evidence; XMP export
     /// has a separate guard for model mistakes.
     public var promptBlock: String {
-        let precisionLine = precisionDegrees.map {
-            "\n- coordinate_precision_degrees: \(Self.format($0, fractionDigits: 1))"
-        } ?? ""
+        let precisionLine =
+            precisionDegrees.map {
+                "\n- coordinate_precision_degrees: \(Self.format($0, fractionDigits: 1))"
+            } ?? ""
         return """
-        MODEL INPUT CONTEXT
+            MODEL INPUT CONTEXT
 
-        GPS capture context from the image file's EXIF data, not from the image itself:
-        - mode: \(mode.rawValue)
-        - latitude: \(Self.format(latitude, fractionDigits: mode == .coarse ? 1 : 6))
-        - longitude: \(Self.format(longitude, fractionDigits: mode == .coarse ? 1 : 6))\(precisionLine)
+            GPS capture context from the image file's EXIF data, not from the image itself:
+            - mode: \(mode.rawValue)
+            - latitude: \(Self.format(latitude, fractionDigits: mode == .coarse ? 1 : 6))
+            - longitude: \(Self.format(longitude, fractionDigits: mode == .coarse ? 1 : 6))\(precisionLine)
 
-        Use this context only to narrow an identification that visible image evidence already supports.
-        Never use this context as the sole reason for a location, species, subject, behavior, habitat, or keyword.
-        Never cite GPS, coordinates, EXIF, geotagging, range, or commonness in evidence strings; evidence stays visual.
-        Never output coordinates, GPS labels, latitude/longitude, geotag terms, or exact-location keywords.
-        """
+            Use this context only to narrow an identification that visible image evidence already supports.
+            Never use this context as the sole reason for a location, species, subject, behavior, habitat, or keyword.
+            Never cite GPS, coordinates, EXIF, geotagging, range, or commonness in evidence strings; evidence stays visual.
+            Never output coordinates, GPS labels, latitude/longitude, geotag terms, or exact-location keywords.
+            """
     }
 
     private static func format(_ value: Double, fractionDigits: Int) -> String {
@@ -115,20 +116,20 @@ public enum GPSContextExtractor {
 
     static func gpsContext(from gpsDictionary: [CFString: Any], mode: GPSContextMode) -> GPSModelInputContext? {
         guard mode != .off,
-              let latitude = coordinate(
+            let latitude = coordinate(
                 value: gpsDictionary[kCGImagePropertyGPSLatitude],
                 ref: gpsDictionary[kCGImagePropertyGPSLatitudeRef],
                 positiveRef: "N",
                 negativeRef: "S"
-              ),
-              let longitude = coordinate(
+            ),
+            let longitude = coordinate(
                 value: gpsDictionary[kCGImagePropertyGPSLongitude],
                 ref: gpsDictionary[kCGImagePropertyGPSLongitudeRef],
                 positiveRef: "E",
                 negativeRef: "W"
-              ),
-              (-90...90).contains(latitude),
-              (-180...180).contains(longitude)
+            ),
+            (-90...90).contains(latitude),
+            (-180...180).contains(longitude)
         else {
             return nil
         }

@@ -189,7 +189,8 @@ public struct Milestone9BenchmarkRunner {
         }
 
         if !options.skipBuild {
-            let build = try runProcess(["swift", "build", "-c", "release"], workingDirectory: repoRoot, captureOutput: false)
+            let build = try runProcess(
+                ["swift", "build", "-c", "release"], workingDirectory: repoRoot, captureOutput: false)
             guard build.exitCode == 0 else {
                 throw BenchmarkError("swift build -c release failed with exit code \(build.exitCode)")
             }
@@ -209,7 +210,8 @@ public struct Milestone9BenchmarkRunner {
         var runs: [BenchmarkRun] = []
         for iteration in 1...options.iterations {
             for spec in specs {
-                let input = spec.axis == "source_identity"
+                let input =
+                    spec.axis == "source_identity"
                     ? try expandedHashInput(samples: sampleURLs, count: options.maxHashCopies, outputRoot: outputRoot)
                     : try benchmarkInput(samples: sampleURLs, outputRoot: outputRoot)
                 let run = try execute(
@@ -259,32 +261,32 @@ public struct Milestone9BenchmarkRunner {
         let sidecars = root.appendingPathComponent("sidecars")
         try fileManager.createDirectory(at: sidecars, withIntermediateDirectories: true)
         let sidecar = """
-        {
-          "schema_version": "ai-sidecar-json/1.3",
-          "errors": [],
-          "timing": {
-            "pipeline_elapsed_ms": 10,
-            "render_ms": 2,
-            "subject_isolation_ms": 3,
-            "model_ms": 4,
-            "write_ms": 1
-          },
-          "model_runs": [
             {
-              "json_valid": true,
-              "duration_ms": 4,
-              "runtime_metrics": { "load_duration_ns": 1000 },
-              "response_attempts": []
+              "schema_version": "ai-sidecar-json/1.3",
+              "errors": [],
+              "timing": {
+                "pipeline_elapsed_ms": 10,
+                "render_ms": 2,
+                "subject_isolation_ms": 3,
+                "model_ms": 4,
+                "write_ms": 1
+              },
+              "model_runs": [
+                {
+                  "json_valid": true,
+                  "duration_ms": 4,
+                  "runtime_metrics": { "load_duration_ns": 1000 },
+                  "response_attempts": []
+                }
+              ]
             }
-          ]
-        }
-        """
+            """
         try Data(sidecar.utf8).write(to: sidecars.appendingPathComponent("self.JPG.ai.json"))
         let metrics = try aggregateSidecars(in: sidecars)
         guard metrics.sidecarCount == 1,
-              metrics.validModelRunCount == 1,
-              metrics.medianPipelineMs == 10,
-              metrics.totalOllamaLoadDurationNs == 1000
+            metrics.validModelRunCount == 1,
+            metrics.medianPipelineMs == 10,
+            metrics.totalOllamaLoadDurationNs == 1000
         else {
             throw BenchmarkError("Self-test aggregation did not match expected metrics: \(metrics)")
         }
@@ -325,8 +327,8 @@ public struct Milestone9BenchmarkRunner {
         try cleanupScratchInputs(outputRoot: root)
         try removeIfExists(cache)
         guard !fileManager.fileExists(atPath: scratchInput.path),
-              !fileManager.fileExists(atPath: hashInput.path),
-              !fileManager.fileExists(atPath: cache.path)
+            !fileManager.fileExists(atPath: hashInput.path),
+            !fileManager.fileExists(atPath: cache.path)
         else {
             throw BenchmarkError("Self-test cleanup left scratch/cache directories behind")
         }
@@ -357,63 +359,68 @@ public struct Milestone9BenchmarkRunner {
         var specs: [BenchmarkRunSpec] = []
         for profile in ["gemma4-26b-benchmark-1024", "gemma4-26b-benchmark-1536", defaultProfile] {
             for mode in ["whole", "subject"] {
-                specs.append(BenchmarkRunSpec(
-                    name: "profile-\(profile)-\(mode)",
-                    axis: "profile",
-                    mode: mode,
-                    profile: profile,
-                    modelKeepAlive: "30m",
+                specs.append(
+                    BenchmarkRunSpec(
+                        name: "profile-\(profile)-\(mode)",
+                        axis: "profile",
+                        mode: mode,
+                        profile: profile,
+                        modelKeepAlive: "30m",
+                        stageConcurrency: nil,
+                        sourceIdentityPolicy: "sha256",
+                        dryScan: false
+                    ))
+            }
+        }
+        for keepAlive in ["0", "5m", "30m"] {
+            specs.append(
+                BenchmarkRunSpec(
+                    name: "keep-alive-\(keepAlive)",
+                    axis: "keep_alive",
+                    mode: "both",
+                    profile: defaultProfile,
+                    modelKeepAlive: keepAlive,
                     stageConcurrency: nil,
                     sourceIdentityPolicy: "sha256",
                     dryScan: false
                 ))
-            }
-        }
-        for keepAlive in ["0", "5m", "30m"] {
-            specs.append(BenchmarkRunSpec(
-                name: "keep-alive-\(keepAlive)",
-                axis: "keep_alive",
-                mode: "both",
-                profile: defaultProfile,
-                modelKeepAlive: keepAlive,
-                stageConcurrency: nil,
-                sourceIdentityPolicy: "sha256",
-                dryScan: false
-            ))
         }
         for concurrency in [2, 4, 6, 8] {
-            specs.append(BenchmarkRunSpec(
-                name: "stage-concurrency-\(concurrency)",
+            specs.append(
+                BenchmarkRunSpec(
+                    name: "stage-concurrency-\(concurrency)",
+                    axis: "stage_concurrency",
+                    mode: "both",
+                    profile: defaultProfile,
+                    modelKeepAlive: "30m",
+                    stageConcurrency: concurrency,
+                    sourceIdentityPolicy: "sha256",
+                    dryScan: false
+                ))
+        }
+        specs.append(
+            BenchmarkRunSpec(
+                name: "stage-concurrency-default",
                 axis: "stage_concurrency",
                 mode: "both",
                 profile: defaultProfile,
                 modelKeepAlive: "30m",
-                stageConcurrency: concurrency,
+                stageConcurrency: nil,
                 sourceIdentityPolicy: "sha256",
                 dryScan: false
             ))
-        }
-        specs.append(BenchmarkRunSpec(
-            name: "stage-concurrency-default",
-            axis: "stage_concurrency",
-            mode: "both",
-            profile: defaultProfile,
-            modelKeepAlive: "30m",
-            stageConcurrency: nil,
-            sourceIdentityPolicy: "sha256",
-            dryScan: false
-        ))
         for policy in ["sha256", "fast"] {
-            specs.append(BenchmarkRunSpec(
-                name: "source-identity-\(policy)",
-                axis: "source_identity",
-                mode: nil,
-                profile: defaultProfile,
-                modelKeepAlive: "30m",
-                stageConcurrency: nil,
-                sourceIdentityPolicy: policy,
-                dryScan: true
-            ))
+            specs.append(
+                BenchmarkRunSpec(
+                    name: "source-identity-\(policy)",
+                    axis: "source_identity",
+                    mode: nil,
+                    profile: defaultProfile,
+                    modelKeepAlive: "30m",
+                    stageConcurrency: nil,
+                    sourceIdentityPolicy: policy,
+                    dryScan: true
+                ))
         }
         return specs
     }
@@ -439,7 +446,9 @@ public struct Milestone9BenchmarkRunner {
         let configURL = runDir.appendingPathComponent("config.json")
         try writeConfig(spec: spec, model: model, cacheDir: cacheDir, to: configURL)
 
-        var command = [binary, "analyze", input.path, "--recursive", "--existing", "overwrite", "--config", configURL.path]
+        var command = [
+            binary, "analyze", input.path, "--recursive", "--existing", "overwrite", "--config", configURL.path,
+        ]
         if let mode = spec.mode {
             command.append(contentsOf: ["--mode", mode])
         }
@@ -485,12 +494,14 @@ public struct Milestone9BenchmarkRunner {
             "model": model,
             "derivative_cache_dir": cacheDir.path,
             "clear_derivative_cache_on_start": true,
-            "clear_derivative_cache_after_success": true
+            "clear_derivative_cache_after_success": true,
         ]
         if let profile = spec.profile { object["profile"] = profile }
         if let keepAlive = spec.modelKeepAlive { object["model_keep_alive"] = keepAlive }
         if let stageConcurrency = spec.stageConcurrency { object["stage_concurrency"] = stageConcurrency }
-        if let sourceIdentityPolicy = spec.sourceIdentityPolicy { object["source_identity_policy"] = sourceIdentityPolicy }
+        if let sourceIdentityPolicy = spec.sourceIdentityPolicy {
+            object["source_identity_policy"] = sourceIdentityPolicy
+        }
         let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: url)
     }
@@ -640,20 +651,20 @@ public struct Milestone9BenchmarkRunner {
         [
             "cpu": commandOutput(["/usr/sbin/sysctl", "-n", "machdep.cpu.brand_string"]) ?? "unknown",
             "memory_bytes": commandOutput(["/usr/sbin/sysctl", "-n", "hw.memsize"]) ?? "unknown",
-            "performance_cores": commandOutput(["/usr/sbin/sysctl", "-n", "hw.perflevel0.physicalcpu"]) ?? "unknown"
+            "performance_cores": commandOutput(["/usr/sbin/sysctl", "-n", "hw.perflevel0.physicalcpu"]) ?? "unknown",
         ]
     }
 
     private func runtimeMetadata(model: String) -> [String: String] {
         [
             "ollama_version": commandOutput(["ollama", "--version"]) ?? "unknown",
-            "model": model
+            "model": model,
         ]
     }
 
     private func commandOutput(_ command: [String]) -> String? {
         guard let result = try? runProcess(command, workingDirectory: nil, captureOutput: true),
-              result.exitCode == 0
+            result.exitCode == 0
         else {
             return nil
         }
@@ -661,7 +672,9 @@ public struct Milestone9BenchmarkRunner {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func runProcess(_ command: [String], workingDirectory: URL?, captureOutput: Bool) throws -> BenchmarkProcessResult {
+    private func runProcess(_ command: [String], workingDirectory: URL?, captureOutput: Bool) throws
+        -> BenchmarkProcessResult
+    {
         guard let executable = command.first else { throw BenchmarkError("Empty command") }
         let process = Process()
         if executable.contains("/") {
@@ -737,22 +750,30 @@ public struct Milestone9BenchmarkRunner {
         lines.append("- Ollama: \(document.runtime["ollama_version"] ?? "unknown")")
         lines.append("- Model: \(document.runtime["model"] ?? "unknown")")
         lines.append("")
-        lines.append("| Run | Axis | Exit | Sidecars | Valid model runs | Median pipeline ms | Median model run ms | Peak RSS bytes | XMP files |")
+        lines.append(
+            "| Run | Axis | Exit | Sidecars | Valid model runs | Median pipeline ms | Median model run ms | Peak RSS bytes | XMP files |"
+        )
         lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
         for run in document.runs {
-            lines.append("| \(run.name) | \(run.axis) | \(run.exitCode) | \(run.metrics.sidecarCount) | \(run.metrics.validModelRunCount) | \(run.metrics.medianPipelineMs.map(String.init) ?? "") | \(run.metrics.medianModelRunMs.map(String.init) ?? "") | \(run.peakRSSBytes.map(String.init) ?? "") | \(run.xmpFileCount) |")
+            lines.append(
+                "| \(run.name) | \(run.axis) | \(run.exitCode) | \(run.metrics.sidecarCount) | \(run.metrics.validModelRunCount) | \(run.metrics.medianPipelineMs.map(String.init) ?? "") | \(run.metrics.medianModelRunMs.map(String.init) ?? "") | \(run.peakRSSBytes.map(String.init) ?? "") | \(run.xmpFileCount) |"
+            )
         }
         lines.append("")
-        lines.append("Quality scoring, foreground-mask failure classification, and instance-selection accuracy are deferred to Milestone 9b.")
+        lines.append(
+            "Quality scoring, foreground-mask failure classification, and instance-selection accuracy are deferred to Milestone 9b."
+        )
         try lines.joined(separator: "\n").data(using: .utf8)!.write(to: url)
     }
 
     private func files(in directory: URL) throws -> [URL] {
-        guard let enumerator = fileManager.enumerator(
-            at: directory,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else {
+        guard
+            let enumerator = fileManager.enumerator(
+                at: directory,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
             return []
         }
         return try enumerator.compactMap { item in

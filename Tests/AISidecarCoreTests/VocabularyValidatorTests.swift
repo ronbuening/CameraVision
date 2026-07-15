@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class VocabularyValidatorTests: XCTestCase {
@@ -16,14 +17,16 @@ final class VocabularyValidatorTests: XCTestCase {
         duplicateSynonym[2].synonyms.append("wild animal")
 
         assertVocabularyInvalid {
-            _ = try VocabularyLoader.load(data: vocabularyData(entries: duplicateSynonym), sourcePath: "memory://dupe-syn.json")
+            _ = try VocabularyLoader.load(
+                data: vocabularyData(entries: duplicateSynonym), sourcePath: "memory://dupe-syn.json")
         }
 
         var collision = minimalVocabularyEntries()
         collision[2].synonyms.append("Subject|Wildlife")
 
         assertVocabularyInvalid {
-            _ = try VocabularyLoader.load(data: vocabularyData(entries: collision), sourcePath: "memory://collision.json")
+            _ = try VocabularyLoader.load(
+                data: vocabularyData(entries: collision), sourcePath: "memory://collision.json")
         }
     }
 
@@ -88,13 +91,15 @@ final class VocabularyValidatorTests: XCTestCase {
         var emptyLevel = minimalVocabularyEntries()
         emptyLevel[1].canonicalPath = "Subject||Wildlife"
         assertVocabularyInvalid {
-            _ = try VocabularyLoader.load(data: vocabularyData(entries: emptyLevel), sourcePath: "memory://empty-level.json")
+            _ = try VocabularyLoader.load(
+                data: vocabularyData(entries: emptyLevel), sourcePath: "memory://empty-level.json")
         }
 
         var pipeFlat = minimalVocabularyEntries()
         pipeFlat[1].flatKeyword = "Wildlife|Birds"
         assertVocabularyInvalid {
-            _ = try VocabularyLoader.load(data: vocabularyData(entries: pipeFlat), sourcePath: "memory://pipe-flat.json")
+            _ = try VocabularyLoader.load(
+                data: vocabularyData(entries: pipeFlat), sourcePath: "memory://pipe-flat.json")
         }
     }
 
@@ -127,7 +132,8 @@ final class VocabularyValidatorTests: XCTestCase {
         entries[2].specificity = .mid
 
         assertVocabularyInvalid {
-            _ = try VocabularyLoader.load(data: vocabularyData(entries: entries), sourcePath: "memory://global-mid.json")
+            _ = try VocabularyLoader.load(
+                data: vocabularyData(entries: entries), sourcePath: "memory://global-mid.json")
         }
     }
 }

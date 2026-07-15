@@ -105,7 +105,8 @@ public struct XMPExportPipeline {
             configuration: configuration
         )
 
-        let artifacts = writesBatchArtifacts
+        let artifacts =
+            writesBatchArtifacts
             ? artifactPaths(
                 inputPath: inputPath,
                 outputDir: configuration.outputDir,
@@ -199,7 +200,9 @@ public struct XMPExportPipeline {
             )
         }
 
-        let progressLog = try artifacts.map { try XMPExportProgressLog(path: $0.progressPath, fileManager: fileManager) }
+        let progressLog = try artifacts.map {
+            try XMPExportProgressLog(path: $0.progressPath, fileManager: fileManager)
+        }
         defer {
             try? progressLog?.close()
         }
@@ -446,7 +449,9 @@ public struct XMPExportPipeline {
         return hashes
     }
 
-    private func sourceHashChecks(afterWriteFor before: [String: String?]) -> (checks: [XMPSourceHashCheck], errors: [SidecarError]) {
+    private func sourceHashChecks(afterWriteFor before: [String: String?]) -> (
+        checks: [XMPSourceHashCheck], errors: [SidecarError]
+    ) {
         var checks: [XMPSourceHashCheck] = []
         var errors: [SidecarError] = []
         for path in before.keys.sorted(by: comparePaths) {
@@ -491,7 +496,8 @@ public struct XMPExportPipeline {
                 let sidecarError = SidecarError(
                     code: .validationFailed,
                     stage: .write,
-                    message: "Unable to verify source image hash after XMP export for \(path): \(error.localizedDescription)",
+                    message:
+                        "Unable to verify source image hash after XMP export for \(path): \(error.localizedDescription)",
                     recoverable: true
                 )
                 errors.append(sidecarError)
@@ -530,16 +536,23 @@ public struct XMPExportPipeline {
             }
             return (nil, [])
         } catch {
-            return (nil, [SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Unable to remove invalid new XMP sidecar \(writeResult.targetXMPPath): \(error.localizedDescription)",
-                recoverable: true
-            )])
+            return (
+                nil,
+                [
+                    SidecarError(
+                        code: .writeFailed,
+                        stage: .write,
+                        message:
+                            "Unable to remove invalid new XMP sidecar \(writeResult.targetXMPPath): \(error.localizedDescription)",
+                        recoverable: true
+                    )
+                ]
+            )
         }
     }
 
-    private func restoreBackupIfNeeded(_ backup: XMPBackupRecord?) -> (backup: XMPBackupRecord?, errors: [SidecarError]) {
+    private func restoreBackupIfNeeded(_ backup: XMPBackupRecord?) -> (backup: XMPBackupRecord?, errors: [SidecarError])
+    {
         guard let backup else {
             return (nil, [])
         }
@@ -647,15 +660,17 @@ public struct XMPExportPipeline {
         )
         for member in report.plan.sourceMembers where member.selected {
             guard let sidecarPath = member.sourceSidecarPath,
-                  sidecarPath.lowercased().hasSuffix(".ai.json") else {
-                try? logger.log(LogRecord(
-                    level: .warn,
-                    event: "write_xmp.stamp_skipped",
-                    message: "Skipped export stamp because this source has no raw .ai.json sidecar.",
-                    sourcePath: member.sourcePath,
-                    sidecarPath: targetPath,
-                    status: "skipped"
-                ))
+                sidecarPath.lowercased().hasSuffix(".ai.json")
+            else {
+                try? logger.log(
+                    LogRecord(
+                        level: .warn,
+                        event: "write_xmp.stamp_skipped",
+                        message: "Skipped export stamp because this source has no raw .ai.json sidecar.",
+                        sourcePath: member.sourcePath,
+                        sidecarPath: targetPath,
+                        status: "skipped"
+                    ))
                 continue
             }
             if report.status == .unchanged,
@@ -670,15 +685,17 @@ public struct XMPExportPipeline {
                     fileManager: fileManager
                 )
             } catch {
-                try? logger.log(LogRecord(
-                    level: .warn,
-                    event: "write_xmp.stamp_failed",
-                    message: "XMP was written, but its raw-sidecar export stamp failed: \(error.localizedDescription)",
-                    sourcePath: member.sourcePath,
-                    sidecarPath: sidecarPath,
-                    status: "warning",
-                    errors: (error as? SidecarError).map { [$0] } ?? []
-                ))
+                try? logger.log(
+                    LogRecord(
+                        level: .warn,
+                        event: "write_xmp.stamp_failed",
+                        message:
+                            "XMP was written, but its raw-sidecar export stamp failed: \(error.localizedDescription)",
+                        sourcePath: member.sourcePath,
+                        sidecarPath: sidecarPath,
+                        status: "warning",
+                        errors: (error as? SidecarError).map { [$0] } ?? []
+                    ))
             }
         }
     }

@@ -1,5 +1,6 @@
 import AISidecarCore
 import XCTest
+
 @testable import CupricAspectApp
 
 /// B0-6 review-scale sanity: build the M4 review over a 1,500-image synthetic
@@ -41,7 +42,9 @@ final class ReviewScaleTests: XCTestCase {
 
         // The UI reads assetRows on every body evaluation; a per-frame budget
         // needs it well under 100 ms at this scale.
-        print("SCALE: session build \(String(format: "%.2f", buildSeconds))s, assetRows \(String(format: "%.0f", rowsSeconds * 1000))ms for \(rows.count) rows")
+        print(
+            "SCALE: session build \(String(format: "%.2f", buildSeconds))s, assetRows \(String(format: "%.0f", rowsSeconds * 1000))ms for \(rows.count) rows"
+        )
         XCTAssertLessThan(rowsSeconds, 0.1, "assetRows recompute must stay frame-budget friendly")
 
         // Verdict churn (approve-all on one asset) must not degrade at scale.

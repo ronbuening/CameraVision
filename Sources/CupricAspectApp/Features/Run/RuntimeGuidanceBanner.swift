@@ -21,9 +21,11 @@ struct RuntimeGuidanceBanner: View {
                         Text("Ollama isn't reachable at \(guidance.endpointDisplay)")
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundStyle(theme.text)
-                        Text("Analysis needs Ollama running locally. If it's installed, open the Ollama app (or run `ollama serve` in Terminal). If not, download it first — reviewing and exporting already-analyzed photos works without it.")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(theme.textDim)
+                        Text(
+                            "Analysis needs Ollama running locally. If it's installed, open the Ollama app (or run `ollama serve` in Terminal). If not, download it first — reviewing and exporting already-analyzed photos works without it."
+                        )
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(theme.textDim)
                         HStack(spacing: 12) {
                             Button("Download Ollama") {
                                 if let url = URL(string: RuntimeGuidanceModel.downloadURL) {
@@ -39,9 +41,11 @@ struct RuntimeGuidanceBanner: View {
                         Text("Ollama is running, but no installed model supports vision")
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundStyle(theme.text)
-                        Text("Analysis needs a vision-capable model. Install the starter model in Terminal, then re-check:")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(theme.textDim)
+                        Text(
+                            "Analysis needs a vision-capable model. Install the starter model in Terminal, then re-check:"
+                        )
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(theme.textDim)
                         HStack(spacing: 10) {
                             Text(guidance.pullCommand)
                                 .font(.system(size: 11.5, weight: .semibold, design: .monospaced))

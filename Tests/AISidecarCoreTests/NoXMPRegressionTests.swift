@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class NoXMPRegressionTests: XCTestCase {
@@ -65,10 +66,11 @@ final class NoXMPRegressionTests: XCTestCase {
             try? FileManager.default.removeItem(at: root)
         }
 
-        _ = try Milestone9BenchmarkRunner().run(options: BenchmarkOptions(
-            outputDir: root.path,
-            selfTest: true
-        ))
+        _ = try Milestone9BenchmarkRunner().run(
+            options: BenchmarkOptions(
+                outputDir: root.path,
+                selfTest: true
+            ))
 
         try assertNoXMPFiles(in: [root])
     }

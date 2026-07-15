@@ -15,7 +15,7 @@ public struct AppleVisionForegroundMaskProvider: ForegroundMaskProvider, @unchec
         if let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) {
             self.context = CIContext(options: [
                 .workingColorSpace: colorSpace,
-                .outputColorSpace: colorSpace
+                .outputColorSpace: colorSpace,
             ])
         } else {
             self.context = CIContext()
@@ -23,7 +23,9 @@ public struct AppleVisionForegroundMaskProvider: ForegroundMaskProvider, @unchec
     }
 
     /// Generate per-instance masks and geometry in the whole-image derivative coordinate space.
-    public func foregroundMasks(in analysisImage: CIImage, dimensions: PixelDimensions) async throws -> ForegroundMaskResult {
+    public func foregroundMasks(in analysisImage: CIImage, dimensions: PixelDimensions) async throws
+        -> ForegroundMaskResult
+    {
         let handler = ImageRequestHandler(analysisImage, orientation: .up)
         let request = GenerateForegroundInstanceMaskRequest()
         guard let observation = try await handler.perform(request) else {
@@ -38,12 +40,14 @@ public struct AppleVisionForegroundMaskProvider: ForegroundMaskProvider, @unchec
             )
             let maskImage = CIImage(cvPixelBuffer: maskBuffer)
                 .cropped(to: CGRect(x: 0, y: 0, width: dimensions.width, height: dimensions.height))
-            guard let record = try MaskGeometry.instanceRecord(
-                index: index,
-                maskImage: maskImage,
-                dimensions: dimensions,
-                context: context
-            ) else {
+            guard
+                let record = try MaskGeometry.instanceRecord(
+                    index: index,
+                    maskImage: maskImage,
+                    dimensions: dimensions,
+                    context: context
+                )
+            else {
                 continue
             }
             instances.append(ForegroundInstanceMask(record: record, maskImage: maskImage))

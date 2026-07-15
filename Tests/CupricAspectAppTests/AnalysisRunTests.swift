@@ -1,5 +1,6 @@
-import XCTest
 import AISidecarCore
+import XCTest
+
 @testable import CupricAspectApp
 
 /// M2: options→configuration mapping and run-outcome reduction. The pipeline

@@ -74,7 +74,8 @@ public enum JSONSchemaValidator {
         }
 
         if let notSchema = schemaObject["not"],
-           try schemaMatches(value, schema: notSchema, rootSchema: rootSchema, path: path) {
+            try schemaMatches(value, schema: notSchema, rootSchema: rootSchema, path: path)
+        {
             throw JSONSchemaValidationError(path: path, message: "Value must not match forbidden schema.")
         }
 
@@ -192,7 +193,8 @@ public enum JSONSchemaValidator {
                 }
             }
             guard containsMatch else {
-                throw JSONSchemaValidationError(path: path, message: "Expected at least one item matching contains schema.")
+                throw JSONSchemaValidationError(
+                    path: path, message: "Expected at least one item matching contains schema.")
             }
         }
         if let items = schemaObject["items"] {

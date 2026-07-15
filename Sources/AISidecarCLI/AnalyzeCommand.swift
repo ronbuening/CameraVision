@@ -1,6 +1,6 @@
-import Foundation
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
+import Foundation
 
 struct AnalyzeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -56,7 +56,7 @@ struct AnalyzeCommand: AsyncParsableCommand {
         if let exportModelInputs {
             try ModelInputExportPipeline.validate(configuration: resolved)
             let pipeline = ModelInputExportPipeline(logger: logger)
-            let result = try await withBatchInterruptionExit {
+            let result = try await withAsyncBatchInterruptionExit {
                 try await pipeline.run(
                     inputPath: inputPath,
                     exportDirectoryPath: exportModelInputs,
@@ -72,7 +72,7 @@ struct AnalyzeCommand: AsyncParsableCommand {
         }
 
         let pipeline = AnalyzePipeline(logger: logger, runner: OllamaVisionRunner())
-        let result = try await withBatchInterruptionExit {
+        let result = try await withAsyncBatchInterruptionExit {
             try await pipeline.run(
                 inputPath: inputPath,
                 configuration: resolved,

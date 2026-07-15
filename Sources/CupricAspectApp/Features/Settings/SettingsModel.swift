@@ -33,7 +33,8 @@ final class SettingsModel {
     private(set) var mode: AnalysisMode = .both
     private(set) var gps: GPSContextMode = .coarse
     private(set) var existing: ExistingPolicy = .skip
-    private(set) var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    private(set) var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults
+        .xmpConflictPolicy
     private(set) var stageConcurrency = min(8, max(1, ResolvedRunConfiguration.defaultStageConcurrency()))
     private(set) var profile = ModelInputProfile.defaultProfile.name
     private(set) var modelContextWindow = ResolvedRunConfiguration.builtInDefaults.modelContextWindow

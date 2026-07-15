@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import CupricAspectApp
 
 /// R1-1: wizard step graph and re-run confirmation decisions.
@@ -24,49 +25,57 @@ final class WizardNavigationTests: XCTestCase {
     }
 
     func testRerunConfirmationRequiredOnlyWhenDataWouldBeLost() {
-        XCTAssertTrue(WizardNavigation.needsRerunConfirmation(
-            phase: .finished(RunOutcome()),
-            hasReview: false,
-            hasNormalizationSession: false
-        ))
-        XCTAssertTrue(WizardNavigation.needsRerunConfirmation(
-            phase: .idle,
-            hasReview: true,
-            hasNormalizationSession: false
-        ))
-        XCTAssertTrue(WizardNavigation.needsRerunConfirmation(
-            phase: .idle,
-            hasReview: false,
-            hasNormalizationSession: true
-        ))
-        XCTAssertFalse(WizardNavigation.needsRerunConfirmation(
-            phase: .idle,
-            hasReview: false,
-            hasNormalizationSession: false
-        ))
+        XCTAssertTrue(
+            WizardNavigation.needsRerunConfirmation(
+                phase: .finished(RunOutcome()),
+                hasReview: false,
+                hasNormalizationSession: false
+            ))
+        XCTAssertTrue(
+            WizardNavigation.needsRerunConfirmation(
+                phase: .idle,
+                hasReview: true,
+                hasNormalizationSession: false
+            ))
+        XCTAssertTrue(
+            WizardNavigation.needsRerunConfirmation(
+                phase: .idle,
+                hasReview: false,
+                hasNormalizationSession: true
+            ))
+        XCTAssertFalse(
+            WizardNavigation.needsRerunConfirmation(
+                phase: .idle,
+                hasReview: false,
+                hasNormalizationSession: false
+            ))
     }
 
     func testDoneConfirmsOnlyForUnsavedRestoredReviews() {
-        XCTAssertTrue(WizardNavigation.doneNeedsConfirmation(
-            hasSession: true,
-            restoredRecoveryDirty: true,
-            exported: false
-        ))
-        XCTAssertFalse(WizardNavigation.doneNeedsConfirmation(
-            hasSession: true,
-            restoredRecoveryDirty: true,
-            exported: true
-        ))
-        XCTAssertFalse(WizardNavigation.doneNeedsConfirmation(
-            hasSession: true,
-            restoredRecoveryDirty: false,
-            exported: false
-        ))
-        XCTAssertFalse(WizardNavigation.doneNeedsConfirmation(
-            hasSession: false,
-            restoredRecoveryDirty: true,
-            exported: false
-        ))
+        XCTAssertTrue(
+            WizardNavigation.doneNeedsConfirmation(
+                hasSession: true,
+                restoredRecoveryDirty: true,
+                exported: false
+            ))
+        XCTAssertFalse(
+            WizardNavigation.doneNeedsConfirmation(
+                hasSession: true,
+                restoredRecoveryDirty: true,
+                exported: true
+            ))
+        XCTAssertFalse(
+            WizardNavigation.doneNeedsConfirmation(
+                hasSession: true,
+                restoredRecoveryDirty: false,
+                exported: false
+            ))
+        XCTAssertFalse(
+            WizardNavigation.doneNeedsConfirmation(
+                hasSession: false,
+                restoredRecoveryDirty: true,
+                exported: false
+            ))
     }
 
     func testWrittenBannerCountsOnlySuccessfulTargetsAndWarnsOnFailures() {

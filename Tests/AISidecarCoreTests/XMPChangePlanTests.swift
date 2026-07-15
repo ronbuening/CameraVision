@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class XMPChangePlanTests: XCTestCase {
@@ -18,18 +19,20 @@ final class XMPChangePlanTests: XCTestCase {
         configuration.backupSidecars = true
 
         let document = XMPChangePlanner().plan(
-            inputBatch: RawJSONSidecarInputBatch(inputs: [input], failures: [
-                RawJSONSidecarInputFailure(
-                    sidecarPath: URL(fileURLWithPath: "/sidecars/Bad.JPG.ai.json"),
-                    relativePath: "Bad.JPG.ai.json",
-                    error: SidecarError(
-                        code: .schemaUnsupported,
-                        stage: .scan,
-                        message: "Unsupported fixture schema.",
-                        recoverable: true
+            inputBatch: RawJSONSidecarInputBatch(
+                inputs: [input],
+                failures: [
+                    RawJSONSidecarInputFailure(
+                        sidecarPath: URL(fileURLWithPath: "/sidecars/Bad.JPG.ai.json"),
+                        relativePath: "Bad.JPG.ai.json",
+                        error: SidecarError(
+                            code: .schemaUnsupported,
+                            stage: .scan,
+                            message: "Unsupported fixture schema.",
+                            recoverable: true
+                        )
                     )
-                )
-            ]),
+                ]),
             extractionResults: [extraction(for: input)],
             configuration: configuration
         )
@@ -72,7 +75,7 @@ final class XMPChangePlanTests: XCTestCase {
             targetPlans: [
                 minimalTargetPlan(status: .planned, failures: []),
                 minimalTargetPlan(status: .failed, failures: [failure]),
-                minimalTargetPlan(status: .planned, failures: [failure])
+                minimalTargetPlan(status: .planned, failures: [failure]),
             ],
             inputFailures: [
                 XMPChangePlanInputFailure(
@@ -145,10 +148,11 @@ final class XMPChangePlanTests: XCTestCase {
         )
         return ResolvedRawSidecarInput(
             sidecarPath: URL(fileURLWithPath: "/sidecars/Bird.JPG.ai.json"),
-            document: try RawJSONSidecarDocument(sidecar: RawJSONSidecar(
-                source: source,
-                runConfiguration: .builtInDefaults
-            )),
+            document: try RawJSONSidecarDocument(
+                sidecar: RawJSONSidecar(
+                    source: source,
+                    runConfiguration: .builtInDefaults
+                )),
             sourcePath: URL(fileURLWithPath: source.path),
             sourceIdentityStatus: .mismatched,
             relativePath: "Bird.JPG.ai.json",

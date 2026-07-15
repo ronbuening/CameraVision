@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class ConfigValidationTests: XCTestCase {
@@ -120,7 +121,7 @@ final class ConfigValidationTests: XCTestCase {
             #"{ "subject_crop_margin_fraction": 0 }"#,
             #"{ "subject_crop_margin_fraction": 1.1 }"#,
             #"{ "subject_merge_dominance_threshold": 0 }"#,
-            #"{ "subject_merge_dominance_threshold": 1.1 }"#
+            #"{ "subject_merge_dominance_threshold": 1.1 }"#,
         ] {
             try assertConfigInvalid {
                 _ = try ConfigurationResolver.resolve(
@@ -227,7 +228,7 @@ final class ConfigValidationTests: XCTestCase {
             #"{ "source_verification": "maybe" }"#,
             #"{ "xmp_conflict_policy": "replace" }"#,
             #"{ "min_confidence": "certain" }"#,
-            #"{ "pair_scope": "tiff-only" }"#
+            #"{ "pair_scope": "tiff-only" }"#,
         ] {
             try assertConfigInvalid {
                 _ = try ConfigurationResolver.resolveXMPExport(
@@ -241,7 +242,7 @@ final class ConfigValidationTests: XCTestCase {
             ["AISIDECAR_SOURCE_VERIFICATION": "maybe"],
             ["AISIDECAR_XMP_CONFLICT_POLICY": "replace"],
             ["AISIDECAR_MIN_CONFIDENCE": "certain"],
-            ["AISIDECAR_PAIR_SCOPE": "tiff-only"]
+            ["AISIDECAR_PAIR_SCOPE": "tiff-only"],
         ] {
             try assertConfigInvalid {
                 _ = try ConfigurationResolver.resolveXMPExport(
@@ -258,7 +259,7 @@ final class ConfigValidationTests: XCTestCase {
             ["AISIDECAR_WRITE_HIERARCHICAL_KEYWORDS": "maybe"],
             ["AISIDECAR_BACKUP_SIDECARS": "maybe"],
             ["AISIDECAR_ALLOW_SPECIFIC_TAGS": "maybe"],
-            ["AISIDECAR_WRITE_AI_JSON": "maybe"]
+            ["AISIDECAR_WRITE_AI_JSON": "maybe"],
         ] {
             try assertConfigInvalid {
                 _ = try ConfigurationResolver.resolveXMPExport(
@@ -310,7 +311,7 @@ final class ConfigValidationTests: XCTestCase {
     func testInvalidModelTimeoutFailsAsConfigInvalid() throws {
         for json in [
             #"{ "model_timeout_seconds": 0 }"#,
-            #"{ "model_timeout_seconds": -5 }"#
+            #"{ "model_timeout_seconds": -5 }"#,
         ] {
             try assertConfigInvalid {
                 _ = try ConfigurationResolver.resolve(

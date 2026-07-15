@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class BatchConsensusEngineTests: XCTestCase {
@@ -12,7 +13,7 @@ final class BatchConsensusEngineTests: XCTestCase {
             batchCandidates: [],
             perAssetDecisions: [
                 directDecision(assetID: "asset-000001", canonicalPath: "Subject|Wildlife|Birds"),
-                directDecision(assetID: "asset-000002", canonicalPath: "Subject|Wildlife|Birds")
+                directDecision(assetID: "asset-000002", canonicalPath: "Subject|Wildlife|Birds"),
             ]
         )
 
@@ -21,14 +22,15 @@ final class BatchConsensusEngineTests: XCTestCase {
             input: inputBatch([
                 "seq/IMG_0001.JPG",
                 "seq/IMG_0002.JPG",
-                "seq/IMG_0003.JPG"
+                "seq/IMG_0003.JPG",
             ]),
             configuration: batchConfiguration()
         )
 
-        let propagated = try XCTUnwrap(result.perAssetDecisions.first {
-            $0.assetID == "asset-000003" && $0.stage == .localAffinityPropagation
-        })
+        let propagated = try XCTUnwrap(
+            result.perAssetDecisions.first {
+                $0.assetID == "asset-000003" && $0.stage == .localAffinityPropagation
+            })
         XCTAssertEqual(propagated.canonicalPath, "Subject|Wildlife")
         XCTAssertEqual(propagated.flatKeyword, "Wildlife")
         XCTAssertEqual(propagated.supportingAssetIDs, ["asset-000001", "asset-000002"])
@@ -36,9 +38,10 @@ final class BatchConsensusEngineTests: XCTestCase {
         XCTAssertEqual(propagated.localConsensus?.supportingNeighborCount, 2)
         XCTAssertEqual(result.affinity.edges.count, 3)
 
-        let wildlifeSummary = try XCTUnwrap(result.batchCandidates.first {
-            $0.canonicalPath == "Subject|Wildlife"
-        })
+        let wildlifeSummary = try XCTUnwrap(
+            result.batchCandidates.first {
+                $0.canonicalPath == "Subject|Wildlife"
+            })
         XCTAssertEqual(wildlifeSummary.directAssetSupportCount, 3)
         XCTAssertEqual(wildlifeSummary.eligibleAssetCount, 3)
         XCTAssertEqual(wildlifeSummary.agreementFrequency, 1)
@@ -58,7 +61,7 @@ final class BatchConsensusEngineTests: XCTestCase {
             ),
             input: inputBatch([
                 "seq/IMG_0001.JPG",
-                "seq/Other.JPG"
+                "seq/Other.JPG",
             ]),
             configuration: batchConfiguration()
         )
@@ -72,24 +75,26 @@ final class BatchConsensusEngineTests: XCTestCase {
                 batchCandidates: [],
                 perAssetDecisions: [
                     directDecision(assetID: "asset-000001", canonicalPath: "Subject|Wildlife|Birds"),
-                    directDecision(assetID: "asset-000002", canonicalPath: "Subject|Mammals")
+                    directDecision(assetID: "asset-000002", canonicalPath: "Subject|Mammals"),
                 ]
             ),
             input: inputBatch([
                 "seq/IMG_0001.JPG",
-                "seq/IMG_0002.JPG"
+                "seq/IMG_0002.JPG",
             ]),
             configuration: batchConfiguration()
         )
 
-        XCTAssertFalse(conflict.perAssetDecisions.contains {
-            $0.assetID == "asset-000002" && $0.stage == .localAffinityPropagation
-        })
-        XCTAssertTrue(conflict.localConsensus.contains {
-            $0.targetAssetID == "asset-000002"
-                && $0.canonicalPath == "Subject|Wildlife"
-                && $0.blockReasons.contains(.blockedDirectConflict)
-        })
+        XCTAssertFalse(
+            conflict.perAssetDecisions.contains {
+                $0.assetID == "asset-000002" && $0.stage == .localAffinityPropagation
+            })
+        XCTAssertTrue(
+            conflict.localConsensus.contains {
+                $0.targetAssetID == "asset-000002"
+                    && $0.canonicalPath == "Subject|Wildlife"
+                    && $0.blockReasons.contains(.blockedDirectConflict)
+            })
     }
 
     func testRequiresReviewEntriesDoNotPropagateFromModelEvidence() throws {
@@ -106,14 +111,15 @@ final class BatchConsensusEngineTests: XCTestCase {
             ),
             input: inputBatch([
                 "seq/IMG_0001.JPG",
-                "seq/IMG_0002.JPG"
+                "seq/IMG_0002.JPG",
             ]),
             configuration: batchConfiguration()
         )
 
-        XCTAssertFalse(result.perAssetDecisions.contains {
-            $0.assetID == "asset-000002" && $0.canonicalPath == "Subject|Review"
-        })
+        XCTAssertFalse(
+            result.perAssetDecisions.contains {
+                $0.assetID == "asset-000002" && $0.canonicalPath == "Subject|Review"
+            })
     }
 
     func testSessionContextRequiresExplicitPropagationFlagAndRecordsUserEvidence() throws {
@@ -166,7 +172,7 @@ final class BatchConsensusEngineTests: XCTestCase {
             directDecision(assetID: "asset-000001", canonicalPath: "Scene|Outdoor"),
             directDecision(assetID: "asset-000002", canonicalPath: "Scene|Outdoor"),
             directDecision(assetID: "asset-000003", canonicalPath: "Scene|Outdoor"),
-            directDecision(assetID: "asset-000004", canonicalPath: "Scene|Outdoor")
+            directDecision(assetID: "asset-000004", canonicalPath: "Scene|Outdoor"),
         ]
         let result = BatchConsensusEngine(vocabulary: vocabulary).apply(
             canonicalization: CandidateCanonicalizationResult(
@@ -181,7 +187,7 @@ final class BatchConsensusEngineTests: XCTestCase {
                 "seq/IMG_0002.JPG",
                 "seq/IMG_0003.JPG",
                 "seq/IMG_0004.JPG",
-                "seq/IMG_0005.JPG"
+                "seq/IMG_0005.JPG",
             ]),
             configuration: batchConfiguration()
         )
@@ -203,22 +209,23 @@ final class BatchConsensusEngineTests: XCTestCase {
                 batchCandidates: [],
                 perAssetDecisions: [
                     observedDirectDecision(assetID: "asset-000001", canonicalPath: "Great Blue Heron"),
-                    observedDirectDecision(assetID: "asset-000002", canonicalPath: "Great Blue Heron")
+                    observedDirectDecision(assetID: "asset-000002", canonicalPath: "Great Blue Heron"),
                 ]
             ),
             input: inputBatch([
                 "seq/IMG_0001.JPG",
                 "seq/IMG_0002.JPG",
-                "seq/IMG_0003.JPG"
+                "seq/IMG_0003.JPG",
             ]),
             configuration: configuration
         )
 
-        let local = try XCTUnwrap(localResult.perAssetDecisions.first {
-            $0.assetID == "asset-000003"
-                && $0.stage == .localAffinityPropagation
-                && $0.canonicalPath == "Great Blue Heron"
-        })
+        let local = try XCTUnwrap(
+            localResult.perAssetDecisions.first {
+                $0.assetID == "asset-000003"
+                    && $0.stage == .localAffinityPropagation
+                    && $0.canonicalPath == "Great Blue Heron"
+            })
         XCTAssertEqual(local.candidateKind, .observedModelTag)
         XCTAssertEqual(local.flatKeyword, "Great Blue Heron")
         XCTAssertNil(local.hierarchicalKeyword)
@@ -230,7 +237,7 @@ final class BatchConsensusEngineTests: XCTestCase {
             observedDirectDecision(assetID: "asset-000001", canonicalPath: "Outdoor"),
             observedDirectDecision(assetID: "asset-000002", canonicalPath: "Outdoor"),
             observedDirectDecision(assetID: "asset-000003", canonicalPath: "Outdoor"),
-            observedDirectDecision(assetID: "asset-000004", canonicalPath: "Outdoor")
+            observedDirectDecision(assetID: "asset-000004", canonicalPath: "Outdoor"),
         ]
         let globalResult = BatchConsensusEngine(vocabulary: vocabulary).apply(
             canonicalization: CandidateCanonicalizationResult(
@@ -245,7 +252,7 @@ final class BatchConsensusEngineTests: XCTestCase {
                 "seq/IMG_0002.JPG",
                 "seq/IMG_0003.JPG",
                 "seq/IMG_0004.JPG",
-                "seq/IMG_0005.JPG"
+                "seq/IMG_0005.JPG",
             ]),
             configuration: configuration
         )
@@ -254,129 +261,131 @@ final class BatchConsensusEngineTests: XCTestCase {
     }
 
     private func loadedVocabulary() throws -> LoadedVocabulary {
-        try VocabularyLoader.load(data: vocabularyData(entries: [
-            VocabularyEntry(
-                canonicalPath: "Subject",
-                flatKeyword: "Subject",
-                namespace: .subject,
-                parentPath: nil,
-                synonyms: [],
-                requiresReview: false,
-                autoApplyAllowed: false,
-                directApplyPolicy: .withhold,
-                propagationScope: PropagationScope.none,
-                specificity: .broad
-            ),
-            VocabularyEntry(
-                canonicalPath: "Subject|Wildlife",
-                flatKeyword: "Wildlife",
-                namespace: .subject,
-                parentPath: "Subject",
-                synonyms: ["wildlife"],
-                requiresReview: false,
-                autoApplyAllowed: true,
-                directApplyPolicy: .allow,
-                mutuallyExclusiveGroup: "subject-kind",
-                propagationScope: .local,
-                specificity: .broad
-            ),
-            VocabularyEntry(
-                canonicalPath: "Subject|Wildlife|Birds",
-                flatKeyword: "Birds",
-                namespace: .subject,
-                parentPath: "Subject|Wildlife",
-                synonyms: ["bird"],
-                requiresReview: false,
-                autoApplyAllowed: false,
-                directApplyPolicy: .allow,
-                propagationScope: PropagationScope.none,
-                specificity: .mid
-            ),
-            VocabularyEntry(
-                canonicalPath: "Subject|Mammals",
-                flatKeyword: "Mammals",
-                namespace: .subject,
-                parentPath: "Subject",
-                synonyms: ["mammal"],
-                requiresReview: false,
-                autoApplyAllowed: true,
-                directApplyPolicy: .allow,
-                mutuallyExclusiveGroup: "subject-kind",
-                propagationScope: .local,
-                specificity: .broad
-            ),
-            VocabularyEntry(
-                canonicalPath: "Subject|Review",
-                flatKeyword: "Review",
-                namespace: .subject,
-                parentPath: "Subject",
-                synonyms: [],
-                requiresReview: true,
-                autoApplyAllowed: false,
-                directApplyPolicy: .allow,
-                propagationScope: .local,
-                specificity: .broad
-            ),
-            VocabularyEntry(
-                canonicalPath: "Scene",
-                flatKeyword: "Scene",
-                namespace: .scene,
-                parentPath: nil,
-                synonyms: [],
-                requiresReview: false,
-                autoApplyAllowed: false,
-                directApplyPolicy: .withhold,
-                propagationScope: PropagationScope.none,
-                specificity: .broad
-            ),
-            VocabularyEntry(
-                canonicalPath: "Scene|Outdoor",
-                flatKeyword: "Outdoor",
-                namespace: .scene,
-                parentPath: "Scene",
-                synonyms: ["outdoor"],
-                requiresReview: false,
-                autoApplyAllowed: true,
-                directApplyPolicy: .allow,
-                propagationScope: .global,
-                specificity: .broad
-            )
-        ]), sourcePath: "memory://batch-consensus.json")
+        try VocabularyLoader.load(
+            data: vocabularyData(entries: [
+                VocabularyEntry(
+                    canonicalPath: "Subject",
+                    flatKeyword: "Subject",
+                    namespace: .subject,
+                    parentPath: nil,
+                    synonyms: [],
+                    requiresReview: false,
+                    autoApplyAllowed: false,
+                    directApplyPolicy: .withhold,
+                    propagationScope: PropagationScope.none,
+                    specificity: .broad
+                ),
+                VocabularyEntry(
+                    canonicalPath: "Subject|Wildlife",
+                    flatKeyword: "Wildlife",
+                    namespace: .subject,
+                    parentPath: "Subject",
+                    synonyms: ["wildlife"],
+                    requiresReview: false,
+                    autoApplyAllowed: true,
+                    directApplyPolicy: .allow,
+                    mutuallyExclusiveGroup: "subject-kind",
+                    propagationScope: .local,
+                    specificity: .broad
+                ),
+                VocabularyEntry(
+                    canonicalPath: "Subject|Wildlife|Birds",
+                    flatKeyword: "Birds",
+                    namespace: .subject,
+                    parentPath: "Subject|Wildlife",
+                    synonyms: ["bird"],
+                    requiresReview: false,
+                    autoApplyAllowed: false,
+                    directApplyPolicy: .allow,
+                    propagationScope: PropagationScope.none,
+                    specificity: .mid
+                ),
+                VocabularyEntry(
+                    canonicalPath: "Subject|Mammals",
+                    flatKeyword: "Mammals",
+                    namespace: .subject,
+                    parentPath: "Subject",
+                    synonyms: ["mammal"],
+                    requiresReview: false,
+                    autoApplyAllowed: true,
+                    directApplyPolicy: .allow,
+                    mutuallyExclusiveGroup: "subject-kind",
+                    propagationScope: .local,
+                    specificity: .broad
+                ),
+                VocabularyEntry(
+                    canonicalPath: "Subject|Review",
+                    flatKeyword: "Review",
+                    namespace: .subject,
+                    parentPath: "Subject",
+                    synonyms: [],
+                    requiresReview: true,
+                    autoApplyAllowed: false,
+                    directApplyPolicy: .allow,
+                    propagationScope: .local,
+                    specificity: .broad
+                ),
+                VocabularyEntry(
+                    canonicalPath: "Scene",
+                    flatKeyword: "Scene",
+                    namespace: .scene,
+                    parentPath: nil,
+                    synonyms: [],
+                    requiresReview: false,
+                    autoApplyAllowed: false,
+                    directApplyPolicy: .withhold,
+                    propagationScope: PropagationScope.none,
+                    specificity: .broad
+                ),
+                VocabularyEntry(
+                    canonicalPath: "Scene|Outdoor",
+                    flatKeyword: "Outdoor",
+                    namespace: .scene,
+                    parentPath: "Scene",
+                    synonyms: ["outdoor"],
+                    requiresReview: false,
+                    autoApplyAllowed: true,
+                    directApplyPolicy: .allow,
+                    propagationScope: .global,
+                    specificity: .broad
+                ),
+            ]), sourcePath: "memory://batch-consensus.json")
     }
 
     private func observedVocabulary() throws -> LoadedVocabulary {
-        try VocabularyLoader.load(data: vocabularyData(entries: [
-            VocabularyEntry(
-                canonicalPath: "Great Blue Heron",
-                flatKeyword: "Great Blue Heron",
-                namespace: .workflow,
-                parentPath: nil,
-                synonyms: [],
-                requiresReview: false,
-                autoApplyAllowed: true,
-                directApplyPolicy: .flatOnly,
-                mutuallyExclusiveGroup: nil,
-                exportFlatKeyword: true,
-                exportHierarchicalKeyword: false,
-                propagationScope: .local,
-                specificity: .broad
-            ),
-            VocabularyEntry(
-                canonicalPath: "Outdoor",
-                flatKeyword: "Outdoor",
-                namespace: .workflow,
-                parentPath: nil,
-                synonyms: [],
-                requiresReview: false,
-                autoApplyAllowed: true,
-                directApplyPolicy: .flatOnly,
-                mutuallyExclusiveGroup: nil,
-                exportFlatKeyword: true,
-                exportHierarchicalKeyword: false,
-                propagationScope: .global,
-                specificity: .broad
-            )
-        ]), sourcePath: "memory://observed-tags.json")
+        try VocabularyLoader.load(
+            data: vocabularyData(entries: [
+                VocabularyEntry(
+                    canonicalPath: "Great Blue Heron",
+                    flatKeyword: "Great Blue Heron",
+                    namespace: .workflow,
+                    parentPath: nil,
+                    synonyms: [],
+                    requiresReview: false,
+                    autoApplyAllowed: true,
+                    directApplyPolicy: .flatOnly,
+                    mutuallyExclusiveGroup: nil,
+                    exportFlatKeyword: true,
+                    exportHierarchicalKeyword: false,
+                    propagationScope: .local,
+                    specificity: .broad
+                ),
+                VocabularyEntry(
+                    canonicalPath: "Outdoor",
+                    flatKeyword: "Outdoor",
+                    namespace: .workflow,
+                    parentPath: nil,
+                    synonyms: [],
+                    requiresReview: false,
+                    autoApplyAllowed: true,
+                    directApplyPolicy: .flatOnly,
+                    mutuallyExclusiveGroup: nil,
+                    exportFlatKeyword: true,
+                    exportHierarchicalKeyword: false,
+                    propagationScope: .global,
+                    specificity: .broad
+                ),
+            ]), sourcePath: "memory://observed-tags.json")
     }
 
     private func batchConfiguration() -> ResolvedNormalizationConfiguration {

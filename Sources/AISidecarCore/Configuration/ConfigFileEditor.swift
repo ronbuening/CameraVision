@@ -66,9 +66,10 @@ public enum ConfigFileEditor {
             return string
         case .number(let number):
             if number.isFinite,
-               number.rounded() == number,
-               number >= Double(Int.min),
-               number <= Double(Int.max) {
+                number.rounded() == number,
+                number >= Double(Int.min),
+                number <= Double(Int.max)
+            {
                 return Int(number)
             }
             return number

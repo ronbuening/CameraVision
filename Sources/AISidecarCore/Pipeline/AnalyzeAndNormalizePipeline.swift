@@ -45,19 +45,23 @@ public struct AnalyzeAndNormalizePipeline {
         preScanRawSidecars: (@Sendable (String, ResolvedRunConfiguration) throws -> Set<String>)? = nil
     ) {
         self.fileManager = fileManager
-        self.analyzePipeline = analyzePipeline ?? AnalyzePipeline(
-            fileManager: fileManager,
-            logger: logger,
-            maskProvider: maskProvider,
-            runner: runner,
-            now: now
-        )
+        self.analyzePipeline =
+            analyzePipeline
+            ?? AnalyzePipeline(
+                fileManager: fileManager,
+                logger: logger,
+                maskProvider: maskProvider,
+                runner: runner,
+                now: now
+            )
         self.normalizePipeline = normalizePipeline
-        self.exportPipeline = exportPipeline ?? XMPExportPipeline(
-            fileManager: fileManager,
-            logger: logger,
-            now: now
-        )
+        self.exportPipeline =
+            exportPipeline
+            ?? XMPExportPipeline(
+                fileManager: fileManager,
+                logger: logger,
+                now: now
+            )
         self.executionRecorder = NormalizationXMPExecutionRecorder(fileManager: fileManager)
         self.afterNormalization = afterNormalization
         self.logger = logger
@@ -113,11 +117,13 @@ public struct AnalyzeAndNormalizePipeline {
             includeXMPPlans: true,
             interruptionMonitor: interruptionMonitor
         )
-        let changePlan = normalizeResult.changePlan ?? XMPChangePlanDocument(
-            dryRun: normalizationConfiguration.dryRun,
-            targetPlans: [],
-            inputFailures: []
-        )
+        let changePlan =
+            normalizeResult.changePlan
+            ?? XMPChangePlanDocument(
+                dryRun: normalizationConfiguration.dryRun,
+                targetPlans: [],
+                inputFailures: []
+            )
         afterNormalization()
         let exportResult = try exportPipeline.runChangePlan(
             changePlan,
@@ -132,8 +138,9 @@ public struct AnalyzeAndNormalizePipeline {
         )
 
         if shouldClearDerivativeCacheAfterOverallSuccess,
-           analyzeSucceeded(analyzeResult),
-           exportSucceeded(exportResult) {
+            analyzeSucceeded(analyzeResult),
+            exportSucceeded(exportResult)
+        {
             try DerivativeCache(
                 directoryPath: runConfiguration.derivativeCacheDir,
                 sizeCapBytes: runConfiguration.derivativeCacheSizeBytes,
@@ -203,12 +210,13 @@ public struct AnalyzeAndNormalizePipeline {
         return RawJSONSidecarInputFailure(
             sidecarPath: URL(fileURLWithPath: path).standardizedFileURL,
             relativePath: record.relativePath,
-            error: record.errors.first ?? SidecarError(
-                code: .validationFailed,
-                stage: .write,
-                message: "Analyze did not produce a successful raw sidecar for normalization.",
-                recoverable: true
-            )
+            error: record.errors.first
+                ?? SidecarError(
+                    code: .validationFailed,
+                    stage: .write,
+                    message: "Analyze did not produce a successful raw sidecar for normalization.",
+                    recoverable: true
+                )
         )
     }
 
@@ -246,18 +254,21 @@ public struct AnalyzeAndNormalizePipeline {
     }
 
     private func logCleanupWarning(_ message: String, error: Error) {
-        let sidecarError = error as? SidecarError ?? SidecarError(
-            code: .writeFailed,
-            stage: .write,
-            message: "\(message) \(error.localizedDescription)",
-            recoverable: true
-        )
-        try? logger.log(LogRecord(
-            level: .warn,
-            event: "pipeline.raw_sidecar_cleanup_warning",
-            message: message,
-            errors: [sidecarError]
-        ))
+        let sidecarError =
+            error as? SidecarError
+            ?? SidecarError(
+                code: .writeFailed,
+                stage: .write,
+                message: "\(message) \(error.localizedDescription)",
+                recoverable: true
+            )
+        try? logger.log(
+            LogRecord(
+                level: .warn,
+                event: "pipeline.raw_sidecar_cleanup_warning",
+                message: message,
+                errors: [sidecarError]
+            ))
     }
 
     private func xmpConfiguration(

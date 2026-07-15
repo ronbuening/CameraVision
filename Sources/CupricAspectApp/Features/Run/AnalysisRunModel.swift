@@ -41,10 +41,12 @@ final class AnalysisOptions {
     }
 
     func loadResolvedDefaults() {
-        guard let resolved = try? ConfigurationResolver.resolve(
-            environment: environment,
-            defaultConfigPath: defaultConfigPath
-        ) else { return }
+        guard
+            let resolved = try? ConfigurationResolver.resolve(
+                environment: environment,
+                defaultConfigPath: defaultConfigPath
+            )
+        else { return }
         resolvedModel = resolved.model
         resolvedEndpoint = resolved.modelEndpoint.absoluteString
         guard !defaultsLoaded else { return }
@@ -286,7 +288,8 @@ final class AnalysisRunModel {
             case .dryRun: break
             }
         }
-        outcome.errorSummaries = errorCounts
+        outcome.errorSummaries =
+            errorCounts
             .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
             .map { "\($0.key) × \($0.value)" }
         return outcome
@@ -300,7 +303,8 @@ final class AnalysisRunModel {
         }
         switch sidecarError.code {
         case .modelEndpointUnreachable:
-            return "Ollama isn't reachable. If it's installed, open the Ollama app (or run `ollama serve`); if not, download it from \(RuntimeGuidanceModel.downloadURL). Then retry."
+            return
+                "Ollama isn't reachable. If it's installed, open the Ollama app (or run `ollama serve`); if not, download it from \(RuntimeGuidanceModel.downloadURL). Then retry."
         case .modelTagNotFound:
             return sidecarError.message + " Pull it with `ollama pull <tag>` or pick an installed vision model."
         default:

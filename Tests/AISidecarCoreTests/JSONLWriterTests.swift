@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 /// R1-3: append I/O failures surface as SidecarError instead of process crashes.

@@ -56,9 +56,11 @@ struct NormalizationInspectorView: View {
                     .font(.system(size: 20, weight: .bold))
                     .kerning(-0.3)
                     .foregroundStyle(theme.text)
-                Text("\(model.acceptedTotal) accepted · \(model.withheldTotal) withheld · \(model.skippedTotal) skipped — the engine decided; \(FeatureFlags.vocabularyUI ? "inspect and adjust vocabulary or context" : "inspect and adjust context"), then re-run.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(theme.textDim)
+                Text(
+                    "\(model.acceptedTotal) accepted · \(model.withheldTotal) withheld · \(model.skippedTotal) skipped — the engine decided; \(FeatureFlags.vocabularyUI ? "inspect and adjust vocabulary or context" : "inspect and adjust context"), then re-run."
+                )
+                .font(.system(size: 13))
+                .foregroundStyle(theme.textDim)
             }
             Spacer()
             actionButton("Import session…") { importSession() }
@@ -256,7 +258,9 @@ struct NormalizationInspectorView: View {
                         HStack(spacing: 9) {
                             Capsule()
                                 .fill(theme.accent.accent)
-                                .frame(width: max(6, 110 * CGFloat(summary.totalSupportUnits) / CGFloat(maxSupport)), height: 6)
+                                .frame(
+                                    width: max(6, 110 * CGFloat(summary.totalSupportUnits) / CGFloat(maxSupport)),
+                                    height: 6)
                             Text("\(summary.assetCount)a · \(summary.totalSupportUnits)u")
                                 .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(theme.textDim)
@@ -288,8 +292,12 @@ struct NormalizationInspectorView: View {
     private func outcomeChips(_ summary: KeywordDecisionSummary) -> some View {
         HStack(spacing: 5) {
             if summary.acceptedCount > 0 { outcomeChip("\(summary.acceptedCount)", theme.green, theme.greenSoft) }
-            if summary.withheldCount > 0 { outcomeChip("\(summary.withheldCount)", theme.accent.accent, theme.accent.soft) }
-            if summary.skippedCount > 0 { outcomeChip("\(summary.skippedCount)", theme.textDim, AnyShapeStyle(theme.panel2)) }
+            if summary.withheldCount > 0 {
+                outcomeChip("\(summary.withheldCount)", theme.accent.accent, theme.accent.soft)
+            }
+            if summary.skippedCount > 0 {
+                outcomeChip("\(summary.skippedCount)", theme.textDim, AnyShapeStyle(theme.panel2))
+            }
         }
     }
 
@@ -358,8 +366,10 @@ struct NormalizationInspectorView: View {
         panel.nameFieldStringValue = "normalization-session.json"
         panel.allowedContentTypes = [.json]
         if panel.runModal() == .OK, let url = panel.url {
-            do { try model.saveSession(to: url); model.clearFileError() }
-            catch { model.reportFileError("Save session", error) }
+            do {
+                try model.saveSession(to: url)
+                model.clearFileError()
+            } catch { model.reportFileError("Save session", error) }
         }
     }
 
@@ -368,8 +378,10 @@ struct NormalizationInspectorView: View {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
-            do { try model.importSession(from: url); model.clearFileError() }
-            catch { model.reportFileError("Import session", error) }
+            do {
+                try model.importSession(from: url)
+                model.clearFileError()
+            } catch { model.reportFileError("Import session", error) }
         }
     }
 }

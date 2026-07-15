@@ -3,7 +3,8 @@ import Foundation
 /// Resolves run configuration according to the project-wide precedence rules.
 public enum ConfigurationResolver {
     /// Default persistent config path required by PW-006.
-    public static func defaultConfigPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
+    public static func defaultConfigPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String
+    {
         let home = environment["HOME"] ?? NSHomeDirectory()
         return "\(home)/Library/Application Support/aisidecar/config.json"
     }
@@ -18,7 +19,8 @@ public enum ConfigurationResolver {
         environment: [String: String],
         defaultConfigPath: String?
     ) -> (selected: String, explicit: Bool) {
-        let selected = cliConfigPath
+        let selected =
+            cliConfigPath
             ?? environment["AISIDECAR_CONFIG"]
             ?? defaultConfigPath
             ?? Self.defaultConfigPath(environment: environment)
@@ -251,7 +253,8 @@ public enum ConfigurationResolver {
     private static func environmentOverrides(from environment: [String: String]) throws -> RunConfigurationOverrides {
         RunConfigurationOverrides(
             mode: try enumValue(AnalysisMode.self, from: environment["AISIDECAR_MODE"], key: "AISIDECAR_MODE"),
-            existing: try enumValue(ExistingPolicy.self, from: environment["AISIDECAR_EXISTING"], key: "AISIDECAR_EXISTING"),
+            existing: try enumValue(
+                ExistingPolicy.self, from: environment["AISIDECAR_EXISTING"], key: "AISIDECAR_EXISTING"),
             recursive: try boolValue(from: environment["AISIDECAR_RECURSIVE"], key: "AISIDECAR_RECURSIVE"),
             qualityAssessment: try boolValue(
                 from: environment["AISIDECAR_QUALITY_ASSESSMENT"],
@@ -270,8 +273,10 @@ public enum ConfigurationResolver {
                 key: "AISIDECAR_MODEL_RETRY_LIMIT"
             ),
             profile: environment["AISIDECAR_PROFILE"],
-            logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
-            logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
+            logLevel: try enumValue(
+                LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
+            logFormat: try enumValue(
+                LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
             dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
             debugDerivatives: try boolValue(
                 from: environment["AISIDECAR_DEBUG_DERIVATIVES"],
@@ -333,8 +338,10 @@ public enum ConfigurationResolver {
         XMPExportConfigurationOverrides(
             recursive: try boolValue(from: environment["AISIDECAR_RECURSIVE"], key: "AISIDECAR_RECURSIVE"),
             outputDir: environment["AISIDECAR_OUTPUT_DIR"],
-            logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
-            logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
+            logLevel: try enumValue(
+                LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
+            logFormat: try enumValue(
+                LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
             dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
             sourceRoot: environment["AISIDECAR_SOURCE_ROOT"],
             sourceVerification: try enumValue(
@@ -383,8 +390,10 @@ public enum ConfigurationResolver {
         NormalizationConfigurationOverrides(
             recursive: try boolValue(from: environment["AISIDECAR_RECURSIVE"], key: "AISIDECAR_RECURSIVE"),
             outputDir: environment["AISIDECAR_OUTPUT_DIR"],
-            logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
-            logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
+            logLevel: try enumValue(
+                LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
+            logFormat: try enumValue(
+                LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
             dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
             sourceRoot: environment["AISIDECAR_SOURCE_ROOT"],
             sourceVerification: try enumValue(
@@ -418,7 +427,8 @@ public enum ConfigurationResolver {
                 from: environment["AISIDECAR_ALLOW_SPECIFIC_TAGS"],
                 key: "AISIDECAR_ALLOW_SPECIFIC_TAGS"
             ),
-            pairScope: try enumValue(XMPPairScope.self, from: environment["AISIDECAR_PAIR_SCOPE"], key: "AISIDECAR_PAIR_SCOPE"),
+            pairScope: try enumValue(
+                XMPPairScope.self, from: environment["AISIDECAR_PAIR_SCOPE"], key: "AISIDECAR_PAIR_SCOPE"),
             writeAIJSON: try boolValue(from: environment["AISIDECAR_WRITE_AI_JSON"], key: "AISIDECAR_WRITE_AI_JSON"),
             vocabularyPath: environment["AISIDECAR_VOCABULARY"],
             vocabularyMode: try enumValue(
@@ -484,8 +494,10 @@ public enum ConfigurationResolver {
     ) throws -> ApplySessionConfigurationOverrides {
         ApplySessionConfigurationOverrides(
             outputDir: environment["AISIDECAR_OUTPUT_DIR"],
-            logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
-            logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
+            logLevel: try enumValue(
+                LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
+            logFormat: try enumValue(
+                LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
             dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
             sourceRoot: environment["AISIDECAR_SOURCE_ROOT"],
             sourceVerification: try enumValue(
@@ -727,9 +739,9 @@ private struct ConfigurationBuilder {
 
     func resolved() throws -> ResolvedRunConfiguration {
         guard let endpoint = URL(string: modelEndpoint),
-              let scheme = endpoint.scheme?.lowercased(),
-              ["http", "https"].contains(scheme),
-              endpoint.host != nil
+            let scheme = endpoint.scheme?.lowercased(),
+            ["http", "https"].contains(scheme),
+            endpoint.host != nil
         else {
             throw SidecarError.configInvalid("Invalid model endpoint URL: \(modelEndpoint)")
         }
@@ -750,10 +762,11 @@ private struct ConfigurationBuilder {
             throw SidecarError.configInvalid("subject_crop_margin_fraction must be greater than zero and at most one")
         }
         guard subjectMergeDominanceThreshold > 0,
-              subjectMergeDominanceThreshold <= 1,
-              subjectMergeDominanceThreshold.isFinite
+            subjectMergeDominanceThreshold <= 1,
+            subjectMergeDominanceThreshold.isFinite
         else {
-            throw SidecarError.configInvalid("subject_merge_dominance_threshold must be greater than zero and at most one")
+            throw SidecarError.configInvalid(
+                "subject_merge_dominance_threshold must be greater than zero and at most one")
         }
         guard stageConcurrency > 0 else {
             throw SidecarError.configInvalid("stage_concurrency must be greater than zero")
@@ -1041,8 +1054,8 @@ private struct ApplySessionConfigurationBuilder {
     }
 }
 
-private extension RunConfigurationOverrides {
-    func withoutConfigPath() -> RunConfigurationOverrides {
+extension RunConfigurationOverrides {
+    fileprivate func withoutConfigPath() -> RunConfigurationOverrides {
         // The selected config path controls which file is read, but it is not a
         // persisted run value and should not participate in provenance.
         RunConfigurationOverrides(
@@ -1077,8 +1090,8 @@ private extension RunConfigurationOverrides {
     }
 }
 
-private extension XMPExportConfigurationOverrides {
-    func withoutConfigPath() -> XMPExportConfigurationOverrides {
+extension XMPExportConfigurationOverrides {
+    fileprivate func withoutConfigPath() -> XMPExportConfigurationOverrides {
         // Match the Phase 1 resolver: the selected config path is read input,
         // not part of the resolved operational settings.
         XMPExportConfigurationOverrides(
@@ -1101,8 +1114,8 @@ private extension XMPExportConfigurationOverrides {
     }
 }
 
-private extension NormalizationConfigurationOverrides {
-    func withoutConfigPath() -> NormalizationConfigurationOverrides {
+extension NormalizationConfigurationOverrides {
+    fileprivate func withoutConfigPath() -> NormalizationConfigurationOverrides {
         NormalizationConfigurationOverrides(
             recursive: recursive,
             outputDir: outputDir,
@@ -1140,8 +1153,8 @@ private extension NormalizationConfigurationOverrides {
     }
 }
 
-private extension ApplySessionConfigurationOverrides {
-    func withoutConfigPath() -> ApplySessionConfigurationOverrides {
+extension ApplySessionConfigurationOverrides {
+    fileprivate func withoutConfigPath() -> ApplySessionConfigurationOverrides {
         ApplySessionConfigurationOverrides(
             outputDir: outputDir,
             logLevel: logLevel,

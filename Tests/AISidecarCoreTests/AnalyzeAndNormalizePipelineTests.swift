@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class AnalyzeAndNormalizePipelineTests: XCTestCase {
@@ -17,7 +18,8 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         let result = try await pipeline().run(
             inputPath: root.path,
             runConfiguration: runConfiguration(outputDir: output.path, recursive: true),
-            normalizationConfiguration: normalizationConfiguration(outputDir: output.path, vocabularyPath: vocabularyPath)
+            normalizationConfiguration: normalizationConfiguration(
+                outputDir: output.path, vocabularyPath: vocabularyPath)
         )
 
         XCTAssertEqual(result.analyzeResult.records.map(\.status), [.written])
@@ -40,11 +42,12 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         XCTAssertEqual(decodedReport.xmpExportReport?.writtenCount, 1)
         XCTAssertEqual(decodedReport.errors, [])
         let progress = try decodeProgress(at: decodedReport.artifacts.progressPath)
-        XCTAssertTrue(progress.contains {
-            $0.stage == .xmpTarget
-                && $0.status == .completed
-                && $0.targetRelativePath == "Bird.xmp"
-        })
+        XCTAssertTrue(
+            progress.contains {
+                $0.stage == .xmpTarget
+                    && $0.status == .completed
+                    && $0.targetRelativePath == "Bird.xmp"
+            })
     }
 
     func testPartialAnalysisFailureNormalizesOnlySuccessfulRawSidecarsAndReportsFailure() async throws {
@@ -62,14 +65,16 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         let result = try await pipeline().run(
             inputPath: root.path,
             runConfiguration: runConfiguration(outputDir: output.path, recursive: false),
-            normalizationConfiguration: normalizationConfiguration(outputDir: output.path, vocabularyPath: vocabularyPath)
+            normalizationConfiguration: normalizationConfiguration(
+                outputDir: output.path, vocabularyPath: vocabularyPath)
         )
 
         XCTAssertEqual(result.analyzeResult.records.map(\.status), [.failed, .written])
         XCTAssertEqual(result.normalizeResult.report.inputSummary.sourceAssetCount, 1)
         XCTAssertEqual(result.normalizeResult.report.inputSummary.failureCount, 1)
         XCTAssertEqual(result.normalizeResult.report.errors.map(\.code), [.unsupportedFormat])
-        XCTAssertEqual(result.normalizeResult.report.xmpExportReport?.inputFailures.map(\.error.code), [.unsupportedFormat])
+        XCTAssertEqual(
+            result.normalizeResult.report.xmpExportReport?.inputFailures.map(\.error.code), [.unsupportedFormat])
         XCTAssertEqual(result.normalizeResult.report.xmpExportReport?.targetReports.first?.status, .created)
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.xmp").path))
     }
@@ -96,7 +101,9 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.JPG.ai.json").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.xmp").path))
         XCTAssertEqual(result.normalizeResult.session.sourceAISidecars.count, 1)
-        XCTAssertEqual(result.normalizeResult.report.sourceAssets.first?.sourceSidecarPath, output.appendingPathComponent("Bird.JPG.ai.json").path)
+        XCTAssertEqual(
+            result.normalizeResult.report.sourceAssets.first?.sourceSidecarPath,
+            output.appendingPathComponent("Bird.JPG.ai.json").path)
         XCTAssertEqual(result.normalizeResult.report.xmpExportReport?.writtenCount, 1)
     }
 
@@ -159,7 +166,8 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
             _ = try await pipeline(runner: AnalyzeNormalizeVisionRunner(prepareError: prepareError)).run(
                 inputPath: root.path,
                 runConfiguration: runConfiguration(outputDir: output.path, recursive: true),
-                normalizationConfiguration: normalizationConfiguration(outputDir: output.path, vocabularyPath: vocabularyPath)
+                normalizationConfiguration: normalizationConfiguration(
+                    outputDir: output.path, vocabularyPath: vocabularyPath)
             )
             XCTFail("Expected model preparation to fail.")
         } catch let error as SidecarError {
@@ -188,14 +196,15 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
                 "main_subjects": .array([Self.candidate("bird", confidence: "high")]),
                 "proposed_keywords": .array([
                     Self.candidate("40.7128, -74.0060", confidence: "high", evidence: "GPS coordinates only")
-                ])
+                ]),
             ])
         )
 
         let result = try await pipeline(runner: runner).run(
             inputPath: root.path,
             runConfiguration: runConfiguration(outputDir: output.path, recursive: true, gpsContext: .exact),
-            normalizationConfiguration: normalizationConfiguration(outputDir: output.path, vocabularyPath: vocabularyPath)
+            normalizationConfiguration: normalizationConfiguration(
+                outputDir: output.path, vocabularyPath: vocabularyPath)
         )
 
         let prompts = await runner.capturedPrompts()
@@ -209,7 +218,8 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         XCTAssertEqual(result.normalizeResult.report.xmpExportReport?.writtenCount, 1)
     }
 
-    private func pipeline(runner: any VisionModelRunner = AnalyzeNormalizeVisionRunner()) -> AnalyzeAndNormalizePipeline {
+    private func pipeline(runner: any VisionModelRunner = AnalyzeNormalizeVisionRunner()) -> AnalyzeAndNormalizePipeline
+    {
         AnalyzeAndNormalizePipeline(
             logger: Logger(sink: { _ in }),
             runner: runner,
@@ -273,7 +283,8 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let text = String(decoding: try Data(contentsOf: URL(fileURLWithPath: path)), as: UTF8.self)
-        return try text
+        return
+            try text
             .split(separator: "\n")
             .map { try decoder.decode(NormalizationProgressRecord.self, from: Data($0.utf8)) }
     }
@@ -285,7 +296,7 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
     fileprivate static func response(_ fields: [String: JSONValue]) -> JSONValue {
         var object: [String: JSONValue] = [
             "summary": .string("fixture"),
-            "uncertainty_notes": .string("")
+            "uncertainty_notes": .string(""),
         ]
         for (field, value) in fields {
             object[field] = value
@@ -301,7 +312,7 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         .object([
             "term": .string(term),
             "confidence": .string(confidence),
-            "evidence": .string(evidence)
+            "evidence": .string(evidence),
         ])
     }
 }

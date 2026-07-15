@@ -1,6 +1,6 @@
-import Foundation
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
+import Foundation
 
 struct WriteXMPCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -158,7 +158,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             )
         case .analyzeAndWrite(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
-            let result = try await withBatchInterruptionExit {
+            let result = try await withAsyncBatchInterruptionExit {
                 try await AnalyzeAndXMPPipeline(logger: logger).run(
                     inputPath: inputPath,
                     runConfiguration: runConfiguration,

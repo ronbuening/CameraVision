@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class SameBaseNameGroupTests: XCTestCase {
@@ -10,7 +11,7 @@ final class SameBaseNameGroupTests: XCTestCase {
             inputBatch: RawJSONSidecarInputBatch(inputs: [raw, jpeg], failures: []),
             extractionResults: [
                 extraction(for: raw, terms: ["bird", "wetland"]),
-                extraction(for: jpeg, terms: ["Bird", "portrait"])
+                extraction(for: jpeg, terms: ["Bird", "portrait"]),
             ],
             configuration: .builtInDefaults
         )
@@ -34,14 +35,15 @@ final class SameBaseNameGroupTests: XCTestCase {
         var configuration = ResolvedXMPExportConfiguration.builtInDefaults
         configuration.pairScope = .rawOnly
 
-        let plan = try XCTUnwrap(XMPChangePlanner().plan(
-            inputBatch: RawJSONSidecarInputBatch(inputs: [raw, jpeg], failures: []),
-            extractionResults: [
-                extraction(for: raw, terms: ["raw term"]),
-                extraction(for: jpeg, terms: ["jpeg term"])
-            ],
-            configuration: configuration
-        ).targetPlans.first)
+        let plan = try XCTUnwrap(
+            XMPChangePlanner().plan(
+                inputBatch: RawJSONSidecarInputBatch(inputs: [raw, jpeg], failures: []),
+                extractionResults: [
+                    extraction(for: raw, terms: ["raw term"]),
+                    extraction(for: jpeg, terms: ["jpeg term"]),
+                ],
+                configuration: configuration
+            ).targetPlans.first)
 
         XCTAssertEqual(plan.flatKeywordsToAdd.map(\.term), ["raw term"])
         XCTAssertEqual(plan.sourceMembers.filter(\.selected).map(\.sourceRelativePath), ["Bird.NEF"])
@@ -55,14 +57,15 @@ final class SameBaseNameGroupTests: XCTestCase {
         var configuration = ResolvedXMPExportConfiguration.builtInDefaults
         configuration.pairScope = .jpegOnly
 
-        let plan = try XCTUnwrap(XMPChangePlanner().plan(
-            inputBatch: RawJSONSidecarInputBatch(inputs: [raw, jpeg], failures: []),
-            extractionResults: [
-                extraction(for: raw, terms: ["raw term"]),
-                extraction(for: jpeg, terms: ["jpeg term"])
-            ],
-            configuration: configuration
-        ).targetPlans.first)
+        let plan = try XCTUnwrap(
+            XMPChangePlanner().plan(
+                inputBatch: RawJSONSidecarInputBatch(inputs: [raw, jpeg], failures: []),
+                extractionResults: [
+                    extraction(for: raw, terms: ["raw term"]),
+                    extraction(for: jpeg, terms: ["jpeg term"]),
+                ],
+                configuration: configuration
+            ).targetPlans.first)
 
         XCTAssertEqual(plan.flatKeywordsToAdd.map(\.term), ["jpeg term"])
         XCTAssertEqual(plan.sourceMembers.filter(\.selected).map(\.sourceRelativePath), ["Bird.JPG"])
@@ -75,11 +78,12 @@ final class SameBaseNameGroupTests: XCTestCase {
         var configuration = ResolvedXMPExportConfiguration.builtInDefaults
         configuration.pairScope = .rawOnly
 
-        let plan = try XCTUnwrap(XMPChangePlanner().plan(
-            inputBatch: RawJSONSidecarInputBatch(inputs: [tiff], failures: []),
-            extractionResults: [extraction(for: tiff, terms: ["tiff term"])],
-            configuration: configuration
-        ).targetPlans.first)
+        let plan = try XCTUnwrap(
+            XMPChangePlanner().plan(
+                inputBatch: RawJSONSidecarInputBatch(inputs: [tiff], failures: []),
+                extractionResults: [extraction(for: tiff, terms: ["tiff term"])],
+                configuration: configuration
+            ).targetPlans.first)
 
         XCTAssertEqual(plan.status, .failed)
         XCTAssertEqual(plan.failures.map(\.code), [.validationFailed])
@@ -93,7 +97,7 @@ final class SameBaseNameGroupTests: XCTestCase {
             inputBatch: RawJSONSidecarInputBatch(inputs: [upper, lower], failures: []),
             extractionResults: [
                 extraction(for: upper, terms: ["upper"]),
-                extraction(for: lower, terms: ["lower"])
+                extraction(for: lower, terms: ["lower"]),
             ],
             configuration: .builtInDefaults
         )
@@ -116,10 +120,11 @@ final class SameBaseNameGroupTests: XCTestCase {
         )
         return ResolvedRawSidecarInput(
             sidecarPath: URL(fileURLWithPath: "/sidecars/\(fileName).ai.json"),
-            document: try RawJSONSidecarDocument(sidecar: RawJSONSidecar(
-                source: source,
-                runConfiguration: .builtInDefaults
-            )),
+            document: try RawJSONSidecarDocument(
+                sidecar: RawJSONSidecar(
+                    source: source,
+                    runConfiguration: .builtInDefaults
+                )),
             sourcePath: URL(fileURLWithPath: source.path),
             sourceIdentityStatus: .skipped,
             relativePath: "\(fileName).ai.json",

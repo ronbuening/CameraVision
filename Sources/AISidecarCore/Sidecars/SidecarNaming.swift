@@ -94,7 +94,8 @@ public enum SidecarNaming {
         // target photo archive may live on a case-insensitive filesystem.
         let collidingKeys = Set(grouped.filter { $0.value.count > 1 }.map(\.key))
 
-        let collisions = grouped
+        let collisions =
+            grouped
             .filter { $0.value.count > 1 }
             .map { _, entries in
                 let sortedEntries = entries.sorted { $0.source.relativePath < $1.source.relativePath }
@@ -113,7 +114,8 @@ public enum SidecarNaming {
             }
             .sorted { $0.sidecarPath < $1.sidecarPath }
 
-        let entries = provisional
+        let entries =
+            provisional
             .filter { !collidingKeys.contains($0.sidecarPath.lowercased()) }
             .sorted { $0.source.relativePath < $1.source.relativePath }
 

@@ -20,26 +20,28 @@ func writeTestImage(
         withIntermediateDirectories: true
     )
     let image = try testCGImage(width: width, height: height)
-    guard let imageDestination = CGImageDestinationCreateWithURL(
-        destination as CFURL,
-        typeIdentifier(for: destination.pathExtension) as CFString,
-        1,
-        nil
-    ) else {
+    guard
+        let imageDestination = CGImageDestinationCreateWithURL(
+            destination as CFURL,
+            typeIdentifier(for: destination.pathExtension) as CFString,
+            1,
+            nil
+        )
+    else {
         XCTFail("Could not create image destination", file: file, line: line)
         return destination
     }
 
     var properties: [CFString: Any] = [
         kCGImagePropertyOrientation: orientation,
-        kCGImageDestinationLossyCompressionQuality: 0.9
+        kCGImageDestinationLossyCompressionQuality: 0.9,
     ]
     if let gps {
         properties[kCGImagePropertyGPSDictionary] = [
             kCGImagePropertyGPSLatitude: abs(gps.latitude),
             kCGImagePropertyGPSLatitudeRef: gps.latitude < 0 ? "S" : "N",
             kCGImagePropertyGPSLongitude: abs(gps.longitude),
-            kCGImagePropertyGPSLongitudeRef: gps.longitude < 0 ? "W" : "E"
+            kCGImagePropertyGPSLongitudeRef: gps.longitude < 0 ? "W" : "E",
         ]
     }
 
@@ -50,9 +52,9 @@ func writeTestImage(
 
 func decodedImageSize(at url: URL) throws -> (width: Int, height: Int) {
     guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-          let width = properties[kCGImagePropertyPixelWidth] as? Int,
-          let height = properties[kCGImagePropertyPixelHeight] as? Int
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+        let width = properties[kCGImagePropertyPixelWidth] as? Int,
+        let height = properties[kCGImagePropertyPixelHeight] as? Int
     else {
         throw XCTSkip("Unable to decode image properties at \(url.path)")
     }
@@ -61,7 +63,7 @@ func decodedImageSize(at url: URL) throws -> (width: Int, height: Int) {
 
 func imageProfileName(at url: URL) throws -> String? {
     guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
     else {
         throw XCTSkip("Unable to decode image properties at \(url.path)")
     }
@@ -70,7 +72,7 @@ func imageProfileName(at url: URL) throws -> String? {
 
 private func testCGImage(width: Int, height: Int) throws -> CGImage {
     guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-          let context = CGContext(
+        let context = CGContext(
             data: nil,
             width: width,
             height: height,
@@ -78,7 +80,7 @@ private func testCGImage(width: Int, height: Int) throws -> CGImage {
             bytesPerRow: 0,
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-          )
+        )
     else {
         throw XCTSkip("Unable to create test image context")
     }

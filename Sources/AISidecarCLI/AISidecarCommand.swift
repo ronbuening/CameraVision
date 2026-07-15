@@ -1,5 +1,5 @@
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
 
 @main
 struct AISidecarCommand: AsyncParsableCommand {
@@ -15,7 +15,7 @@ struct AISidecarCommand: AsyncParsableCommand {
             ExplainSessionCommand.self,
             BenchmarkCommand.self,
             PurgeCommand.self,
-            CleanupCommand.self
+            CleanupCommand.self,
         ]
     )
 }
