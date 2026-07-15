@@ -50,6 +50,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var mode: AnalysisMode?
     public var existing: ExistingPolicy?
     public var recursive: Bool?
+    public var qualityAssessment: Bool?
     public var outputDir: String?
     public var model: String?
     public var modelEndpoint: String?
@@ -84,6 +85,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         mode: AnalysisMode? = nil,
         existing: ExistingPolicy? = nil,
         recursive: Bool? = nil,
+        qualityAssessment: Bool? = nil,
         outputDir: String? = nil,
         model: String? = nil,
         modelEndpoint: String? = nil,
@@ -112,6 +114,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.mode = mode
         self.existing = existing
         self.recursive = recursive
+        self.qualityAssessment = qualityAssessment
         self.outputDir = outputDir
         self.model = model
         self.modelEndpoint = modelEndpoint
@@ -178,6 +181,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var mode: AnalysisMode
     public var existing: ExistingPolicy
     public var recursive: Bool
+    /// Model prompt/schema contract selected for this run.
+    public var taskProfile: ModelTaskProfile
     public var outputDir: String?
     public var model: String
     public var modelEndpoint: URL
@@ -219,6 +224,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case mode
         case existing
         case recursive
+        case taskProfile = "task_profile"
         case outputDir = "output_dir"
         case model
         case modelEndpoint = "model_endpoint"
@@ -248,6 +254,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         mode: AnalysisMode,
         existing: ExistingPolicy,
         recursive: Bool,
+        taskProfile: ModelTaskProfile = .tagging,
         outputDir: String?,
         model: String,
         modelEndpoint: URL,
@@ -275,6 +282,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.mode = mode
         self.existing = existing
         self.recursive = recursive
+        self.taskProfile = taskProfile
         self.outputDir = outputDir
         self.model = model
         self.modelEndpoint = modelEndpoint
@@ -318,6 +326,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         mode: .both,
         existing: .skip,
         recursive: false,
+        taskProfile: .tagging,
         outputDir: nil,
         model: "gemma4:26b-a4b-it-qat",
         modelEndpoint: URL(string: "http://localhost:11434")!,
@@ -348,6 +357,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.mode = try container.decode(AnalysisMode.self, forKey: .mode)
         self.existing = try container.decode(ExistingPolicy.self, forKey: .existing)
         self.recursive = try container.decode(Bool.self, forKey: .recursive)
+        self.taskProfile = try container.decodeIfPresent(ModelTaskProfile.self, forKey: .taskProfile)
+            ?? Self.builtInDefaults.taskProfile
         self.outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
         self.model = try container.decode(String.self, forKey: .model)
         self.modelEndpoint = try container.decode(URL.self, forKey: .modelEndpoint)
