@@ -1,5 +1,6 @@
 import AISidecarCore
 import XCTest
+
 @testable import CupricAspectApp
 
 /// B0-4 (FR4-059, AC4-035): the shared file sink persists structured pipeline
@@ -28,17 +29,20 @@ final class GUILogTests: XCTestCase {
     func testLoggerWritesStructuredErrorLinesToFile() throws {
         let sink = FileLogSink(directory: directory)
         let logger = sink.makeLogger()
-        try logger.log(LogRecord(
-            level: .error,
-            event: "analyze.failed",
-            message: "model response invalid",
-            errors: [SidecarError(
-                code: .modelSchemaViolation,
-                stage: .model,
-                message: "schema violation",
-                recoverable: true
-            )]
-        ))
+        try logger.log(
+            LogRecord(
+                level: .error,
+                event: "analyze.failed",
+                message: "model response invalid",
+                errors: [
+                    SidecarError(
+                        code: .modelSchemaViolation,
+                        stage: .model,
+                        message: "schema violation",
+                        recoverable: true
+                    )
+                ]
+            ))
         let contents = try String(contentsOf: sink.logURL, encoding: .utf8)
         XCTAssertTrue(contents.contains("analyze.failed"))
         XCTAssertTrue(contents.contains("E_MODEL_SCHEMA_VIOLATION"), "structured code must be readable")
@@ -49,7 +53,8 @@ final class GUILogTests: XCTestCase {
         for index in 0..<20 {
             sink.write("line \(index) with some padding to cross the cap sooner")
         }
-        let currentSize = try FileManager.default
+        let currentSize =
+            try FileManager.default
             .attributesOfItem(atPath: sink.logURL.path)[.size] as? Int ?? 0
         XCTAssertLessThanOrEqual(currentSize, 200 + 64, "current log stays near the cap")
         XCTAssertTrue(

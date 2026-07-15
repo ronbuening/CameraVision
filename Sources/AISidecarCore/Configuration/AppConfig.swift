@@ -271,7 +271,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         )
         self.derivativeCacheDir = try container.decodeIfPresent(String.self, forKey: .derivativeCacheDir)
         self.derivativeCacheSizeBytes = try container.decodeIfPresent(Int64.self, forKey: .derivativeCacheSizeBytes)
-        self.clearDerivativeCacheOnStart = try container.decodeIfPresent(Bool.self, forKey: .clearDerivativeCacheOnStart)
+        self.clearDerivativeCacheOnStart = try container.decodeIfPresent(
+            Bool.self, forKey: .clearDerivativeCacheOnStart)
         self.clearDerivativeCacheAfterSuccess = try container.decodeIfPresent(
             Bool.self,
             forKey: .clearDerivativeCacheAfterSuccess
@@ -310,7 +311,8 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.sessionEvent = try container.decodeIfPresent(String.self, forKey: .sessionEvent)
         self.consensusThreshold = try container.decodeIfPresent(Double.self, forKey: .consensusThreshold)
         self.affinityMode = try container.decodeIfPresent(NormalizationAffinityMode.self, forKey: .affinityMode)
-        self.affinityProfile = try container.decodeIfPresent(NormalizationAffinityProfile.self, forKey: .affinityProfile)
+        self.affinityProfile = try container.decodeIfPresent(
+            NormalizationAffinityProfile.self, forKey: .affinityProfile)
         self.minAffinityForConsensus = try container.decodeIfPresent(Double.self, forKey: .minAffinityForConsensus)
         self.sessionOnly = try container.decodeIfPresent(Bool.self, forKey: .sessionOnly)
         self.unknownSessionContextPolicy = try container.decodeIfPresent(

@@ -1,16 +1,19 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class ModelRuntimeTests: XCTestCase {
     func testPrepareResolvesTagDigestRuntimeVersionAndVisionTags() async throws {
         let transport = RecordingOllamaTransport([
-            .success(jsonResponse("""
-            {"models":[{"name":"gemma4:26b-a4b-it-qat","model":"gemma4:26b-a4b-it-qat","digest":"abc123"}]}
-            """)),
+            .success(
+                jsonResponse(
+                    """
+                    {"models":[{"name":"gemma4:26b-a4b-it-qat","model":"gemma4:26b-a4b-it-qat","digest":"abc123"}]}
+                    """)),
             .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
             .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
-            .success(jsonResponse(#"{"version":"0.12.6"}"#))
+            .success(jsonResponse(#"{"version":"0.12.6"}"#)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -30,16 +33,18 @@ final class ModelRuntimeTests: XCTestCase {
 
     func testPrepareMissingTagFailsWithVisionCapableSuggestions() async throws {
         let transport = RecordingOllamaTransport([
-            .success(jsonResponse("""
-            {
-              "models": [
-                {"name":"text:model","model":"text:model","digest":"111"},
-                {"name":"vision:model","model":"vision:model","digest":"222"}
-              ]
-            }
-            """)),
+            .success(
+                jsonResponse(
+                    """
+                    {
+                      "models": [
+                        {"name":"text:model","model":"text:model","digest":"111"},
+                        {"name":"vision:model","model":"vision:model","digest":"222"}
+                      ]
+                    }
+                    """)),
             .success(jsonResponse(#"{"capabilities":["completion"]}"#)),
-            .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#))
+            .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
         var configuration = ResolvedRunConfiguration.builtInDefaults
@@ -59,17 +64,19 @@ final class ModelRuntimeTests: XCTestCase {
 
     func testPrepareInstalledNonVisionTagFailsWithVisionCapableSuggestions() async throws {
         let transport = RecordingOllamaTransport([
-            .success(jsonResponse("""
-            {
-              "models": [
-                {"name":"text:model","model":"text:model","digest":"111"},
-                {"name":"vision:model","model":"vision:model","digest":"222"}
-              ]
-            }
-            """)),
+            .success(
+                jsonResponse(
+                    """
+                    {
+                      "models": [
+                        {"name":"text:model","model":"text:model","digest":"111"},
+                        {"name":"vision:model","model":"vision:model","digest":"222"}
+                      ]
+                    }
+                    """)),
             .success(jsonResponse(#"{"capabilities":["completion"]}"#)),
             .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
-            .success(jsonResponse(#"{"capabilities":["completion"]}"#))
+            .success(jsonResponse(#"{"capabilities":["completion"]}"#)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
         var configuration = ResolvedRunConfiguration.builtInDefaults
@@ -86,16 +93,18 @@ final class ModelRuntimeTests: XCTestCase {
 
     func testPrepareTagDiagnosticDistinguishesUnprobedInstalledModels() async throws {
         let transport = RecordingOllamaTransport([
-            .success(jsonResponse("""
-            {
-              "models": [
-                {"name":"vision:model","model":"vision:model","digest":"111"},
-                {"name":"flaky:model","model":"flaky:model","digest":"222"}
-              ]
-            }
-            """)),
+            .success(
+                jsonResponse(
+                    """
+                    {
+                      "models": [
+                        {"name":"vision:model","model":"vision:model","digest":"111"},
+                        {"name":"flaky:model","model":"flaky:model","digest":"222"}
+                      ]
+                    }
+                    """)),
             .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
-            .failure(OllamaHTTPTransportError.unreachable("probe failed"))
+            .failure(OllamaHTTPTransportError.unreachable("probe failed")),
         ])
         let runner = OllamaVisionRunner(transport: transport)
         var configuration = ResolvedRunConfiguration.builtInDefaults
@@ -131,12 +140,14 @@ final class ModelRuntimeTests: XCTestCase {
     func testPrepareRetriesMalformedSuccessfulResponseOnce() async throws {
         let transport = RecordingOllamaTransport([
             .success(jsonResponse("{")),
-            .success(jsonResponse("""
-            {"models":[{"name":"gemma4:26b-a4b-it-qat","model":"gemma4:26b-a4b-it-qat","digest":"abc123"}]}
-            """)),
+            .success(
+                jsonResponse(
+                    """
+                    {"models":[{"name":"gemma4:26b-a4b-it-qat","model":"gemma4:26b-a4b-it-qat","digest":"abc123"}]}
+                    """)),
             .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
             .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
-            .success(jsonResponse(#"{"version":"0.12.6"}"#))
+            .success(jsonResponse(#"{"version":"0.12.6"}"#)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -150,7 +161,7 @@ final class ModelRuntimeTests: XCTestCase {
     func testPrepareClassifiesRepeatedMalformedSuccessfulResponse() async {
         let transport = RecordingOllamaTransport([
             .success(jsonResponse("{")),
-            .success(jsonResponse("{"))
+            .success(jsonResponse("{")),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -173,21 +184,23 @@ final class ModelRuntimeTests: XCTestCase {
         try inputData.write(to: imageURL)
         let rawResponse = wholeImageModelResponseJSON()
         let transport = RecordingOllamaTransport([
-            .success(chatResponse(
-                content: rawResponse,
-                totalDuration: 21_000_000,
-                loadDuration: 2_000_000,
-                promptEvalCount: 31,
-                promptEvalDuration: 3_000_000,
-                evalCount: 41,
-                evalDuration: 4_000_000
-            ))
+            .success(
+                chatResponse(
+                    content: rawResponse,
+                    totalDuration: 21_000_000,
+                    loadDuration: 2_000_000,
+                    promptEvalCount: 31,
+                    promptEvalDuration: 3_000_000,
+                    evalCount: 41,
+                    evalDuration: 4_000_000
+                ))
         ])
         let runner = OllamaVisionRunner(
             transport: transport,
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_900_000_000))
         )
-        let options = ModelRunOptions(temperature: 0, seed: 42, keepAlive: "30m", timeoutSeconds: 12, contextWindow: 4096)
+        let options = ModelRunOptions(
+            temperature: 0, seed: 42, keepAlive: "30m", timeoutSeconds: 12, contextWindow: 4096)
         let prompt = try PromptRegistry.prompt(for: .wholeImage)
         let schema = try ResponseSchemas.schema(for: .wholeImage)
         let image = derivative(cachePath: imageURL.path, sha256: "image-sha")
@@ -241,12 +254,13 @@ final class ModelRuntimeTests: XCTestCase {
         let runner = OllamaVisionRunner(transport: transport)
         let prompt = try PromptRegistry.prompt(
             for: .wholeImage,
-            context: ModelInputContext(gps: GPSModelInputContext(
-                mode: .coarse,
-                latitude: 45.1,
-                longitude: -122.7,
-                precisionDegrees: 0.1
-            ))
+            context: ModelInputContext(
+                gps: GPSModelInputContext(
+                    mode: .coarse,
+                    latitude: 45.1,
+                    longitude: -122.7,
+                    precisionDegrees: 0.1
+                ))
         )
 
         _ = await runner.analyze(
@@ -273,7 +287,7 @@ final class ModelRuntimeTests: XCTestCase {
         let transport = RecordingOllamaTransport([
             .failure(OllamaHTTPTransportError.timeout("first timeout")),
             .failure(OllamaHTTPTransportError.unreachable("temporary transport failure")),
-            .success(chatResponse(content: #"{"summary":"Recovered"}"#))
+            .success(chatResponse(content: #"{"summary":"Recovered"}"#)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -338,7 +352,7 @@ final class ModelRuntimeTests: XCTestCase {
         let imageURL = try writeModelInput()
         let transport = RecordingOllamaTransport([
             .success(jsonResponse(#"{"error":"server overloaded"}"#, statusCode: 503)),
-            .success(chatResponse(content: #"{"summary":"Recovered"}"#))
+            .success(chatResponse(content: #"{"summary":"Recovered"}"#)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -360,7 +374,7 @@ final class ModelRuntimeTests: XCTestCase {
         let imageURL = try writeModelInput()
         let transport = RecordingOllamaTransport([
             .success(jsonResponse(#"{"error":"warming up"}"#, statusCode: 503)),
-            .success(jsonResponse(#"{"error":"still overloaded"}"#, statusCode: 503))
+            .success(jsonResponse(#"{"error":"still overloaded"}"#, statusCode: 503)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -406,7 +420,7 @@ final class ModelRuntimeTests: XCTestCase {
         let imageURL = try writeModelInput()
         let transport = RecordingOllamaTransport([
             .success(jsonResponse(#"{"unexpected":true}"#)),
-            .success(chatResponse(content: #"{"summary":"Recovered"}"#))
+            .success(chatResponse(content: #"{"summary":"Recovered"}"#)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -430,7 +444,7 @@ final class ModelRuntimeTests: XCTestCase {
         let transport = RecordingOllamaTransport(
             [
                 .success(jsonResponse(#"{"unexpected":true}"#)),
-                .success(chatResponse(content: #"{"summary":"never reached"}"#))
+                .success(chatResponse(content: #"{"summary":"never reached"}"#)),
             ],
             onSend: { requestCount in
                 if requestCount == 1 {
@@ -459,7 +473,7 @@ final class ModelRuntimeTests: XCTestCase {
         let imageURL = try writeModelInput()
         let transport = RecordingOllamaTransport([
             .success(jsonResponse(#"{"unexpected":true}"#)),
-            .success(jsonResponse(#"{"unexpected":true}"#))
+            .success(jsonResponse(#"{"unexpected":true}"#)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -483,7 +497,7 @@ final class ModelRuntimeTests: XCTestCase {
         let transport = RecordingOllamaTransport(
             [
                 .failure(OllamaHTTPTransportError.unreachable("first failure")),
-                .success(chatResponse(content: #"{"summary":"never reached"}"#))
+                .success(chatResponse(content: #"{"summary":"never reached"}"#)),
             ],
             onSend: { requestCount in
                 if requestCount == 1 {
@@ -534,7 +548,7 @@ final class ModelRuntimeTests: XCTestCase {
         let imageURL = try writeModelInput()
         let transport = RecordingOllamaTransport([
             .failure(CancellationError()),
-            .success(chatResponse(content: #"{"summary":"never reached"}"#))
+            .success(chatResponse(content: #"{"summary":"never reached"}"#)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -592,7 +606,7 @@ final class ModelRuntimeTests: XCTestCase {
         let timeoutTransport = RecordingOllamaTransport([
             .failure(OllamaHTTPTransportError.timeout("a")),
             .failure(OllamaHTTPTransportError.timeout("b")),
-            .failure(OllamaHTTPTransportError.timeout("c"))
+            .failure(OllamaHTTPTransportError.timeout("c")),
         ])
         let timeoutRunner = OllamaVisionRunner(transport: timeoutTransport)
 
@@ -612,7 +626,7 @@ final class ModelRuntimeTests: XCTestCase {
         let endpointTransport = RecordingOllamaTransport([
             .failure(OllamaHTTPTransportError.unreachable("a")),
             .failure(OllamaHTTPTransportError.unreachable("b")),
-            .failure(OllamaHTTPTransportError.unreachable("c"))
+            .failure(OllamaHTTPTransportError.unreachable("c")),
         ])
         let endpointRunner = OllamaVisionRunner(transport: endpointTransport)
 
@@ -633,10 +647,10 @@ final class ModelRuntimeTests: XCTestCase {
     func testAnalyzePreservesFencedJSONWithoutError() async throws {
         let imageURL = try writeModelInput()
         let raw = """
-        ```json
-        {"summary":"Fenced response"}
-        ```
-        """
+            ```json
+            {"summary":"Fenced response"}
+            ```
+            """
         let transport = RecordingOllamaTransport([
             .success(chatResponse(content: raw))
         ])
@@ -708,7 +722,7 @@ final class ModelRuntimeTests: XCTestCase {
         let repairedJSON = #"{"summary":"Recovered JSON"}"#
         let transport = RecordingOllamaTransport([
             .success(chatResponse(content: "not json")),
-            .success(chatResponse(content: repairedJSON))
+            .success(chatResponse(content: repairedJSON)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -746,11 +760,13 @@ final class ModelRuntimeTests: XCTestCase {
 
     func testAnalyzeRepairsTruncatedQualityResponseWithQualitySchema() async throws {
         let imageURL = try writeModelInput()
-        let truncated = String(decoding: try fixtureData(named: "whole_image_quality_truncated", extension: "txt"), as: UTF8.self)
-        let repairedJSON = String(decoding: try fixtureData(named: "whole_image_with_quality_valid", extension: "json"), as: UTF8.self)
+        let truncated = String(
+            decoding: try fixtureData(named: "whole_image_quality_truncated", extension: "txt"), as: UTF8.self)
+        let repairedJSON = String(
+            decoding: try fixtureData(named: "whole_image_with_quality_valid", extension: "json"), as: UTF8.self)
         let transport = RecordingOllamaTransport([
             .success(chatResponse(content: truncated)),
-            .success(chatResponse(content: repairedJSON))
+            .success(chatResponse(content: repairedJSON)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
         let prompt = try PromptRegistry.prompt(for: .wholeImage, task: .taggingWithQuality)
@@ -770,7 +786,8 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(record.promptVersion, "aisidecar.prompt.whole_image/1.6.0")
         XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.6.0")
         XCTAssertEqual(
-            record.parsedResponseJSON?.objectValue?["quality_assessment"]?.objectValue?["overall_effectiveness"]?.stringValue,
+            record.parsedResponseJSON?.objectValue?["quality_assessment"]?.objectValue?["overall_effectiveness"]?
+                .stringValue,
             "strong"
         )
         let attempts = try XCTUnwrap(record.responseAttempts)
@@ -815,7 +832,8 @@ final class ModelRuntimeTests: XCTestCase {
             let wire = OllamaWireSchema.wireSchema(from: schema.schema)
             let encoded = String(decoding: try JSONEncoder().encode(wire), as: UTF8.self)
             for forbidden in ["$ref", "$defs", "pattern", "description", "$schema", "$id", "title"] {
-                XCTAssertFalse(encoded.contains("\"\(forbidden)\""), "\(role.rawValue) wire schema contains \(forbidden)")
+                XCTAssertFalse(
+                    encoded.contains("\"\(forbidden)\""), "\(role.rawValue) wire schema contains \(forbidden)")
             }
 
             let root = try XCTUnwrap(wire.objectValue)
@@ -852,10 +870,12 @@ final class ModelRuntimeTests: XCTestCase {
             let wire = OllamaWireSchema.wireSchema(from: try ResponseSchemas.schema(for: role, task: task).schema)
             let encoded = String(decoding: try JSONEncoder().encode(wire), as: UTF8.self)
             for forbidden in ["$ref", "$defs", "pattern", "description", "$schema", "$id", "title"] {
-                XCTAssertFalse(encoded.contains("\"\(forbidden)\""), "\(role.rawValue)/\(task.rawValue) contains \(forbidden)")
+                XCTAssertFalse(
+                    encoded.contains("\"\(forbidden)\""), "\(role.rawValue)/\(task.rawValue) contains \(forbidden)")
             }
             let root = try XCTUnwrap(wire.objectValue)
-            XCTAssertTrue(try XCTUnwrap(root["required"]?.arrayValue?.compactMap(\.stringValue)).contains("quality_assessment"))
+            XCTAssertTrue(
+                try XCTUnwrap(root["required"]?.arrayValue?.compactMap(\.stringValue)).contains("quality_assessment"))
             let assessment = try XCTUnwrap(root["properties"]?.objectValue?["quality_assessment"]?.objectValue)
             XCTAssertEqual(assessment["additionalProperties"], .bool(false))
             let properties = try XCTUnwrap(assessment["properties"]?.objectValue)
@@ -879,7 +899,9 @@ final class ModelRuntimeTests: XCTestCase {
             let value = try JSONDecoder().decode(JSONValue.self, from: fixtureData(named: name, extension: "json"))
             try JSONSchemaValidator.validate(value, against: ResponseSchemas.schema(for: role, task: task))
         }
-        XCTAssertThrowsError(try JSONDecoder().decode(JSONValue.self, from: fixtureData(named: "whole_image_quality_truncated", extension: "txt")))
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                JSONValue.self, from: fixtureData(named: "whole_image_quality_truncated", extension: "txt")))
     }
 
     func testAnalyzeRepairsSyntheticVisibleTextTermFragmentFixture() async throws {
@@ -888,7 +910,7 @@ final class ModelRuntimeTests: XCTestCase {
         let repairedJSON = wholeImageModelResponseJSON()
         let transport = RecordingOllamaTransport([
             .success(chatResponse(content: malformed)),
-            .success(chatResponse(content: repairedJSON))
+            .success(chatResponse(content: repairedJSON)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
         let prompt = try PromptRegistry.prompt(for: .wholeImage)
@@ -918,7 +940,7 @@ final class ModelRuntimeTests: XCTestCase {
         let repairedJSON = #"{"summary":"Recovered schema"}"#
         let transport = RecordingOllamaTransport([
             .success(chatResponse(content: #"{"summary":5}"#)),
-            .success(chatResponse(content: repairedJSON))
+            .success(chatResponse(content: repairedJSON)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -945,7 +967,7 @@ final class ModelRuntimeTests: XCTestCase {
         let repairRaw = #"{"summary":5}"#
         let transport = RecordingOllamaTransport([
             .success(chatResponse(content: "not json")),
-            .success(chatResponse(content: repairRaw))
+            .success(chatResponse(content: repairRaw)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -1037,15 +1059,15 @@ final class ModelRuntimeTests: XCTestCase {
         try JSONSchemaDocument(
             version: "test-summary-schema/1.0",
             schemaJSON: """
-            {
-              "type": "object",
-              "required": ["summary"],
-              "properties": {
-                "summary": { "type": "string", "minLength": 1, "maxLength": 80 }
-              },
-              "additionalProperties": false
-            }
-            """
+                {
+                  "type": "object",
+                  "required": ["summary"],
+                  "properties": {
+                    "summary": { "type": "string", "minLength": 1, "maxLength": 80 }
+                  },
+                  "additionalProperties": false
+                }
+                """
         )
     }
 
@@ -1183,16 +1205,18 @@ final class ModelRuntimeTests: XCTestCase {
 
     func testListInstalledVisionTagsFiltersNonVisionModels() async throws {
         let transport = RecordingOllamaTransport([
-            .success(jsonResponse("""
-            {"models":[
-              {"name":"qwen2.5vl:7b","model":"qwen2.5vl:7b","digest":"a"},
-              {"name":"llama3:8b","model":"llama3:8b","digest":"b"},
-              {"name":"gemma4:26b-a4b-it-qat","model":"gemma4:26b-a4b-it-qat","digest":"c"}
-            ]}
-            """)),
+            .success(
+                jsonResponse(
+                    """
+                    {"models":[
+                      {"name":"qwen2.5vl:7b","model":"qwen2.5vl:7b","digest":"a"},
+                      {"name":"llama3:8b","model":"llama3:8b","digest":"b"},
+                      {"name":"gemma4:26b-a4b-it-qat","model":"gemma4:26b-a4b-it-qat","digest":"c"}
+                    ]}
+                    """)),
             .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
             .success(jsonResponse(#"{"capabilities":["completion"]}"#)),
-            .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#))
+            .success(jsonResponse(#"{"capabilities":["completion","vision"]}"#)),
         ])
         let runner = OllamaVisionRunner(transport: transport)
 
@@ -1226,7 +1250,8 @@ private actor RecordingOllamaTransport: OllamaHTTPTransport {
     func send(_ request: OllamaHTTPRequest, endpoint _: URL) async throws -> OllamaHTTPResponse {
         requests.append(request)
         onSend?(requests.count)
-        let response = responses.isEmpty
+        let response =
+            responses.isEmpty
             ? .failure(OllamaHTTPTransportError.unreachable("No stubbed Ollama response."))
             : responses.removeFirst()
 
@@ -1290,7 +1315,8 @@ private func chatResponse(
     evalCount: Int? = nil,
     evalDuration: Int64? = nil
 ) -> OllamaHTTPResponse {
-    let escaped = content
+    let escaped =
+        content
         .replacingOccurrences(of: "\\", with: "\\\\")
         .replacingOccurrences(of: "\"", with: "\\\"")
         .replacingOccurrences(of: "\n", with: "\\n")

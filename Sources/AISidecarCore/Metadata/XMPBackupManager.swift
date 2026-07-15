@@ -55,7 +55,8 @@ public struct XMPBackupManager {
 
         let createdAt = now()
         let timestamp = Timestamp.filenameToken(createdAt, suffix: runSuffix ?? filenameSuffix())
-        let backupURL = targetURL
+        let backupURL =
+            targetURL
             .deletingLastPathComponent()
             .appendingPathComponent("\(targetURL.lastPathComponent).bak-\(timestamp)")
             .standardizedFileURL

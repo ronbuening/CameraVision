@@ -1,5 +1,5 @@
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
 import Foundation
 
 /// CLI-1 (Phase 4 plan): read-only decision traces over a normalization

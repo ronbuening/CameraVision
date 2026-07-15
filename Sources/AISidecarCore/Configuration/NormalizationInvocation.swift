@@ -103,7 +103,8 @@ public enum NormalizationInvocationValidator {
         let fileListPath = InvocationRules.normalizedPath(request.fileListPath)
         let selectedInputs = [inputPath, fromJSONPath, fileListPath].compactMap { $0 }
         guard selectedInputs.count == 1 else {
-            throw SidecarError.configInvalid("normalize requires exactly one of positional input, --from-json, or --file-list.")
+            throw SidecarError.configInvalid(
+                "normalize requires exactly one of positional input, --from-json, or --file-list.")
         }
 
         if let fromJSONPath {
@@ -146,7 +147,8 @@ public enum NormalizationInvocationValidator {
             throw SidecarError.configInvalid("--source-root is valid only with normalize --from-json or apply-session.")
         }
         if request.sourceVerification != nil {
-            throw SidecarError.configInvalid("--source-verification is valid only with normalize --from-json or apply-session.")
+            throw SidecarError.configInvalid(
+                "--source-verification is valid only with normalize --from-json or apply-session.")
         }
     }
 
@@ -164,7 +166,7 @@ public enum NormalizationInvocationValidator {
             ("clear-derivative-cache-after-success", request.clearDerivativeCacheAfterSuccess),
             ("stage-concurrency", request.stageConcurrency != nil),
             ("model-response-repair-attempts", request.modelResponseRepairAttempts != nil),
-            ("gps-context", request.gpsContext != nil)
+            ("gps-context", request.gpsContext != nil),
         ])
         if request.writeAIJSON || request.noWriteAIJSON {
             throw SidecarError.configInvalid("--write-ai-json is valid only with analyze-and-normalize mode.")

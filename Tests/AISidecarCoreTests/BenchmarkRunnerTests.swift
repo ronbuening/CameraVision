@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class BenchmarkRunnerTests: XCTestCase {
@@ -10,10 +11,11 @@ final class BenchmarkRunnerTests: XCTestCase {
             try? FileManager.default.removeItem(at: root)
         }
 
-        let result = try Milestone9BenchmarkRunner().run(options: BenchmarkOptions(
-            outputDir: root.path,
-            selfTest: true
-        ))
+        let result = try Milestone9BenchmarkRunner().run(
+            options: BenchmarkOptions(
+                outputDir: root.path,
+                selfTest: true
+            ))
 
         XCTAssertTrue(result.selfTest)
         XCTAssertTrue(result.outputRootPath.hasPrefix(root.path))
@@ -33,6 +35,7 @@ final class BenchmarkRunnerTests: XCTestCase {
         let outputRoot = URL(fileURLWithPath: result.outputRootPath)
         XCTAssertFalse(FileManager.default.fileExists(atPath: outputRoot.appendingPathComponent("input-samples").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: outputRoot.appendingPathComponent("hash-input-3").path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: outputRoot.appendingPathComponent("iter-1-test/cache").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: outputRoot.appendingPathComponent("iter-1-test/cache").path))
     }
 }

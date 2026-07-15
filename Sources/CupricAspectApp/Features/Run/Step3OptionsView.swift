@@ -131,7 +131,9 @@ struct Step3OptionsView: View {
                 Button {
                     selectModelOverride(nil)
                 } label: {
-                    let label = options.resolvedModel.isEmpty ? "Use Settings default" : "Use Settings default: \(options.resolvedModel)"
+                    let label =
+                        options.resolvedModel.isEmpty
+                        ? "Use Settings default" : "Use Settings default: \(options.resolvedModel)"
                     if options.modelOverride == nil {
                         Label(label, systemImage: "checkmark")
                     } else {
@@ -333,8 +335,12 @@ struct Step3OptionsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Existing .ai.json: the tool's own analysis files, not your .xmp.")
                     Text("Merge keeps keywords already in your .xmp; Backup & Merge writes a .xmp.bak first.")
-                    Text("Image size: longest edge of the render sent to the model — smaller is faster, larger keeps fine detail.")
-                    Text("Context window: Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide.")
+                    Text(
+                        "Image size: longest edge of the render sent to the model — smaller is faster, larger keeps fine detail."
+                    )
+                    Text(
+                        "Context window: Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
+                    )
                 }
                 .font(.system(size: 11))
                 .foregroundStyle(theme.textFaint)

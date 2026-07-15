@@ -2,16 +2,12 @@ import CoreGraphics
 import CoreImage
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 struct StaticMaskSpec {
     var index: Int
     var rect: CGRect
-
-    init(index: Int, rect: CGRect) {
-        self.index = index
-        self.rect = rect
-    }
 }
 
 func testSourceImage(for url: URL) throws -> SourceImage {

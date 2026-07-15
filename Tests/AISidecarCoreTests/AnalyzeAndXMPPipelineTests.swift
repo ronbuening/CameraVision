@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class AnalyzeAndXMPPipelineTests: XCTestCase {
@@ -124,7 +125,8 @@ final class AnalyzeAndXMPPipelineTests: XCTestCase {
         }
         let image = try writeTestImage("Bird.JPG", in: root)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        try existingDevelopSettingsXMP.write(to: output.appendingPathComponent("Bird.xmp"), atomically: true, encoding: .utf8)
+        try existingDevelopSettingsXMP.write(
+            to: output.appendingPathComponent("Bird.xmp"), atomically: true, encoding: .utf8)
         var export = exportConfiguration(outputDir: output.path)
         export.xmpConflictPolicy = .fail
         export.backupSidecars = false
@@ -212,7 +214,7 @@ final class AnalyzeAndXMPPipelineTests: XCTestCase {
                         .object([
                             "term": .string("wading bird"),
                             "confidence": .string("high"),
-                            "evidence": .string("fixture")
+                            "evidence": .string("fixture"),
                         ])
                     ])
                 ]),
@@ -275,26 +277,26 @@ private struct PrepareFailingRunner: VisionModelRunner {
 }
 
 private let existingDevelopSettingsXMP = """
-<?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-           xmlns:dc="http://purl.org/dc/elements/1.1/"
-           xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
-           xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
-    <rdf:Description rdf:about="">
-      <dc:subject>
-        <rdf:Bag>
-          <rdf:li>existing bird</rdf:li>
-        </rdf:Bag>
-      </dc:subject>
-      <lr:hierarchicalSubject>
-        <rdf:Bag>
-          <rdf:li>existing habitat</rdf:li>
-        </rdf:Bag>
-      </lr:hierarchicalSubject>
-      <crs:Exposure2012>+0.35</crs:Exposure2012>
-      <crs:Contrast2012>12</crs:Contrast2012>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/"
+               xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
+               xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
+        <rdf:Description rdf:about="">
+          <dc:subject>
+            <rdf:Bag>
+              <rdf:li>existing bird</rdf:li>
+            </rdf:Bag>
+          </dc:subject>
+          <lr:hierarchicalSubject>
+            <rdf:Bag>
+              <rdf:li>existing habitat</rdf:li>
+            </rdf:Bag>
+          </lr:hierarchicalSubject>
+          <crs:Exposure2012>+0.35</crs:Exposure2012>
+          <crs:Contrast2012>12</crs:Contrast2012>
+        </rdf:Description>
+      </rdf:RDF>
+    </x:xmpmeta>
+    """

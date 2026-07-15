@@ -63,10 +63,12 @@ struct Step3ApplyView: View {
             .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(theme.border))
             .padding(.top, 22)
 
-            Text("The write is fronted by a dry-run change plan; sources are verified against the identities recorded in the session.")
-                .font(.system(size: 11.5))
-                .foregroundStyle(theme.textFaint)
-                .padding(.top, 12)
+            Text(
+                "The write is fronted by a dry-run change plan; sources are verified against the identities recorded in the session."
+            )
+            .font(.system(size: 11.5))
+            .foregroundStyle(theme.textFaint)
+            .padding(.top, 12)
         }
         .padding(EdgeInsets(top: 26, leading: 34, bottom: 40, trailing: 34))
     }

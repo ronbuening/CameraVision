@@ -1,11 +1,13 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class RawJSONSidecarWriterTests: XCTestCase {
     func testAtomicWriteCreatesCompleteJSONAndParentDirectories() throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let source = makeSource(fileName: "Bird.NEF", relativePath: "Bird.NEF", path: root.appendingPathComponent("Bird.NEF").path)
+        let source = makeSource(
+            fileName: "Bird.NEF", relativePath: "Bird.NEF", path: root.appendingPathComponent("Bird.NEF").path)
         let sidecar = RawJSONSidecar(
             source: source,
             runConfiguration: .builtInDefaults,

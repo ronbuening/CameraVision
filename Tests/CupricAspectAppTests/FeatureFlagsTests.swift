@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import CupricAspectApp
 
 /// The hidden vocabulary-UI gate: off unless the environment opts in, so the

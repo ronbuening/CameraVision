@@ -67,7 +67,8 @@ struct XMPKeywordMerger {
     }
 
     private func merge(existing: [String], plannedTerms: [String]) -> (added: [String], resulting: [String]) {
-        var seen = Set(existing.map { KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)) })
+        var seen = Set(
+            existing.map { KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)) })
         var added: [String] = []
         var resulting = existing
 
@@ -90,17 +91,19 @@ struct XMPKeywordMerger {
             return bag
         }
 
-        let property = reader.keywordProperty(field: field, in: description) ?? {
-            let property = XMLElement(name: field.qualifiedPropertyName)
-            switch field {
-            case .flat:
-                XMPXML.addNamespace(prefix: "dc", uri: XMPNamespace.dc, to: property)
-            case .hierarchical:
-                XMPXML.addNamespace(prefix: "lr", uri: XMPNamespace.lr, to: property)
-            }
-            description.addChild(property)
-            return property
-        }()
+        let property =
+            reader.keywordProperty(field: field, in: description)
+            ?? {
+                let property = XMLElement(name: field.qualifiedPropertyName)
+                switch field {
+                case .flat:
+                    XMPXML.addNamespace(prefix: "dc", uri: XMPNamespace.dc, to: property)
+                case .hierarchical:
+                    XMPXML.addNamespace(prefix: "lr", uri: XMPNamespace.lr, to: property)
+                }
+                description.addChild(property)
+                return property
+            }()
 
         let bag = XMLElement(name: "rdf:Bag")
         XMPXML.addNamespace(prefix: "rdf", uri: XMPNamespace.rdf, to: bag)

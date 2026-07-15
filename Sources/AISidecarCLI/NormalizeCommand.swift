@@ -1,6 +1,6 @@
-import Foundation
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
+import Foundation
 
 struct NormalizeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -117,10 +117,15 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Flag(name: .customLong("write-ai-json"), help: "Preserve raw .ai.json sidecars in analyze-and-normalize mode.")
     var writeAIJSON = false
 
-    @Flag(name: .customLong("no-write-ai-json"), help: "Do not write raw .ai.json sidecars in analyze-and-normalize mode.")
+    @Flag(
+        name: .customLong("no-write-ai-json"), help: "Do not write raw .ai.json sidecars in analyze-and-normalize mode."
+    )
     var noWriteAIJSON = false
 
-    @Option(help: "Controlled vocabulary JSON file. Supplying this without --vocabulary-mode selects controlled-vocabulary mode.")
+    @Option(
+        help:
+            "Controlled vocabulary JSON file. Supplying this without --vocabulary-mode selects controlled-vocabulary mode."
+    )
     var vocabulary: String?
 
     @Option(help: "Vocabulary source: observed-tags or controlled-vocabulary.")
@@ -222,7 +227,7 @@ struct NormalizeCommand: AsyncParsableCommand {
         case .analyze(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
-            let result = try await withBatchInterruptionExit {
+            let result = try await withAsyncBatchInterruptionExit {
                 try await AnalyzeAndNormalizePipeline(logger: logger).run(
                     inputPath: inputPath,
                     runConfiguration: runConfiguration,

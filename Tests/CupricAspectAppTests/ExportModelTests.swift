@@ -3,6 +3,7 @@ import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 import XCTest
+
 @testable import CupricAspectApp
 
 /// M7: the dry-run-first export surface (FR4-029) and the full AC4-028 loop —
@@ -59,9 +60,10 @@ final class ExportModelTests: XCTestCase {
             inputDerivativeSHA256: String(repeating: "b", count: 64),
             rawResponseText: "{}",
             parsedResponseJSON: .object([
-                "proposed_keywords": .array(terms.map { term in
-                    .object(["term": .string(term), "confidence": .string("high"), "evidence": .string("visible")])
-                })
+                "proposed_keywords": .array(
+                    terms.map { term in
+                        .object(["term": .string(term), "confidence": .string("high"), "evidence": .string("visible")])
+                    })
             ]),
             jsonValid: true,
             durationMs: 1,
@@ -79,7 +81,9 @@ final class ExportModelTests: XCTestCase {
         return sourceRoot
     }
 
-    private func makeSession(terms: [String] = ["bird"]) throws -> (session: NormalizationSessionDocument, sourceRoot: URL) {
+    private func makeSession(terms: [String] = ["bird"]) throws -> (
+        session: NormalizationSessionDocument, sourceRoot: URL
+    ) {
         let sourceRoot = try makeRawSidecarSource(terms: terms)
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
         configuration.vocabularyMode = .observedTags
@@ -227,15 +231,17 @@ final class ExportModelTests: XCTestCase {
         let (session, sourceRoot) = try makeSession()
         let rawSidecar = sourceRoot.appendingPathComponent("A.JPG.ai.json")
         let xmpURL = sourceRoot.appendingPathComponent("A.xmp")
-        try Data("""
-        <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-        <x:xmpmeta xmlns:x="adobe:ns:meta/">
-          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-            <rdf:Description rdf:about="" />
-          </rdf:RDF>
-        </x:xmpmeta>
-        <?xpacket end="w"?>
-        """.utf8).write(to: xmpURL)
+        try Data(
+            """
+            <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                <rdf:Description rdf:about="" />
+              </rdf:RDF>
+            </x:xmpmeta>
+            <?xpacket end="w"?>
+            """.utf8
+        ).write(to: xmpURL)
 
         let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
         export.plan(
@@ -267,25 +273,27 @@ final class ExportModelTests: XCTestCase {
     func testPlanRevealsMergeIntoExistingXMPAndWritePreservesKeywords() async throws {
         let (session, sourceRoot) = try makeSession()
         let xmpURL = sourceRoot.appendingPathComponent("A.xmp")
-        try Data("""
-        <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-        <x:xmpmeta xmlns:x="adobe:ns:meta/">
-          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-            <rdf:Description rdf:about=""
-                xmlns:dc="http://purl.org/dc/elements/1.1/"
-                xmlns:xmp="http://ns.adobe.com/xap/1.0/">
-              <xmp:Rating>4</xmp:Rating>
-              <dc:subject>
-                <rdf:Bag>
-                  <rdf:li>Kyoto</rdf:li>
-                  <rdf:li>Family Trip</rdf:li>
-                </rdf:Bag>
-              </dc:subject>
-            </rdf:Description>
-          </rdf:RDF>
-        </x:xmpmeta>
-        <?xpacket end="w"?>
-        """.utf8).write(to: xmpURL)
+        try Data(
+            """
+            <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                <rdf:Description rdf:about=""
+                    xmlns:dc="http://purl.org/dc/elements/1.1/"
+                    xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                  <xmp:Rating>4</xmp:Rating>
+                  <dc:subject>
+                    <rdf:Bag>
+                      <rdf:li>Kyoto</rdf:li>
+                      <rdf:li>Family Trip</rdf:li>
+                    </rdf:Bag>
+                  </dc:subject>
+                </rdf:Description>
+              </rdf:RDF>
+            </x:xmpmeta>
+            <?xpacket end="w"?>
+            """.utf8
+        ).write(to: xmpURL)
 
         let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
         export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil)

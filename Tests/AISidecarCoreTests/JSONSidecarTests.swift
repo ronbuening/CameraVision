@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class JSONSidecarTests: XCTestCase {
@@ -149,7 +150,8 @@ final class JSONSidecarTests: XCTestCase {
             "run metadata"
         )
         XCTAssertEqual(
-            rewritten["model_runs"]?.arrayValue?.first?.objectValue?["request_options"]?.objectValue?["future_request_option"]?.boolValue,
+            rewritten["model_runs"]?.arrayValue?.first?.objectValue?["request_options"]?.objectValue?[
+                "future_request_option"]?.boolValue,
             true
         )
         XCTAssertEqual(rewritten["errors"]?.arrayValue?.first?.objectValue?["code"]?.stringValue, "E_VALIDATION_FAILED")
@@ -170,12 +172,13 @@ final class JSONSidecarTests: XCTestCase {
             sourceIdentity: source.identity
         )
         let prompt = VersionedPrompt(version: "aisidecar.prompt.whole_image/1.5.0", text: "Prompt")
-        let modelInputContext = ModelInputContext(gps: GPSModelInputContext(
-            mode: .coarse,
-            latitude: 45.1,
-            longitude: -122.7,
-            precisionDegrees: 0.1
-        ))
+        let modelInputContext = ModelInputContext(
+            gps: GPSModelInputContext(
+                mode: .coarse,
+                latitude: 45.1,
+                longitude: -122.7,
+                precisionDegrees: 0.1
+            ))
         let modelRun = ModelRunRecord(
             inputRole: .wholeImage,
             model: "gemma4:26b-a4b-it-qat",

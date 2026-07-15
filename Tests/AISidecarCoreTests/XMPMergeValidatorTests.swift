@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class XMPMergeValidatorTests: XCTestCase {
@@ -33,7 +34,8 @@ final class XMPMergeValidatorTests: XCTestCase {
     func testDetectsMissingKeywordAndUnmanagedFingerprintChange() throws {
         let pre = try snapshot(from: existingDevelopSettingsXMP, path: "/tmp/Bird.xmp")
         let post = try snapshot(
-            from: existingDevelopSettingsXMP
+            from:
+                existingDevelopSettingsXMP
                 .replacingOccurrences(of: "<rdf:li>existing bird</rdf:li>", with: "")
                 .replacingOccurrences(of: "<crs:Contrast2012>12</crs:Contrast2012>", with: ""),
             path: "/tmp/Bird.xmp"
@@ -86,26 +88,26 @@ private func plannedKeyword(_ term: String) -> PlannedKeyword {
 }
 
 private let existingDevelopSettingsXMP = """
-<?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-           xmlns:dc="http://purl.org/dc/elements/1.1/"
-           xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
-           xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
-    <rdf:Description rdf:about="">
-      <dc:subject>
-        <rdf:Bag>
-          <rdf:li>existing bird</rdf:li>
-        </rdf:Bag>
-      </dc:subject>
-      <lr:hierarchicalSubject>
-        <rdf:Bag>
-          <rdf:li>existing habitat</rdf:li>
-        </rdf:Bag>
-      </lr:hierarchicalSubject>
-      <crs:Exposure2012>+0.35</crs:Exposure2012>
-      <crs:Contrast2012>12</crs:Contrast2012>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/"
+               xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
+               xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
+        <rdf:Description rdf:about="">
+          <dc:subject>
+            <rdf:Bag>
+              <rdf:li>existing bird</rdf:li>
+            </rdf:Bag>
+          </dc:subject>
+          <lr:hierarchicalSubject>
+            <rdf:Bag>
+              <rdf:li>existing habitat</rdf:li>
+            </rdf:Bag>
+          </lr:hierarchicalSubject>
+          <crs:Exposure2012>+0.35</crs:Exposure2012>
+          <crs:Contrast2012>12</crs:Contrast2012>
+        </rdf:Description>
+      </rdf:RDF>
+    </x:xmpmeta>
+    """

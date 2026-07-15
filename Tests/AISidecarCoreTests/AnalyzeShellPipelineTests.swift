@@ -1,5 +1,6 @@
 import CoreGraphics
 import XCTest
+
 @testable import AISidecarCore
 
 final class AnalyzeShellPipelineTests: XCTestCase {
@@ -45,14 +46,16 @@ final class AnalyzeShellPipelineTests: XCTestCase {
 
         let result = try await pipeline.run(
             inputPath: root.path,
-            configuration: config(recursive: true, outputDir: output.path, cacheDir: output.appendingPathComponent("cache").path)
+            configuration: config(
+                recursive: true, outputDir: output.path, cacheDir: output.appendingPathComponent("cache").path)
         )
 
         let juneSidecar = output.appendingPathComponent("2026/06/_DSC1234.JPG.ai.json")
         let julySidecar = output.appendingPathComponent("2026/07/_DSC1234.JPG.ai.json")
         XCTAssertTrue(FileManager.default.fileExists(atPath: juneSidecar.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: julySidecar.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("_DSC1234.JPG.ai.json").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: output.appendingPathComponent("_DSC1234.JPG.ai.json").path))
         XCTAssertEqual(result.records.map(\.status), [.failed, .written, .written])
         XCTAssertEqual(result.records.first?.errors.first?.code, .unsupportedFormat)
         XCTAssertEqual(
@@ -77,8 +80,10 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertTrue(sidecar.modelRuns.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("2026/06/_DSC1234.xmp").path))
 
-        let progressLines = String(decoding: try Data(contentsOf: URL(fileURLWithPath: try XCTUnwrap(result.progressLogPath))), as: UTF8.self)
-            .split(separator: "\n")
+        let progressLines = String(
+            decoding: try Data(contentsOf: URL(fileURLWithPath: try XCTUnwrap(result.progressLogPath))), as: UTF8.self
+        )
+        .split(separator: "\n")
         XCTAssertEqual(progressLines.count, 3)
         XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(result.summaryPath)))
         XCTAssertFalse(logs.lines.isEmpty)
@@ -240,11 +245,14 @@ final class AnalyzeShellPipelineTests: XCTestCase {
                 root.appendingPathComponent("Bird.JPG.aisidecar.whole_image.jpg").path
             ].sorted()
         )
-        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Bird.JPG.aisidecar.full_resolution.tiff").path))
-        XCTAssertTrue(sidecar.derivatives.allSatisfy { derivative in
-            guard let debugPath = derivative.debugPath else { return false }
-            return FileManager.default.fileExists(atPath: debugPath)
-        })
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: root.appendingPathComponent("Bird.JPG.aisidecar.full_resolution.tiff").path))
+        XCTAssertTrue(
+            sidecar.derivatives.allSatisfy { derivative in
+                guard let debugPath = derivative.debugPath else { return false }
+                return FileManager.default.fileExists(atPath: debugPath)
+            })
     }
 
     func testSubjectModeWritesSubjectDerivativeAndIsolationRecord() async throws {
@@ -284,7 +292,8 @@ final class AnalyzeShellPipelineTests: XCTestCase {
         XCTAssertEqual(sidecar.subjectIsolation?.status, .success)
         XCTAssertEqual(sidecar.subjectIsolation?.selectedInstanceIndices, [1])
         XCTAssertTrue(sidecar.errors.isEmpty)
-        let cacheNames = try FileManager.default.contentsOfDirectory(atPath: output.appendingPathComponent("cache").path)
+        let cacheNames = try FileManager.default.contentsOfDirectory(
+            atPath: output.appendingPathComponent("cache").path)
         XCTAssertFalse(cacheNames.contains { $0.contains("whole_image") })
         XCTAssertFalse(cacheNames.contains { $0.contains("full_resolution") })
         let subjectDerivative = try XCTUnwrap(sidecar.derivatives.first { $0.role == .subjectIsolated })

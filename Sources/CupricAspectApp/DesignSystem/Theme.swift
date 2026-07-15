@@ -53,17 +53,23 @@ struct AccentPalette {
     static func resolve(_ choice: AccentChoice, dark: Bool) -> AccentPalette {
         switch (choice, dark) {
         case (.copper, false):
-            AccentPalette(accent: Color(hex: 0xBE6A20), hover: Color(hex: 0xA55A16), soft: Color(hex: 0xBE6A20, opacity: 0.14))
+            AccentPalette(
+                accent: Color(hex: 0xBE6A20), hover: Color(hex: 0xA55A16), soft: Color(hex: 0xBE6A20, opacity: 0.14))
         case (.copper, true):
-            AccentPalette(accent: Color(hex: 0xE39A4C), hover: Color(hex: 0xF2AB5E), soft: Color(hex: 0xE39A4C, opacity: 0.17))
+            AccentPalette(
+                accent: Color(hex: 0xE39A4C), hover: Color(hex: 0xF2AB5E), soft: Color(hex: 0xE39A4C, opacity: 0.17))
         case (.amber, false):
-            AccentPalette(accent: Color(hex: 0xC08A1C), hover: Color(hex: 0xA2720C), soft: Color(hex: 0xC08A1C, opacity: 0.14))
+            AccentPalette(
+                accent: Color(hex: 0xC08A1C), hover: Color(hex: 0xA2720C), soft: Color(hex: 0xC08A1C, opacity: 0.14))
         case (.amber, true):
-            AccentPalette(accent: Color(hex: 0xEBB94E), hover: Color(hex: 0xF5C765), soft: Color(hex: 0xEBB94E, opacity: 0.17))
+            AccentPalette(
+                accent: Color(hex: 0xEBB94E), hover: Color(hex: 0xF5C765), soft: Color(hex: 0xEBB94E, opacity: 0.17))
         case (.patina, false):
-            AccentPalette(accent: Color(hex: 0x2E8B57), hover: Color(hex: 0x256F46), soft: Color(hex: 0x2E8B57, opacity: 0.15))
+            AccentPalette(
+                accent: Color(hex: 0x2E8B57), hover: Color(hex: 0x256F46), soft: Color(hex: 0x2E8B57, opacity: 0.15))
         case (.patina, true):
-            AccentPalette(accent: Color(hex: 0x58C078), hover: Color(hex: 0x6BD189), soft: Color(hex: 0x58C078, opacity: 0.17))
+            AccentPalette(
+                accent: Color(hex: 0x58C078), hover: Color(hex: 0x6BD189), soft: Color(hex: 0x58C078, opacity: 0.17))
         }
     }
 }

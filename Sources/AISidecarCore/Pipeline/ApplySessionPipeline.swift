@@ -281,7 +281,8 @@ public struct ApplySessionPipeline {
                 }
             }
             if let storedPath = storedByTarget[plan.targetRelativePath]?.xmpChangePlan.targetXMPPath,
-               storedPath != plan.targetXMPPath {
+                storedPath != plan.targetXMPPath
+            {
                 plan.groupWarnings.append(recomputedTargetWarning(from: storedPath, to: plan.targetXMPPath))
             }
             updated.xmpChangePlan = plan
@@ -498,7 +499,8 @@ public struct ApplySessionPipeline {
         SidecarError(
             code: .sourceMissing,
             stage: .scan,
-            message: "Unable to resolve source image for apply-session asset \(asset.assetID): \(asset.sourceRelativePath)",
+            message:
+                "Unable to resolve source image for apply-session asset \(asset.assetID): \(asset.sourceRelativePath)",
             recoverable: true
         )
     }

@@ -213,7 +213,7 @@ struct WizardShellView: View {
             .buttonStyle(.plain)
             .help("Settings")
         }
-        .padding(.leading, 84) // clear the native traffic lights under .hiddenTitleBar
+        .padding(.leading, 84)  // clear the native traffic lights under .hiddenTitleBar
         .padding(.trailing, 14)
         .frame(height: 46)
         .background(theme.titlebar)
@@ -262,10 +262,12 @@ struct WizardShellView: View {
         case 1:
             Step1PhotosView(model: importModel)
         case 2:
-            Step2ActionView(selection: $selectedAction, onApplySession: {
-                selectedAction = .apply
-                step = 3
-            })
+            Step2ActionView(
+                selection: $selectedAction,
+                onApplySession: {
+                    selectedAction = .apply
+                    step = 3
+                })
         case 3:
             VStack(spacing: 0) {
                 if case .failed(let message) = runModel.phase {
@@ -303,11 +305,12 @@ struct WizardShellView: View {
                     failureBanner(warning)
                 }
                 if exportModel.phase == .written, let report = exportModel.exportReport {
-                    writtenBanner(WizardNavigation.writtenBanner(
-                        written: report.writtenCount,
-                        failed: report.failedCount,
-                        cleanupRemoved: exportModel.cleanupRemovedCount
-                    ))
+                    writtenBanner(
+                        WizardNavigation.writtenBanner(
+                            written: report.writtenCount,
+                            failed: report.failedCount,
+                            cleanupRemoved: exportModel.cleanupRemovedCount
+                        ))
                     ExportReportView(report: report)
                         .padding(EdgeInsets(top: 12, leading: 34, bottom: 0, trailing: 34))
                 }
@@ -334,11 +337,12 @@ struct WizardShellView: View {
             assertionFailure(error.message)
             return
         }
-        let session: NormalizationSessionDocument? = switch selectedAction {
-        case .normalize: normalizationModel.session
-        case .apply: applySession
-        default: reviewModel.reviewedSession
-        }
+        let session: NormalizationSessionDocument? =
+            switch selectedAction {
+            case .normalize: normalizationModel.session
+            case .apply: applySession
+            default: reviewModel.reviewedSession
+            }
         guard let session else {
             let error = exportReadinessError(missingExportSessionMessage)
             reportStartExportError(error)
@@ -390,7 +394,8 @@ struct WizardShellView: View {
             return
         }
         guard let root = reviewModel.session?.session.sourceRoot,
-              FileManager.default.fileExists(atPath: root) else {
+            FileManager.default.fileExists(atPath: root)
+        else {
             return
         }
         if reviewModel.restoredFromRecovery {

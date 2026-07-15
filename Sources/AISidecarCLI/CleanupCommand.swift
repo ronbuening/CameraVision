@@ -1,6 +1,6 @@
-import Foundation
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
+import Foundation
 
 struct CleanupCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -24,7 +24,8 @@ struct CleanupCommand: ParsableCommand {
         if dryRun {
             message = "Cleanup dry run at \(report.rootPath): \(report.plannedCount) artifacts would be removed.\n"
         } else {
-            message = "Cleaned \(report.rootPath): \(report.removedCount) artifacts removed, \(report.failedCount) failed.\n"
+            message =
+                "Cleaned \(report.rootPath): \(report.removedCount) artifacts removed, \(report.failedCount) failed.\n"
         }
         FileHandle.standardOutput.write(Data(message.utf8))
 

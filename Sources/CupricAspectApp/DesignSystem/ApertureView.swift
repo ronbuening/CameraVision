@@ -22,7 +22,9 @@ struct ApertureView: View {
         TimelineView(.animation(paused: !animating)) { timeline in
             let elapsed = timeline.date.timeIntervalSinceReferenceDate
             Canvas { context, canvasSize in
-                let closeFactor = animating ? Self.closeFactor(phase: elapsed.truncatingRemainder(dividingBy: Self.cycle) / Self.cycle) : 0
+                let closeFactor =
+                    animating
+                    ? Self.closeFactor(phase: elapsed.truncatingRemainder(dividingBy: Self.cycle) / Self.cycle) : 0
                 let rotation = (animating && spin) ? elapsed * 26 : 0
                 Self.draw(in: &context, canvasSize: canvasSize, closeFactor: closeFactor, rotationDegrees: rotation)
             }
@@ -106,7 +108,9 @@ struct ApertureView: View {
 
     // MARK: - Drawing
 
-    private static func draw(in context: inout GraphicsContext, canvasSize: CGSize, closeFactor: Double, rotationDegrees: Double) {
+    private static func draw(
+        in context: inout GraphicsContext, canvasSize: CGSize, closeFactor: Double, rotationDegrees: Double
+    ) {
         let scale = min(canvasSize.width, canvasSize.height) / designSpace
         context.scaleBy(x: scale, y: scale)
         context.clip(to: Path(ellipseIn: CGRect(x: center.x - 74, y: center.y - 74, width: 148, height: 148)))
@@ -224,14 +228,19 @@ struct ApertureView: View {
                         endPoint: point(radius: innerOpen, degrees: theta)
                     )
                 )
-                layer.stroke(blade, with: .color(Color(hex: 0x1A0A04)), style: StrokeStyle(lineWidth: 0.7, lineJoin: .round))
+                layer.stroke(
+                    blade, with: .color(Color(hex: 0x1A0A04)), style: StrokeStyle(lineWidth: 0.7, lineJoin: .round))
             }
 
             var opening = Path()
-            let openingPoints = (0..<bladeCount).map { point(radius: innerRadius, degrees: CGFloat($0) * spacing + innerLead) }
+            let openingPoints = (0..<bladeCount).map {
+                point(radius: innerRadius, degrees: CGFloat($0) * spacing + innerLead)
+            }
             opening.addLines(openingPoints)
             opening.closeSubpath()
-            layer.stroke(opening, with: .color(Color(hex: 0xD89030, opacity: 0.35)), style: StrokeStyle(lineWidth: 0.8, lineJoin: .round))
+            layer.stroke(
+                opening, with: .color(Color(hex: 0xD89030, opacity: 0.35)),
+                style: StrokeStyle(lineWidth: 0.8, lineJoin: .round))
         }
     }
 }

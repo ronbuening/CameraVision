@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class RawJSONSidecarInputResolverTests: XCTestCase {
@@ -74,8 +75,10 @@ final class RawJSONSidecarInputResolverTests: XCTestCase {
         _ = try writeSidecar(makeSidecar(source: try makeSourceImage(for: source)), named: "A.JPG.ai.json", in: root)
         _ = try writeSource("notes.txt", data: Data("notes".utf8), in: root)
         _ = try writeSource("A.xmp", data: Data("xmp".utf8), in: root)
-        _ = try writeSidecar(makeSidecar(source: try makeSourceImage(for: source)), named: ".Hidden.JPG.ai.json", in: root)
-        _ = try writeSidecar(makeSidecar(source: try makeSourceImage(for: source)), named: "nested/B.JPG.ai.json", in: root)
+        _ = try writeSidecar(
+            makeSidecar(source: try makeSourceImage(for: source)), named: ".Hidden.JPG.ai.json", in: root)
+        _ = try writeSidecar(
+            makeSidecar(source: try makeSourceImage(for: source)), named: "nested/B.JPG.ai.json", in: root)
 
         let batch = try RawJSONSidecarInputResolver().resolve(
             fromJSONPath: root.path,
@@ -271,7 +274,8 @@ final class RawJSONSidecarInputResolverTests: XCTestCase {
         let staleSource = try writeSource("Stale.JPG", data: Data("stale".utf8), in: root)
         let unsupportedSource = try writeSource("Unsupported.JPG", data: Data("unsupported".utf8), in: root)
 
-        _ = try writeSidecar(makeSidecar(source: try makeSourceImage(for: goodSource)), named: "Good.JPG.ai.json", in: root)
+        _ = try writeSidecar(
+            makeSidecar(source: try makeSourceImage(for: goodSource)), named: "Good.JPG.ai.json", in: root)
         _ = try writeSidecar(
             makeSidecar(source: try makeSourceImage(for: unsupportedSource), schemaVersion: "ai-sidecar-json/2.0"),
             named: "Unsupported.JPG.ai.json",

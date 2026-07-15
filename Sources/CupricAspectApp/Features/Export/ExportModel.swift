@@ -133,8 +133,9 @@ final class ExportModel {
     /// engine re-reads current sidecars and semantically merges).
     func confirmWrite() {
         guard phase == .planReady,
-              let sessionPath = pendingSessionPath,
-              let sourceRoot = pendingSourceRoot else {
+            let sessionPath = pendingSessionPath,
+            let sourceRoot = pendingSourceRoot
+        else {
             return
         }
         phase = .writing
@@ -159,8 +160,9 @@ final class ExportModel {
                 exportReport = result.exportReport
                 phase = .written
                 if cleanupAfterWrite,
-                   let report = result.exportReport,
-                   report.failedCount == 0 {
+                    let report = result.exportReport,
+                    report.failedCount == 0
+                {
                     await runCleanup(rootPath: cleanupRoot, recursive: cleanupRecursive)
                 }
             } catch {
@@ -176,7 +178,8 @@ final class ExportModel {
             }.value
             cleanupRemovedCount = report.removedCount
             if report.failedCount > 0 {
-                cleanupWarning = "\(report.failedCount) intermediate file\(report.failedCount == 1 ? "" : "s") could not be removed."
+                cleanupWarning =
+                    "\(report.failedCount) intermediate file\(report.failedCount == 1 ? "" : "s") could not be removed."
             }
         } catch {
             let message = (error as? SidecarError)?.message ?? error.localizedDescription

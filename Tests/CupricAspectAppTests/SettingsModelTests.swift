@@ -1,5 +1,6 @@
 import AISidecarCore
 import XCTest
+
 @testable import CupricAspectApp
 
 /// Settings write-through (FR4-056, AC4-032): changes land in config.json,
@@ -125,11 +126,13 @@ final class SettingsModelTests: XCTestCase {
 
         model.setConcurrency(0)
         XCTAssertEqual(model.stageConcurrency, 1)
-        XCTAssertEqual(try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath).stageConcurrency, 1)
+        XCTAssertEqual(
+            try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath).stageConcurrency, 1)
 
         model.setConcurrency(99)
         XCTAssertEqual(model.stageConcurrency, 8)
-        XCTAssertEqual(try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath).stageConcurrency, 8)
+        XCTAssertEqual(
+            try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath).stageConcurrency, 8)
     }
 
     @MainActor

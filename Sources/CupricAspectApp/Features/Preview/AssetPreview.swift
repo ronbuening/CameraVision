@@ -36,7 +36,8 @@ struct AssetPreviewDetails: @unchecked Sendable, Equatable {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             guard let data = fileManager.contents(atPath: rawSidecarPath) else {
-                details.sidecarErrors.append("sidecar unreadable: \(URL(fileURLWithPath: rawSidecarPath).lastPathComponent)")
+                details.sidecarErrors.append(
+                    "sidecar unreadable: \(URL(fileURLWithPath: rawSidecarPath).lastPathComponent)")
                 details.fullImage = decodeImage(path: sourcePath, maxPixel: maxPixel)
                 return details
             }

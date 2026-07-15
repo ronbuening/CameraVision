@@ -175,7 +175,8 @@ public struct NormalizePipeline {
             engineVersion: OwnedXMPSidecarEngine.engineVersion,
             writerRecipeVersion: OwnedXMPSidecarEngine.writerRecipeVersion
         )
-        let normalizedPlans = try includeXMPPlans
+        let normalizedPlans =
+            try includeXMPPlans
             ? NormalizedXMPChangePlanner().plan(
                 input: input,
                 decisions: consensus.perAssetDecisions,

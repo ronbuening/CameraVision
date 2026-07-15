@@ -3,6 +3,7 @@ import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 import XCTest
+
 @testable import CupricAspectApp
 
 /// M6: session-context → configuration mapping, the model-free run feeding
@@ -63,9 +64,10 @@ final class NormalizationModelTests: XCTestCase {
             inputDerivativeSHA256: String(repeating: "b", count: 64),
             rawResponseText: "{}",
             parsedResponseJSON: .object([
-                "proposed_keywords": .array(terms.map { term in
-                    .object(["term": .string(term), "confidence": .string("high"), "evidence": .string("visible")])
-                })
+                "proposed_keywords": .array(
+                    terms.map { term in
+                        .object(["term": .string(term), "confidence": .string("high"), "evidence": .string("visible")])
+                    })
             ]),
             jsonValid: true,
             durationMs: 1,

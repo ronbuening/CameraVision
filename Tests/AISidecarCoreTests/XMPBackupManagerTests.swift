@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class XMPBackupManagerTests: XCTestCase {
@@ -31,11 +32,14 @@ final class XMPBackupManagerTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let manager = XMPBackupManager()
 
-        XCTAssertThrowsError(try manager.restore(XMPBackupRecord(
-            targetXMPPath: root.appendingPathComponent("Bird.xmp").path,
-            backupPath: root.appendingPathComponent("Missing.xmp.bak-2027-01-15T08:00:00Z").path,
-            createdAt: Date(timeIntervalSince1970: 1_800_000_000)
-        ))) { error in
+        XCTAssertThrowsError(
+            try manager.restore(
+                XMPBackupRecord(
+                    targetXMPPath: root.appendingPathComponent("Bird.xmp").path,
+                    backupPath: root.appendingPathComponent("Missing.xmp.bak-2027-01-15T08:00:00Z").path,
+                    createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+                ))
+        ) { error in
             XCTAssertEqual((error as? SidecarError)?.code, .sourceMissing)
         }
     }

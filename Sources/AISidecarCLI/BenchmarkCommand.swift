@@ -1,6 +1,6 @@
-import Foundation
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
+import Foundation
 
 struct BenchmarkCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -45,17 +45,18 @@ struct BenchmarkCommand: ParsableCommand {
     }
 
     mutating func run() throws {
-        let result = try Milestone9BenchmarkRunner().run(options: BenchmarkOptions(
-            samplesPath: samples,
-            outputDir: outputDir,
-            model: model,
-            iterations: iterations,
-            maxHashCopies: maxHashCopies,
-            specNames: specs,
-            skipBuild: skipBuild,
-            selfTest: selfTest,
-            binaryPath: binary
-        ))
+        let result = try Milestone9BenchmarkRunner().run(
+            options: BenchmarkOptions(
+                samplesPath: samples,
+                outputDir: outputDir,
+                model: model,
+                iterations: iterations,
+                maxHashCopies: maxHashCopies,
+                specNames: specs,
+                skipBuild: skipBuild,
+                selfTest: selfTest,
+                binaryPath: binary
+            ))
         if result.selfTest {
             FileHandle.standardOutput.write(Data("Self-test passed: \(result.outputRootPath)\n".utf8))
         } else {

@@ -61,7 +61,8 @@ public struct XMPNaming {
 
         let targetURL: URL
         if let outputDir = configuration.outputDir {
-            targetURL = Self.relativeComponents(for: relativePath).reduce(absoluteURL(for: outputDir)) { url, component in
+            targetURL = Self.relativeComponents(for: relativePath).reduce(absoluteURL(for: outputDir)) {
+                url, component in
                 url.appendingPathComponent(component)
             }
         } else if let sourcePath = input.sourcePath {
@@ -73,7 +74,8 @@ public struct XMPNaming {
             throw SidecarError(
                 code: .sourceMissing,
                 stage: .write,
-                message: "Unable to derive beside-source XMP path without a resolved source image: \(input.sidecarPath.path)",
+                message:
+                    "Unable to derive beside-source XMP path without a resolved source image: \(input.sidecarPath.path)",
                 recoverable: true
             )
         }

@@ -1,6 +1,6 @@
-import Foundation
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
+import Foundation
 
 struct PurgeCommand: ParsableCommand {
     static let configuration = CommandConfiguration(

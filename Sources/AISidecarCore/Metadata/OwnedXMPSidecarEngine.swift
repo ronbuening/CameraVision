@@ -128,12 +128,13 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
 
     private func validateExecutablePlan(_ plan: XMPChangePlan) throws {
         guard plan.status == .planned, plan.failures.isEmpty else {
-            throw plan.failures.first ?? SidecarError(
-                code: .validationFailed,
-                stage: .write,
-                message: "Cannot execute failed XMP change plan for \(plan.targetXMPPath).",
-                recoverable: true
-            )
+            throw plan.failures.first
+                ?? SidecarError(
+                    code: .validationFailed,
+                    stage: .write,
+                    message: "Cannot execute failed XMP change plan for \(plan.targetXMPPath).",
+                    recoverable: true
+                )
         }
     }
 }

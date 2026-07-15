@@ -79,7 +79,8 @@ public struct RenderRecipe: Sendable, Equatable {
         let extent = image.extent.integral
         let xScale = Double(dimensions.width) / Double(extent.width)
         let yScale = Double(dimensions.height) / Double(extent.height)
-        return image
+        return
+            image
             .transformed(by: CGAffineTransform(scaleX: xScale, y: yScale))
             .transformed(by: CGAffineTransform(translationX: -image.extent.minX, y: -image.extent.minY))
     }

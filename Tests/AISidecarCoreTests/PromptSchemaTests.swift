@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class PromptSchemaTests: XCTestCase {
@@ -50,11 +51,26 @@ final class PromptSchemaTests: XCTestCase {
     func testTaskAwareRegistriesSelectEveryContract() throws {
         let expectations: [(ModelInputRole, ModelTaskProfile, String, String)] = [
             (.wholeImage, .tagging, "aisidecar.prompt.whole_image/1.5.0", "urn:aisidecar:response:whole-image:1.5.0"),
-            (.wholeImage, .taggingWithQuality, "aisidecar.prompt.whole_image/1.6.0", "urn:aisidecar:response:whole-image:1.6.0"),
-            (.wholeImage, .qualityOnly, "aisidecar.prompt.whole_image_quality/1.0.0", "urn:aisidecar:response:whole-image-quality:1.0.0"),
-            (.subjectIsolated, .tagging, "aisidecar.prompt.subject_isolated/1.5.0", "urn:aisidecar:response:subject-isolated:1.5.0"),
-            (.subjectIsolated, .taggingWithQuality, "aisidecar.prompt.subject_isolated/1.6.0", "urn:aisidecar:response:subject-isolated:1.6.0"),
-            (.subjectIsolated, .qualityOnly, "aisidecar.prompt.subject_isolated_quality/1.0.0", "urn:aisidecar:response:subject-isolated-quality:1.0.0"),
+            (
+                .wholeImage, .taggingWithQuality, "aisidecar.prompt.whole_image/1.6.0",
+                "urn:aisidecar:response:whole-image:1.6.0"
+            ),
+            (
+                .wholeImage, .qualityOnly, "aisidecar.prompt.whole_image_quality/1.0.0",
+                "urn:aisidecar:response:whole-image-quality:1.0.0"
+            ),
+            (
+                .subjectIsolated, .tagging, "aisidecar.prompt.subject_isolated/1.5.0",
+                "urn:aisidecar:response:subject-isolated:1.5.0"
+            ),
+            (
+                .subjectIsolated, .taggingWithQuality, "aisidecar.prompt.subject_isolated/1.6.0",
+                "urn:aisidecar:response:subject-isolated:1.6.0"
+            ),
+            (
+                .subjectIsolated, .qualityOnly, "aisidecar.prompt.subject_isolated_quality/1.0.0",
+                "urn:aisidecar:response:subject-isolated-quality:1.0.0"
+            ),
         ]
 
         for (role, task, promptVersion, schemaVersion) in expectations {
@@ -75,12 +91,13 @@ final class PromptSchemaTests: XCTestCase {
     }
 
     func testPromptContextAppendsDeterministicGPSBlockWhenAvailable() throws {
-        let context = ModelInputContext(gps: GPSModelInputContext(
-            mode: .coarse,
-            latitude: 45.1,
-            longitude: -122.7,
-            precisionDegrees: 0.1
-        ))
+        let context = ModelInputContext(
+            gps: GPSModelInputContext(
+                mode: .coarse,
+                latitude: 45.1,
+                longitude: -122.7,
+                precisionDegrees: 0.1
+            ))
         let base = try PromptRegistry.prompt(for: .wholeImage)
         let contextual = try PromptRegistry.prompt(for: .wholeImage, context: context)
         let repeated = try PromptRegistry.prompt(for: .wholeImage, context: context)
@@ -120,7 +137,8 @@ final class PromptSchemaTests: XCTestCase {
 
     func testValidFixtureResponsesPassValidation() throws {
         try JSONSchemaValidator.validate(wholeImageFixture(), against: ResponseSchemas.schema(for: .wholeImage))
-        try JSONSchemaValidator.validate(subjectIsolatedFixture(), against: ResponseSchemas.schema(for: .subjectIsolated))
+        try JSONSchemaValidator.validate(
+            subjectIsolatedFixture(), against: ResponseSchemas.schema(for: .subjectIsolated))
     }
 
     func testQualitySchemaResourcesLoadWithExpectedIDs() throws {
@@ -142,7 +160,8 @@ final class PromptSchemaTests: XCTestCase {
         XCTAssertEqual(subjectLegacy.version, "urn:aisidecar:response:subject-isolated:1.5.0")
 
         let qualityOnlyConfidence = try XCTUnwrap(
-            try bundledSchema(named: "whole_image_quality_v1.0.0").schema.objectValue?["$defs"]?.objectValue?["confidence"]
+            try bundledSchema(named: "whole_image_quality_v1.0.0").schema.objectValue?["$defs"]?.objectValue?[
+                "confidence"]
         )
         let legacyConfidence = try XCTUnwrap(wholeLegacy.schema.objectValue?["$defs"]?.objectValue?["confidence"])
         XCTAssertEqual(qualityOnlyConfidence, legacyConfidence)
@@ -155,7 +174,8 @@ final class PromptSchemaTests: XCTestCase {
 
         var subjectCombined = try XCTUnwrap(subjectIsolatedFixture().objectValue)
         subjectCombined["quality_assessment"] = subjectQualityAssessment()
-        try JSONSchemaValidator.validate(.object(subjectCombined), against: bundledSchema(named: "subject_isolated_v1.6.0"))
+        try JSONSchemaValidator.validate(
+            .object(subjectCombined), against: bundledSchema(named: "subject_isolated_v1.6.0"))
 
         try JSONSchemaValidator.validate(
             .object(["quality_assessment": wholeQualityAssessment()]),
@@ -233,35 +253,39 @@ final class PromptSchemaTests: XCTestCase {
     func testTargetGenreRequiresSpeciesButAllowsEmptySpecies() throws {
         let wholeSchema = try ResponseSchemas.schema(for: .wholeImage)
 
-        assertInvalid(wholeImageMutating { response in
-            response.removeValue(forKey: "species")
-        }, against: wholeSchema)
+        assertInvalid(
+            wholeImageMutating { response in
+                response.removeValue(forKey: "species")
+            }, against: wholeSchema)
 
-        try JSONSchemaValidator.validate(wholeImageMutating { response in
-            response["species"] = .array([])
-        }, against: wholeSchema)
+        try JSONSchemaValidator.validate(
+            wholeImageMutating { response in
+                response["species"] = .array([])
+            }, against: wholeSchema)
     }
 
     func testSecondaryTargetGenreAlsoRequiresSpecies() throws {
         let schema = try ResponseSchemas.schema(for: .wholeImage)
 
-        try JSONSchemaValidator.validate(wholeImageMutating { response in
-            response["genre_or_photography_type"] = .array([
-                genreCandidate("landscape"),
-                genreCandidate("wildlife")
-            ])
-            response["species"] = .array([
-                candidateWithEvidence("heron", evidence: "long-legged bird visible in scene")
-            ])
-        }, against: schema)
+        try JSONSchemaValidator.validate(
+            wholeImageMutating { response in
+                response["genre_or_photography_type"] = .array([
+                    genreCandidate("landscape"),
+                    genreCandidate("wildlife"),
+                ])
+                response["species"] = .array([
+                    candidateWithEvidence("heron", evidence: "long-legged bird visible in scene")
+                ])
+            }, against: schema)
 
-        assertInvalid(wholeImageMutating { response in
-            response["genre_or_photography_type"] = .array([
-                genreCandidate("landscape"),
-                genreCandidate("wildlife")
-            ])
-            response.removeValue(forKey: "species")
-        }, against: schema)
+        assertInvalid(
+            wholeImageMutating { response in
+                response["genre_or_photography_type"] = .array([
+                    genreCandidate("landscape"),
+                    genreCandidate("wildlife"),
+                ])
+                response.removeValue(forKey: "species")
+            }, against: schema)
     }
 
     func testNonTargetGenresStillRequireSpeciesField() throws {
@@ -271,15 +295,17 @@ final class PromptSchemaTests: XCTestCase {
         // precondition downstream.
         let schema = try ResponseSchemas.schema(for: .wholeImage)
 
-        try JSONSchemaValidator.validate(wholeImageMutating { response in
-            response["genre_or_photography_type"] = .array([genreCandidate("landscape")])
-            response["species"] = .array([])
-        }, against: schema)
+        try JSONSchemaValidator.validate(
+            wholeImageMutating { response in
+                response["genre_or_photography_type"] = .array([genreCandidate("landscape")])
+                response["species"] = .array([])
+            }, against: schema)
 
-        assertInvalid(wholeImageMutating { response in
-            response["genre_or_photography_type"] = .array([genreCandidate("landscape")])
-            response.removeValue(forKey: "species")
-        }, against: schema)
+        assertInvalid(
+            wholeImageMutating { response in
+                response["genre_or_photography_type"] = .array([genreCandidate("landscape")])
+                response.removeValue(forKey: "species")
+            }, against: schema)
     }
 
     func testBasePromptsCarryNoGPSOrExternalContextLanguage() throws {
@@ -289,8 +315,10 @@ final class PromptSchemaTests: XCTestCase {
             let prompt = try PromptRegistry.prompt(for: role)
             XCTAssertFalse(prompt.text.contains("GPS"), "\(role.rawValue) prompt mentions GPS")
             XCTAssertFalse(prompt.text.contains("EXIF"), "\(role.rawValue) prompt mentions EXIF")
-            XCTAssertFalse(prompt.text.contains("MODEL INPUT CONTEXT"), "\(role.rawValue) prompt mentions the context block")
-            XCTAssertFalse(prompt.text.lowercased().contains("coordinate"), "\(role.rawValue) prompt mentions coordinates")
+            XCTAssertFalse(
+                prompt.text.contains("MODEL INPUT CONTEXT"), "\(role.rawValue) prompt mentions the context block")
+            XCTAssertFalse(
+                prompt.text.lowercased().contains("coordinate"), "\(role.rawValue) prompt mentions coordinates")
         }
 
         for name in [
@@ -300,7 +328,8 @@ final class PromptSchemaTests: XCTestCase {
             "subject_isolated_quality_v1.0.0",
         ] {
             let prompt = try bundledPrompt(named: name)
-            XCTAssertTrue(prompt.contains("Do not use GPS, EXIF, filename, location,"), "\(name) lacks the quality-context ban")
+            XCTAssertTrue(
+                prompt.contains("Do not use GPS, EXIF, filename, location,"), "\(name) lacks the quality-context ban")
             XCTAssertEqual(prompt.components(separatedBy: "GPS").count, 2, "\(name) mentions GPS outside the ban")
             XCTAssertEqual(prompt.components(separatedBy: "EXIF").count, 2, "\(name) mentions EXIF outside the ban")
             XCTAssertFalse(prompt.contains("MODEL INPUT CONTEXT"), "\(name) mentions the context block")
@@ -311,91 +340,104 @@ final class PromptSchemaTests: XCTestCase {
     func testSpeciesUsesCandidateWithEvidenceShape() throws {
         let schema = try ResponseSchemas.schema(for: .wholeImage)
 
-        assertInvalid(wholeImageMutating { response in
-            response["species"] = .array([.string("great blue heron")])
-        }, against: schema)
+        assertInvalid(
+            wholeImageMutating { response in
+                response["species"] = .array([.string("great blue heron")])
+            }, against: schema)
 
-        assertInvalid(wholeImageMutating { response in
-            response["species"] = .array([
-                .object([
-                    "term": .string("great blue heron"),
-                    "confidence": .string("certain"),
-                    "evidence": .string("large gray-blue wading bird")
+        assertInvalid(
+            wholeImageMutating { response in
+                response["species"] = .array([
+                    .object([
+                        "term": .string("great blue heron"),
+                        "confidence": .string("certain"),
+                        "evidence": .string("large gray-blue wading bird"),
+                    ])
                 ])
-            ])
-        }, against: schema)
+            }, against: schema)
 
-        assertInvalid(wholeImageMutating { response in
-            response["species"] = .array([
-                .object([
-                    "term": .string("great blue heron"),
-                    "confidence": .string("high")
+        assertInvalid(
+            wholeImageMutating { response in
+                response["species"] = .array([
+                    .object([
+                        "term": .string("great blue heron"),
+                        "confidence": .string("high"),
+                    ])
                 ])
-            ])
-        }, against: schema)
+            }, against: schema)
     }
 
     func testInvalidResponsesFailSchemaValidation() throws {
         let wholeSchema = try ResponseSchemas.schema(for: .wholeImage)
 
-        assertInvalid(wholeImageMutating { response in
-            response["genre_or_photography_type"] = .array([
-                .object([
-                    "term": .string("bird_photography"),
-                    "confidence": .string("certain"),
-                    "evidence": .string("bird fills the frame")
+        assertInvalid(
+            wholeImageMutating { response in
+                response["genre_or_photography_type"] = .array([
+                    .object([
+                        "term": .string("bird_photography"),
+                        "confidence": .string("certain"),
+                        "evidence": .string("bird fills the frame"),
+                    ])
                 ])
-            ])
-        }, against: wholeSchema)
+            }, against: wholeSchema)
 
-        assertInvalid(wholeImageMutating { response in
-            response["main_subjects"] = .array([.string("heron")])
-        }, against: wholeSchema)
+        assertInvalid(
+            wholeImageMutating { response in
+                response["main_subjects"] = .array([.string("heron")])
+            }, against: wholeSchema)
 
-        assertInvalid(wholeImageMutating { response in
-            response.removeValue(forKey: "summary")
-        }, against: wholeSchema)
+        assertInvalid(
+            wholeImageMutating { response in
+                response.removeValue(forKey: "summary")
+            }, against: wholeSchema)
 
-        assertInvalid(wholeImageMutating { response in
-            response["camera"] = .string("mirrorless")
-        }, against: wholeSchema)
+        assertInvalid(
+            wholeImageMutating { response in
+                response["camera"] = .string("mirrorless")
+            }, against: wholeSchema)
 
-        assertInvalid(wholeImageMutating { response in
-            response["genre_or_photography_type"] = .array([
-                genreCandidate("bird_photography"),
-                genreCandidate("wildlife"),
-                genreCandidate("landscape"),
-                genreCandidate("travel"),
-                genreCandidate("event")
-            ])
-        }, against: wholeSchema)
-
-        assertInvalid(wholeImageMutating { response in
-            response["summary"] = .string(String(repeating: "a", count: 281))
-        }, against: wholeSchema)
-
-        assertInvalid(wholeImageMutating { response in
-            response["proposed_keywords"] = .array([
-                .object([
-                    "term": .string("wading\nbird"),
-                    "confidence": .string("high"),
-                    "evidence": .string("long legs")
+        assertInvalid(
+            wholeImageMutating { response in
+                response["genre_or_photography_type"] = .array([
+                    genreCandidate("bird_photography"),
+                    genreCandidate("wildlife"),
+                    genreCandidate("landscape"),
+                    genreCandidate("travel"),
+                    genreCandidate("event"),
                 ])
-            ])
-        }, against: wholeSchema)
+            }, against: wholeSchema)
 
-        assertInvalid(wholeImageMutating { response in
-            response["genre_or_photography_type"] = .array([
-                .object([
-                    "term": .string("bird"),
-                    "confidence": .string("high"),
-                    "evidence": .string("bird fills the frame")
+        assertInvalid(
+            wholeImageMutating { response in
+                response["summary"] = .string(String(repeating: "a", count: 281))
+            }, against: wholeSchema)
+
+        assertInvalid(
+            wholeImageMutating { response in
+                response["proposed_keywords"] = .array([
+                    .object([
+                        "term": .string("wading\nbird"),
+                        "confidence": .string("high"),
+                        "evidence": .string("long legs"),
+                    ])
                 ])
-            ])
-        }, against: wholeSchema)
+            }, against: wholeSchema)
+
+        assertInvalid(
+            wholeImageMutating { response in
+                response["genre_or_photography_type"] = .array([
+                    .object([
+                        "term": .string("bird"),
+                        "confidence": .string("high"),
+                        "evidence": .string("bird fills the frame"),
+                    ])
+                ])
+            }, against: wholeSchema)
     }
 
-    private func assertInvalid(_ value: JSONValue, against schema: JSONSchemaDocument, file: StaticString = #filePath, line: UInt = #line) {
+    private func assertInvalid(
+        _ value: JSONValue, against schema: JSONSchemaDocument, file: StaticString = #filePath, line: UInt = #line
+    ) {
         XCTAssertThrowsError(try JSONSchemaValidator.validate(value, against: schema), file: file, line: line)
     }
 
@@ -424,7 +466,7 @@ final class PromptSchemaTests: XCTestCase {
             "proposed_keywords": .array([
                 candidateWithEvidence("wading bird", evidence: "long legs in shallow water")
             ]),
-            "uncertainty_notes": .string("")
+            "uncertainty_notes": .string(""),
         ])
     }
 
@@ -445,7 +487,7 @@ final class PromptSchemaTests: XCTestCase {
             "proposed_keywords": .array([
                 candidateWithEvidence("long bill", evidence: "straight pointed bill")
             ]),
-            "uncertainty_notes": .string("")
+            "uncertainty_notes": .string(""),
         ])
     }
 
@@ -474,7 +516,9 @@ final class PromptSchemaTests: XCTestCase {
             "pose_expression_or_moment": .string("acceptable"),
             "technical_cleanliness": .string("acceptable"),
             "overall_subject_quality": .string("strong"),
-            "strengths": .array([.string("Fine feather detail remains visible."), .string("The eye is sharply focused.")]),
+            "strengths": .array([
+                .string("Fine feather detail remains visible."), .string("The eye is sharply focused."),
+            ]),
             "concerns": .array([]),
             "confidence": .string("high"),
         ])
@@ -496,7 +540,7 @@ final class PromptSchemaTests: XCTestCase {
         .object([
             "term": .string(term),
             "confidence": .string("high"),
-            "evidence": .string("bird fills the frame")
+            "evidence": .string("bird fills the frame"),
         ])
     }
 
@@ -504,14 +548,14 @@ final class PromptSchemaTests: XCTestCase {
         .object([
             "term": .string(term),
             "confidence": .string("high"),
-            "evidence": .string(evidence)
+            "evidence": .string(evidence),
         ])
     }
 
     private func candidateWithoutEvidence(_ term: String) -> JSONValue {
         .object([
             "term": .string(term),
-            "confidence": .string("high")
+            "confidence": .string("high"),
         ])
     }
 

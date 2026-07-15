@@ -25,7 +25,8 @@ public enum VocabularyValidator {
         for entry in entries {
             let path = entry.canonicalPath.trimmingCharacters(in: .whitespacesAndNewlines)
             guard path == entry.canonicalPath, !path.isEmpty else {
-                throw vocabularyInvalid("canonical_path must be non-empty and must not have leading or trailing whitespace.")
+                throw vocabularyInvalid(
+                    "canonical_path must be non-empty and must not have leading or trailing whitespace.")
             }
             let levels = path.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
             guard levels.allSatisfy({ !$0.isEmpty }) else {
@@ -65,7 +66,8 @@ public enum VocabularyValidator {
                     throw vocabularyInvalid("Duplicate synonym within \(entry.canonicalPath): \(synonym)")
                 }
                 if let existing = synonymOwnerByFoldedTerm[folded] {
-                    throw vocabularyInvalid("Synonym maps to multiple entries: \(synonym) under \(existing) and \(entry.canonicalPath)")
+                    throw vocabularyInvalid(
+                        "Synonym maps to multiple entries: \(synonym) under \(existing) and \(entry.canonicalPath)")
                 }
                 synonymOwnerByFoldedTerm[folded] = entry.canonicalPath
             }
@@ -169,16 +171,21 @@ public enum VocabularyValidator {
     private static func resolveDefaults(_ entry: VocabularyEntry) -> ResolvedVocabularyEntry {
         let requiresReview = entry.requiresReview ?? defaultRequiresReview(entry)
         let specificity = entry.specificity ?? defaultSpecificity(entry, requiresReview: requiresReview)
-        let propagationScope = entry.propagationScope ?? defaultPropagationScope(
-            entry,
-            requiresReview: requiresReview,
-            specificity: specificity
-        )
-        let directApplyPolicy = entry.directApplyPolicy ?? defaultDirectApplyPolicy(
-            entry,
-            requiresReview: requiresReview
-        )
-        let autoApplyAllowed = entry.autoApplyAllowed ?? (!requiresReview && (propagationScope == .local || propagationScope == .global))
+        let propagationScope =
+            entry.propagationScope
+            ?? defaultPropagationScope(
+                entry,
+                requiresReview: requiresReview,
+                specificity: specificity
+            )
+        let directApplyPolicy =
+            entry.directApplyPolicy
+            ?? defaultDirectApplyPolicy(
+                entry,
+                requiresReview: requiresReview
+            )
+        let autoApplyAllowed =
+            entry.autoApplyAllowed ?? (!requiresReview && (propagationScope == .local || propagationScope == .global))
 
         return ResolvedVocabularyEntry(
             canonicalPath: entry.canonicalPath,

@@ -173,7 +173,8 @@ public struct AssetAffinityGraphBuilder {
         let assetByID = Dictionary(uniqueKeysWithValues: input.sourceAssets.map { ($0.assetID, $0) })
         let scoringNodes = nodes.compactMap { node -> ScoringNode? in
             guard let representativeID = node.memberAssetIDs.min(),
-                  let asset = assetByID[representativeID] else {
+                let asset = assetByID[representativeID]
+            else {
                 return nil
             }
             return ScoringNode(node: node, inputs: asset.affinityInputs)
@@ -261,7 +262,8 @@ public struct AssetAffinityGraphBuilder {
         }
         var keep = Set<AssetAffinityEdgeRecord>()
         for (nodeID, incident) in incidentEdges {
-            let retained = incident
+            let retained =
+                incident
                 .sorted { lhs, rhs in
                     if lhs.affinity == rhs.affinity {
                         return otherNodeID(lhs, nodeID: nodeID) < otherNodeID(rhs, nodeID: nodeID)
@@ -319,7 +321,8 @@ public struct CandidateNeighborGenerator {
         let nodesByID = Dictionary(uniqueKeysWithValues: sorted.map { ($0.node.nodeID, $0) })
         return pairs.sorted().compactMap { pair in
             guard let lhs = nodesByID[pair.lhsNodeID],
-                  let rhs = nodesByID[pair.rhsNodeID] else {
+                let rhs = nodesByID[pair.rhsNodeID]
+            else {
                 return nil
             }
             return (lhs, rhs)
@@ -342,14 +345,16 @@ public struct CandidateNeighborGenerator {
         profile: AssetAffinityProfile
     ) -> Bool {
         if let lhsSequence = lhs.inputs.parsedSequenceNumber,
-           let rhsSequence = rhs.inputs.parsedSequenceNumber,
-           lhs.inputs.relativeDirectory == rhs.inputs.relativeDirectory,
-           abs(lhsSequence - rhsSequence) <= Int(profile.filenameCutoff) {
+            let rhsSequence = rhs.inputs.parsedSequenceNumber,
+            lhs.inputs.relativeDirectory == rhs.inputs.relativeDirectory,
+            abs(lhsSequence - rhsSequence) <= Int(profile.filenameCutoff)
+        {
             return true
         }
         if let lhsIndex = lhs.inputs.fileListIndex,
-           let rhsIndex = rhs.inputs.fileListIndex,
-           abs(lhsIndex - rhsIndex) <= Int(profile.filenameCutoff) {
+            let rhsIndex = rhs.inputs.fileListIndex,
+            abs(lhsIndex - rhsIndex) <= Int(profile.filenameCutoff)
+        {
             return true
         }
         return false

@@ -141,7 +141,7 @@ public enum ModelInputProfileRegistry {
     public static let profiles: [ModelInputProfile] = [
         .defaultProfile,
         .benchmark1024Profile,
-        .benchmark1536Profile
+        .benchmark1536Profile,
     ]
 
     /// Return the built-in profile or fail configuration resolution.

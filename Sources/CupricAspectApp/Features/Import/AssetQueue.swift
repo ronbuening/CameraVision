@@ -103,7 +103,8 @@ enum AssetQueueDerivation {
     /// "XMP present (external)" — correct by construction.
     static func hasXMPExportBlock(rawSidecarPath: String, fileManager: FileManager = .default) -> Bool {
         guard let data = fileManager.contents(atPath: rawSidecarPath),
-              let probe = try? JSONDecoder().decode(XMPExportProbe.self, from: data) else {
+            let probe = try? JSONDecoder().decode(XMPExportProbe.self, from: data)
+        else {
             return false
         }
         return probe.xmpExport != nil

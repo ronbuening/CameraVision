@@ -1,12 +1,13 @@
 import Darwin
 import XCTest
+
 @testable import AISidecarCore
 
 final class ScannerTests: XCTestCase {
     func testSupportedImageTypeMatchesExtensionsCaseInsensitively() {
         let supported = [
             "NEF", "NRW", "CR3", "CR2", "ARW", "RAF", "ORF", "RW2",
-            "DNG", "JPG", "JPEG", "TIF", "TIFF", "HEIC", "PNG"
+            "DNG", "JPG", "JPEG", "TIF", "TIFF", "HEIC", "PNG",
         ]
 
         for fileExtension in supported {
@@ -158,7 +159,7 @@ final class ScannerTests: XCTestCase {
             "normalization-apply-summary-2026-07-10T120000Z.md",
             "model-input-export-2026-07-10T120000Z.json",
             "Bird.xmp.bak-2026-07-10T12:00:00Z",
-            "Bird.XMP.bak-2026-07-10T120000Z-a3f2"
+            "Bird.XMP.bak-2026-07-10T120000Z-a3f2",
         ]
         for name in artifactNames {
             _ = try writeFile(name, data: Data("{}".utf8), in: root)

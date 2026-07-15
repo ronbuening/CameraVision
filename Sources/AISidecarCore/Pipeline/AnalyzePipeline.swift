@@ -783,7 +783,8 @@ public struct AnalyzePipeline {
         options.contextWindow = configuration.modelContextWindow > 0 ? configuration.modelContextWindow : nil
         options.maxResponseTokens = configuration.modelMaxResponseTokens
         do {
-            let prompt = try PromptRegistry.prompt(for: role, task: configuration.taskProfile, context: modelInputContext)
+            let prompt = try PromptRegistry.prompt(
+                for: role, task: configuration.taskProfile, context: modelInputContext)
             let schema = try ResponseSchemas.schema(for: role, task: configuration.taskProfile)
             let runner = self.runner
             let task = Task {

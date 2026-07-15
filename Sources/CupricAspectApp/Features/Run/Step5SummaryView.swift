@@ -49,9 +49,11 @@ struct Step5SummaryView: View {
 
             HStack(spacing: 8) {
                 ApertureView(size: 22)
-                Text("Per-image candidate review arrives with milestone M4 — the .ai.json sidecars are on disk and ready for it.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.textFaint)
+                Text(
+                    "Per-image candidate review arrives with milestone M4 — the .ai.json sidecars are on disk and ready for it."
+                )
+                .font(.system(size: 12))
+                .foregroundStyle(theme.textFaint)
             }
             .padding(.top, 18)
         }

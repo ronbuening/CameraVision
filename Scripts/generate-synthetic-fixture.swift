@@ -28,7 +28,8 @@ if let flagIndex = arguments.firstIndex(of: "--sidecar-template"), flagIndex + 1
     arguments.removeSubrange(flagIndex...(flagIndex + 1))
 }
 guard !arguments.isEmpty else {
-    FileHandle.standardError.write(Data("usage: generate-synthetic-fixture.swift <directory> [count] [--sidecar-template <path>]\n".utf8))
+    FileHandle.standardError.write(
+        Data("usage: generate-synthetic-fixture.swift <directory> [count] [--sidecar-template <path>]\n".utf8))
     exit(2)
 }
 let directory = URL(fileURLWithPath: arguments[0], isDirectory: true)
@@ -59,7 +60,8 @@ try FileManager.default.removeItem(at: imageURL)
 func makeSidecarWriter(templatePath: String) throws -> (String, URL) throws -> Data {
     let templateData = try Data(contentsOf: URL(fileURLWithPath: templatePath))
     guard var template = try JSONSerialization.jsonObject(with: templateData) as? [String: Any],
-          var source = template["source"] as? [String: Any] else {
+        var source = template["source"] as? [String: Any]
+    else {
         FileHandle.standardError.write(Data("FAIL: template is not a raw sidecar JSON object\n".utf8))
         exit(1)
     }

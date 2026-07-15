@@ -39,9 +39,11 @@ final class FileLogSink: @unchecked Sendable {
     /// A pipeline logger writing to the shared file. Text format keeps the
     /// file human-readable; structured error codes are rendered inline.
     func makeLogger(minimumLevel: LogLevel = .info) -> Logger {
-        Logger(minimumLevel: minimumLevel, format: .text, sink: { [self] line in
-            write(line)
-        })
+        Logger(
+            minimumLevel: minimumLevel, format: .text,
+            sink: { [self] line in
+                write(line)
+            })
     }
 
     func write(_ line: String) {

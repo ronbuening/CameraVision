@@ -188,10 +188,13 @@ struct Step1PhotosView: View {
 
     private var recursiveCard: some View {
         HStack(spacing: 9) {
-            Toggle("", isOn: Binding(
-                get: { model.recursive },
-                set: { _ in model.toggleRecursive() }
-            ))
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { model.recursive },
+                    set: { _ in model.toggleRecursive() }
+                )
+            )
             .toggleStyle(.switch)
             .controlSize(.small)
             .labelsHidden()
@@ -258,41 +261,42 @@ struct Step1PhotosView: View {
 
     private var queueTable: some View {
         Table(model.filteredAssets) {
-                TableColumn("State") { record in
-                    stateBadge(record.state)
-                }
-                .width(min: 120, ideal: 170)
-                TableColumn("File") { record in
-                    Text(record.relativePath)
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                }
-                TableColumn("Type") { record in
-                    Text(record.fileExtension.uppercased())
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(theme.accent.accent)
-                }
-                .width(min: 46, ideal: 56)
-                TableColumn("Size") { record in
-                    Text(ByteCountFormatter.string(fromByteCount: record.fileSize, countStyle: .file))
-                        .font(.system(size: 11.5, design: .monospaced))
-                        .foregroundStyle(theme.textDim)
-                }
-                .width(min: 60, ideal: 80)
+            TableColumn("State") { record in
+                stateBadge(record.state)
             }
-            .frame(minHeight: 220, maxHeight: 340)
-            .clipShape(RoundedRectangle(cornerRadius: 11))
-            .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(theme.border))
+            .width(min: 120, ideal: 170)
+            TableColumn("File") { record in
+                Text(record.relativePath)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+            }
+            TableColumn("Type") { record in
+                Text(record.fileExtension.uppercased())
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(theme.accent.accent)
+            }
+            .width(min: 46, ideal: 56)
+            TableColumn("Size") { record in
+                Text(ByteCountFormatter.string(fromByteCount: record.fileSize, countStyle: .file))
+                    .font(.system(size: 11.5, design: .monospaced))
+                    .foregroundStyle(theme.textDim)
+            }
+            .width(min: 60, ideal: 80)
+        }
+        .frame(minHeight: 220, maxHeight: 340)
+        .clipShape(RoundedRectangle(cornerRadius: 11))
+        .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(theme.border))
     }
 
     private func stateBadge(_ state: AssetQueueState) -> some View {
-        let color: Color = switch state {
-        case .discovered: theme.textDim
-        case .analyzed: theme.accent.accent
-        case .exported: theme.green
-        case .xmpPresentExternal: theme.textDim
-        case .xmpMissingWasExported: theme.danger
-        case .failed: theme.danger
-        }
+        let color: Color =
+            switch state {
+            case .discovered: theme.textDim
+            case .analyzed: theme.accent.accent
+            case .exported: theme.green
+            case .xmpPresentExternal: theme.textDim
+            case .xmpMissingWasExported: theme.danger
+            case .failed: theme.danger
+            }
         return Text(state.displayName)
             .font(.system(size: 10.5, weight: .semibold))
             .foregroundStyle(color)

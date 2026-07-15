@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class XMPExportPipelineTests: XCTestCase {
@@ -232,7 +233,8 @@ final class XMPExportPipelineTests: XCTestCase {
 
         let report = try XCTUnwrap(result.report?.targetReports.first)
         let backup = try XCTUnwrap(report.backup)
-        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: fixture.output.appendingPathComponent("Bird.xmp").path)
+        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(
+            at: fixture.output.appendingPathComponent("Bird.xmp").path)
         XCTAssertEqual(report.status, .written)
         XCTAssertTrue(FileManager.default.fileExists(atPath: backup.backupPath))
         XCTAssertEqual(
@@ -372,7 +374,7 @@ final class XMPExportPipelineTests: XCTestCase {
                     .object([
                         "term": .string(term),
                         "confidence": .string("high"),
-                        "evidence": .string("fixture")
+                        "evidence": .string("fixture"),
                     ])
                 ])
             ]),
@@ -493,26 +495,26 @@ private struct ValidationFailingEngine: MetadataWriteEngine {
 }
 
 private let existingDevelopSettingsXMP = """
-<?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-           xmlns:dc="http://purl.org/dc/elements/1.1/"
-           xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
-           xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
-    <rdf:Description rdf:about="">
-      <dc:subject>
-        <rdf:Bag>
-          <rdf:li>existing bird</rdf:li>
-        </rdf:Bag>
-      </dc:subject>
-      <lr:hierarchicalSubject>
-        <rdf:Bag>
-          <rdf:li>existing habitat</rdf:li>
-        </rdf:Bag>
-      </lr:hierarchicalSubject>
-      <crs:Exposure2012>+0.35</crs:Exposure2012>
-      <crs:Contrast2012>12</crs:Contrast2012>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/"
+               xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
+               xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
+        <rdf:Description rdf:about="">
+          <dc:subject>
+            <rdf:Bag>
+              <rdf:li>existing bird</rdf:li>
+            </rdf:Bag>
+          </dc:subject>
+          <lr:hierarchicalSubject>
+            <rdf:Bag>
+              <rdf:li>existing habitat</rdf:li>
+            </rdf:Bag>
+          </lr:hierarchicalSubject>
+          <crs:Exposure2012>+0.35</crs:Exposure2012>
+          <crs:Contrast2012>12</crs:Contrast2012>
+        </rdf:Description>
+      </rdf:RDF>
+    </x:xmpmeta>
+    """

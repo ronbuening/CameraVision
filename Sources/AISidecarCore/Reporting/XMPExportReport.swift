@@ -130,7 +130,7 @@ public struct XMPExportReport: Codable, Sendable, Equatable {
 
     public static let applicationInstructions = [
         "Lightroom Classic: select already-imported photos and use Metadata > Read Metadata from Files to load sidecar changes.",
-        "Capture One: sidecar loading depends on Metadata preferences, especially Auto Sync Sidecar XMP, Load, and Full Sync."
+        "Capture One: sidecar loading depends on Metadata preferences, especially Auto Sync Sidecar XMP, Load, and Full Sync.",
     ]
 
     public var writtenCount: Int {

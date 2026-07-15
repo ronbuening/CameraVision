@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import CupricAspectApp
 
 /// M8: artifact pruning removes only stale entries in the artifact

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class LoggerTests: XCTestCase {

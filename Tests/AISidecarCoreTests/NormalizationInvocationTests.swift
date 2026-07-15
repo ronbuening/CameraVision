@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class NormalizationInvocationTests: XCTestCase {
@@ -35,7 +36,7 @@ final class NormalizationInvocationTests: XCTestCase {
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", modelResponseRepairAttempts: 1),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", gpsContext: .coarse),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", writeAIJSON: true),
-            NormalizationInvocationRequest(fromJSONPath: "A.ai.json", noWriteAIJSON: true)
+            NormalizationInvocationRequest(fromJSONPath: "A.ai.json", noWriteAIJSON: true),
         ]
 
         for request in invalidRequests {
@@ -68,7 +69,7 @@ final class NormalizationInvocationTests: XCTestCase {
                 noWriteHierarchicalKeywords: true
             ),
             NormalizationInvocationRequest(inputPath: "Images", backupSidecars: true, noBackupSidecars: true),
-            NormalizationInvocationRequest(inputPath: "Images", writeAIJSON: true, noWriteAIJSON: true)
+            NormalizationInvocationRequest(inputPath: "Images", writeAIJSON: true, noWriteAIJSON: true),
         ]
 
         for request in invalidRequests {
@@ -139,7 +140,7 @@ final class NormalizationInvocationTests: XCTestCase {
                 "AISIDECAR_NORMALIZATION_MODE": "batch-conservative",
                 "AISIDECAR_CONSENSUS_THRESHOLD": "0.6",
                 "AISIDECAR_AFFINITY_PROFILE": "balanced",
-                "AISIDECAR_SESSION_HABITAT": "Wetland"
+                "AISIDECAR_SESSION_HABITAT": "Wetland",
             ],
             defaultConfigPath: configPath
         )

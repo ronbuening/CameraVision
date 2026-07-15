@@ -6,7 +6,8 @@ let scriptURL = URL(
     fileURLWithPath: CommandLine.arguments[0],
     relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 ).standardizedFileURL
-let repoRoot = scriptURL
+let repoRoot =
+    scriptURL
     .deletingLastPathComponent()
     .deletingLastPathComponent()
 

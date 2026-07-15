@@ -38,9 +38,12 @@ public enum ObservedTagVocabulary {
     /// Return the separator-insensitive key used to collapse singular/plural and punctuation variants.
     public static func observedKey(for normalizedTerm: String) -> String {
         let separatorFolded = VocabularyTextFolder.separatorInsensitiveFold(normalizedTerm)
-        let variants = [separatorFolded] + VocabularyTextFolder
+        let variants =
+            [separatorFolded]
+            + VocabularyTextFolder
             .finalTokenVariantSeparatorInsensitiveFolds(separatorFolded)
-        return variants
+        return
+            variants
             .filter { !$0.isEmpty }
             .sorted()
             .first ?? separatorFolded
@@ -57,9 +60,10 @@ public enum ObservedTagVocabulary {
             for candidate in result.extractedCandidates {
                 let normalizedTerm = candidate.normalizedTerm
                 guard !normalizedTerm.isEmpty,
-                      !normalizedTerm.contains("|"),
-                      candidate.confidence >= configuration.minConfidence,
-                      !blocked.contains(CandidateObservationKey(candidate: candidate)) else {
+                    !normalizedTerm.contains("|"),
+                    candidate.confidence >= configuration.minConfidence,
+                    !blocked.contains(CandidateObservationKey(candidate: candidate))
+                else {
                     continue
                 }
                 termsByObservedKey[observedKey(for: normalizedTerm), default: []].append(normalizedTerm)
@@ -90,7 +94,9 @@ public enum ObservedTagVocabulary {
         }.sorted { $0.canonicalPath < $1.canonicalPath }
     }
 
-    private static func blockedObservationKeys(_ extractionResults: [CandidateExtractionResult]) -> Set<CandidateObservationKey> {
+    private static func blockedObservationKeys(_ extractionResults: [CandidateExtractionResult]) -> Set<
+        CandidateObservationKey
+    > {
         var blocked: Set<CandidateObservationKey> = []
         for result in extractionResults {
             for skipped in result.skippedCandidates {

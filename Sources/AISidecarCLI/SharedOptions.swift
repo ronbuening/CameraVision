@@ -1,8 +1,9 @@
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
 
 enum BatchExitHelp {
-    static let discussion = "Batch exit statuses: 0 for success, 1 when one or more items fail, and 130 when interrupted."
+    static let discussion =
+        "Batch exit statuses: 0 for success, 1 when one or more items fail, and 130 when interrupted."
 }
 
 func enforceBatchExitPolicy(failureCount: Int, interrupted: Bool) throws {
@@ -19,7 +20,7 @@ func withBatchInterruptionExit<T>(_ operation: () throws -> T) throws -> T {
     }
 }
 
-func withBatchInterruptionExit<T>(_ operation: () async throws -> T) async throws -> T {
+func withAsyncBatchInterruptionExit<T>(_ operation: () async throws -> T) async throws -> T {
     do {
         return try await operation()
     } catch let error as SidecarError where error.code == .interrupted {
@@ -121,7 +122,10 @@ struct SharedOptions: ParsableArguments {
     @Flag(help: "Recurse into subfolders.")
     var recursive = false
 
-    @Flag(help: "Also produce a perceptual quality assessment per image (adds the quality_assessment block to raw sidecars).")
+    @Flag(
+        help:
+            "Also produce a perceptual quality assessment per image (adds the quality_assessment block to raw sidecars)."
+    )
     var assessQuality = false
 
     @Option(help: "Redirect outputs; mirrors the relative scan tree.")

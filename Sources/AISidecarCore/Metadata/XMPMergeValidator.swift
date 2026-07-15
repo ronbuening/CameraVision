@@ -64,37 +64,45 @@ public struct XMPMergeValidator {
             !postFlatKeys.contains(KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)))
         }
         if !missingFlat.isEmpty {
-            errors.append(validationError("Expected flat XMP keyword(s) missing after write: \(missingFlat.joined(separator: ", "))"))
+            errors.append(
+                validationError(
+                    "Expected flat XMP keyword(s) missing after write: \(missingFlat.joined(separator: ", "))"))
         }
 
         let missingHierarchical = expectedHierarchical.filter {
-            !postHierarchicalKeys.contains(KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)))
+            !postHierarchicalKeys.contains(
+                KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)))
         }
         if !missingHierarchical.isEmpty {
-            errors.append(validationError(
-                "Expected hierarchical XMP keyword(s) missing after write: \(missingHierarchical.joined(separator: ", "))"
-            ))
+            errors.append(
+                validationError(
+                    "Expected hierarchical XMP keyword(s) missing after write: \(missingHierarchical.joined(separator: ", "))"
+                ))
         }
 
         let missingPreFlat = preWriteSnapshot.flatKeywords.filter {
             !postFlatKeys.contains(KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)))
         }
         if !missingPreFlat.isEmpty {
-            errors.append(validationError(
-                "Pre-existing flat XMP keyword(s) were not preserved: \(missingPreFlat.joined(separator: ", "))"
-            ))
+            errors.append(
+                validationError(
+                    "Pre-existing flat XMP keyword(s) were not preserved: \(missingPreFlat.joined(separator: ", "))"
+                ))
         }
 
         let missingPreHierarchical = preWriteSnapshot.hierarchicalKeywords.filter {
-            !postHierarchicalKeys.contains(KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)))
+            !postHierarchicalKeys.contains(
+                KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)))
         }
         if !missingPreHierarchical.isEmpty {
-            errors.append(validationError(
-                "Pre-existing hierarchical XMP keyword(s) were not preserved: \(missingPreHierarchical.joined(separator: ", "))"
-            ))
+            errors.append(
+                validationError(
+                    "Pre-existing hierarchical XMP keyword(s) were not preserved: \(missingPreHierarchical.joined(separator: ", "))"
+                ))
         }
 
-        let unmanagedPreserved = !preWriteSnapshot.exists
+        let unmanagedPreserved =
+            !preWriteSnapshot.exists
             || preWriteSnapshot.unmanagedContentFingerprint == postWriteSnapshot.unmanagedContentFingerprint
         if !unmanagedPreserved {
             errors.append(validationError("Pre-existing unmanaged XMP/RDF content was not semantically preserved."))

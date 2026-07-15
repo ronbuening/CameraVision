@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class NormalizeAndWritePipelineTests: XCTestCase {
@@ -43,11 +44,12 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
         XCTAssertEqual(result.normalizeResult.report.xmpExportReport?.writtenCount, 1)
         XCTAssertEqual(result.normalizeResult.report.xmpExportReport?.targetReports.first?.status, .created)
         XCTAssertEqual(result.normalizeResult.report.errors, [])
-        XCTAssertTrue(try decodeProgress(at: result.normalizeResult.report.artifacts.progressPath).contains {
-            $0.stage == .xmpTarget
-                && $0.status == .completed
-                && $0.targetRelativePath == "Bird.xmp"
-        })
+        XCTAssertTrue(
+            try decodeProgress(at: result.normalizeResult.report.artifacts.progressPath).contains {
+                $0.stage == .xmpTarget
+                    && $0.status == .completed
+                    && $0.targetRelativePath == "Bird.xmp"
+            })
     }
 
     func testInterruptedBeforeSessionWriteLeavesNoNormalizationArtifacts() throws {
@@ -81,15 +83,17 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
         )
 
         XCTAssertTrue(result.exportResult.interrupted)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(result.normalizeResult.session.artifacts.sessionPath)))
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: try XCTUnwrap(result.normalizeResult.session.artifacts.sessionPath)))
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.output.appendingPathComponent("Bird.xmp").path))
         XCTAssertEqual(result.normalizeResult.report.errors.map(\.code), [.interrupted])
         XCTAssertEqual(result.normalizeResult.report.xmpExportReport?.inputFailures.map(\.error.code), [.interrupted])
-        XCTAssertTrue(try decodeProgress(at: result.normalizeResult.report.artifacts.progressPath).contains {
-            $0.stage == .xmpTarget
-                && $0.status == .failed
-                && $0.errors.map(\.code) == [.interrupted]
-        })
+        XCTAssertTrue(
+            try decodeProgress(at: result.normalizeResult.report.artifacts.progressPath).contains {
+                $0.stage == .xmpTarget
+                    && $0.status == .failed
+                    && $0.errors.map(\.code) == [.interrupted]
+            })
     }
 
     func testInterruptedDuringXMPBackupRestoresExistingSidecarAndLeavesSourceUnchanged() throws {
@@ -208,7 +212,8 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let text = String(decoding: try Data(contentsOf: URL(fileURLWithPath: path)), as: UTF8.self)
-        return try text
+        return
+            try text
             .split(separator: "\n")
             .map { try decoder.decode(NormalizationProgressRecord.self, from: Data($0.utf8)) }
     }
@@ -216,7 +221,7 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
     private static func response(_ fields: [String: JSONValue]) -> JSONValue {
         var object: [String: JSONValue] = [
             "summary": .string("fixture"),
-            "uncertainty_notes": .string("")
+            "uncertainty_notes": .string(""),
         ]
         for (field, value) in fields {
             object[field] = value
@@ -228,7 +233,7 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
         .object([
             "term": .string(term),
             "confidence": .string(confidence),
-            "evidence": .string("visible evidence")
+            "evidence": .string("visible evidence"),
         ])
     }
 }
@@ -242,25 +247,25 @@ private struct NormalizeWriteFixture {
 }
 
 private let existingDevelopSettingsXMPForNormalizeWrite = """
-<?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-           xmlns:dc="http://purl.org/dc/elements/1.1/"
-           xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
-           xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
-    <rdf:Description rdf:about="">
-      <dc:subject>
-        <rdf:Bag>
-          <rdf:li>existing bird</rdf:li>
-        </rdf:Bag>
-      </dc:subject>
-      <lr:hierarchicalSubject>
-        <rdf:Bag>
-          <rdf:li>existing habitat</rdf:li>
-        </rdf:Bag>
-      </lr:hierarchicalSubject>
-      <crs:Exposure2012>+0.35</crs:Exposure2012>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/"
+               xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
+               xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
+        <rdf:Description rdf:about="">
+          <dc:subject>
+            <rdf:Bag>
+              <rdf:li>existing bird</rdf:li>
+            </rdf:Bag>
+          </dc:subject>
+          <lr:hierarchicalSubject>
+            <rdf:Bag>
+              <rdf:li>existing habitat</rdf:li>
+            </rdf:Bag>
+          </lr:hierarchicalSubject>
+          <crs:Exposure2012>+0.35</crs:Exposure2012>
+        </rdf:Description>
+      </rdf:RDF>
+    </x:xmpmeta>
+    """

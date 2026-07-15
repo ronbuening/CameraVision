@@ -66,7 +66,8 @@ public enum RawSidecarExportStamp {
     /// True when the sidecar carries a stamp (presence check only).
     public static func isStamped(sidecarPath: String, fileManager: FileManager = .default) -> Bool {
         guard let data = fileManager.contents(atPath: sidecarPath),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
             return false
         }
         return object[key] != nil
