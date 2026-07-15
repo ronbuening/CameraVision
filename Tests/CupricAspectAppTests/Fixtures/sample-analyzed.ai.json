@@ -5,7 +5,7 @@
       "applied_orientation" : {
         "exif_value" : 1
       },
-      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/deed41f1fdef8e2bd25993dc5ad34117291d0080732c8a0df4d92bdbd8377705-render-v2-gemma4-26b-default-whole_image.jpg",
+      "cache_path" : "/nonexistent/aisidecar-fixture/cache/deed41f1fdef8e2bd25993dc5ad34117291d0080732c8a0df4d92bdbd8377705-render-v2-gemma4-26b-default-whole_image.jpg",
       "color_space" : "sRGB",
       "format" : "jpeg",
       "height" : 200,
@@ -22,7 +22,7 @@
       "applied_orientation" : {
         "exif_value" : 1
       },
-      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/deed41f1fdef8e2bd25993dc5ad34117291d0080732c8a0df4d92bdbd8377705-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
+      "cache_path" : "/nonexistent/aisidecar-fixture/cache/deed41f1fdef8e2bd25993dc5ad34117291d0080732c8a0df4d92bdbd8377705-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
       "color_space" : "sRGB",
       "format" : "jpeg",
       "height" : 142,
@@ -544,7 +544,7 @@
     "clear_derivative_cache_after_success" : false,
     "clear_derivative_cache_on_start" : false,
     "debug_derivatives" : false,
-    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_dir" : "/nonexistent/aisidecar-fixture/cache",
     "derivative_cache_size_bytes" : 21474836480,
     "dry_run" : false,
     "existing" : "skip",
@@ -574,7 +574,7 @@
       "sha256" : "deed41f1fdef8e2bd25993dc5ad34117291d0080732c8a0df4d92bdbd8377705"
     },
     "modified_at" : "2026-07-07T11:25:24Z",
-    "path" : "/tmp/claude-501/-Users-ronbuening-Programming-LocalModels-CameraVision/f4b0f27a-a122-48d4-b55b-e900b5b9db1f/scratchpad/realfixture/DSC_0421.jpg",
+    "path" : "/nonexistent/aisidecar-fixture/source/DSC_0421.jpg",
     "relative_path" : "DSC_0421.jpg"
   },
   "subject_isolation" : {

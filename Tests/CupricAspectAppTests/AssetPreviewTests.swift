@@ -3,11 +3,13 @@ import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 import XCTest
+
 @testable import CupricAspectApp
 
 /// M3: preview-detail extraction from a real pipeline sidecar, and thumbnail
-/// decoding. The fixture is an unmodified `.ai.json` written by
-/// `AnalyzePipeline` (mode `both`), so decode drift from Core fails here.
+/// decoding. The fixture is an `.ai.json` written by `AnalyzePipeline` (mode
+/// `both`) with only its filesystem paths sanitized, so decode drift from Core
+/// fails here.
 final class AssetPreviewTests: XCTestCase {
     private final class DecodeCounter: @unchecked Sendable {
         private let lock = NSLock()
@@ -70,6 +72,15 @@ final class AssetPreviewTests: XCTestCase {
         return url
     }
 
+    private func loadFixture() throws -> RawJSONSidecar {
+        let fixtureURL = try XCTUnwrap(
+            Bundle.module.url(forResource: "sample-analyzed.ai", withExtension: "json")
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(RawJSONSidecar.self, from: Data(contentsOf: fixtureURL))
+    }
+
     /// Re-point the fixture's derivative cache paths into the test's temp dir
     /// so the test controls which derivatives "exist" regardless of the
     /// machine's real shared cache.
@@ -77,12 +88,7 @@ final class AssetPreviewTests: XCTestCase {
         wholeImageExists: Bool,
         subjectExists: Bool
     ) throws -> String {
-        let fixtureURL = try XCTUnwrap(
-            Bundle.module.url(forResource: "sample-analyzed.ai", withExtension: "json")
-        )
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        var sidecar = try decoder.decode(RawJSONSidecar.self, from: Data(contentsOf: fixtureURL))
+        var sidecar = try loadFixture()
         for index in sidecar.derivatives.indices {
             let role = sidecar.derivatives[index].role
             let name = "derivative-\(role.rawValue).jpg"
@@ -97,6 +103,15 @@ final class AssetPreviewTests: XCTestCase {
         let sidecarURL = root.appendingPathComponent("rewritten.ai.json")
         try encoder.encode(sidecar).write(to: sidecarURL)
         return sidecarURL.path
+    }
+
+    func testRecordedFixtureUsesMachineNeutralPaths() throws {
+        let sidecar = try loadFixture()
+        let fixtureRoot = "/nonexistent/aisidecar-fixture"
+
+        XCTAssertEqual(sidecar.source.path, "\(fixtureRoot)/source/DSC_0421.jpg")
+        XCTAssertEqual(sidecar.runConfiguration.derivativeCacheDir, "\(fixtureRoot)/cache")
+        XCTAssertTrue(sidecar.derivatives.allSatisfy { $0.cachePath.hasPrefix("\(fixtureRoot)/cache/") })
     }
 
     func testPreviewDetailsDecodeRealPipelineSidecar() throws {
