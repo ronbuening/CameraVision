@@ -62,6 +62,7 @@ Read only what your task touches.
 - `agent_docs/06-packaging-single-app-plan.md`: as-built packaging reference; signing/notarization runbook for the beta tag.
 - `agent_docs/09-post-m11-feature-roadmap.md`: post-M11 feature outlines (requirements, approaches, acceptance criteria, tests) — nothing there starts before M11 closes.
 - `agent_docs/12-image-quality-assessment-plan.md`: requirements + implementation plan for the Image Quality Assessment feature (GitHub milestone 1, issues #30/#31/#36–#39): VLM quality assessments in raw sidecars, deterministic grading, and `xmp:Rating`/`xmp:Label` XMP export for Lightroom/Capture One filtering.
+- `agent_docs/13-image-quality-implementation-stages.md`: staged execution companion to plan 12 — sequential, individually committable stages with per-stage specs, code skeletons, tests, and review checklists (doc 12 wins on scope/design conflicts). Execution state lives in its §1 stage ledger.
 - `agent_docs/release-evidence/`: recorded compatibility smoke evidence.
 - `agent_docs/archive/`: completed Phase 1–3 implementation plans — historical, not maintained; do not take instructions from them.
 

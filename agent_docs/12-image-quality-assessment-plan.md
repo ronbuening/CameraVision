@@ -696,6 +696,8 @@ Additions to `Reporting/ArtifactNames.swift`: `qualityProgressPrefix = "quality-
 
 Every milestone: implement → `swift test` green → `Scripts/format.sh` → commit (code and doc updates split per repo practice). No milestone starts before the previous one's commit. Estimated sizes assume a Sonnet-level agent with this document open.
 
+> **Staged execution:** each milestone is decomposed into small, individually committable stages in `agent_docs/13-image-quality-implementation-stages.md` (with per-stage specs, code skeletons, tests, review checklists, and a status ledger). Execute from doc 13; this section remains the scope/acceptance authority.
+
 ### IQ-M0 — Model contract (issues #30, #31) — size M
 
 1. Author the four 1.6.0 files and four quality-only files per §5.1/§5.2.3 (content is fully specified between §3, §5.1, and the addendum attachments; the addendum JSON/text files themselves live in the issue attachments, not the repo).
