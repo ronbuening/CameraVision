@@ -69,6 +69,92 @@ final class PromptSchemaTests: XCTestCase {
         try JSONSchemaValidator.validate(subjectIsolatedFixture(), against: ResponseSchemas.schema(for: .subjectIsolated))
     }
 
+    func testQualitySchemaResourcesLoadWithExpectedIDs() throws {
+        let expectedVersions = [
+            ("whole_image_v1.6.0", "urn:aisidecar:response:whole-image:1.6.0"),
+            ("subject_isolated_v1.6.0", "urn:aisidecar:response:subject-isolated:1.6.0"),
+            ("whole_image_quality_v1.0.0", "urn:aisidecar:response:whole-image-quality:1.0.0"),
+            ("subject_isolated_quality_v1.0.0", "urn:aisidecar:response:subject-isolated-quality:1.0.0"),
+        ]
+
+        for (name, expectedVersion) in expectedVersions {
+            let schema = try bundledSchema(named: name)
+            XCTAssertEqual(schema.version, expectedVersion)
+        }
+
+        let wholeLegacy = try bundledSchema(named: "whole_image_v1.5.0")
+        let subjectLegacy = try bundledSchema(named: "subject_isolated_v1.5.0")
+        XCTAssertEqual(wholeLegacy.version, "urn:aisidecar:response:whole-image:1.5.0")
+        XCTAssertEqual(subjectLegacy.version, "urn:aisidecar:response:subject-isolated:1.5.0")
+
+        let qualityOnlyConfidence = try XCTUnwrap(
+            try bundledSchema(named: "whole_image_quality_v1.0.0").schema.objectValue?["$defs"]?.objectValue?["confidence"]
+        )
+        let legacyConfidence = try XCTUnwrap(wholeLegacy.schema.objectValue?["$defs"]?.objectValue?["confidence"])
+        XCTAssertEqual(qualityOnlyConfidence, legacyConfidence)
+    }
+
+    func testQualitySchemasAcceptCompleteAssessments() throws {
+        var wholeCombined = try XCTUnwrap(wholeImageFixture().objectValue)
+        wholeCombined["quality_assessment"] = wholeQualityAssessment()
+        try JSONSchemaValidator.validate(.object(wholeCombined), against: bundledSchema(named: "whole_image_v1.6.0"))
+
+        var subjectCombined = try XCTUnwrap(subjectIsolatedFixture().objectValue)
+        subjectCombined["quality_assessment"] = subjectQualityAssessment()
+        try JSONSchemaValidator.validate(.object(subjectCombined), against: bundledSchema(named: "subject_isolated_v1.6.0"))
+
+        try JSONSchemaValidator.validate(
+            .object(["quality_assessment": wholeQualityAssessment()]),
+            against: bundledSchema(named: "whole_image_quality_v1.0.0")
+        )
+        try JSONSchemaValidator.validate(
+            .object(["quality_assessment": subjectQualityAssessment()]),
+            against: bundledSchema(named: "subject_isolated_quality_v1.0.0")
+        )
+    }
+
+    func testQualitySchemaRejectsInvalidAssessmentShapes() throws {
+        let schema = try bundledSchema(named: "whole_image_v1.6.0")
+
+        assertInvalid(wholeImageFixture(), against: schema)
+
+        var missingCriterion = try XCTUnwrap(wholeImageFixture().objectValue)
+        var incompleteAssessment = try XCTUnwrap(wholeQualityAssessment().objectValue)
+        incompleteAssessment.removeValue(forKey: "focus")
+        missingCriterion["quality_assessment"] = .object(incompleteAssessment)
+        assertInvalid(.object(missingCriterion), against: schema)
+
+        var unknownCriterion = try XCTUnwrap(wholeImageFixture().objectValue)
+        var assessmentWithUnknownCriterion = try XCTUnwrap(wholeQualityAssessment().objectValue)
+        assessmentWithUnknownCriterion["imaginary_criterion"] = .string("strong")
+        unknownCriterion["quality_assessment"] = .object(assessmentWithUnknownCriterion)
+        assertInvalid(.object(unknownCriterion), against: schema)
+
+        var invalidLevel = try XCTUnwrap(wholeImageFixture().objectValue)
+        var assessmentWithInvalidLevel = try XCTUnwrap(wholeQualityAssessment().objectValue)
+        assessmentWithInvalidLevel["focus"] = .string("excellent")
+        invalidLevel["quality_assessment"] = .object(assessmentWithInvalidLevel)
+        assertInvalid(.object(invalidLevel), against: schema)
+
+        var tooManyConcerns = try XCTUnwrap(wholeImageFixture().objectValue)
+        var assessmentWithTooManyConcerns = try XCTUnwrap(wholeQualityAssessment().objectValue)
+        assessmentWithTooManyConcerns["concerns"] = .array([.string("a"), .string("b"), .string("c")])
+        tooManyConcerns["quality_assessment"] = .object(assessmentWithTooManyConcerns)
+        assertInvalid(.object(tooManyConcerns), against: schema)
+
+        var tooLongNote = try XCTUnwrap(wholeImageFixture().objectValue)
+        var assessmentWithTooLongNote = try XCTUnwrap(wholeQualityAssessment().objectValue)
+        assessmentWithTooLongNote["strengths"] = .array([.string(String(repeating: "a", count: 161))])
+        tooLongNote["quality_assessment"] = .object(assessmentWithTooLongNote)
+        assertInvalid(.object(tooLongNote), against: schema)
+
+        var multilineNote = try XCTUnwrap(wholeImageFixture().objectValue)
+        var assessmentWithMultilineNote = try XCTUnwrap(wholeQualityAssessment().objectValue)
+        assessmentWithMultilineNote["strengths"] = .array([.string("visible detail\ncontinues")])
+        multilineNote["quality_assessment"] = .object(assessmentWithMultilineNote)
+        assertInvalid(.object(multilineNote), against: schema)
+    }
+
     func testSubjectSchemaRejectsHabitatAndSceneFields() throws {
         let schema = try ResponseSchemas.schema(for: .subjectIsolated)
         var response = try XCTUnwrap(subjectIsolatedFixture().objectValue)
@@ -293,6 +379,44 @@ final class PromptSchemaTests: XCTestCase {
             ]),
             "uncertainty_notes": .string("")
         ])
+    }
+
+    private func wholeQualityAssessment() -> JSONValue {
+        .object([
+            "focus": .string("strong"),
+            "composition": .string("strong"),
+            "exposure_and_tone": .string("acceptable"),
+            "lighting_and_color": .string("acceptable"),
+            "subject_background_relationship": .string("strong"),
+            "moment_or_expression": .string("unrated"),
+            "technical_cleanliness": .string("acceptable"),
+            "overall_effectiveness": .string("strong"),
+            "strengths": .array([.string("The bird is sharply resolved against calm water.")]),
+            "concerns": .array([]),
+            "confidence": .string("high"),
+        ])
+    }
+
+    private func subjectQualityAssessment() -> JSONValue {
+        .object([
+            "focus": .string("strong"),
+            "exposure_and_tone": .string("acceptable"),
+            "lighting_and_color": .string("acceptable"),
+            "detail_and_texture": .string("strong"),
+            "pose_expression_or_moment": .string("acceptable"),
+            "technical_cleanliness": .string("acceptable"),
+            "overall_subject_quality": .string("strong"),
+            "strengths": .array([.string("Fine feather detail remains visible."), .string("The eye is sharply focused.")]),
+            "concerns": .array([]),
+            "confidence": .string("high"),
+        ])
+    }
+
+    private func bundledSchema(named name: String) throws -> JSONSchemaDocument {
+        let url = try XCTUnwrap(AISidecarResourceBundle.current.url(forResource: name, withExtension: "json"))
+        let schema = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+        let version = try XCTUnwrap(schema.objectValue?["$id"]?.stringValue)
+        return JSONSchemaDocument(version: version, schema: schema)
     }
 
     private func genreCandidate(_ term: String) -> JSONValue {
