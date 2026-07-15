@@ -44,7 +44,7 @@ Update Status (`pending` / `in progress` / `done` / `blocked`) and Notes as stag
 | S2.2 | `QualityAssessPipeline` + GPS suppression | S1.2, S2.1 | M | done | `swift test` passed (611 tests, 2 skipped) on 2026-07-15. |
 | S2.3 | `assess-quality` subcommand + docs | S2.2 | S | done | Code + documentation commits complete; `swift test` passed (611 tests, 2 skipped), and both CLI help checks passed on 2026-07-15. |
 | S2.4 | Input-resolver quality-sibling support | S2.1 | S | done | `swift test` passed (615 tests, 2 skipped) on 2026-07-15. |
-| S3.1 | `QualityAssessmentRecord` + extractor | S0.4 | M | pending | |
+| S3.1 | `QualityAssessmentRecord` + extractor | S0.4 | M | done | `swift test` passed (624 tests, 2 skipped) on 2026-07-15. |
 | S3.2 | Tier deriver + grading types | S3.1 | M | pending | |
 | S3.3 | Grading policy Codable + validation | S3.2 | S | pending | |
 | S4.0 | (manual prework) Capture C1 Urgency mapping | — | S | pending | can run any time |
