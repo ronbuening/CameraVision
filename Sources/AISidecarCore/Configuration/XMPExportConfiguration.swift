@@ -207,6 +207,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
     public var sourceVerification: XMPSourceVerificationPolicy?
     public var mode: AnalysisMode?
     public var existing: ExistingPolicy?
+    public var assessQuality: Bool
     public var model: String?
     public var modelEndpoint: String?
     public var modelTimeoutSeconds: Double?
@@ -234,6 +235,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         sourceVerification: XMPSourceVerificationPolicy? = nil,
         mode: AnalysisMode? = nil,
         existing: ExistingPolicy? = nil,
+        assessQuality: Bool = false,
         model: String? = nil,
         modelEndpoint: String? = nil,
         modelTimeoutSeconds: Double? = nil,
@@ -260,6 +262,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         self.sourceVerification = sourceVerification
         self.mode = mode
         self.existing = existing
+        self.assessQuality = assessQuality
         self.model = model
         self.modelEndpoint = modelEndpoint
         self.modelTimeoutSeconds = modelTimeoutSeconds
@@ -333,6 +336,7 @@ public enum XMPExportInvocationValidator {
         try InvocationRules.rejectFromJSONIncompatible([
             ("mode", request.mode != nil),
             ("existing", request.existing != nil),
+            ("assess-quality", request.assessQuality),
             ("model", request.model != nil),
             ("model-endpoint", request.modelEndpoint != nil),
             ("model-timeout", request.modelTimeoutSeconds != nil),

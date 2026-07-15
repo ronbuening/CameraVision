@@ -30,6 +30,7 @@ final class XMPExportInvocationTests: XCTestCase {
         let invalidRequests = [
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", mode: .both),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", existing: .overwrite),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", assessQuality: true),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", model: "custom:model"),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelEndpoint: "http://localhost:11434"),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelTimeoutSeconds: 180),

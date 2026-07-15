@@ -38,7 +38,7 @@ Update Status (`pending` / `in progress` / `done` / `blocked`) and Notes as stag
 | S0.3 | `ModelTaskProfile` + task-aware registries | S0.1, S0.2 | S | done | `swift test` passed (596 tests, 2 skipped) on 2026-07-15. |
 | S0.4 | Wire-schema proofs + model-response fixtures | S0.3 | S | done | `swift test` passed (598 tests, 2 skipped) on 2026-07-15. |
 | S1.1 | `quality_assessment` config plumbing | S0.3 | M | done | `swift test` passed (600 tests, 2 skipped) on 2026-07-15. |
-| S1.2 | `--assess-quality` flag + pipeline selection | S1.1 | M | pending | |
+| S1.2 | `--assess-quality` flag + pipeline selection | S1.1 | M | done | `swift test` passed (602 tests, 2 skipped) on 2026-07-15. |
 | S1.3 | Quality golden sidecar + repair coverage + docs | S1.2 | S | pending | |
 | S2.1 | Quality sidecar naming, artifact names, cleanup | S0.3 | S | pending | |
 | S2.2 | `QualityAssessPipeline` + GPS suppression | S1.2, S2.1 | M | pending | |

@@ -30,6 +30,9 @@ struct WriteXMPCommand: AsyncParsableCommand {
     @Flag(help: "Recurse into subfolders.")
     var recursive = false
 
+    @Flag(help: "Also produce a perceptual quality assessment per image in analyze-and-write mode.")
+    var assessQuality = false
+
     @Option(help: "Redirect outputs; mirrors the relative scan tree.")
     var outputDir: String?
 
@@ -187,6 +190,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             sourceVerification: sourceVerification,
             mode: mode,
             existing: existing,
+            assessQuality: assessQuality,
             model: model,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
@@ -238,6 +242,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             mode: mode,
             existing: existing,
             recursive: recursive ? true : nil,
+            qualityAssessment: assessQuality ? true : nil,
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,
