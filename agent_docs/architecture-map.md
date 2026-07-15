@@ -13,7 +13,7 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
                                         Pipeline (orchestration) ──► Reporting (logs/reports/summaries)
 ```
 
-- **Phase 1** (`analyze`): scan → identity hash → render derivatives → optional subject isolation → Ollama vision model → raw `.ai.json` sidecars. Never writes XMP.
+- **Phase 1** (`analyze`): scan → identity hash → render derivatives → optional subject isolation → Ollama vision model → raw `.ai.json` sidecars. `--assess-quality` selects the combined v1.6.0 contract and records `task_profile`; analyze never writes XMP.
 - **Phase 2** (`write-xmp`): read raw sidecars → extract accepted candidates → plan/merge/write `.xmp` sidecars through the project-owned XMP engine, with backups and post-write validation.
 - **Phase 3** (`normalize`, `apply-session`): vocabulary canonicalization + batch consensus over candidates → durable session document → normalized XMP writes reusing the Phase 2 export pipeline.
 
@@ -26,7 +26,7 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
 | `Identity/` | Source content identity hashing (fast/sha256 policies) | `SourceIdentity` |
 | `Rendering/` | Model-input profiles, render recipes, whole-image rendering, cross-process derivative-cache transactions and active-artifact leases | `ImageRenderer`, `DerivativeCache`, `ModelInputProfileRegistry`, `RenderRecipe` |
 | `SubjectIsolation/` | Apple Vision foreground masks, instance selection, two-resolution subject crops | `SubjectIsolationService`, `AppleVisionForegroundMaskProvider`, `InstanceSelectionPolicy` |
-| `ModelRuntime/` | Ollama HTTP client, prompt/schema registry, schema validation + response repair, mock runners | `OllamaVisionRunner`, `OllamaHTTPTransport`, `VisionModelRunner` (protocol), `PromptRegistry`, `JSONSchemaValidator` |
+| `ModelRuntime/` | Ollama HTTP client, task-aware prompt/schema registry, schema validation + response repair, mock runners | `OllamaVisionRunner`, `OllamaHTTPTransport`, `VisionModelRunner` (protocol), `ModelTaskProfile`, `PromptRegistry`, `JSONSchemaValidator` |
 | `Sidecars/` | Raw `.ai.json` naming, schema records, schema-evolution rewrites, atomic writes, export stamps | `RawJSONSidecar`, `RawJSONSidecarWriter/Reader`, `RawJSONSidecarInputResolver`, `AtomicFileWriter`, `SidecarNaming`, `RawSidecarExportStamp` (CORE-4 `xmp_export` block) |
 | `Metadata/` | Phase 2: candidate extraction, shared coordinate/GPS keyword safety, XMP naming/grouping, owned XMP parser/writer engine, backups, merge validation | `CandidateExtractor`, `KeywordSafetyPolicy`, `MetadataWriteEngine` (protocol), `OwnedXMPSidecarEngine`, `XMPDocumentParser/Writer`, `XMPKeywordReader/Merger`, `XMPMetadataSnapshot`, `XMPUnmanagedContentFingerprint`, `XMPBackupManager`, `XMPChangePlan`, `SameBaseNameGroupResolver` |
 | `Normalization/` | Phase 3: vocabulary load/index/validate, canonicalization, affinity graph, consensus, session documents, decision explainer, GUI review application | `VocabularyLoader/Index/Validator`, `VocabularyTextFolder`, `CandidateCanonicalizer`, `AssetAffinityGraph`, `BatchConsensusEngine`, `NormalizationSessionDocument`, `NormalizedXMPChangePlanner`, `NormalizationDecisionExplainer` (CORE-6), `SessionReview` (CORE-7) |
@@ -44,7 +44,7 @@ All results are `Sendable`; no `@MainActor` coupling; Core never prints directly
 
 | Pipeline | Entry | Async | Purpose |
 |---|---|---|---|
-| `AnalyzePipeline` | `run(inputPath:configuration:interruptionMonitor:writesBatchArtifacts:progressHandler:)` | yes | Phase 1 full analyze → `.ai.json`; per-asset `ProgressRecord` callback (CORE-1/2) |
+| `AnalyzePipeline` | `run(inputPath:configuration:interruptionMonitor:writesBatchArtifacts:progressHandler:)` | yes | Phase 1 full analyze → `.ai.json`; resolves one task profile for prompt/schema provenance; per-asset `ProgressRecord` callback (CORE-1/2) |
 | `XMPExportPipeline` | `runFromJSON(...)` / `runResolvedInputs(...)` | no | Phase 2 export; `writesBatchArtifacts: false` suppresses batch artifact files |
 | `NormalizePipeline` | `runSessionOnly(...)` / `runDryRun(...)` / `runWritePlan(...)` | no | Phase 3 session, dry-run plan, or write plan |
 | `NormalizeAndWritePipeline` | `run(...)` | no | Normalize → export composition |
@@ -56,7 +56,7 @@ All results are `Sendable`; no `@MainActor` coupling; Core never prints directly
 
 ## CLI Layer (Sources/AISidecarCLI)
 
-One file per subcommand (`AnalyzeCommand`, `WriteXMPCommand`, `NormalizeCommand`, `ApplySessionCommand`, `ExplainSessionCommand`, `BenchmarkCommand`, `PurgeCommand`, `CleanupCommand`) plus `SharedOptions`. The CLI does argument parsing, invocation-request building, and stdout presentation only — reusable behavior belongs in Core.
+One file per subcommand (`AnalyzeCommand`, `WriteXMPCommand`, `NormalizeCommand`, `ApplySessionCommand`, `ExplainSessionCommand`, `BenchmarkCommand`, `PurgeCommand`, `CleanupCommand`) plus `SharedOptions`. `--assess-quality` is available on `analyze` and the analyze-and-write shape of `write-xmp`; it selects `tagging_with_quality`. The CLI does argument parsing, invocation-request building, and stdout presentation only — reusable behavior belongs in Core.
 
 ## GUI Layer (Sources/CupricAspectApp)
 
@@ -82,7 +82,7 @@ GUI model tests live in `Tests/CupricAspectAppTests` (offline, deterministic —
 
 | Artifact | Where |
 |---|---|
-| Raw AI sidecar | `<image>.<ext>.ai.json`, beside the image or mirrored under `--output-dir` |
+| Raw AI sidecar | `<image>.<ext>.ai.json`, beside the image or mirrored under `--output-dir`; `run_configuration.task_profile` records its model contract |
 | XMP sidecar | owned parser/writer output, target naming in `Metadata/XMPNaming.swift` |
 | Progress log / report / summary | `*-progress-*.jsonl` / `*-report-*.json` / `*-summary-*.md` (names in `Reporting/ArtifactNames.swift`) |
 | Normalization session | `normalization-session-*.json`, reusable by `apply-session` |
