@@ -46,7 +46,7 @@ Update Status (`pending` / `in progress` / `done` / `blocked`) and Notes as stag
 | S2.4 | Input-resolver quality-sibling support | S2.1 | S | done | `swift test` passed (615 tests, 2 skipped) on 2026-07-15. |
 | S3.1 | `QualityAssessmentRecord` + extractor | S0.4 | M | done | `swift test` passed (624 tests, 2 skipped) on 2026-07-15. |
 | S3.2 | Tier deriver + grading types | S3.1 | M | done | `swift test` passed (633 tests, 2 skipped) on 2026-07-15. |
-| S3.3 | Grading policy Codable + validation | S3.2 | S | pending | |
+| S3.3 | Grading policy Codable + validation | S3.2 | S | done | `swift test` passed (643 tests, 2 skipped) on 2026-07-15. |
 | S4.0 | (manual prework) Capture C1 Urgency mapping | — | S | pending | can run any time |
 | S4.1 | Managed-scalar types + reader | — | M | pending | |
 | S4.2 | Scalar merge/write support | S4.1 | M | pending | |

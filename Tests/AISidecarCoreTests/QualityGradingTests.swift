@@ -313,6 +313,98 @@ final class QualityGradingTests: XCTestCase {
         XCTAssertTrue(grade.keywords.isEmpty)
     }
 
+    func testGradingPolicyRoundTripsWithSnakeCaseKeysAndRawTierMapKeys() throws {
+        let policy = QualityGradingPolicy(
+            minimumConfidence: .high,
+            writeRating: false,
+            writeLabel: false,
+            writeUrgency: false,
+            writeKeywords: false,
+            rejectAsMinusOne: true,
+            perCriterionProblemKeywords: true,
+            keywordRoot: "Review Quality",
+            ratingMap: [.reject: -1, .belowAverage: 2, .excellent: 5],
+            labelMap: [.good: "Blue"],
+            urgencyMap: [.good: 4]
+        )
+
+        let data = try JSONCoding.documentEncoder(iso8601Dates: false).encode(policy)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let ratingMap = try XCTUnwrap(object["rating_map"] as? [String: Any])
+        let decoded = try JSONCoding.decoder(iso8601Dates: false).decode(QualityGradingPolicy.self, from: data)
+
+        XCTAssertEqual(
+            Set(object.keys),
+            Set([
+                "minimum_confidence",
+                "write_rating",
+                "write_label",
+                "write_urgency",
+                "write_keywords",
+                "reject_as_minus_one",
+                "per_criterion_problem_keywords",
+                "keyword_root",
+                "rating_map",
+                "label_map",
+                "urgency_map",
+            ])
+        )
+        XCTAssertNotNil(ratingMap["below_average"])
+        XCTAssertEqual(decoded, policy)
+    }
+
+    func testGradingPolicyRejectsRatingOutsideSupportedRange() throws {
+        for rating in [-2, 6] {
+            var policy = QualityGradingPolicy.builtInDefaults
+            policy.ratingMap[.neutral] = rating
+            try assertConfigInvalid { try policy.validate() }
+        }
+    }
+
+    func testGradingPolicyRejectsUrgencyOutsideSupportedRange() throws {
+        for urgency in [0, 9] {
+            var policy = QualityGradingPolicy.builtInDefaults
+            policy.urgencyMap[.excellent] = urgency
+            try assertConfigInvalid { try policy.validate() }
+        }
+    }
+
+    func testGradingPolicyRejectsEmptyLabel() throws {
+        var policy = QualityGradingPolicy.builtInDefaults
+        policy.labelMap[.good] = " \n "
+        try assertConfigInvalid { try policy.validate() }
+    }
+
+    func testGradingPolicyRejectsHierarchySeparatorInLabel() throws {
+        var policy = QualityGradingPolicy.builtInDefaults
+        policy.labelMap[.good] = "Blue|Pick"
+        try assertConfigInvalid { try policy.validate() }
+    }
+
+    func testGradingPolicyRejectsEmptyKeywordRoot() throws {
+        var policy = QualityGradingPolicy.builtInDefaults
+        policy.keywordRoot = " \t "
+        try assertConfigInvalid { try policy.validate() }
+    }
+
+    func testGradingPolicyRejectsHierarchySeparatorInKeywordRoot() throws {
+        var policy = QualityGradingPolicy.builtInDefaults
+        policy.keywordRoot = "AI|Quality"
+        try assertConfigInvalid { try policy.validate() }
+    }
+
+    func testGradingPolicyRejectsUnknownRatingTierKey() throws {
+        try assertUnknownTierRejected(mapJSON: #""rating_map":{"future":3}"#)
+    }
+
+    func testGradingPolicyRejectsUnknownLabelTierKey() throws {
+        try assertUnknownTierRejected(mapJSON: #""label_map":{"future":"Orange"}"#)
+    }
+
+    func testGradingPolicyRejectsUnknownUrgencyTierKey() throws {
+        try assertUnknownTierRejected(mapJSON: #""urgency_map":{"future":4}"#)
+    }
+
     private func record(
         role: ModelInputRole,
         overall: QualityAssessmentRecord.Level,
@@ -345,5 +437,23 @@ final class QualityGradingTests: XCTestCase {
             concerns: [],
             confidence: confidence
         )
+    }
+
+    private func assertUnknownTierRejected(mapJSON: String) throws {
+        let data = try XCTUnwrap("{\(mapJSON)}".data(using: .utf8))
+        try assertConfigInvalid {
+            _ = try JSONCoding.decoder(iso8601Dates: false).decode(QualityGradingPolicy.self, from: data)
+        }
+    }
+
+    private func assertConfigInvalid(_ operation: () throws -> Void) throws {
+        do {
+            try operation()
+            XCTFail("Expected E_CONFIG_INVALID")
+        } catch let error as SidecarError {
+            XCTAssertEqual(error.code, .configInvalid)
+            XCTAssertEqual(error.stage, .configuration)
+            XCTAssertFalse(error.recoverable)
+        }
     }
 }
