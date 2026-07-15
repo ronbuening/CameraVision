@@ -17,6 +17,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.modelRetryLimit, 2)
         XCTAssertEqual(resolved.modelResponseRepairAttempts, 1)
         XCTAssertEqual(resolved.gpsContext, .coarse)
+        XCTAssertEqual(resolved.taskProfile, .tagging)
         // 0 = "model default": the pipeline sends no num_ctx until a positive
         // value is configured.
         XCTAssertEqual(resolved.modelContextWindow, 0)
@@ -45,6 +46,40 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertFalse(resolved.allowSpecificTags)
         XCTAssertEqual(resolved.pairScope, .union)
         XCTAssertTrue(resolved.writeAIJSON)
+    }
+
+    func testQualityAssessmentEnvironmentOverridesConfigFile() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "quality_assessment": true
+            }
+            """
+        )
+
+        let disabledByEnvironment = try ConfigurationResolver.resolve(
+            environment: ["AISIDECAR_QUALITY_ASSESSMENT": "false"],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(disabledByEnvironment.taskProfile, .tagging)
+
+        let enabledByEnvironment = try ConfigurationResolver.resolve(
+            environment: ["AISIDECAR_QUALITY_ASSESSMENT": "true"],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(enabledByEnvironment.taskProfile, .taggingWithQuality)
+    }
+
+    func testTaskProfileUsesStableProvenanceJSONKey() throws {
+        var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.taskProfile = .taggingWithQuality
+
+        let data = try JSONEncoder().encode(configuration)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(object["task_profile"] as? String, "tagging_with_quality")
+        XCTAssertNil(object["taskProfile"])
+        XCTAssertEqual(try JSONDecoder().decode(ResolvedRunConfiguration.self, from: data), configuration)
     }
 
     func testConfigFileOverridesDefaults() throws {
@@ -275,6 +310,7 @@ final class ConfigResolutionTests: XCTestCase {
 
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
         let config = AppConfig(
+            qualityAssessment: true,
             modelKeepAlive: "5m",
             modelTimeoutSeconds: 240,
             modelRetryLimit: 6,
@@ -312,6 +348,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(object["stage_concurrency"] as? Int, 3)
         XCTAssertEqual(object["model_response_repair_attempts"] as? Int, 0)
         XCTAssertEqual(object["gps_context"] as? String, "exact")
+        XCTAssertEqual(object["quality_assessment"] as? Bool, true)
         XCTAssertEqual(object["source_root"] as? String, "/tmp/source-root")
         XCTAssertEqual(object["source_verification"] as? String, "warn")
         XCTAssertEqual(object["write_flat_keywords"] as? Bool, false)

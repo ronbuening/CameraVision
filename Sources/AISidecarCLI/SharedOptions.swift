@@ -121,6 +121,9 @@ struct SharedOptions: ParsableArguments {
     @Flag(help: "Recurse into subfolders.")
     var recursive = false
 
+    @Flag(help: "Also produce a perceptual quality assessment per image (adds the quality_assessment block to raw sidecars).")
+    var assessQuality = false
+
     @Option(help: "Redirect outputs; mirrors the relative scan tree.")
     var outputDir: String?
 
@@ -174,6 +177,7 @@ struct SharedOptions: ParsableArguments {
             mode: mode,
             existing: existing,
             recursive: recursive ? true : nil,
+            qualityAssessment: assessQuality ? true : nil,
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,

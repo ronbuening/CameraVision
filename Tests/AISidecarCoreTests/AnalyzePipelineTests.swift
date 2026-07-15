@@ -84,6 +84,69 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertFalse(captured.thinkingEnabled)
     }
 
+    func testTaskProfileSelectsMatchingPromptAndSchemaContracts() async throws {
+        let root = try temporaryDirectory()
+        let taggingOutput = try temporaryDirectory()
+        let qualityOutput = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: taggingOutput)
+            try? FileManager.default.removeItem(at: qualityOutput)
+        }
+        let image = try writeTestImage("A.JPG", width: 120, height: 80, in: root)
+        let maskProvider = StaticForegroundMaskProvider([
+            StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
+        ])
+
+        let taggingRunner = RecordingVisionModelRunner()
+        _ = try await pipeline(maskProvider: maskProvider, runner: taggingRunner).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: taggingOutput.path,
+                mode: .both,
+                cacheDir: taggingOutput.appendingPathComponent("cache").path
+            )
+        )
+        let taggingCalls = await taggingRunner.capturedCalls()
+        XCTAssertEqual(
+            taggingCalls.map(\.promptVersion),
+            ["aisidecar.prompt.whole_image/1.5.0", "aisidecar.prompt.subject_isolated/1.5.0"]
+        )
+        XCTAssertEqual(
+            taggingCalls.map(\.schemaVersion),
+            ["urn:aisidecar:response:whole-image:1.5.0", "urn:aisidecar:response:subject-isolated:1.5.0"]
+        )
+
+        let qualityRunner = RecordingVisionModelRunner()
+        _ = try await pipeline(maskProvider: maskProvider, runner: qualityRunner).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: qualityOutput.path,
+                mode: .both,
+                cacheDir: qualityOutput.appendingPathComponent("cache").path,
+                taskProfile: .taggingWithQuality
+            )
+        )
+        let qualityCalls = await qualityRunner.capturedCalls()
+        XCTAssertEqual(
+            qualityCalls.map(\.promptVersion),
+            ["aisidecar.prompt.whole_image/1.6.0", "aisidecar.prompt.subject_isolated/1.6.0"]
+        )
+        let qualityWhole = try XCTUnwrap(qualityCalls.first)
+        let qualitySubject = try XCTUnwrap(qualityCalls.dropFirst().first)
+        XCTAssertTrue(qualityWhole.promptText.hasPrefix("PROMPT_VERSION: aisidecar.prompt.whole_image/1.6.0"))
+        XCTAssertTrue(qualitySubject.promptText.hasPrefix("PROMPT_VERSION: aisidecar.prompt.subject_isolated/1.6.0"))
+        XCTAssertEqual(
+            qualityCalls.map(\.schemaVersion),
+            ["urn:aisidecar:response:whole-image:1.6.0", "urn:aisidecar:response:subject-isolated:1.6.0"]
+        )
+
+        let sidecar = try decodeSidecar(qualityOutput.appendingPathComponent("A.JPG.ai.json"))
+        XCTAssertEqual(sidecar.runConfiguration.taskProfile, .taggingWithQuality)
+    }
+
     func testContextWindowZeroSendsNoNumCtxAndPositivePinsIt() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -751,12 +814,14 @@ final class AnalyzePipelineTests: XCTestCase {
         modelRetryLimit: Int = ModelRunOptions.default.retryLimit,
         clearDerivativeCacheOnStart: Bool = false,
         clearDerivativeCacheAfterSuccess: Bool = false,
-        modelContextWindow: Int = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
+        modelContextWindow: Int = ResolvedRunConfiguration.builtInDefaults.modelContextWindow,
+        taskProfile: ModelTaskProfile = .tagging
     ) -> ResolvedRunConfiguration {
         ResolvedRunConfiguration(
             mode: mode,
             existing: existing,
             recursive: recursive,
+            taskProfile: taskProfile,
             outputDir: outputDir,
             model: ResolvedRunConfiguration.builtInDefaults.model,
             modelEndpoint: ResolvedRunConfiguration.builtInDefaults.modelEndpoint,

@@ -5,6 +5,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var mode: AnalysisMode?
     public var existing: ExistingPolicy?
     public var recursive: Bool?
+    public var qualityAssessment: Bool?
     public var outputDir: String?
     public var model: String?
     public var modelEndpoint: String?
@@ -65,6 +66,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case mode
         case existing
         case recursive
+        case qualityAssessment = "quality_assessment"
         case outputDir = "output_dir"
         case model
         case modelEndpoint = "model_endpoint"
@@ -121,6 +123,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         mode: AnalysisMode? = nil,
         existing: ExistingPolicy? = nil,
         recursive: Bool? = nil,
+        qualityAssessment: Bool? = nil,
         outputDir: String? = nil,
         model: String? = nil,
         modelEndpoint: String? = nil,
@@ -175,6 +178,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.mode = mode
         self.existing = existing
         self.recursive = recursive
+        self.qualityAssessment = qualityAssessment
         self.outputDir = outputDir
         self.model = model
         self.modelEndpoint = modelEndpoint
@@ -249,6 +253,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.mode = try container.decodeIfPresent(AnalysisMode.self, forKey: .mode)
         self.existing = try container.decodeIfPresent(ExistingPolicy.self, forKey: .existing)
         self.recursive = try container.decodeIfPresent(Bool.self, forKey: .recursive)
+        self.qualityAssessment = try container.decodeIfPresent(Bool.self, forKey: .qualityAssessment)
         self.outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
         self.modelEndpoint = try container.decodeIfPresent(String.self, forKey: .modelEndpoint)
@@ -333,6 +338,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(mode, forKey: .mode)
         try container.encodeIfPresent(existing, forKey: .existing)
         try container.encodeIfPresent(recursive, forKey: .recursive)
+        try container.encodeIfPresent(qualityAssessment, forKey: .qualityAssessment)
         try container.encodeIfPresent(outputDir, forKey: .outputDir)
         try container.encodeIfPresent(model, forKey: .model)
         try container.encodeIfPresent(modelEndpoint, forKey: .modelEndpoint)

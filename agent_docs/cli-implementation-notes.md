@@ -56,6 +56,18 @@ Model run option defaults: temperature 0, recorded seed, thinking explicitly dis
 `response_repair_attempts` 1. Timeout and retry limit resolve through CLI > environment > config > built-in default;
 HTTP 4xx fails immediately and a malformed HTTP-success envelope has its own single decode retry.
 
+## Image-quality assessment contract
+
+`analyze --assess-quality` selects the v1.6.0 combined tagging-and-quality
+contract; the analyze-and-write shape of `write-xmp` accepts the same flag.
+`quality_assessment` resolves through the normal CLI > environment > config >
+built-in precedence chain, and the resulting raw sidecar always records
+`run_configuration.task_profile` (`tagging` or `tagging_with_quality`). An
+absent flag preserves v1.5.0 tagging. This selection never makes `analyze`
+write XMP; `write-xmp` remains the only command shape here that can export XMP.
+The standalone `quality_only` profile and `assess-quality` subcommand belong to
+the later quality-only pipeline milestone.
+
 ## Implementation conventions
 
 - **Subject-cache keys include isolation settings.** Subject derivative cache keys include the render recipe plus `subject_crop_margin_fraction`, `subject_merge_dominance_threshold`, and matte RGB, so config changes can never reuse stale crops.

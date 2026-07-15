@@ -25,6 +25,9 @@
   // Scan folders recursively for commands that accept folder input.
   "recursive": false,
 
+  // Add a perceptual quality assessment to each analyze model response.
+  "quality_assessment": false,
+
   // Redirect generated outputs while preserving the source-relative tree.
   // Use null to write beside source inputs where the command supports that.
   "output_dir": null,

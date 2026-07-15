@@ -744,6 +744,49 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(repairBody["format"], OllamaWireSchema.wireSchema(from: try summarySchema().schema))
     }
 
+    func testAnalyzeRepairsTruncatedQualityResponseWithQualitySchema() async throws {
+        let imageURL = try writeModelInput()
+        let truncated = String(decoding: try fixtureData(named: "whole_image_quality_truncated", extension: "txt"), as: UTF8.self)
+        let repairedJSON = String(decoding: try fixtureData(named: "whole_image_with_quality_valid", extension: "json"), as: UTF8.self)
+        let transport = RecordingOllamaTransport([
+            .success(chatResponse(content: truncated)),
+            .success(chatResponse(content: repairedJSON))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+        let prompt = try PromptRegistry.prompt(for: .wholeImage, task: .taggingWithQuality)
+        let schema = try ResponseSchemas.schema(for: .wholeImage, task: .taggingWithQuality)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: prompt,
+            schema: schema,
+            options: ModelRunOptions(responseRepairAttempts: 1),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertTrue(record.jsonValid)
+        XCTAssertNil(record.error)
+        XCTAssertEqual(record.promptVersion, "aisidecar.prompt.whole_image/1.6.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.6.0")
+        XCTAssertEqual(
+            record.parsedResponseJSON?.objectValue?["quality_assessment"]?.objectValue?["overall_effectiveness"]?.stringValue,
+            "strong"
+        )
+        let attempts = try XCTUnwrap(record.responseAttempts)
+        XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
+        XCTAssertEqual(attempts.first?.error?.code, .modelInvalidJSON)
+        XCTAssertEqual(attempts.last?.jsonValid, true)
+
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 2)
+        let expectedWireSchema = OllamaWireSchema.wireSchema(from: schema.schema)
+        let primaryBody = try decodeJSONObject(from: try XCTUnwrap(requests.first?.body))
+        let repairBody = try decodeJSONObject(from: try XCTUnwrap(requests.last?.body))
+        XCTAssertEqual(primaryBody["format"], expectedWireSchema)
+        XCTAssertEqual(repairBody["format"], expectedWireSchema)
+    }
+
     func testRepairInputTruncationBoundsEmbeddedOutput() {
         let short = String(repeating: "a", count: 100)
         XCTAssertEqual(OllamaVisionRunner.truncatedRepairInput(short), short)
@@ -797,6 +840,46 @@ final class ModelRuntimeTests: XCTestCase {
             let genreTerm = try XCTUnwrap(genre["items"]?.objectValue?["properties"]?.objectValue?["term"]?.objectValue)
             XCTAssertNotNil(genreTerm["enum"]?.arrayValue)
         }
+    }
+
+    func testQualityWireSchemasPreserveGrammarBounds() throws {
+        let contracts: [(ModelInputRole, ModelTaskProfile)] = [
+            (.wholeImage, .taggingWithQuality), (.subjectIsolated, .taggingWithQuality),
+            (.wholeImage, .qualityOnly), (.subjectIsolated, .qualityOnly),
+        ]
+
+        for (role, task) in contracts {
+            let wire = OllamaWireSchema.wireSchema(from: try ResponseSchemas.schema(for: role, task: task).schema)
+            let encoded = String(decoding: try JSONEncoder().encode(wire), as: UTF8.self)
+            for forbidden in ["$ref", "$defs", "pattern", "description", "$schema", "$id", "title"] {
+                XCTAssertFalse(encoded.contains("\"\(forbidden)\""), "\(role.rawValue)/\(task.rawValue) contains \(forbidden)")
+            }
+            let root = try XCTUnwrap(wire.objectValue)
+            XCTAssertTrue(try XCTUnwrap(root["required"]?.arrayValue?.compactMap(\.stringValue)).contains("quality_assessment"))
+            let assessment = try XCTUnwrap(root["properties"]?.objectValue?["quality_assessment"]?.objectValue)
+            XCTAssertEqual(assessment["additionalProperties"], .bool(false))
+            let properties = try XCTUnwrap(assessment["properties"]?.objectValue)
+            for name in ["strengths", "concerns"] {
+                let notes = try XCTUnwrap(properties[name]?.objectValue)
+                XCTAssertEqual(notes["maxItems"]?.numberValue, 2)
+                let item = try XCTUnwrap(notes["items"]?.objectValue)
+                XCTAssertEqual(item["minLength"]?.numberValue, 1)
+                XCTAssertEqual(item["maxLength"]?.numberValue, 160)
+            }
+        }
+    }
+
+    func testQualityResponseFixturesValidateAgainstTheirContracts() throws {
+        let fixtures: [(String, ModelInputRole, ModelTaskProfile)] = [
+            ("whole_image_with_quality_valid", .wholeImage, .taggingWithQuality),
+            ("subject_isolated_with_quality_valid", .subjectIsolated, .taggingWithQuality),
+            ("whole_image_quality_only_valid", .wholeImage, .qualityOnly),
+        ]
+        for (name, role, task) in fixtures {
+            let value = try JSONDecoder().decode(JSONValue.self, from: fixtureData(named: name, extension: "json"))
+            try JSONSchemaValidator.validate(value, against: ResponseSchemas.schema(for: role, task: task))
+        }
+        XCTAssertThrowsError(try JSONDecoder().decode(JSONValue.self, from: fixtureData(named: "whole_image_quality_truncated", extension: "txt")))
     }
 
     func testAnalyzeRepairsSyntheticVisibleTextTermFragmentFixture() async throws {
@@ -1238,4 +1321,12 @@ private func decodeJSONObject(from data: Data) throws -> [String: JSONValue] {
         throw XCTSkip("Expected JSON object")
     }
     return object
+}
+
+private func fixtureData(named name: String, extension fileExtension: String) throws -> Data {
+    let url = try XCTUnwrap(
+        Bundle.module.url(forResource: name, withExtension: fileExtension, subdirectory: "model-responses")
+            ?? Bundle.module.url(forResource: name, withExtension: fileExtension)
+    )
+    return try Data(contentsOf: url)
 }

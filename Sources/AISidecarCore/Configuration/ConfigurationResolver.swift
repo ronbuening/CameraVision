@@ -253,6 +253,10 @@ public enum ConfigurationResolver {
             mode: try enumValue(AnalysisMode.self, from: environment["AISIDECAR_MODE"], key: "AISIDECAR_MODE"),
             existing: try enumValue(ExistingPolicy.self, from: environment["AISIDECAR_EXISTING"], key: "AISIDECAR_EXISTING"),
             recursive: try boolValue(from: environment["AISIDECAR_RECURSIVE"], key: "AISIDECAR_RECURSIVE"),
+            qualityAssessment: try boolValue(
+                from: environment["AISIDECAR_QUALITY_ASSESSMENT"],
+                key: "AISIDECAR_QUALITY_ASSESSMENT"
+            ),
             outputDir: environment["AISIDECAR_OUTPUT_DIR"],
             model: environment["AISIDECAR_MODEL"],
             modelEndpoint: environment["AISIDECAR_MODEL_ENDPOINT"],
@@ -606,6 +610,7 @@ private struct ConfigurationBuilder {
     private var mode: AnalysisMode
     private var existing: ExistingPolicy
     private var recursive: Bool
+    private var qualityAssessment: Bool
     private var outputDir: String?
     private var model: String
     private var modelEndpoint: String
@@ -634,6 +639,7 @@ private struct ConfigurationBuilder {
         self.mode = defaults.mode
         self.existing = defaults.existing
         self.recursive = defaults.recursive
+        self.qualityAssessment = false
         self.outputDir = defaults.outputDir
         self.model = defaults.model
         self.modelEndpoint = defaults.modelEndpoint.absoluteString
@@ -663,6 +669,7 @@ private struct ConfigurationBuilder {
         merge(&mode, config.mode)
         merge(&existing, config.existing)
         merge(&recursive, config.recursive)
+        merge(&qualityAssessment, config.qualityAssessment)
         merge(&outputDir, config.outputDir)
         merge(&model, config.model)
         merge(&modelEndpoint, config.modelEndpoint)
@@ -692,6 +699,7 @@ private struct ConfigurationBuilder {
         merge(&mode, overrides.mode)
         merge(&existing, overrides.existing)
         merge(&recursive, overrides.recursive)
+        merge(&qualityAssessment, overrides.qualityAssessment)
         merge(&outputDir, overrides.outputDir)
         merge(&model, overrides.model)
         merge(&modelEndpoint, overrides.modelEndpoint)
@@ -764,6 +772,7 @@ private struct ConfigurationBuilder {
             mode: mode,
             existing: existing,
             recursive: recursive,
+            taskProfile: qualityAssessment ? .taggingWithQuality : .tagging,
             outputDir: outputDir,
             model: model,
             modelEndpoint: endpoint,
@@ -1040,6 +1049,7 @@ private extension RunConfigurationOverrides {
             mode: mode,
             existing: existing,
             recursive: recursive,
+            qualityAssessment: qualityAssessment,
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,
