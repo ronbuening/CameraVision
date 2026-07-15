@@ -442,7 +442,8 @@ public struct QualityGrade: Sendable, Equatable {
     public let tier: QualityTier
     public let rating: Int?          // nil = channel off or no map entry
     public let label: String?
-    public let keywords: [String]    // hierarchical, "AI Quality|good" style
+    public let keywords: [String]    // hierarchical paths ("AI Quality|good"); the planner
+                                     // derives the flat dc:subject form by space-joining components
     public let explanation: [String] // ordered human-readable rule hits
 }
 ```
@@ -507,7 +508,14 @@ public enum QualityTierDeriver {
 }
 ```
 
-Keyword terms are deterministic and pass through `KeywordSafetyPolicy` like everything else on the way to XMP (they trivially pass; the call is there so no route around the gate exists — invariant 3's "every route" rule). The `|` separator is the engine's existing hierarchy convention; the flat `dc:subject` form gets the leaf terms (`AI Quality good` folding follows the existing one-level-hierarchy behavior in `CandidateExtractor`/planner — reuse, don't reinvent).
+Keyword terms are deterministic and pass through `KeywordSafetyPolicy` like everything else on the way to XMP (they trivially pass; the call is there so no route around the gate exists — invariant 3's "every route" rule).
+
+Quality keywords are written to **both** managed bags, like every keyword the engine writes, governed by the existing `writeFlatKeywords`/`writeHierarchicalKeywords` toggles:
+
+- `lr:hierarchicalSubject` gets the full `|`-separated path (`AI Quality|good`, `AI Quality|problems|focus`) — Lightroom and Capture One render it as a keyword tree, filterable at the parent or leaf.
+- `dc:subject` gets a **self-describing space-joined form** (`AI Quality good`, `AI Quality problems focus`), derived by the planner from the path components. This deliberately departs from Lightroom's leaf-only flat convention: bare leaves (`good`, `reject`) are too generic and would collide with real content keywords in flat-only readers and keyword-text search, and a pipe-containing flat entry would be misread by apps that don't parse `|` in `dc:subject`.
+
+Note these are the first genuinely multi-level keywords the pipeline writes (all existing keywords are single-level, identical in both bags per FR2-007a), so the flat-form derivation above is a new explicit planner rule, not inherited behavior.
 
 ### 5.6 XMP managed scalars (IQ-M4)
 
