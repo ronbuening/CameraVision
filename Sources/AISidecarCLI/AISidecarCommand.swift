@@ -9,6 +9,7 @@ struct AISidecarCommand: AsyncParsableCommand {
         version: AISidecarVersion.current,
         subcommands: [
             AnalyzeCommand.self,
+            AssessQualityCommand.self,
             WriteXMPCommand.self,
             NormalizeCommand.self,
             ApplySessionCommand.self,
