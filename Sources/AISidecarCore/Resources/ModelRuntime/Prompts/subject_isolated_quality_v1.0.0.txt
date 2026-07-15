@@ -3,6 +3,9 @@ PROMPT_VERSION: aisidecar.prompt.subject_isolated_quality/1.0.0
 Assess the perceptual quality of the isolated subject crop and return exactly
 one JSON object matching the supplied JSON Schema.
 
+The background has been removed, replaced, cropped away, or composited onto a
+neutral matte. Judge only the subject itself.
+
 OUTPUT RULES
 
 Return only the JSON object: no Markdown, no code fences, no comments, no fields

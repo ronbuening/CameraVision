@@ -98,20 +98,21 @@
           }
         ],
         "quality_assessment" : {
-          "composition" : "strong",
+          "composition" : "acceptable",
           "concerns" : [
 
           ],
           "confidence" : "high",
           "exposure_and_tone" : "acceptable",
           "focus" : "strong",
-          "lighting_and_color" : "acceptable",
+          "lighting_and_color" : "strong",
           "moment_or_expression" : "unrated",
-          "overall_effectiveness" : "strong",
+          "overall_effectiveness" : "acceptable",
           "strengths" : [
-            "The bird is sharply resolved against calm water."
+            "sharp eye detail",
+            "warm directional light"
           ],
-          "subject_background_relationship" : "strong",
+          "subject_background_relationship" : "acceptable",
           "technical_cleanliness" : "acceptable"
         },
         "scene_context" : [
@@ -139,7 +140,7 @@
       },
       "prompt_sha256" : "<prompt-sha256>",
       "prompt_version" : "aisidecar.prompt.whole_image/1.6.0",
-      "raw_response_text" : "{\"behavior_or_action\":[{\"confidence\":\"high\",\"term\":\"standing\"}],\"genre_or_photography_type\":[{\"confidence\":\"high\",\"evidence\":\"bird is the primary subject\",\"term\":\"bird_photography\"}],\"habitat_or_setting\":[{\"confidence\":\"medium\",\"term\":\"wetland\"}],\"main_subjects\":[{\"confidence\":\"high\",\"evidence\":\"large gray-blue wading bird with long legs\",\"term\":\"great blue heron\"}],\"proposed_keywords\":[{\"confidence\":\"high\",\"evidence\":\"long legs and shallow water\",\"term\":\"wading bird\"}],\"quality_assessment\":{\"composition\":\"strong\",\"concerns\":[],\"confidence\":\"high\",\"exposure_and_tone\":\"acceptable\",\"focus\":\"strong\",\"lighting_and_color\":\"acceptable\",\"moment_or_expression\":\"unrated\",\"overall_effectiveness\":\"strong\",\"strengths\":[\"The bird is sharply resolved against calm water.\"],\"subject_background_relationship\":\"strong\",\"technical_cleanliness\":\"acceptable\"},\"scene_context\":[{\"confidence\":\"high\",\"term\":\"outdoor wildlife scene\"}],\"secondary_subjects\":[{\"confidence\":\"medium\",\"evidence\":\"water surrounds the bird's legs\",\"term\":\"shallow water\"}],\"species\":[{\"confidence\":\"high\",\"evidence\":\"large gray-blue wading bird with long legs\",\"term\":\"great blue heron\"}],\"summary\":\"A great blue heron stands in shallow wetland water.\",\"uncertainty_notes\":\"\"}",
+      "raw_response_text" : "{\"behavior_or_action\":[{\"confidence\":\"high\",\"term\":\"standing\"}],\"genre_or_photography_type\":[{\"confidence\":\"high\",\"evidence\":\"bird is the primary subject\",\"term\":\"bird_photography\"}],\"habitat_or_setting\":[{\"confidence\":\"medium\",\"term\":\"wetland\"}],\"main_subjects\":[{\"confidence\":\"high\",\"evidence\":\"large gray-blue wading bird with long legs\",\"term\":\"great blue heron\"}],\"proposed_keywords\":[{\"confidence\":\"high\",\"evidence\":\"long legs and shallow water\",\"term\":\"wading bird\"}],\"quality_assessment\":{\"composition\":\"acceptable\",\"concerns\":[],\"confidence\":\"high\",\"exposure_and_tone\":\"acceptable\",\"focus\":\"strong\",\"lighting_and_color\":\"strong\",\"moment_or_expression\":\"unrated\",\"overall_effectiveness\":\"acceptable\",\"strengths\":[\"sharp eye detail\",\"warm directional light\"],\"subject_background_relationship\":\"acceptable\",\"technical_cleanliness\":\"acceptable\"},\"scene_context\":[{\"confidence\":\"high\",\"term\":\"outdoor wildlife scene\"}],\"secondary_subjects\":[{\"confidence\":\"medium\",\"evidence\":\"water surrounds the bird's legs\",\"term\":\"shallow water\"}],\"species\":[{\"confidence\":\"high\",\"evidence\":\"large gray-blue wading bird with long legs\",\"term\":\"great blue heron\"}],\"summary\":\"A great blue heron stands in shallow wetland water.\",\"uncertainty_notes\":\"\"}",
       "request_options" : {
         "keep_alive" : "30m",
         "max_response_tokens" : 2048,
@@ -192,18 +193,17 @@
         ],
         "quality_assessment" : {
           "concerns" : [
-
+            "slight highlight clipping on wing"
           ],
-          "confidence" : "high",
+          "confidence" : "medium",
           "detail_and_texture" : "strong",
           "exposure_and_tone" : "acceptable",
           "focus" : "strong",
           "lighting_and_color" : "acceptable",
           "overall_subject_quality" : "strong",
-          "pose_expression_or_moment" : "acceptable",
+          "pose_expression_or_moment" : "unrated",
           "strengths" : [
-            "Fine feather detail remains visible.",
-            "The eye is sharply focused."
+            "crisp feather texture"
           ],
           "technical_cleanliness" : "acceptable"
         },
@@ -226,7 +226,7 @@
       },
       "prompt_sha256" : "<prompt-sha256>",
       "prompt_version" : "aisidecar.prompt.subject_isolated/1.6.0",
-      "raw_response_text" : "{\"behavior_or_action\":[{\"confidence\":\"medium\",\"term\":\"standing\"}],\"genre_or_photography_type\":[{\"confidence\":\"high\",\"evidence\":\"bird body and field marks dominate the crop\",\"term\":\"bird_photography\"}],\"main_subjects\":[{\"confidence\":\"high\",\"evidence\":\"long legs, long neck, and pointed bill\",\"term\":\"heron\"}],\"proposed_keywords\":[{\"confidence\":\"high\",\"evidence\":\"straight pointed bill is visible\",\"term\":\"long bill\"}],\"quality_assessment\":{\"concerns\":[],\"confidence\":\"high\",\"detail_and_texture\":\"strong\",\"exposure_and_tone\":\"acceptable\",\"focus\":\"strong\",\"lighting_and_color\":\"acceptable\",\"overall_subject_quality\":\"strong\",\"pose_expression_or_moment\":\"acceptable\",\"strengths\":[\"Fine feather detail remains visible.\",\"The eye is sharply focused.\"],\"technical_cleanliness\":\"acceptable\"},\"secondary_subjects\":[{\"confidence\":\"medium\",\"evidence\":\"visible cool-toned feathering\",\"term\":\"gray-blue plumage\"}],\"species\":[{\"confidence\":\"high\",\"evidence\":\"long legs, long neck, and pointed bill\",\"term\":\"heron\"}],\"summary\":\"An isolated heron shows long legs, a pointed bill, and gray-blue plumage.\",\"uncertainty_notes\":\"\"}",
+      "raw_response_text" : "{\"behavior_or_action\":[{\"confidence\":\"medium\",\"term\":\"standing\"}],\"genre_or_photography_type\":[{\"confidence\":\"high\",\"evidence\":\"bird body and field marks dominate the crop\",\"term\":\"bird_photography\"}],\"main_subjects\":[{\"confidence\":\"high\",\"evidence\":\"long legs, long neck, and pointed bill\",\"term\":\"heron\"}],\"proposed_keywords\":[{\"confidence\":\"high\",\"evidence\":\"straight pointed bill is visible\",\"term\":\"long bill\"}],\"quality_assessment\":{\"concerns\":[\"slight highlight clipping on wing\"],\"confidence\":\"medium\",\"detail_and_texture\":\"strong\",\"exposure_and_tone\":\"acceptable\",\"focus\":\"strong\",\"lighting_and_color\":\"acceptable\",\"overall_subject_quality\":\"strong\",\"pose_expression_or_moment\":\"unrated\",\"strengths\":[\"crisp feather texture\"],\"technical_cleanliness\":\"acceptable\"},\"secondary_subjects\":[{\"confidence\":\"medium\",\"evidence\":\"visible cool-toned feathering\",\"term\":\"gray-blue plumage\"}],\"species\":[{\"confidence\":\"high\",\"evidence\":\"long legs, long neck, and pointed bill\",\"term\":\"heron\"}],\"summary\":\"An isolated heron shows long legs, a pointed bill, and gray-blue plumage.\",\"uncertainty_notes\":\"\"}",
       "request_options" : {
         "keep_alive" : "30m",
         "max_response_tokens" : 2048,
