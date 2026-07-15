@@ -34,7 +34,7 @@ Update Status (`pending` / `in progress` / `done` / `blocked`) and Notes as stag
 | Stage | Title | Depends on | Size | Status | Notes |
 |---|---|---|---|---|---|
 | S0.1 | Response schemas v1.6.0 + quality-only v1.0.0 | — | M | done | `swift test` passed (594 tests, 2 skipped) on 2026-07-15. |
-| S0.2 | Prompts v1.6.0 + quality-only v1.0.0 | S0.1 | S | pending | |
+| S0.2 | Prompts v1.6.0 + quality-only v1.0.0 | S0.1 | S | done | `swift test` passed (595 tests, 2 skipped) on 2026-07-15. |
 | S0.3 | `ModelTaskProfile` + task-aware registries | S0.1, S0.2 | S | pending | |
 | S0.4 | Wire-schema proofs + model-response fixtures | S0.3 | S | pending | |
 | S1.1 | `quality_assessment` config plumbing | S0.3 | M | pending | |

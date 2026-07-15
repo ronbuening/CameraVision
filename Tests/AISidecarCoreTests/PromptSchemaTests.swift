@@ -20,6 +20,33 @@ final class PromptSchemaTests: XCTestCase {
         XCTAssertEqual(subject.sha256, sha256(subject.text))
     }
 
+    func testQualityPromptResourcesHaveVersionedHeadersAndStableHashes() throws {
+        let expectedVersions = [
+            ("whole_image_v1.6.0", "aisidecar.prompt.whole_image/1.6.0"),
+            ("subject_isolated_v1.6.0", "aisidecar.prompt.subject_isolated/1.6.0"),
+            ("whole_image_quality_v1.0.0", "aisidecar.prompt.whole_image_quality/1.0.0"),
+            ("subject_isolated_quality_v1.0.0", "aisidecar.prompt.subject_isolated_quality/1.0.0"),
+        ]
+
+        for (name, version) in expectedVersions {
+            let text = try bundledPrompt(named: name)
+            XCTAssertTrue(text.hasPrefix("PROMPT_VERSION: \(version)\n"))
+            XCTAssertTrue(text.hasSuffix("\n"))
+            XCTAssertFalse(text.hasSuffix("\n\n"))
+            XCTAssertEqual(VersionedPrompt(version: version, text: text).sha256, sha256(text))
+            XCTAssertEqual(text, try bundledPrompt(named: name))
+        }
+
+        XCTAssertEqual(
+            sha256(try bundledPrompt(named: "whole_image_v1.5.0")),
+            "603d96141dd9ac54b0b49024b93e76ba931921086e73bc0e7e57467363f57300"
+        )
+        XCTAssertEqual(
+            sha256(try bundledPrompt(named: "subject_isolated_v1.5.0")),
+            "be7bedb9dac5c795c03b49d8f16368080d5d2ab44226d76bcf4314b5fbf17640"
+        )
+    }
+
     func testPromptContextAppendsDeterministicGPSBlockWhenAvailable() throws {
         let context = ModelInputContext(gps: GPSModelInputContext(
             mode: .coarse,
@@ -238,6 +265,20 @@ final class PromptSchemaTests: XCTestCase {
             XCTAssertFalse(prompt.text.contains("MODEL INPUT CONTEXT"), "\(role.rawValue) prompt mentions the context block")
             XCTAssertFalse(prompt.text.lowercased().contains("coordinate"), "\(role.rawValue) prompt mentions coordinates")
         }
+
+        for name in [
+            "whole_image_v1.6.0",
+            "subject_isolated_v1.6.0",
+            "whole_image_quality_v1.0.0",
+            "subject_isolated_quality_v1.0.0",
+        ] {
+            let prompt = try bundledPrompt(named: name)
+            XCTAssertTrue(prompt.contains("Do not use GPS, EXIF, filename, location,"), "\(name) lacks the quality-context ban")
+            XCTAssertEqual(prompt.components(separatedBy: "GPS").count, 2, "\(name) mentions GPS outside the ban")
+            XCTAssertEqual(prompt.components(separatedBy: "EXIF").count, 2, "\(name) mentions EXIF outside the ban")
+            XCTAssertFalse(prompt.contains("MODEL INPUT CONTEXT"), "\(name) mentions the context block")
+            XCTAssertFalse(prompt.lowercased().contains("coordinate"), "\(name) mentions coordinates")
+        }
     }
 
     func testSpeciesUsesCandidateWithEvidenceShape() throws {
@@ -417,6 +458,11 @@ final class PromptSchemaTests: XCTestCase {
         let schema = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
         let version = try XCTUnwrap(schema.objectValue?["$id"]?.stringValue)
         return JSONSchemaDocument(version: version, schema: schema)
+    }
+
+    private func bundledPrompt(named name: String) throws -> String {
+        let url = try XCTUnwrap(AISidecarResourceBundle.current.url(forResource: name, withExtension: "txt"))
+        return try XCTUnwrap(String(data: Data(contentsOf: url), encoding: .utf8))
     }
 
     private func genreCandidate(_ term: String) -> JSONValue {
