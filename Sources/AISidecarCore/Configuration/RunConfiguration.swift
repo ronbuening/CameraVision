@@ -352,6 +352,13 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         modelMaxResponseTokens: 2_048
     )
 
+    /// Return a configuration selecting a different model task contract while preserving all run settings.
+    public func with(taskProfile: ModelTaskProfile) -> Self {
+        var copy = self
+        copy.taskProfile = taskProfile
+        return copy
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.mode = try container.decode(AnalysisMode.self, forKey: .mode)

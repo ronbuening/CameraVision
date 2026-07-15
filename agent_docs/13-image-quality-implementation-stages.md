@@ -41,7 +41,7 @@ Update Status (`pending` / `in progress` / `done` / `blocked`) and Notes as stag
 | S1.2 | `--assess-quality` flag + pipeline selection | S1.1 | M | done | `swift test` passed (602 tests, 2 skipped) on 2026-07-15. |
 | S1.3 | Quality golden sidecar + repair coverage + docs | S1.2 | S | done | Code + documentation commits complete; `swift test` passed (604 tests, 2 skipped) on 2026-07-15. |
 | S2.1 | Quality sidecar naming, artifact names, cleanup | S0.3 | S | done | `swift test` passed (605 tests, 2 skipped) on 2026-07-15. |
-| S2.2 | `QualityAssessPipeline` + GPS suppression | S1.2, S2.1 | M | pending | |
+| S2.2 | `QualityAssessPipeline` + GPS suppression | S1.2, S2.1 | M | done | `swift test` passed (611 tests, 2 skipped) on 2026-07-15. |
 | S2.3 | `assess-quality` subcommand + docs | S2.2 | S | pending | |
 | S2.4 | Input-resolver quality-sibling support | S2.1 | S | pending | |
 | S3.1 | `QualityAssessmentRecord` + extractor | S0.4 | M | pending | |
