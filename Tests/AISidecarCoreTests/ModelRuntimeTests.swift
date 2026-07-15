@@ -744,6 +744,49 @@ final class ModelRuntimeTests: XCTestCase {
         XCTAssertEqual(repairBody["format"], OllamaWireSchema.wireSchema(from: try summarySchema().schema))
     }
 
+    func testAnalyzeRepairsTruncatedQualityResponseWithQualitySchema() async throws {
+        let imageURL = try writeModelInput()
+        let truncated = String(decoding: try fixtureData(named: "whole_image_quality_truncated", extension: "txt"), as: UTF8.self)
+        let repairedJSON = String(decoding: try fixtureData(named: "whole_image_with_quality_valid", extension: "json"), as: UTF8.self)
+        let transport = RecordingOllamaTransport([
+            .success(chatResponse(content: truncated)),
+            .success(chatResponse(content: repairedJSON))
+        ])
+        let runner = OllamaVisionRunner(transport: transport)
+        let prompt = try PromptRegistry.prompt(for: .wholeImage, task: .taggingWithQuality)
+        let schema = try ResponseSchemas.schema(for: .wholeImage, task: .taggingWithQuality)
+
+        let record = await runner.analyze(
+            image: derivative(cachePath: imageURL.path),
+            inputRole: .wholeImage,
+            prompt: prompt,
+            schema: schema,
+            options: ModelRunOptions(responseRepairAttempts: 1),
+            runtime: runtimeContext()
+        )
+
+        XCTAssertTrue(record.jsonValid)
+        XCTAssertNil(record.error)
+        XCTAssertEqual(record.promptVersion, "aisidecar.prompt.whole_image/1.6.0")
+        XCTAssertEqual(record.responseSchemaVersion, "urn:aisidecar:response:whole-image:1.6.0")
+        XCTAssertEqual(
+            record.parsedResponseJSON?.objectValue?["quality_assessment"]?.objectValue?["overall_effectiveness"]?.stringValue,
+            "strong"
+        )
+        let attempts = try XCTUnwrap(record.responseAttempts)
+        XCTAssertEqual(attempts.map(\.kind), [.primary, .repair])
+        XCTAssertEqual(attempts.first?.error?.code, .modelInvalidJSON)
+        XCTAssertEqual(attempts.last?.jsonValid, true)
+
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.count, 2)
+        let expectedWireSchema = OllamaWireSchema.wireSchema(from: schema.schema)
+        let primaryBody = try decodeJSONObject(from: try XCTUnwrap(requests.first?.body))
+        let repairBody = try decodeJSONObject(from: try XCTUnwrap(requests.last?.body))
+        XCTAssertEqual(primaryBody["format"], expectedWireSchema)
+        XCTAssertEqual(repairBody["format"], expectedWireSchema)
+    }
+
     func testRepairInputTruncationBoundsEmbeddedOutput() {
         let short = String(repeating: "a", count: 100)
         XCTAssertEqual(OllamaVisionRunner.truncatedRepairInput(short), short)

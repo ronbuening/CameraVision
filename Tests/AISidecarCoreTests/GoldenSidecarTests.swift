@@ -43,6 +43,49 @@ final class GoldenSidecarTests: XCTestCase {
         try assertNoXMPFiles(in: [root, output, cacheDir])
     }
 
+    func testQualityEnabledPipelineRecordedFixtureGeneratesGoldenSidecar() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Bird.JPG", width: 120, height: 80, in: root)
+        let cacheDir = output.appendingPathComponent("cache")
+        let maskProvider = StaticForegroundMaskProvider([
+            StaticMaskSpec(index: 1, rect: CGRect(x: 45, y: 20, width: 30, height: 25))
+        ])
+        let configuration = config(
+            outputDir: output.path,
+            cacheDir: cacheDir.path,
+            taskProfile: .taggingWithQuality
+        )
+        let fixture = try await recordedFixture(
+            image: image,
+            configuration: configuration,
+            maskProvider: maskProvider
+        )
+
+        let result = try await AnalyzePipeline(
+            logger: Logger(sink: { _ in }),
+            maskProvider: maskProvider,
+            runner: RecordedFixtureRunner(fixture: fixture),
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_003_000))
+        ).run(inputPath: image.path, configuration: configuration)
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        let sidecarURL = output.appendingPathComponent("Bird.JPG.ai.json")
+        let actual = try normalizedJSONString(for: try sidecarJSON(at: sidecarURL))
+        let expected = try normalizedJSONString(for: try fixtureJSON(
+            name: "phase1-quality-combined",
+            extension: "json",
+            subdirectory: "golden-sidecars"
+        ))
+
+        XCTAssertEqual(actual, expected)
+        try assertNoXMPFiles(in: [root, output, cacheDir])
+    }
+
     private func recordedFixture(
         image: URL,
         configuration: ResolvedRunConfiguration,
@@ -91,13 +134,19 @@ final class GoldenSidecarTests: XCTestCase {
                     role: .wholeImage,
                     derivative: whole,
                     context: context,
-                    fixtureName: "whole_image_valid_v1_3"
+                    fixtureName: configuration.taskProfile == .taggingWithQuality
+                        ? "whole_image_with_quality_valid"
+                        : "whole_image_valid_v1_3",
+                    task: configuration.taskProfile
                 ),
                 try modelRun(
                     role: .subjectIsolated,
                     derivative: subject,
                     context: context,
-                    fixtureName: "subject_isolated_valid_v1_3"
+                    fixtureName: configuration.taskProfile == .taggingWithQuality
+                        ? "subject_isolated_with_quality_valid"
+                        : "subject_isolated_valid_v1_3",
+                    task: configuration.taskProfile
                 )
             ]
         )
@@ -107,11 +156,12 @@ final class GoldenSidecarTests: XCTestCase {
         role: ModelInputRole,
         derivative: DerivativeRecord,
         context: ModelRuntimeContext,
-        fixtureName: String
+        fixtureName: String,
+        task: ModelTaskProfile
     ) throws -> ModelRunRecord {
         let parsedResponse = try fixtureJSON(name: fixtureName, extension: "json", subdirectory: "model-responses")
-        let prompt = try PromptRegistry.prompt(for: role)
-        let schema = try ResponseSchemas.schema(for: role)
+        let prompt = try PromptRegistry.prompt(for: role, task: task)
+        let schema = try ResponseSchemas.schema(for: role, task: task)
         // Mirror the options AnalyzePipeline derives from built-in defaults so
         // the golden sidecar matches what a real run records (0 = "model
         // default" sends no num_ctx).
@@ -137,11 +187,16 @@ final class GoldenSidecarTests: XCTestCase {
         )
     }
 
-    private func config(outputDir: String, cacheDir: String) -> ResolvedRunConfiguration {
+    private func config(
+        outputDir: String,
+        cacheDir: String,
+        taskProfile: ModelTaskProfile = .tagging
+    ) -> ResolvedRunConfiguration {
         ResolvedRunConfiguration(
             mode: .both,
             existing: .overwrite,
             recursive: false,
+            taskProfile: taskProfile,
             outputDir: outputDir,
             model: ResolvedRunConfiguration.builtInDefaults.model,
             modelEndpoint: ResolvedRunConfiguration.builtInDefaults.modelEndpoint,
