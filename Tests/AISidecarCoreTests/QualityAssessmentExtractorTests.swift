@@ -20,9 +20,9 @@ final class QualityAssessmentExtractorTests: XCTestCase {
         let whole = try XCTUnwrap(result.records.first)
         XCTAssertEqual(whole.criteria[.focus], .strong)
         XCTAssertEqual(whole.criteria[.momentOrExpression], .unrated)
-        XCTAssertEqual(whole.overall, .strong)
+        XCTAssertEqual(whole.overall, .acceptable)
         XCTAssertEqual(whole.confidence, .high)
-        XCTAssertEqual(whole.strengths, ["The bird is sharply resolved against calm water."])
+        XCTAssertEqual(whole.strengths, ["sharp eye detail", "warm directional light"])
         XCTAssertTrue(result.issues.isEmpty)
     }
 
