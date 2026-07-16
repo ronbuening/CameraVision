@@ -9,8 +9,11 @@ final class ArtifactCleanupTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let removable = [
             "Bird.JPG.ai.json",
+            "Bird.JPG.quality.ai.json",
             "batch-progress-2026-06-16T120000Z.jsonl",
             "batch-summary-2026-06-16T120000Z.json",
+            "quality-progress-2026-06-16T120000Z.jsonl",
+            "quality-summary-2026-06-16T120000Z.json",
             "xmp-export-progress-2026-06-16T120000Z.jsonl",
             "xmp-export-report-2026-06-16T120000Z.json",
             "xmp-export-summary-2026-06-16T120000Z.md",
@@ -24,6 +27,7 @@ final class ArtifactCleanupTests: XCTestCase {
         let protected = [
             "Bird.JPG",
             "Bird.xmp",
+            "Bird.xmp.bak-2026-06-16T120000Z-a3f2",
             "Bird.JPG.aisidecar.whole_image.jpg",
             "derivative-cache-index.json",
             "\(String(repeating: "a", count: 64))-render-v2-gemma4-26b-default-whole_image.jpg",
@@ -47,6 +51,24 @@ final class ArtifactCleanupTests: XCTestCase {
         XCTAssertEqual(report.failedCount, 0)
         XCTAssertEqual(Set(report.artifacts.map(\.relativePath)), Set(removable))
         XCTAssertTrue(report.artifacts.allSatisfy { !$0.removed && $0.error == nil })
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: report.artifacts.map { ($0.relativePath, $0.kind) })[
+                "Bird.JPG.quality.ai.json"
+            ],
+            .qualityAISidecar
+        )
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: report.artifacts.map { ($0.relativePath, $0.kind) })[
+                "quality-progress-2026-06-16T120000Z.jsonl"
+            ],
+            .qualityProgressLog
+        )
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: report.artifacts.map { ($0.relativePath, $0.kind) })[
+                "quality-summary-2026-06-16T120000Z.json"
+            ],
+            .qualityBatchSummary
+        )
         for name in removable + protected {
             XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(name).path), name)
         }

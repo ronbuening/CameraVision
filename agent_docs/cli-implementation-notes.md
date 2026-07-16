@@ -66,7 +66,12 @@ built-in precedence chain, and the resulting raw sidecar always records
 absent flag preserves v1.5.0 tagging. This selection never makes `analyze`
 write XMP; `write-xmp` remains the only command shape here that can export XMP.
 The standalone `quality_only` profile and `assess-quality` subcommand belong to
-the later quality-only pipeline milestone.
+the quality-only pipeline. `aisidecar assess-quality <input>` reuses the render,
+subject-isolation, model-runtime, interruption, and raw-sidecar guardrails from
+`AnalyzePipeline`, forces `task_profile = quality_only`, suppresses GPS/model
+input context, and writes `.quality.ai.json` sidecars. Folder runs use
+`quality-progress-*` and `quality-summary-*` artifacts. Tagging sidecars for the
+same source are separate and are never treated as existing quality output.
 
 ## Implementation conventions
 

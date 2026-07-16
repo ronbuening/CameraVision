@@ -3,8 +3,11 @@ import Foundation
 /// AISidecar-owned artifact categories that the cleanup command may remove.
 public enum CleanupArtifactKind: String, Codable, Sendable, Equatable, CaseIterable {
     case rawAISidecar = "raw_ai_sidecar"
+    case qualityAISidecar = "quality_ai_sidecar"
     case analyzeProgressLog = "analyze_progress_log"
     case analyzeBatchSummary = "analyze_batch_summary"
+    case qualityProgressLog = "quality_progress_log"
+    case qualityBatchSummary = "quality_batch_summary"
     case xmpExportProgressLog = "xmp_export_progress_log"
     case xmpExportReport = "xmp_export_report"
     case xmpExportSummary = "xmp_export_summary"
@@ -163,7 +166,10 @@ public struct ArtifactCleanup {
             return .atomicWriterTemp
         }
         let lowercased = fileName.lowercased()
-        if lowercased.hasSuffix(".ai.json") {
+        if lowercased.hasSuffix(SidecarNaming.qualitySuffix) {
+            return .qualityAISidecar
+        }
+        if lowercased.hasSuffix(SidecarNaming.taggingSuffix) {
             return .rawAISidecar
         }
         if lowercased.hasPrefix(ArtifactNames.batchProgressPrefix), lowercased.hasSuffix(".jsonl") {
@@ -171,6 +177,12 @@ public struct ArtifactCleanup {
         }
         if lowercased.hasPrefix(ArtifactNames.batchSummaryPrefix), lowercased.hasSuffix(".json") {
             return .analyzeBatchSummary
+        }
+        if lowercased.hasPrefix(ArtifactNames.qualityProgressPrefix), lowercased.hasSuffix(".jsonl") {
+            return .qualityProgressLog
+        }
+        if lowercased.hasPrefix(ArtifactNames.qualitySummaryPrefix), lowercased.hasSuffix(".json") {
+            return .qualityBatchSummary
         }
         if lowercased.hasPrefix(ArtifactNames.xmpExportProgressPrefix), lowercased.hasSuffix(".jsonl") {
             return .xmpExportProgressLog

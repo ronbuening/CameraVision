@@ -10,6 +10,23 @@ final class SidecarNamingTests: XCTestCase {
         XCTAssertEqual(SidecarNaming.sidecarRelativePath(for: source), "_DSC1234.NEF.ai.json")
     }
 
+    func testQualitySidecarUsesDistinctSuffix() {
+        let source = makeSource(fileName: "_DSC1234.NEF", relativePath: "2026/06/_DSC1234.NEF")
+
+        XCTAssertEqual(
+            SidecarNaming.sidecarFileName(for: source, kind: .quality),
+            "_DSC1234.NEF.quality.ai.json"
+        )
+        XCTAssertEqual(
+            SidecarNaming.sidecarRelativePath(for: source, kind: .quality),
+            "2026/06/_DSC1234.NEF.quality.ai.json"
+        )
+        XCTAssertNotEqual(
+            SidecarNaming.destinationPath(for: source, outputDir: nil),
+            SidecarNaming.destinationPath(for: source, outputDir: nil, kind: .quality)
+        )
+    }
+
     func testOutputDirectoryMirrorsRelativeTree() throws {
         let output = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: output) }

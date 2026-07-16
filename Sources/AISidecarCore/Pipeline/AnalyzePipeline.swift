@@ -93,7 +93,13 @@ public struct AnalyzePipeline {
             recursive: configuration.recursive,
             identityPolicy: configuration.sourceIdentityPolicy
         )
-        let plan = SidecarNaming.plan(for: scanResult.images, outputDir: configuration.outputDir)
+        let isQualityOnly = configuration.taskProfile == .qualityOnly
+        let sidecarKind: RawSidecarKind = isQualityOnly ? .quality : .tagging
+        let plan = SidecarNaming.plan(
+            for: scanResult.images,
+            outputDir: configuration.outputDir,
+            kind: sidecarKind
+        )
         let actions = entryActions(for: plan.entries, configuration: configuration)
         let pendingWork = actions.indices.compactMap { index -> PendingWork? in
             guard case .pending = actions[index] else {
@@ -111,11 +117,11 @@ public struct AnalyzePipeline {
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
         let progressPath =
             isBatch && !configuration.dryRun && writesBatchArtifacts
-            ? "\(reportDirectory)/\(ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
+            ? "\(reportDirectory)/\(isQualityOnly ? ArtifactNames.qualityProgressPrefix : ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
             : nil
         let summaryPath =
             isBatch && !configuration.dryRun && writesBatchArtifacts
-            ? "\(reportDirectory)/\(ArtifactNames.batchSummaryPrefix)\(timestamp).json"
+            ? "\(reportDirectory)/\(isQualityOnly ? ArtifactNames.qualitySummaryPrefix : ArtifactNames.batchSummaryPrefix)\(timestamp).json"
             : nil
         let progressLog = try progressPath.map { try ProgressLog(path: $0, fileManager: fileManager) }
         defer {
@@ -567,10 +573,12 @@ public struct AnalyzePipeline {
             return .prepared(
                 PreparedRenderedAnalysis(
                     derivatives: derivatives,
-                    modelInputContext: GPSContextExtractor.context(
-                        for: entry.source,
-                        mode: configuration.gpsContext
-                    ),
+                    modelInputContext: configuration.taskProfile == .qualityOnly
+                        ? nil
+                        : GPSContextExtractor.context(
+                            for: entry.source,
+                            mode: configuration.gpsContext
+                        ),
                     subjectIsolation: subjectIsolation,
                     errors: errors,
                     renderMs: renderMs,
