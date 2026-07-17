@@ -60,6 +60,22 @@ final class NormalizationInvocationTests: XCTestCase {
         }
     }
 
+    func testNormalizeAssessQualityIsValidOnlyForPositionalAnalyzeMode() throws {
+        let analyze = try NormalizationInvocationValidator.validate(
+            NormalizationInvocationRequest(inputPath: "Images", assessQuality: true)
+        )
+        XCTAssertEqual(analyze, .analyze(inputPath: "Images"))
+
+        for request in [
+            NormalizationInvocationRequest(fromJSONPath: "A.ai.json", assessQuality: true),
+            NormalizationInvocationRequest(fileListPath: "images.txt", assessQuality: true),
+        ] {
+            try assertConfigInvalid {
+                _ = try NormalizationInvocationValidator.validate(request)
+            }
+        }
+    }
+
     func testNormalizeRejectsConflictingBooleanPairs() throws {
         let invalidRequests = [
             NormalizationInvocationRequest(inputPath: "Images", writeFlatKeywords: true, noWriteFlatKeywords: true),

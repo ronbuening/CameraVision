@@ -15,6 +15,7 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
     public var sourceRoot: String?
     public var sourceVerification: XMPSourceVerificationPolicy?
     public var mode: AnalysisMode?
+    public var assessQuality: Bool
     public var existing: ExistingPolicy?
     public var model: String?
     public var modelEndpoint: String?
@@ -43,6 +44,7 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
         sourceRoot: String? = nil,
         sourceVerification: XMPSourceVerificationPolicy? = nil,
         mode: AnalysisMode? = nil,
+        assessQuality: Bool = false,
         existing: ExistingPolicy? = nil,
         model: String? = nil,
         modelEndpoint: String? = nil,
@@ -70,6 +72,7 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
         self.sourceRoot = sourceRoot
         self.sourceVerification = sourceVerification
         self.mode = mode
+        self.assessQuality = assessQuality
         self.existing = existing
         self.model = model
         self.modelEndpoint = modelEndpoint
@@ -112,6 +115,11 @@ public enum NormalizationInvocationValidator {
             return .fromJSON(path: fromJSONPath)
         }
         if let fileListPath {
+            if request.assessQuality {
+                throw SidecarError.configInvalid(
+                    "--assess-quality is valid only with positional analyze-and-normalize input."
+                )
+            }
             try validateAnalyzeInputOnlyOptions(request, inputLabel: "--file-list")
             return .fileList(path: fileListPath)
         }
@@ -155,6 +163,7 @@ public enum NormalizationInvocationValidator {
     private static func validateFromJSONOnlyOptions(_ request: NormalizationInvocationRequest) throws {
         try InvocationRules.rejectFromJSONIncompatible([
             ("mode", request.mode != nil),
+            ("assess-quality", request.assessQuality),
             ("existing", request.existing != nil),
             ("model", request.model != nil),
             ("model-endpoint", request.modelEndpoint != nil),

@@ -27,6 +27,12 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Option(help: "Analysis mode for analyze-and-normalize: whole, subject, or both.")
     var mode: AnalysisMode?
 
+    @Flag(
+        help:
+            "Also produce a perceptual quality assessment per image (adds the quality_assessment block to raw sidecars)."
+    )
+    var assessQuality = false
+
     @Option(help: "Policy for raw .ai.json outputs in analyze-and-normalize: skip, overwrite, or fail.")
     var existing: ExistingPolicy?
 
@@ -265,6 +271,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             sourceRoot: sourceRoot,
             sourceVerification: sourceVerification,
             mode: mode,
+            assessQuality: assessQuality,
             existing: existing,
             model: model,
             modelEndpoint: modelEndpoint,
@@ -333,6 +340,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             mode: mode,
             existing: existing,
             recursive: recursive ? true : nil,
+            qualityAssessment: assessQuality ? true : nil,
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,

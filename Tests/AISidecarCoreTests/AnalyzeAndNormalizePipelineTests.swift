@@ -218,6 +218,57 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         XCTAssertEqual(result.normalizeResult.report.xmpExportReport?.writtenCount, 1)
     }
 
+    func testAnalyzeAndNormalizePersistsSelectedPromptSchemaAndTaskProfile() async throws {
+        let expectations: [(Bool?, ModelTaskProfile, String, String)] = [
+            (
+                nil,
+                .tagging,
+                "aisidecar.prompt.whole_image/1.5.0",
+                "urn:aisidecar:response:whole-image:1.5.0"
+            ),
+            (
+                true,
+                .taggingWithQuality,
+                "aisidecar.prompt.whole_image/1.6.0",
+                "urn:aisidecar:response:whole-image:1.6.0"
+            ),
+        ]
+
+        for (qualityAssessment, taskProfile, promptVersion, schemaVersion) in expectations {
+            let root = try temporaryDirectory()
+            let output = try temporaryDirectory()
+            let vocabularyPath = try writeVocabulary()
+            addTeardownBlock {
+                try? FileManager.default.removeItem(at: root)
+                try? FileManager.default.removeItem(at: output)
+                try? FileManager.default.removeItem(
+                    at: URL(fileURLWithPath: vocabularyPath).deletingLastPathComponent()
+                )
+            }
+            _ = try writeTestImage("Bird.JPG", in: root)
+
+            _ = try await pipeline().run(
+                inputPath: root.path,
+                runConfiguration: try resolvedRunConfiguration(
+                    outputDir: output.path,
+                    qualityAssessment: qualityAssessment
+                ),
+                normalizationConfiguration: normalizationConfiguration(
+                    outputDir: output.path,
+                    vocabularyPath: vocabularyPath
+                )
+            )
+
+            let sidecar = try RawJSONSidecarReader().read(
+                from: output.appendingPathComponent("Bird.JPG.ai.json")
+            ).sidecar
+            let run = try XCTUnwrap(sidecar.modelRuns.first)
+            XCTAssertEqual(sidecar.runConfiguration.taskProfile, taskProfile)
+            XCTAssertEqual(run.promptVersion, promptVersion)
+            XCTAssertEqual(run.responseSchemaVersion, schemaVersion)
+        }
+    }
+
     private func pipeline(runner: any VisionModelRunner = AnalyzeNormalizeVisionRunner()) -> AnalyzeAndNormalizePipeline
     {
         AnalyzeAndNormalizePipeline(
@@ -250,6 +301,27 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
             derivativeCacheSizeBytes: 20 * 1024 * 1024,
             stageConcurrency: 1,
             gpsContext: gpsContext
+        )
+    }
+
+    private func resolvedRunConfiguration(
+        outputDir: String,
+        qualityAssessment: Bool?
+    ) throws -> ResolvedRunConfiguration {
+        try ConfigurationResolver.resolve(
+            cli: RunConfigurationOverrides(
+                mode: .whole,
+                existing: .overwrite,
+                recursive: true,
+                qualityAssessment: qualityAssessment,
+                outputDir: outputDir,
+                logLevel: .debug,
+                logFormat: .json,
+                derivativeCacheDir: URL(fileURLWithPath: outputDir).appendingPathComponent("cache").path,
+                stageConcurrency: 1
+            ),
+            environment: [:],
+            defaultConfigPath: URL(fileURLWithPath: outputDir).appendingPathComponent("missing-config.json").path
         )
     }
 
