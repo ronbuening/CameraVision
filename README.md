@@ -325,23 +325,35 @@ swift run aisidecar analyze /path/to/photos --mode both \
 > verification inside those apps is still in progress, and defaults may change
 > based on that evidence. Try it on a staging copy with `--output-dir` first.
 
-The feature has two halves, both off by default:
-
-**1. Assess.** Ask the model for a structured quality assessment — focus,
-composition, exposure, lighting, and so on, plus an overall verdict and
-confidence. It's stored as an auditable `quality_assessment` block in the raw
-JSON sidecars; nothing touches XMP at this stage:
+Assessment and grading are independent switches, both off by default. The
+preferred normalized batch path enables both in one command:
 
 ```bash
-# alongside tagging:
+swift run aisidecar normalize /path/to/photos --recursive --mode both \
+  --assess-quality --quality-grading \
+  --output-dir /tmp/aisidecar-quality-normalized
+```
+
+That invocation writes combined tagging-and-quality `.ai.json` sidecars, runs
+vocabulary and consensus normalization only over tagging candidates, then adds
+the deterministic quality keywords and full grading output to the same XMP
+plan. Add `--dry-run` to write the auditable sidecars/session/report and preview
+the XMP plan without creating or modifying XMP.
+
+**Assess.** `--assess-quality` asks the model for structured focus,
+composition, exposure, lighting, overall-verdict, and confidence records. The
+assessment remains auditable in the raw sidecar. The same switch works on
+`analyze` when no normalization is wanted; `assess-quality` remains available
+for quality-only sidecars with no tagging:
+
+```bash
 swift run aisidecar analyze /path/to/photos --assess-quality --output-dir /tmp/ai
-# or quality-only sidecars, no tagging:
 swift run aisidecar assess-quality /path/to/photos --output-dir /tmp/ai
 ```
 
-**2. Grade.** During XMP export, `--quality-grading` deterministically derives a
-quality tier (reject / below-average / neutral / good / excellent) from the
-stored assessments and writes culling metadata your editor understands:
+**Grade.** `--quality-grading` deterministically derives a quality tier
+(reject / below-average / neutral / good / excellent) from stored assessments
+and writes culling metadata your editor understands:
 
 - **Quality keywords** — `AI Quality|<tier>` (all tiers)
 - **Color labels** — `Red` for reject, `Green` for excellent, with the matching
@@ -351,12 +363,14 @@ stored assessments and writes culling metadata your editor understands:
 - **Star ratings** — off by default so your own star edits stay untouched;
   opt in with `--write-rating` for a 1–5 tier mapping
 
-```bash
-swift run aisidecar write-xmp --from-json /tmp/ai --recursive \
-  --source-root /path/to/photos --quality-grading --dry-run \
-  --output-dir /tmp/aisidecar-xmp-preview
-```
+The grading surface is shared by `write-xmp`, `normalize`, and `apply-session`.
+For a saved normalization session, pass `--quality-grading` again when applying
+it: apply-session re-grades from the current raw sidecars and current XMP, never
+from a frozen preview in the session.
 
+Quality keywords bypass vocabulary mapping and consensus entirely: safe
+`AI Quality|<tier>` values are appended verbatim after normalized keyword lists
+are final, and existing `AI Quality` keywords in the target are preserved.
 Grading is conservative by default: assessments below `medium` confidence are
 reported as ungraded rather than guessed, existing metadata values are never
 overwritten (`--quality-conflicts preserve`), and every channel can be toggled

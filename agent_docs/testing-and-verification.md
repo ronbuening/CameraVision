@@ -58,8 +58,11 @@ The batch-command help for `analyze`, `assess-quality`, `write-xmp`, `normalize`
 failures, and `130` for interruption.
 The `analyze`, `assess-quality`, `write-xmp`, and `normalize` help must also list `--model-timeout`
 and `--model-retry-limit`; `write-xmp` and `normalize` accept them only in their analyze modes.
-`--assess-quality` must appear in `analyze` and `write-xmp` help but **not** in `assess-quality` help —
-that command forces the quality-only profile and rejects the flag as an unknown option.
+`--assess-quality` must appear in `analyze`, `write-xmp`, and `normalize` help but **not** in `assess-quality` or
+`apply-session` help. The quality-only command forces its profile, normalize accepts the switch only in analyze mode,
+and apply-session makes no model calls. The 13 entries composed by `QualityGradingOptions` — `--quality-grading`, five
+positive/negative channel pairs, `--quality-conflicts`, and `--quality-min-confidence` — must appear exactly once with
+identical descriptions in `write-xmp`, `normalize`, and `apply-session` help.
 
 ## CLI Exit Status Checks
 
@@ -107,6 +110,22 @@ automatically. `--dry-run` prints an `ai-sidecar-xmp-change-plan/1.2` document a
 `quality_tier`, `quality_explanation`, any `rating_write` / `label_write` / `urgency_write` rows, and the flat or
 hierarchical quality-keyword additions. As with every XMP dry run, input or target-plan failures produce exit `1`.
 
+Exercise the normalized planner against the same stored assessment, still without a model call or XMP write:
+
+```bash
+swift run aisidecar normalize \
+  --from-json <combined-json-or-tag-and-quality-sibling-folder> \
+  --recursive \
+  --source-root <image-root> \
+  --quality-grading \
+  --dry-run \
+  --output-dir <tmp-output>
+```
+
+Inspect the printed `ai-sidecar-xmp-change-plan/1.2` document for normalized model keywords, verbatim quality-keyword
+additions, `quality_tier`, `quality_explanation`, and the configured scalar/flag rows. Existing `AI Quality` target
+keywords must remain present. The dry run may create normalization session/report artifacts, but never XMP.
+
 ## Manual End-to-End Smoke Checks (need Ollama + a vision model)
 
 Always use `--output-dir` pointing at a temp folder so artifacts stay out of real photo folders.
@@ -125,6 +144,8 @@ swift run aisidecar normalize --from-json <json-folder> --recursive --source-roo
 swift run aisidecar normalize --from-json <json-folder> --recursive --source-root <image-root> --output-dir <tmp-output>
 swift run aisidecar normalize --file-list <image-list.txt> --session-only --output-dir <tmp-output>
 swift run aisidecar normalize <image-or-folder> --mode both --output-dir <tmp-output>
+# Experimental one-command assessment + normalized grading preview
+swift run aisidecar normalize <image-or-folder> --mode both --assess-quality --quality-grading --dry-run --output-dir <tmp-output>
 ```
 
 ### Phase 4 GUI hardening (M8 / AC4-025)

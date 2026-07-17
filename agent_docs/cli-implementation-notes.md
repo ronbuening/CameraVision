@@ -59,12 +59,15 @@ HTTP 4xx fails immediately and a malformed HTTP-success envelope has its own sin
 ## Image-quality assessment contract
 
 `analyze --assess-quality` selects the v1.6.0 combined tagging-and-quality
-contract; the analyze-and-write shape of `write-xmp` accepts the same flag.
+contract; the analyze-and-write shape of `write-xmp` and the analyze-mode shape
+of `normalize` accept the same flag. Existing-input `normalize --from-json` and
+`--file-list` modes reject it because they make no model calls.
 `quality_assessment` resolves through the normal CLI > environment > config >
 built-in precedence chain, and the resulting raw sidecar always records
 `run_configuration.task_profile` (`tagging` or `tagging_with_quality`). An
 absent flag preserves v1.5.0 tagging. This selection never makes `analyze`
-write XMP; `write-xmp` remains the only command shape here that can export XMP.
+write XMP; only explicit write-capable `write-xmp` and `normalize` shapes can do
+that.
 The standalone `quality_only` profile and `assess-quality` subcommand belong to
 the quality-only pipeline. `aisidecar assess-quality <input>` reuses the render,
 subject-isolation, model-runtime, interruption, and raw-sidecar guardrails from
@@ -73,18 +76,26 @@ input context, and writes `.quality.ai.json` sidecars. Folder runs use
 `quality-progress-*` and `quality-summary-*` artifacts. Tagging sidecars for the
 same source are separate and are never treated as existing quality output.
 
-### Quality-grading XMP export surface
+### Quality-grading XMP export and normalization surface
 
 Quality assessment and XMP grading are deliberately separate switches. `--assess-quality` asks the model to store
-an assessment; the default-off `write-xmp --quality-grading` reads stored combined or quality-only assessments,
-derives a deterministic tier, and routes every metadata mutation through the existing change-plan/owned-engine
-chain. A quality-only sidecar can grade its source without a tagging sibling. With grading disabled, planning returns
-before assessment extraction, its quality-specific scalar snapshot reader, or refresh-ownership stamp parsing, so
-existing keywords-only plans retain their pre-feature encoding. The downstream engine still snapshots managed
-scalars to preserve them. In analyze-and-write mode, combining `--assess-quality` with `--quality-grading` generates
-and exports the assessment in the same `write-xmp` invocation without creating a second write path.
+an assessment; default-off `--quality-grading` reads stored combined or quality-only assessments, derives a
+deterministic tier, and routes every metadata mutation through the existing change-plan/owned-engine chain. A
+quality-only sidecar can grade its source without a tagging sibling. In `write-xmp` analyze mode, combining the two
+switches generates and exports the assessment in one invocation. `normalize` now supports the same one-command
+composition: vocabulary/consensus operates only on tagging candidates, then the shared grading applier adds safe
+quality keywords verbatim plus the guarded scalar/flag rows after normalized keyword lists are final. Existing
+`AI Quality` target keywords remain preserved by the additive merge.
 
-The `write-xmp` flags are:
+Session-only normalization may record a grading preview, including tier, explanation, and quality keywords, without
+reading XMP or claiming unresolved scalar rows. `apply-session --quality-grading` ignores that preview and re-grades
+from the current contributor sidecars and current XMP under its apply-time configuration; if an assessment has
+disappeared, the result is ungraded rather than stale. With grading disabled, all three paths return before quality
+assessment extraction, quality-specific snapshot reads, or refresh-ownership parsing, preserving their pre-feature
+artifact bytes. The downstream engine still snapshots managed scalars when needed to preserve them.
+
+`QualityGradingOptions` is the single declaration/projection for the identical grading flag surface on `write-xmp`,
+`normalize`, and `apply-session`:
 
 ```text
 --quality-grading
@@ -114,7 +125,8 @@ attributes, reads both forms, and updates the form it finds. Reject-as-minus-one
 are off. Quality paths use `AI Quality|<tier>` in the hierarchical bag and the space-joined `AI Quality <tier>` in
 the flat bag, subject to the existing keyword-channel toggles and safety checks.
 
-Normal CLI > environment > config file > built-in precedence applies. Direct config keys are
+Normal CLI > environment > config file > built-in precedence applies on `write-xmp`, `normalize`, and
+`apply-session`. Direct config keys are
 `xmp_quality_grading`, `xmp_quality_conflicts`, `xmp_quality_min_confidence`, `xmp_quality_write_rating`,
 `xmp_quality_write_label`, `xmp_quality_write_urgency`, `xmp_quality_write_flag`, and `xmp_quality_write_keywords`;
 their environment forms are
@@ -236,7 +248,7 @@ Compatibility evidence    OwnedXMPSidecarEngine through Phase 2 writer path     
 - **Gear is a boost only.** Camera/lens match without a primary signal (time, GPS, filename sequence, file-list adjacency) yields zero affinity and `blocked_gear_only_affinity`.
 - **The global backstop needs minimum eligible/supporting counts**, not just a percentage, so it cannot fire in a tiny folder.
 - **Vocabulary matching is exact-first with guarded fallbacks** (invariant 10) — no stemming, no diacritic folding — so synonyms cannot map sideways/downward to false specificity. Ambiguous primary aliases terminate lookup; punctuation or singular/plural fallback cannot rescue them. Separator-fold collisions count canonical, flat, and synonym owners equally.
-- **`apply-session` is deliberately narrow:** stored decisions are authoritative; it verifies source identity (stale fails by default, `--allow-stale` is invocation-only and recorded), recomputes target paths only, and merges against the current on-disk XMP at write time — never a stale session copy, and never recomputing vocabulary, extraction, affinity, or consensus.
+- **`apply-session` is deliberately narrow:** stored keyword decisions are authoritative; it verifies source identity (stale fails by default, `--allow-stale` is invocation-only and recorded), recomputes target paths, and merges against current on-disk XMP. Only opt-in quality grading re-reads current contributor assessments and managed scalars, so grading is never frozen in the session; vocabulary, keyword extraction, affinity, and consensus are never recomputed.
 - **Privacy by default in artifacts:** sessions/reports persist derived distances/scores and hashed camera serials; exact GPS coordinates and raw serials require explicit debug/audit configuration.
 - **Fixture-first milestone ordering:** each phase implemented its from-json/offline path before live-model integration, keeping the first half of every phase deterministic and offline.
 
