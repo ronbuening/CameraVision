@@ -3,6 +3,23 @@ import XCTest
 @testable import AISidecarCore
 
 final class QualityGradingTests: XCTestCase {
+    func testBuiltInLabelAndUrgencyMappingsMatchCaptureOneEvidence() {
+        let policy = QualityGradingPolicy.builtInDefaults
+
+        XCTAssertEqual(policy.labelMap, [.reject: "Red", .excellent: "Green"])
+        XCTAssertEqual(policy.urgencyMap, [.reject: 1, .excellent: 2])
+    }
+
+    func testBuiltInChannelDefaultsKeepRatingOptIn() {
+        let policy = QualityGradingPolicy.builtInDefaults
+
+        XCTAssertFalse(policy.writeRating)
+        XCTAssertTrue(policy.writeLabel)
+        XCTAssertTrue(policy.writeUrgency)
+        XCTAssertTrue(policy.writeFlag)
+        XCTAssertTrue(policy.writeKeywords)
+    }
+
     func testRuleTableCoversEveryTierRowAndThresholdBoundary() throws {
         struct Case {
             var name: String
@@ -218,6 +235,7 @@ final class QualityGradingTests: XCTestCase {
 
     func testRejectMinusOneChangesOnlyRejectRating() {
         var policy = QualityGradingPolicy.builtInDefaults
+        policy.writeRating = true
         policy.rejectAsMinusOne = true
         let reject = QualityTierDeriver.grade(
             whole: record(role: .wholeImage, overall: .problem, confidence: .high, focus: .problem),
@@ -313,6 +331,59 @@ final class QualityGradingTests: XCTestCase {
         XCTAssertTrue(grade.keywords.isEmpty)
     }
 
+    func testFlagChannelMapsRejectAndExcellentAndHonorsWriteFlagToggle() throws {
+        XCTAssertEqual(QualityPickFlag.pick.pickValue, "1")
+        XCTAssertEqual(QualityPickFlag.pick.goodValue, "true")
+        XCTAssertEqual(QualityPickFlag.reject.pickValue, "-1")
+        XCTAssertEqual(QualityPickFlag.reject.goodValue, "false")
+
+        let rejected = try XCTUnwrap(
+            QualityTierDeriver.grade(
+                whole: record(
+                    role: .wholeImage, overall: .problem, confidence: .high, problemCount: 3,
+                    focus: .problem),
+                subject: nil,
+                policy: .builtInDefaults
+            )
+        )
+        XCTAssertEqual(rejected.tier, .reject)
+        XCTAssertEqual(rejected.flag, .reject)
+
+        let excellent = try XCTUnwrap(
+            QualityTierDeriver.grade(
+                whole: record(role: .wholeImage, overall: .strong, confidence: .high, strongCount: 3),
+                subject: nil,
+                policy: .builtInDefaults
+            )
+        )
+        XCTAssertEqual(excellent.tier, .excellent)
+        XCTAssertEqual(excellent.flag, .pick)
+
+        let good = try XCTUnwrap(
+            QualityTierDeriver.grade(
+                whole: record(role: .wholeImage, overall: .strong, confidence: .high),
+                subject: nil,
+                policy: .builtInDefaults
+            )
+        )
+        XCTAssertEqual(good.tier, .good)
+        XCTAssertNil(good.flag)
+
+        var disabled = QualityGradingPolicy.builtInDefaults
+        disabled.writeFlag = false
+        let suppressed = try XCTUnwrap(
+            QualityTierDeriver.grade(
+                whole: record(
+                    role: .wholeImage, overall: .problem, confidence: .high, problemCount: 3,
+                    focus: .problem),
+                subject: nil,
+                policy: disabled
+            )
+        )
+        XCTAssertNil(suppressed.flag)
+        XCTAssertEqual(suppressed.label, "Red")
+    }
+
     func testGradingPolicyRoundTripsWithSnakeCaseKeysAndRawTierMapKeys() throws {
         let policy = QualityGradingPolicy(
             minimumConfidence: .high,
@@ -340,6 +411,7 @@ final class QualityGradingTests: XCTestCase {
                 "write_rating",
                 "write_label",
                 "write_urgency",
+                "write_flag",
                 "write_keywords",
                 "reject_as_minus_one",
                 "per_criterion_problem_keywords",
@@ -347,6 +419,7 @@ final class QualityGradingTests: XCTestCase {
                 "rating_map",
                 "label_map",
                 "urgency_map",
+                "flag_map",
             ])
         )
         XCTAssertNotNil(ratingMap["below_average"])
@@ -403,6 +476,17 @@ final class QualityGradingTests: XCTestCase {
 
     func testGradingPolicyRejectsUnknownUrgencyTierKey() throws {
         try assertUnknownTierRejected(mapJSON: #""urgency_map":{"future":4}"#)
+    }
+
+    func testGradingPolicyRejectsUnknownFlagTierKey() throws {
+        try assertUnknownTierRejected(mapJSON: #""flag_map":{"future":"pick"}"#)
+    }
+
+    func testGradingPolicyRejectsUnknownFlagValue() throws {
+        let data = try XCTUnwrap(#"{"flag_map":{"reject":"maybe"}}"#.data(using: .utf8))
+        XCTAssertThrowsError(
+            try JSONCoding.decoder(iso8601Dates: false).decode(QualityGradingPolicy.self, from: data)
+        )
     }
 
     private func record(

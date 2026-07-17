@@ -64,6 +64,12 @@ extension XMPConflictPolicy: ExpressibleByArgument {
     }
 }
 
+extension ScalarConflictPolicy: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
 extension XMPMinimumConfidence: ExpressibleByArgument {
     public init?(argument: String) {
         self.init(rawValue: argument)
@@ -122,12 +128,6 @@ struct SharedOptions: ParsableArguments {
     @Flag(help: "Recurse into subfolders.")
     var recursive = false
 
-    @Flag(
-        help:
-            "Also produce a perceptual quality assessment per image (adds the quality_assessment block to raw sidecars)."
-    )
-    var assessQuality = false
-
     @Option(help: "Redirect outputs; mirrors the relative scan tree.")
     var outputDir: String?
 
@@ -176,12 +176,13 @@ struct SharedOptions: ParsableArguments {
     @Option(help: "EXIF GPS context for model prompts: off, coarse, or exact.")
     var gpsContext: GPSContextMode?
 
+    // `--assess-quality` is deliberately not shared: assess-quality forces the
+    // quality-only profile, so only analyze declares the flag and merges it in.
     var overrides: RunConfigurationOverrides {
         RunConfigurationOverrides(
             mode: mode,
             existing: existing,
             recursive: recursive ? true : nil,
-            qualityAssessment: assessQuality ? true : nil,
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,

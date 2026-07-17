@@ -1,4 +1,4 @@
-# CLI Implementation Notes (Phases 1–3)
+# CLI Implementation Notes (Phases 1–3 + Image Quality)
 
 Durable implementation details extracted from the archived Phase 1–3 implementation plans (agent_docs/archive/). Requirements live in docs 01/02/03; invariants in invariants.md; module map in architecture-map.md. This file holds what the archived plans uniquely documented: the one open work item (Milestone 9), shipped defaults, conventions, boundary rules, and the live Phase 3 traceability matrix.
 
@@ -73,6 +73,68 @@ input context, and writes `.quality.ai.json` sidecars. Folder runs use
 `quality-progress-*` and `quality-summary-*` artifacts. Tagging sidecars for the
 same source are separate and are never treated as existing quality output.
 
+### Quality-grading XMP export surface
+
+Quality assessment and XMP grading are deliberately separate switches. `--assess-quality` asks the model to store
+an assessment; the default-off `write-xmp --quality-grading` reads stored combined or quality-only assessments,
+derives a deterministic tier, and routes every metadata mutation through the existing change-plan/owned-engine
+chain. A quality-only sidecar can grade its source without a tagging sibling. With grading disabled, planning returns
+before assessment extraction, its quality-specific scalar snapshot reader, or refresh-ownership stamp parsing, so
+existing keywords-only plans retain their pre-feature encoding. The downstream engine still snapshots managed
+scalars to preserve them. In analyze-and-write mode, combining `--assess-quality` with `--quality-grading` generates
+and exports the assessment in the same `write-xmp` invocation without creating a second write path.
+
+The `write-xmp` flags are:
+
+```text
+--quality-grading
+--write-rating / --no-write-rating
+--write-label / --no-write-label
+--write-urgency / --no-write-urgency
+--write-flag / --no-write-flag
+--write-quality-keywords / --no-write-quality-keywords
+--quality-conflicts <preserve|refresh|overwrite>
+--quality-min-confidence <low|medium|high>
+```
+
+The built-in master switch is off. If enabled without channel overrides, label, label-coupled urgency,
+Lightroom pick flags, and quality keywords are on; the rating channel is opt-in (`--write-rating` /
+`xmp_quality_write_rating`) so `xmp:Rating` stays free for the user's own star edits; minimum confidence is
+`medium`; scalar conflict handling is
+`preserve`; and the keyword root is `AI Quality`. When enabled, ratings map reject→1, below-average→2, neutral→3,
+good→4,
+excellent→5. Labels map reject→Red
+and excellent→Green; their Capture One companions map to Urgency 1 and 2 respectively. Capture One 16.8.4 samples
+show all label/urgency values as child elements and establish Red→1, Green→2, Blue→3, Pink→4, Purple→5, Orange→6,
+Yellow→7 (`agent_docs/release-evidence/c1-urgency-mapping.md`). Pick flags map reject→rejected and
+excellent→picked, written as Lightroom Classic 15.4.1's coupled `xmpDM:pick`/`xmpDM:good` attribute pair —
+`-1`/`false` and `1`/`true` respectively (`agent_docs/release-evidence/lr-pick-flag-mapping.md`); the engine never
+writes a split pair or Lightroom's unflagged `pick="0"`. The engine still creates absent scalars as
+attributes, reads both forms, and updates the form it finds. Reject-as-minus-one and per-criterion problem keywords
+are off. Quality paths use `AI Quality|<tier>` in the hierarchical bag and the space-joined `AI Quality <tier>` in
+the flat bag, subject to the existing keyword-channel toggles and safety checks.
+
+Normal CLI > environment > config file > built-in precedence applies. Direct config keys are
+`xmp_quality_grading`, `xmp_quality_conflicts`, `xmp_quality_min_confidence`, `xmp_quality_write_rating`,
+`xmp_quality_write_label`, `xmp_quality_write_urgency`, `xmp_quality_write_flag`, and `xmp_quality_write_keywords`;
+their environment forms are
+`AISIDECAR_XMP_QUALITY_{GRADING,CONFLICTS,MIN_CONFIDENCE,WRITE_RATING,WRITE_LABEL,WRITE_URGENCY,WRITE_FLAG,WRITE_KEYWORDS}`.
+`xmp_quality_reject_as_minus_one`, `xmp_quality_per_criterion_problem_keywords`, and `xmp_quality_keyword_root` are
+config/environment policy knobs with matching uppercase `AISIDECAR_XMP_QUALITY_*` names.
+The structured `xmp_quality_rating_map`, `xmp_quality_label_map`, `xmp_quality_urgency_map`, and
+`xmp_quality_flag_map` (values `pick`/`reject`) are config-file only.
+All configured maps and keyword roots are validated even while grading is disabled, so a dormant invalid policy
+fails before batch work begins.
+
+`preserve` writes only absent scalar values. `refresh` additionally replaces a differing value only when it still
+equals this tool's value in the newest unambiguous, target-matching contributor stamp; missing or untrusted evidence
+degrades to preservation. `overwrite` always plans the replacement. Urgency is never mutated unless the projected
+final Label equals the desired label. For grading-enabled exports, the pipeline attempts to stamp the actual
+tool-owned scalar values and current tier into each selected tagging/quality contributor; an enabled-but-ungraded
+result clears the tier, and skipped foreign values are never claimed. With grading disabled, trustworthy prior
+tier/scalar ownership is retained only while it still matches the current XMP. Stamp failures are warnings after the
+validated XMP result and do not trigger rollback.
+
 ## Implementation conventions
 
 - **Subject-cache keys include isolation settings.** Subject derivative cache keys include the render recipe plus `subject_crop_margin_fraction`, `subject_merge_dominance_threshold`, and matte RGB, so config changes can never reuse stale crops.
@@ -85,7 +147,7 @@ same source are separate and are never treated as existing quality output.
 
 - **One extraction path, one write path.** Analyze-and-write (and analyze-and-normalize) call the existing `AnalyzePipeline` and feed the same export planner used by `--from-json`. There are never two candidate-extraction stacks or two XMP write stacks; Phase 3 output is a write plan consumed by the Phase 2 engine (invariants 1 and 4 cover the write-path guarantee).
 - **No XML/RDF details in policy modules.** Candidate extraction, grouping, keyword policy, and every `Normalization/` module produce terms, decisions, provenance, and plans only. XML parsing and writing stay behind `MetadataWriteEngine`, so policy behavior is provable with a mock engine and preservation behavior with focused owned-engine fixtures.
-- **The owned engine never becomes a general metadata library.** `OwnedXMPSidecarEngine` is limited to `.xmp` sidecar files and the two managed keyword fields (`dc:subject`, `lr:hierarchicalSubject`); it preserves unmanaged content semantically and fails closed on unsupported shapes. Embedded metadata or broader XMP authoring requires new requirements. ExifTool is never a runtime dependency.
+- **The owned engine never becomes a general metadata library.** `OwnedXMPSidecarEngine` is limited to `.xmp` sidecar files, the two managed keyword bags (`dc:subject`, `lr:hierarchicalSubject`), and the F12-approved quality scalars (`xmp:Rating`, `xmp:Label`, `photoshop:Urgency`). It preserves unmanaged content semantically and fails closed on unsupported shapes. Embedded metadata or any broader XMP authoring requires new per-field requirements. ExifTool is never a runtime dependency.
 - **Keyword safety is a final-boundary rule.** `KeywordSafetyPolicy` distinguishes coordinate/GPS location metadata from a visibly depicted GPS device. Candidate extraction, session preflight, review edits, and final normalized planning all use it; the planner is the independent last guard for imported or hand-edited sessions.
 - **Normalization-off is a Phase 2 baseline.** It applies no session context and performs no vocabulary lookup for context values; supplied context is retained only as an `ignored_normalization_off` audit record.
 - **Same-major session tolerance fails closed per decision.** Direct per-asset decision enum raw values and unknown JSON fields are preserved through `NormalizationSessionWriter`; review and planning ignore affected decisions. Nested observation/provenance and audit-only enums are still strict decoding boundaries, so a future writer must not add such values within schema major 1 until lossless adapters land.
@@ -101,10 +163,10 @@ Phase 3 extends this to sessions: normalization aggregation and plan constructio
 Fail-closed classification (Phase 2 plan §8):
 
 - Malformed XML → `E_XMP_PARSE_FAILED`.
-- Unsupported RDF shapes → `E_XMP_UNSUPPORTED_RDF`: managed keywords expressed as attributes, duplicate managed properties, managed fields split across multiple `rdf:Description` elements, or managed keyword content that is not an `rdf:Bag`.
+- Unsupported RDF shapes → `E_XMP_UNSUPPORTED_RDF`: managed keyword bags expressed as attributes, duplicate managed keyword properties, managed keyword fields split across multiple `rdf:Description` elements, managed keyword content that is not an `rdf:Bag`, conflicting occurrences of one managed scalar across attributes/elements/descriptions, or structured managed-scalar child content.
 - Both map to structured errors with bounded diagnostic excerpts; neither modifies source files or existing sidecars.
 
-Write pattern: engine writes go through `AtomicFileWriter.writeFile` — the merged sidecar is written to a temporary file, **validated as readable before** atomic replacement of the target. The parser accepts either an `x:xmpmeta` wrapper or a direct `rdf:RDF` root; the merger preserves existing keyword spelling/order, appends planned terms in plan order, and de-duplicates case-insensitively. With multiple writable descriptions, selection is managed-field owner → exact decoded source-filename `rdf:about` → empty `rdf:about` → first description; raw suffix matching is forbidden.
+Write pattern: engine writes go through `AtomicFileWriter.writeFile` — the merged sidecar is written to a temporary file, **validated as readable before** atomic replacement of the target. The parser accepts either an `x:xmpmeta` wrapper or a direct `rdf:RDF` root; the merger preserves existing keyword spelling/order, appends planned terms in plan order, and de-duplicates case-insensitively. Scalar reads accept description attributes or simple child elements, updates preserve the existing form, and new values use attributes. Before any mutating scalar preview/apply, a fresh snapshot must still equal the plan's recorded existing value; Label/Urgency coupling is rechecked at that boundary. With multiple writable descriptions, selection is managed-field owner → exact decoded source-filename `rdf:about` → empty `rdf:about` → first description; raw suffix matching is forbidden.
 
 ## Provenance without retained raw sidecars
 

@@ -23,6 +23,11 @@ public struct XMPExportProgressRecord: Codable, Sendable, Equatable {
     public var validation: XMPMergeValidationResult?
     public var errors: [SidecarError]
     public var durationMs: Int
+    public var wroteRating: Bool?
+    public var wroteLabel: Bool?
+    public var wroteUrgency: Bool?
+    public var wrotePick: Bool?
+    public var wroteGood: Bool?
 
     enum CodingKeys: String, CodingKey {
         case timestamp
@@ -36,6 +41,11 @@ public struct XMPExportProgressRecord: Codable, Sendable, Equatable {
         case validation
         case errors
         case durationMs = "duration_ms"
+        case wroteRating = "wrote_rating"
+        case wroteLabel = "wrote_label"
+        case wroteUrgency = "wrote_urgency"
+        case wrotePick = "wrote_pick"
+        case wroteGood = "wrote_good"
     }
 
     public init(
@@ -49,7 +59,12 @@ public struct XMPExportProgressRecord: Codable, Sendable, Equatable {
         backup: XMPBackupRecord? = nil,
         validation: XMPMergeValidationResult? = nil,
         errors: [SidecarError] = [],
-        durationMs: Int
+        durationMs: Int,
+        wroteRating: Bool? = nil,
+        wroteLabel: Bool? = nil,
+        wroteUrgency: Bool? = nil,
+        wrotePick: Bool? = nil,
+        wroteGood: Bool? = nil
     ) {
         self.timestamp = timestamp
         self.targetXMPPath = targetXMPPath
@@ -62,6 +77,11 @@ public struct XMPExportProgressRecord: Codable, Sendable, Equatable {
         self.validation = validation
         self.errors = errors
         self.durationMs = durationMs
+        self.wroteRating = wroteRating
+        self.wroteLabel = wroteLabel
+        self.wroteUrgency = wroteUrgency
+        self.wrotePick = wrotePick
+        self.wroteGood = wroteGood
     }
 }
 

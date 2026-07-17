@@ -5,6 +5,9 @@ enum XMPNamespace {
     static let rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
     static let dc = "http://purl.org/dc/elements/1.1/"
     static let lr = "http://ns.adobe.com/lightroom/1.0/"
+    static let xmp = "http://ns.adobe.com/xap/1.0/"
+    static let photoshop = "http://ns.adobe.com/photoshop/1.0/"
+    static let xmpDM = "http://ns.adobe.com/xmp/1.0/DynamicMedia/"
 }
 
 enum XMPManagedField: CaseIterable {
@@ -30,6 +33,50 @@ enum XMPManagedField: CaseIterable {
         case .flat: "dc:subject"
         case .hierarchical: "lr:hierarchicalSubject"
         }
+    }
+}
+
+/// Managed single-value XMP properties stored as description attributes or simple child elements.
+///
+/// `pick`/`good` are Lightroom's flag pair (see
+/// `agent_docs/XMP_Samples/Lightroom_Flags/`): picked = pick "1" + good
+/// "true", rejected = pick "-1" + good "false", unflagged = pick "0" with no
+/// good — the engine writes only the picked/rejected pairs.
+enum XMPManagedScalar: CaseIterable {
+    case rating
+    case label
+    case urgency
+    case pick
+    case good
+
+    var namespaceURI: String {
+        switch self {
+        case .rating, .label: XMPNamespace.xmp
+        case .urgency: XMPNamespace.photoshop
+        case .pick, .good: XMPNamespace.xmpDM
+        }
+    }
+
+    var preferredPrefix: String {
+        switch self {
+        case .rating, .label: "xmp"
+        case .urgency: "photoshop"
+        case .pick, .good: "xmpDM"
+        }
+    }
+
+    var localName: String {
+        switch self {
+        case .rating: "Rating"
+        case .label: "Label"
+        case .urgency: "Urgency"
+        case .pick: "pick"
+        case .good: "good"
+        }
+    }
+
+    var qualifiedPropertyName: String {
+        "\(preferredPrefix):\(localName)"
     }
 }
 

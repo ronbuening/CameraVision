@@ -99,10 +99,16 @@ public struct XMPExportPipeline {
         let startedAt = now()
         let runSuffix = filenameSuffix()
         let extractionResults = CandidateExtractor().extract(from: batch.inputs, configuration: configuration)
+        let metadataEngine = engine
+        let context = try metadataEngine.prepare(configuration: configuration)
+        defer {
+            try? metadataEngine.shutdown()
+        }
         let changePlan = XMPChangePlanner().plan(
             inputBatch: batch,
             extractionResults: extractionResults,
-            configuration: configuration
+            configuration: configuration,
+            snapshotReader: { try metadataEngine.readSnapshot(at: $0) }
         )
 
         let artifacts =
@@ -121,7 +127,8 @@ public struct XMPExportPipeline {
             artifacts: artifacts,
             interruptionMonitor: interruptionMonitor,
             reportDryRun: false,
-            runSuffix: runSuffix
+            runSuffix: runSuffix,
+            context: context
         )
     }
 
@@ -138,6 +145,10 @@ public struct XMPExportPipeline {
         interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> XMPExportPipelineResult {
         let runSuffix = filenameSuffix()
+        let context = try engine.prepare(configuration: configuration)
+        defer {
+            try? engine.shutdown()
+        }
         return try executeChangePlan(
             changePlan,
             inputPath: absolutePath(for: inputPath),
@@ -145,7 +156,8 @@ public struct XMPExportPipeline {
             artifacts: nil,
             interruptionMonitor: interruptionMonitor,
             reportDryRun: true,
-            runSuffix: runSuffix
+            runSuffix: runSuffix,
+            context: context
         )
     }
 
@@ -156,14 +168,11 @@ public struct XMPExportPipeline {
         artifacts: ExportArtifactPaths?,
         interruptionMonitor: InterruptionMonitor?,
         reportDryRun: Bool,
-        runSuffix: String
+        runSuffix: String,
+        context: MetadataWriteEngineContext
     ) throws -> XMPExportPipelineResult {
         let startedAt = now()
         var changePlan = originalChangePlan
-        let context = try engine.prepare(configuration: configuration)
-        defer {
-            try? engine.shutdown()
-        }
 
         if configuration.dryRun {
             changePlan = previewedChangePlan(changePlan)
@@ -221,7 +230,7 @@ public struct XMPExportPipeline {
                 runSuffix: runSuffix
             )
             targetReports.append(targetReport)
-            stampSourceSidecars(for: targetReport, context: context)
+            stampSourceSidecars(for: targetReport, context: context, configuration: configuration)
             try progressLog?.append(progressRecord(for: targetReport))
             try logger.log(logRecord(for: targetReport))
 
@@ -386,13 +395,20 @@ public struct XMPExportPipeline {
         }
 
         let beforeHashes = sourceHashesBeforeWrite(for: plan)
+        var completedWriteResult: XMPWriteResult?
         do {
             let writeResult = try engine.apply(XMPWriteRequest(plan: plan))
+            completedWriteResult = writeResult
             let postSnapshot = try engine.validateReadable(at: plan.targetXMPPath)
             let validation = validator.validate(
                 plan: plan,
                 preWriteSnapshot: writeResult.preWriteSnapshot,
-                postWriteSnapshot: postSnapshot
+                postWriteSnapshot: postSnapshot,
+                plannedRating: appliedScalarValue(plan.ratingWrite),
+                plannedLabel: appliedScalarValue(plan.labelWrite),
+                plannedUrgency: appliedScalarValue(plan.urgencyWrite),
+                plannedPick: appliedScalarValue(plan.pickWrite),
+                plannedGood: appliedScalarValue(plan.goodWrite)
             )
             let hashOutcome = sourceHashChecks(afterWriteFor: beforeHashes)
             let validationErrors = validation.errors + hashOutcome.errors
@@ -423,11 +439,22 @@ public struct XMPExportPipeline {
                 startedAt: startedAt
             )
         } catch {
-            let restored = restoreBackupIfNeeded(backup)
+            let restored: (backup: XMPBackupRecord?, errors: [SidecarError])
+            if error is XMPScalarWritePreconditionFailure {
+                // The owned engine checks this before mutation. Restoring the
+                // earlier backup here would itself overwrite the user/app edit
+                // that made the plan stale.
+                restored = (backup, [])
+            } else {
+                restored =
+                    completedWriteResult.map { restoreAfterValidationFailure(writeResult: $0, backup: backup) }
+                    ?? restoreBackupIfNeeded(backup)
+            }
             return targetReport(
                 plan: plan,
                 status: .failed,
                 preview: preview,
+                writeResult: completedWriteResult,
                 backup: restored.backup ?? backup,
                 sourceHashChecks: sourceHashChecks(afterWriteFor: beforeHashes).checks,
                 errors: [sidecarWriteError(from: error, targetPath: plan.targetXMPPath)] + restored.errors,
@@ -601,8 +628,67 @@ public struct XMPExportPipeline {
             backup: report.backup,
             validation: report.validation,
             errors: report.errors,
-            durationMs: report.durationMs
+            durationMs: report.durationMs,
+            wroteRating: scalarWriteIndicator(
+                report.plan.ratingWrite,
+                existingValue: report.writeResult?.existingRating,
+                resultingValue: report.writeResult?.resultingRating,
+                report: report
+            ),
+            wroteLabel: scalarWriteIndicator(
+                report.plan.labelWrite,
+                existingValue: report.writeResult?.existingLabel,
+                resultingValue: report.writeResult?.resultingLabel,
+                report: report
+            ),
+            wroteUrgency: scalarWriteIndicator(
+                report.plan.urgencyWrite,
+                existingValue: report.writeResult?.existingUrgency,
+                resultingValue: report.writeResult?.resultingUrgency,
+                report: report
+            ),
+            wrotePick: scalarWriteIndicator(
+                report.plan.pickWrite,
+                existingValue: report.writeResult?.existingPick,
+                resultingValue: report.writeResult?.resultingPick,
+                report: report
+            ),
+            wroteGood: scalarWriteIndicator(
+                report.plan.goodWrite,
+                existingValue: report.writeResult?.existingGood,
+                resultingValue: report.writeResult?.resultingGood,
+                report: report
+            )
         )
+    }
+
+    private func appliedScalarValue(_ write: PlannedScalarWrite?) -> String? {
+        switch write?.action {
+        case .write, .overwrite:
+            return write?.plannedValue
+        case .skipExisting, nil:
+            return nil
+        }
+    }
+
+    private func scalarWriteIndicator(
+        _ write: PlannedScalarWrite?,
+        existingValue: String?,
+        resultingValue: String?,
+        report: XMPExportTargetReport
+    ) -> Bool? {
+        guard let write else {
+            return nil
+        }
+        guard report.status == .created || report.status == .written else {
+            return false
+        }
+        switch write.action {
+        case .write, .overwrite:
+            return existingValue != resultingValue && resultingValue == write.plannedValue
+        case .skipExisting:
+            return false
+        }
     }
 
     private func logRecord(for report: XMPExportTargetReport) -> LogRecord {
@@ -636,46 +722,83 @@ public struct XMPExportPipeline {
         }
     }
 
-    /// CORE-4 (FR4-049): after a successful XMP write, stamp every selected
-    /// contributing raw sidecar with the additive `xmp_export` block. Best
-    /// effort — a stamp failure must never fail an export whose XMP write
-    /// and validation already succeeded. An unchanged rerun back-fills only
-    /// sidecars still missing a stamp, so a transient stamp failure heals
-    /// without churning already-stamped documents.
-    private func stampSourceSidecars(for report: XMPExportTargetReport, context: MetadataWriteEngineContext) {
+    /// CORE-4 (FR4-049): after a successful guarded write, synchronize the
+    /// additive export stamp across every selected tagging and quality
+    /// contributor. Stamp failures remain best-effort and cannot invalidate
+    /// an XMP write that already passed post-write validation.
+    private func stampSourceSidecars(
+        for report: XMPExportTargetReport,
+        context: MetadataWriteEngineContext,
+        configuration: ResolvedXMPExportConfiguration
+    ) {
         guard report.status == .written || report.status == .created || report.status == .unchanged else {
             return
         }
         let targetPath = report.plan.targetXMPPath
-        guard let xmpData = fileManager.contents(atPath: targetPath) else {
+        guard let xmpData = fileManager.contents(atPath: targetPath),
+            let postSnapshot = report.writeResult?.postWriteSnapshot
+        else {
             return
         }
+        let sidecarPaths = selectedContributorSidecarPaths(for: report.plan)
+        guard !sidecarPaths.isEmpty else {
+            try? logger.log(
+                LogRecord(
+                    level: .warn,
+                    event: "write_xmp.stamp_skipped",
+                    message: "Skipped export stamp because this target has no contributing raw .ai.json sidecar.",
+                    sidecarPath: targetPath,
+                    status: "skipped"
+                ))
+            return
+        }
+
         let xmpSHA256 = SHA256.hash(data: xmpData).map { String(format: "%02x", $0) }.joined()
+        let prior = trustedPriorStampOwnership(sidecarPaths: sidecarPaths, targetXMPPath: targetPath)
+        let gradingEnabled = configuration.qualityGrading.enabled
         let contents = RawSidecarExportStamp.Contents(
             targetXMPPath: targetPath,
             xmpSHA256: xmpSHA256,
             writerRecipeVersion: context.writerRecipeVersion,
             engineVersion: context.engineVersion,
-            exportedAt: now()
+            exportedAt: now(),
+            rating: ownedStampedScalar(
+                write: report.plan.ratingWrite,
+                postWriteValue: postSnapshot.rating,
+                priorOwnedValue: prior.rating,
+                gradingEnabled: gradingEnabled
+            ),
+            label: ownedStampedScalar(
+                write: report.plan.labelWrite,
+                postWriteValue: postSnapshot.label,
+                priorOwnedValue: prior.label,
+                gradingEnabled: gradingEnabled
+            ),
+            urgency: ownedStampedScalar(
+                write: report.plan.urgencyWrite,
+                postWriteValue: postSnapshot.urgency,
+                priorOwnedValue: prior.urgency,
+                gradingEnabled: gradingEnabled
+            ),
+            pick: ownedStampedScalar(
+                write: report.plan.pickWrite,
+                postWriteValue: postSnapshot.pick,
+                priorOwnedValue: prior.pick,
+                gradingEnabled: gradingEnabled
+            ),
+            good: ownedStampedScalar(
+                write: report.plan.goodWrite,
+                postWriteValue: postSnapshot.good,
+                priorOwnedValue: prior.good,
+                gradingEnabled: gradingEnabled
+            ),
+            qualityTier: gradingEnabled ? report.plan.qualityTier : prior.qualityTier
         )
-        for member in report.plan.sourceMembers where member.selected {
-            guard let sidecarPath = member.sourceSidecarPath,
-                sidecarPath.lowercased().hasSuffix(".ai.json")
-            else {
-                try? logger.log(
-                    LogRecord(
-                        level: .warn,
-                        event: "write_xmp.stamp_skipped",
-                        message: "Skipped export stamp because this source has no raw .ai.json sidecar.",
-                        sourcePath: member.sourcePath,
-                        sidecarPath: targetPath,
-                        status: "skipped"
-                    ))
-                continue
-            }
-            if report.status == .unchanged,
-                RawSidecarExportStamp.isStamped(sidecarPath: sidecarPath, fileManager: fileManager)
-            {
+        for sidecarPath in sidecarPaths {
+            if let existing = RawSidecarExportStamp.contents(
+                sidecarPath: sidecarPath,
+                fileManager: fileManager
+            ), stampSemanticallyMatches(existing, contents) {
                 continue
             }
             do {
@@ -691,13 +814,103 @@ public struct XMPExportPipeline {
                         event: "write_xmp.stamp_failed",
                         message:
                             "XMP was written, but its raw-sidecar export stamp failed: \(error.localizedDescription)",
-                        sourcePath: member.sourcePath,
                         sidecarPath: sidecarPath,
                         status: "warning",
                         errors: (error as? SidecarError).map { [$0] } ?? []
                     ))
             }
         }
+    }
+
+    private func selectedContributorSidecarPaths(for plan: XMPChangePlan) -> [String] {
+        var paths: Set<String> = []
+        for member in plan.sourceMembers where member.selected {
+            for path in [member.sourceSidecarPath, member.qualitySidecarPath].compactMap({ $0 })
+            where path.lowercased().hasSuffix(".ai.json") {
+                paths.insert(URL(fileURLWithPath: path).standardizedFileURL.path)
+            }
+        }
+        return paths.sorted(by: comparePaths)
+    }
+
+    private func trustedPriorStampOwnership(
+        sidecarPaths: [String],
+        targetXMPPath: String
+    ) -> PriorStampOwnership {
+        var stamps: [RawSidecarExportStamp.Contents] = []
+        for path in sidecarPaths {
+            let contents = RawSidecarExportStamp.contents(sidecarPath: path, fileManager: fileManager)
+            if RawSidecarExportStamp.isStamped(sidecarPath: path, fileManager: fileManager), contents == nil {
+                return PriorStampOwnership()
+            }
+            if let contents {
+                stamps.append(contents)
+            }
+        }
+        guard let newestDate = stamps.map(\.exportedAt).max() else {
+            return PriorStampOwnership()
+        }
+        let newest = stamps.filter { $0.exportedAt == newestDate }
+        let standardizedTarget = URL(fileURLWithPath: targetXMPPath).standardizedFileURL.path
+        guard
+            newest.allSatisfy({
+                URL(fileURLWithPath: $0.targetXMPPath).standardizedFileURL.path == standardizedTarget
+            })
+        else {
+            return PriorStampOwnership()
+        }
+        return PriorStampOwnership(
+            rating: commonOptionalValue(newest.map(\.rating)),
+            label: commonOptionalValue(newest.map(\.label)),
+            urgency: commonOptionalValue(newest.map(\.urgency)),
+            pick: commonOptionalValue(newest.map(\.pick)),
+            good: commonOptionalValue(newest.map(\.good)),
+            qualityTier: commonOptionalValue(newest.map(\.qualityTier))
+        )
+    }
+
+    private func commonOptionalValue<Value: Equatable>(_ values: [Value?]) -> Value? {
+        guard let first = values.first, values.dropFirst().allSatisfy({ $0 == first }) else {
+            return nil
+        }
+        return first
+    }
+
+    private func ownedStampedScalar(
+        write: PlannedScalarWrite?,
+        postWriteValue: String?,
+        priorOwnedValue: String?,
+        gradingEnabled: Bool
+    ) -> String? {
+        guard gradingEnabled else {
+            return postWriteValue == priorOwnedValue ? priorOwnedValue : nil
+        }
+        if let write,
+            write.action == .write || write.action == .overwrite,
+            postWriteValue == write.plannedValue
+        {
+            return write.plannedValue
+        }
+        if let priorOwnedValue, postWriteValue == priorOwnedValue {
+            return priorOwnedValue
+        }
+        return nil
+    }
+
+    private func stampSemanticallyMatches(
+        _ lhs: RawSidecarExportStamp.Contents,
+        _ rhs: RawSidecarExportStamp.Contents
+    ) -> Bool {
+        lhs.targetXMPPath == rhs.targetXMPPath
+            && lhs.xmpSHA256 == rhs.xmpSHA256
+            && lhs.writerRecipeVersion == rhs.writerRecipeVersion
+            && lhs.engineVersion == rhs.engineVersion
+            && lhs.rating == rhs.rating
+            && lhs.label == rhs.label
+            && lhs.urgency == rhs.urgency
+            && lhs.pick == rhs.pick
+            && lhs.good == rhs.good
+            && lhs.qualityTier == rhs.qualityTier
     }
 
     private func writeStatus(for result: XMPWriteResult) -> XMPExportTargetStatus {
@@ -782,6 +995,9 @@ public struct XMPExportPipeline {
     }
 
     private func sidecarWriteError(from error: Error, targetPath: String) -> SidecarError {
+        if let precondition = error as? XMPScalarWritePreconditionFailure {
+            return precondition.sidecarError
+        }
         if let sidecarError = error as? SidecarError {
             return sidecarError
         }
@@ -799,6 +1015,31 @@ private struct ExportArtifactPaths {
     var progressPath: String
     var reportPath: String
     var summaryPath: String
+}
+
+private struct PriorStampOwnership {
+    var rating: String?
+    var label: String?
+    var urgency: String?
+    var pick: String?
+    var good: String?
+    var qualityTier: QualityTier?
+
+    init(
+        rating: String? = nil,
+        label: String? = nil,
+        urgency: String? = nil,
+        pick: String? = nil,
+        good: String? = nil,
+        qualityTier: QualityTier? = nil
+    ) {
+        self.rating = rating
+        self.label = label
+        self.urgency = urgency
+        self.pick = pick
+        self.good = good
+        self.qualityTier = qualityTier
+    }
 }
 
 private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {

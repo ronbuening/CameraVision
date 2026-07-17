@@ -14,7 +14,7 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
 ```
 
 - **Phase 1** (`analyze`, `assess-quality`): scan → identity hash → render derivatives → optional subject isolation → Ollama vision model → raw `.ai.json` or `.quality.ai.json` sidecars. `analyze --assess-quality` selects the combined v1.6.0 contract; `assess-quality` selects the standalone quality-only v1.0.0 contract. Both record `task_profile`, and neither writes XMP.
-- **Phase 2** (`write-xmp`): read raw sidecars → extract accepted candidates → plan/merge/write `.xmp` sidecars through the project-owned XMP engine, with backups and post-write validation.
+- **Phase 2** (`write-xmp`): read raw sidecars → extract accepted candidates → plan/merge/write `.xmp` sidecars through the project-owned XMP engine, with backups and post-write validation. Opt-in quality grading (for example, `--quality-grading`) also derives deterministic grades and plans managed rating, label, urgency, and quality-keyword writes through that same engine path.
 - **Phase 3** (`normalize`, `apply-session`): vocabulary canonicalization + batch consensus over candidates → durable session document → normalized XMP writes reusing the Phase 2 export pipeline.
 
 ## Module Map (Sources/AISidecarCore)
@@ -28,7 +28,7 @@ images ──► FileScanning ──► Identity ──► Rendering ──► S
 | `SubjectIsolation/` | Apple Vision foreground masks, instance selection, two-resolution subject crops | `SubjectIsolationService`, `AppleVisionForegroundMaskProvider`, `InstanceSelectionPolicy` |
 | `ModelRuntime/` | Ollama HTTP client, task-aware prompt/schema registry, schema validation + response repair, mock runners | `OllamaVisionRunner`, `OllamaHTTPTransport`, `VisionModelRunner` (protocol), `ModelTaskProfile`, `PromptRegistry`, `JSONSchemaValidator` |
 | `Sidecars/` | Raw `.ai.json`/`.quality.ai.json` naming, schema records, schema-evolution rewrites, atomic writes, export stamps | `RawJSONSidecar`, `RawJSONSidecarWriter/Reader`, `RawJSONSidecarInputResolver`, `AtomicFileWriter`, `SidecarNaming`, `RawSidecarExportStamp` (CORE-4 `xmp_export` block) |
-| `Metadata/` | Phase 2: candidate extraction, shared coordinate/GPS keyword safety, XMP naming/grouping, owned XMP parser/writer engine, backups, merge validation | `CandidateExtractor`, `KeywordSafetyPolicy`, `MetadataWriteEngine` (protocol), `OwnedXMPSidecarEngine`, `XMPDocumentParser/Writer`, `XMPKeywordReader/Merger`, `XMPMetadataSnapshot`, `XMPUnmanagedContentFingerprint`, `XMPBackupManager`, `XMPChangePlan`, `SameBaseNameGroupResolver` |
+| `Metadata/` | Phase 2: candidate and quality-assessment extraction, deterministic quality grading, shared coordinate/GPS keyword safety, XMP naming/grouping, owned XMP parser/writer engine for managed keyword bags and scalars, backups, merge validation | `CandidateExtractor`, `QualityAssessmentExtractor`, `QualityGradingPolicy`, `QualityTierDeriver`, `KeywordSafetyPolicy`, `MetadataWriteEngine` (protocol), `OwnedXMPSidecarEngine`, `XMPDocumentParser/Writer`, `XMPKeywordReader/Merger`, `XMPScalarReader/Merger`, `XMPManagedScalar`, `XMPMetadataSnapshot`, `XMPUnmanagedContentFingerprint`, `XMPBackupManager`, `XMPChangePlan`, `PlannedScalarWrite`, `SameBaseNameGroupResolver` |
 | `Normalization/` | Phase 3: vocabulary load/index/validate, canonicalization, affinity graph, consensus, session documents, decision explainer, GUI review application | `VocabularyLoader/Index/Validator`, `VocabularyTextFolder`, `CandidateCanonicalizer`, `AssetAffinityGraph`, `BatchConsensusEngine`, `NormalizationSessionDocument`, `NormalizedXMPChangePlanner`, `NormalizationDecisionExplainer` (CORE-6), `SessionReview` (CORE-7) |
 | `Pipeline/` | Orchestration of everything above + interruption handling | see entry-point table below |
 | `Reporting/` | Injectable logger, JSONL progress logs, reports, summaries, schema identifiers, shared owned-artifact prefixes | `Logger` (injectable sink), `ProgressLog`, `JSONLWriter`, `BatchSummary`, `XMPExportReport`, `NormalizationReport`, `ArtifactNames` |
@@ -57,7 +57,7 @@ All results are `Sendable`; no `@MainActor` coupling; Core never prints directly
 
 ## CLI Layer (Sources/AISidecarCLI)
 
-One file per subcommand (`AnalyzeCommand`, `AssessQualityCommand`, `WriteXMPCommand`, `NormalizeCommand`, `ApplySessionCommand`, `ExplainSessionCommand`, `BenchmarkCommand`, `PurgeCommand`, `CleanupCommand`) plus `SharedOptions`. `--assess-quality` is available on `analyze` and the analyze-and-write shape of `write-xmp`; it selects `tagging_with_quality`. `assess-quality` selects `quality_only` and writes `.quality.ai.json`. The CLI does argument parsing, invocation-request building, and stdout presentation only — reusable behavior belongs in Core.
+One file per subcommand (`AnalyzeCommand`, `AssessQualityCommand`, `WriteXMPCommand`, `NormalizeCommand`, `ApplySessionCommand`, `ExplainSessionCommand`, `BenchmarkCommand`, `PurgeCommand`, `CleanupCommand`) plus `SharedOptions`. `--assess-quality` is available on `analyze` and the analyze-and-write shape of `write-xmp`; it selects `tagging_with_quality`. `assess-quality` selects `quality_only` and writes `.quality.ai.json`. `write-xmp --quality-grading` is the separate, default-off export switch that grades stored assessments and adds managed-scalar rows to the existing XMP plan/write path. The CLI does argument parsing, invocation-request building, and stdout presentation only — reusable behavior belongs in Core.
 
 ## GUI Layer (Sources/CupricAspectApp)
 
@@ -83,8 +83,9 @@ GUI model tests live in `Tests/CupricAspectAppTests` (offline, deterministic —
 
 | Artifact | Where |
 |---|---|
-| Raw AI sidecar | Tagging/combined: `<image>.<ext>.ai.json`; quality-only: `<image>.<ext>.quality.ai.json`; beside the image or mirrored under `--output-dir`; `run_configuration.task_profile` records the model contract |
-| XMP sidecar | owned parser/writer output, target naming in `Metadata/XMPNaming.swift` |
+| Raw AI sidecar | Tagging/combined: `<image>.<ext>.ai.json`; quality-only: `<image>.<ext>.quality.ai.json`; beside the image or mirrored under `--output-dir`; `run_configuration.task_profile` records the model contract. After a successful export (including an unchanged target), the pipeline attempts to update contributing tagging and quality siblings with an additive `xmp_export` stamp containing any actual tool-owned scalar values and the quality tier when graded; stamp failures are warnings after the validated XMP result. |
+| XMP sidecar | Owned parser/writer output, target naming in `Metadata/XMPNaming.swift`; managed fields are the `dc:subject` and `lr:hierarchicalSubject` bags plus opt-in `xmp:Rating`, `xmp:Label`, label-coupled `photoshop:Urgency`, and the coupled Lightroom `xmpDM:pick`/`xmpDM:good` flag-pair scalars. |
+| XMP dry-run plan / export report | `ai-sidecar-xmp-change-plan/1.2` / `ai-sidecar-xmp-export/1.2`; scalar plan rows, derived tier, and quality explanation are additive and appear only when grading is enabled. |
 | Progress log / report / summary | `*-progress-*.jsonl` / `*-report-*.json` / `*-summary-*.md` (names in `Reporting/ArtifactNames.swift`) |
 | Normalization session | `normalization-session-*.json`, reusable by `apply-session` |
 | Model-input export manifest | `model-input-export-*.json`, protected diagnostic manifest |

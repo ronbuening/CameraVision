@@ -1,9 +1,9 @@
 import CryptoKit
 import Foundation
 
-/// Semantic fingerprint for XMP content outside the Phase 2 managed keyword fields.
+/// Semantic fingerprint for XMP content outside the owned engine's managed fields.
 public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
-    public static let algorithmVersion = "xmp-unmanaged-content-fingerprint/1.0"
+    public static let algorithmVersion = "xmp-unmanaged-content-fingerprint/3.0"
 
     public var algorithmVersion: String
     public var canonicalEntries: [String]
@@ -50,12 +50,23 @@ public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
             return .empty()
         }
         var entries: [String] = []
-        appendEntries(for: root, currentPath: [segment(for: root, occurrence: 0)], entries: &entries)
+        appendEntries(
+            for: root,
+            currentPath: [segment(for: root, occurrence: 0)],
+            rdfElement: parsed.rdfElement,
+            entries: &entries
+        )
         return make(canonicalEntries: entries)
     }
 
-    private static func appendEntries(for element: XMLElement, currentPath: [String], entries: inout [String]) {
-        guard !XMPXML.isManagedProperty(element) else {
+    private static func appendEntries(
+        for element: XMLElement,
+        currentPath: [String],
+        rdfElement: XMLElement,
+        entries: inout [String]
+    ) {
+        guard !XMPXML.isManagedProperty(element), !isOwnedManagedScalarElement(element, rdfElement: rdfElement)
+        else {
             return
         }
 
@@ -63,7 +74,10 @@ public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
         entries.append("element|\(pathString)|uri=\(element.uri ?? "")|local=\(element.xmlLocalName)")
 
         let attributes = (element.attributes ?? [])
-            .filter { !XMPXML.isManagedAttribute($0) }
+            .filter {
+                !XMPXML.isManagedAttribute($0)
+                    && !isOwnedManagedScalarAttribute($0, on: element, rdfElement: rdfElement)
+            }
             .sorted { lhs, rhs in
                 attributeSortKey(lhs) < attributeSortKey(rhs)
             }
@@ -73,7 +87,9 @@ public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
             )
         }
 
-        let elementChildren = XMPXML.elementChildren(of: element).filter { !XMPXML.isManagedProperty($0) }
+        let elementChildren = XMPXML.elementChildren(of: element).filter {
+            !XMPXML.isManagedProperty($0) && !isOwnedManagedScalarElement($0, rdfElement: rdfElement)
+        }
         let hasElementChildren = !elementChildren.isEmpty
         let text = (element.children ?? [])
             .filter { $0.kind == .text }
@@ -93,6 +109,7 @@ public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
             appendEntries(
                 for: child,
                 currentPath: currentPath + [segment(for: child, occurrence: occurrence)],
+                rdfElement: rdfElement,
                 entries: &entries
             )
         }
@@ -104,6 +121,41 @@ public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
 
     private static func attributeSortKey(_ attribute: XMLNode) -> String {
         "\(attribute.uri ?? "")|\(attribute.xmlLocalName)|\(attribute.stringValue ?? "")"
+    }
+
+    private static func isOwnedManagedScalarElement(_ element: XMLElement, rdfElement: XMLElement) -> Bool {
+        guard
+            XMPManagedScalar.allCases.contains(where: {
+                element.xmlLocalName == $0.localName && element.uri == $0.namespaceURI
+            }), let description = element.parent as? XMLElement,
+            isDirectRDFDescription(description, rdfElement: rdfElement)
+        else {
+            return false
+        }
+        return true
+    }
+
+    private static func isOwnedManagedScalarAttribute(
+        _ attribute: XMLNode,
+        on element: XMLElement,
+        rdfElement: XMLElement
+    ) -> Bool {
+        guard isDirectRDFDescription(element, rdfElement: rdfElement) else {
+            return false
+        }
+        return XMPManagedScalar.allCases.contains {
+            attribute.xmlLocalName == $0.localName && attribute.uri == $0.namespaceURI
+        }
+    }
+
+    // Scalars are excluded only under the parser-located rdf:RDF element; a
+    // lookalike in a second RDF island stays fingerprinted because the reader
+    // and merger never touch it.
+    private static func isDirectRDFDescription(_ element: XMLElement, rdfElement: XMLElement) -> Bool {
+        guard XMPXML.isRDFDescription(element) else {
+            return false
+        }
+        return element.parent === rdfElement
     }
 }
 

@@ -15,6 +15,12 @@ struct AnalyzeCommand: AsyncParsableCommand {
     @Flag(help: "Print the scan result with identities and relative paths, then exit.")
     var dryScan = false
 
+    @Flag(
+        help:
+            "Also produce a perceptual quality assessment per image (adds the quality_assessment block to raw sidecars)."
+    )
+    var assessQuality = false
+
     @Option(help: "Export rendered model-input images into this folder and write a manifest.")
     var exportModelInputs: String?
 
@@ -22,7 +28,9 @@ struct AnalyzeCommand: AsyncParsableCommand {
     var shared: SharedOptions
 
     mutating func run() async throws {
-        let resolved = try ConfigurationResolver.resolve(cli: shared.overrides)
+        var overrides = shared.overrides
+        overrides.qualityAssessment = assessQuality ? true : nil
+        let resolved = try ConfigurationResolver.resolve(cli: overrides)
 
         if dryScan {
             let cache = DerivativeCache(

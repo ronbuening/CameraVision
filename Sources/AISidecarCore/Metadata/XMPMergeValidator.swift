@@ -51,7 +51,12 @@ public struct XMPMergeValidator {
     public func validate(
         plan: XMPChangePlan,
         preWriteSnapshot: XMPMetadataSnapshot,
-        postWriteSnapshot: XMPMetadataSnapshot
+        postWriteSnapshot: XMPMetadataSnapshot,
+        plannedRating: String? = nil,
+        plannedLabel: String? = nil,
+        plannedUrgency: String? = nil,
+        plannedPick: String? = nil,
+        plannedGood: String? = nil
     ) -> XMPMergeValidationResult {
         let expectedFlat = plan.flatKeywordsToAdd.map(\.term)
         let expectedHierarchical = plan.hierarchicalKeywordsToAdd.map(\.term)
@@ -101,6 +106,42 @@ public struct XMPMergeValidator {
                 ))
         }
 
+        validateScalar(
+            field: "xmp:Rating",
+            plannedValue: plannedRating,
+            preWriteValue: preWriteSnapshot.rating,
+            postWriteValue: postWriteSnapshot.rating,
+            errors: &errors
+        )
+        validateScalar(
+            field: "xmp:Label",
+            plannedValue: plannedLabel,
+            preWriteValue: preWriteSnapshot.label,
+            postWriteValue: postWriteSnapshot.label,
+            errors: &errors
+        )
+        validateScalar(
+            field: "photoshop:Urgency",
+            plannedValue: plannedUrgency,
+            preWriteValue: preWriteSnapshot.urgency,
+            postWriteValue: postWriteSnapshot.urgency,
+            errors: &errors
+        )
+        validateScalar(
+            field: "xmpDM:pick",
+            plannedValue: plannedPick,
+            preWriteValue: preWriteSnapshot.pick,
+            postWriteValue: postWriteSnapshot.pick,
+            errors: &errors
+        )
+        validateScalar(
+            field: "xmpDM:good",
+            plannedValue: plannedGood,
+            preWriteValue: preWriteSnapshot.good,
+            postWriteValue: postWriteSnapshot.good,
+            errors: &errors
+        )
+
         let unmanagedPreserved =
             !preWriteSnapshot.exists
             || preWriteSnapshot.unmanagedContentFingerprint == postWriteSnapshot.unmanagedContentFingerprint
@@ -124,6 +165,32 @@ public struct XMPMergeValidator {
 
     private func normalizedSet(_ keywords: [String]) -> Set<String> {
         Set(keywords.map { KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)) })
+    }
+
+    private func validateScalar(
+        field: String,
+        plannedValue: String?,
+        preWriteValue: String?,
+        postWriteValue: String?,
+        errors: inout [SidecarError]
+    ) {
+        if let plannedValue {
+            if postWriteValue != plannedValue {
+                errors.append(
+                    validationError(
+                        "Expected \(field) value \(display(plannedValue)) after write; found \(display(postWriteValue))."
+                    ))
+            }
+        } else if preWriteValue != postWriteValue {
+            errors.append(
+                validationError(
+                    "Unplanned \(field) value changed from \(display(preWriteValue)) to \(display(postWriteValue))."
+                ))
+        }
+    }
+
+    private func display(_ value: String?) -> String {
+        value.map { "\"\($0)\"" } ?? "<absent>"
     }
 
     private func validationError(_ message: String) -> SidecarError {

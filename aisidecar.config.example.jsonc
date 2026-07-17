@@ -156,6 +156,71 @@
   // Preserve raw .ai.json sidecars in analyze-and-write or analyze-and-normalize modes.
   "write_ai_json": true,
 
+  // Derive ratings, color labels, Capture One urgency values, and quality
+  // keywords from stored quality assessments during write-xmp. This master
+  // switch is off by default, so write-xmp remains keywords-only unless enabled.
+  "xmp_quality_grading": false,
+
+  // Existing managed-scalar handling, independent of xmp_conflict_policy.
+  // Options: "preserve", "refresh", "overwrite". "refresh" may replace only
+  // values that still match the newest value previously stamped by aisidecar.
+  "xmp_quality_conflicts": "preserve",
+
+  // Minimum assessment confidence eligible for grading.
+  // Options: "low", "medium", "high".
+  "xmp_quality_min_confidence": "medium",
+
+  // Individual grading output channels. Labels, urgency, pick flags, and
+  // keywords default to true inside the disabled xmp_quality_grading master
+  // switch; the rating channel is opt-in so xmp:Rating stays free for the
+  // user's own star edits.
+  "xmp_quality_write_rating": false,
+  "xmp_quality_write_label": true,
+  "xmp_quality_write_urgency": true,
+  "xmp_quality_write_flag": true,
+  "xmp_quality_write_keywords": true,
+
+  // Write a rejected image as rating -1 instead of its rating-map value.
+  "xmp_quality_reject_as_minus_one": false,
+
+  // Add deterministic AI Quality|problems|... keywords for problem criteria.
+  "xmp_quality_per_criterion_problem_keywords": false,
+
+  // Hierarchical root for deterministic quality keywords. It must be non-empty
+  // and cannot itself contain the hierarchy separator "|".
+  "xmp_quality_keyword_root": "AI Quality",
+
+  // Tier maps are config-file-only structured values. Rating values must be
+  // between -1 and 5. Omitted tiers produce no rating.
+  "xmp_quality_rating_map": {
+    "reject": 1,
+    "below_average": 2,
+    "neutral": 3,
+    "good": 4,
+    "excellent": 5
+  },
+
+  // Labels must be non-empty and cannot contain "|". Omitted tiers produce no
+  // label. The defaults use Capture One's Red and Green color-label names.
+  "xmp_quality_label_map": {
+    "reject": "Red",
+    "excellent": "Green"
+  },
+
+  // Capture One 16.8.4 writes Red as urgency 1 and Green as urgency 2. Urgency
+  // values must be 1...8 and are emitted only alongside a mapped label.
+  "xmp_quality_urgency_map": {
+    "reject": 1,
+    "excellent": 2
+  },
+
+  // Lightroom pick flags, written as the coupled xmpDM:pick/xmpDM:good pair
+  // ("pick" = 1/true, "reject" = -1/false). Omitted tiers produce no flag.
+  "xmp_quality_flag_map": {
+    "reject": "reject",
+    "excellent": "pick"
+  },
+
   // Phase 3 vocabulary source. Options: "observed-tags", "controlled-vocabulary".
   // The default "observed-tags" normalizes only model-generated tags from the
   // current batch and does not load the bundled vocabulary.

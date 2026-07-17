@@ -11,17 +11,6 @@ struct XMPKeywordMergeOutcome: Equatable {
 struct XMPKeywordMerger {
     private let reader = XMPKeywordReader()
 
-    func preview(plan: XMPChangePlan, snapshot: XMPMetadataSnapshot) -> XMPKeywordMergeOutcome {
-        let flat = merge(existing: snapshot.flatKeywords, planned: plan.flatKeywordsToAdd)
-        let hierarchical = merge(existing: snapshot.hierarchicalKeywords, planned: plan.hierarchicalKeywordsToAdd)
-        return XMPKeywordMergeOutcome(
-            addedFlatKeywords: flat.added,
-            addedHierarchicalKeywords: hierarchical.added,
-            resultingFlatKeywords: flat.resulting,
-            resultingHierarchicalKeywords: hierarchical.resulting
-        )
-    }
-
     func merge(plan: XMPChangePlan, into parsed: XMPParsedDocument) throws -> XMPKeywordMergeOutcome {
         let flat = merge(
             field: .flat,
@@ -60,10 +49,6 @@ struct XMPKeywordMerger {
             bag.addChild(item)
         }
         return mergeResult
-    }
-
-    private func merge(existing: [String], planned: [PlannedKeyword]) -> (added: [String], resulting: [String]) {
-        merge(existing: existing, plannedTerms: planned.map(\.term))
     }
 
     private func merge(existing: [String], plannedTerms: [String]) -> (added: [String], resulting: [String]) {
