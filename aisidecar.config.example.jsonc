@@ -170,9 +170,11 @@
   // Options: "low", "medium", "high".
   "xmp_quality_min_confidence": "medium",
 
-  // Individual grading output channels. These default to true inside the
-  // disabled xmp_quality_grading master switch.
-  "xmp_quality_write_rating": true,
+  // Individual grading output channels. Labels, urgency, pick flags, and
+  // keywords default to true inside the disabled xmp_quality_grading master
+  // switch; the rating channel is opt-in so xmp:Rating stays free for the
+  // user's own star edits.
+  "xmp_quality_write_rating": false,
   "xmp_quality_write_label": true,
   "xmp_quality_write_urgency": true,
   "xmp_quality_write_flag": true,

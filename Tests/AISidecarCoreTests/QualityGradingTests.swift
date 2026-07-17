@@ -10,6 +10,16 @@ final class QualityGradingTests: XCTestCase {
         XCTAssertEqual(policy.urgencyMap, [.reject: 1, .excellent: 2])
     }
 
+    func testBuiltInChannelDefaultsKeepRatingOptIn() {
+        let policy = QualityGradingPolicy.builtInDefaults
+
+        XCTAssertFalse(policy.writeRating)
+        XCTAssertTrue(policy.writeLabel)
+        XCTAssertTrue(policy.writeUrgency)
+        XCTAssertTrue(policy.writeFlag)
+        XCTAssertTrue(policy.writeKeywords)
+    }
+
     func testRuleTableCoversEveryTierRowAndThresholdBoundary() throws {
         struct Case {
             var name: String
@@ -225,6 +235,7 @@ final class QualityGradingTests: XCTestCase {
 
     func testRejectMinusOneChangesOnlyRejectRating() {
         var policy = QualityGradingPolicy.builtInDefaults
+        policy.writeRating = true
         policy.rejectAsMinusOne = true
         let reject = QualityTierDeriver.grade(
             whole: record(role: .wholeImage, overall: .problem, confidence: .high, focus: .problem),
@@ -370,7 +381,7 @@ final class QualityGradingTests: XCTestCase {
             )
         )
         XCTAssertNil(suppressed.flag)
-        XCTAssertEqual(suppressed.rating, 1)
+        XCTAssertEqual(suppressed.label, "Red")
     }
 
     func testGradingPolicyRoundTripsWithSnakeCaseKeysAndRawTierMapKeys() throws {

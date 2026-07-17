@@ -75,9 +75,11 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
     public var urgencyMap: [QualityTier: Int]
     public var flagMap: [QualityTier: QualityPickFlag]
 
+    // Rating is opt-in: keywords, labels, and pick flags are the default
+    // channels, so xmp:Rating stays free for the user's own star edits.
     public init(
         minimumConfidence: QualityAssessmentRecord.Confidence = .medium,
-        writeRating: Bool = true,
+        writeRating: Bool = false,
         writeLabel: Bool = true,
         writeUrgency: Bool = true,
         writeFlag: Bool = true,

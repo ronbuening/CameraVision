@@ -51,6 +51,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertFalse(resolved.qualityGrading.enabled)
         XCTAssertEqual(resolved.qualityGrading.conflictPolicy, .preserve)
         XCTAssertEqual(resolved.qualityGrading.policy.urgencyMap, [.reject: 1, .excellent: 2])
+        XCTAssertFalse(resolved.qualityGrading.policy.writeRating)
         XCTAssertTrue(resolved.qualityGrading.policy.writeFlag)
         XCTAssertEqual(resolved.qualityGrading.policy.flagMap, [.reject: .reject, .excellent: .pick])
     }
