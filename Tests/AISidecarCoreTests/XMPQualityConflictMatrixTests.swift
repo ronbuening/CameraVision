@@ -224,6 +224,48 @@ final class XMPQualityConflictMatrixTests: XCTestCase {
         XCTAssertFalse(text.contains("rating_write"))
     }
 
+    func testGradingEnabledPlanMatchesRefactorFixtureBytes() throws {
+        let input = try qualityInput(stampedRating: nil)
+        var policy = QualityGradingPolicy(
+            writeRating: true,
+            writeLabel: true,
+            writeUrgency: true,
+            writeFlag: true,
+            writeKeywords: true
+        )
+        policy.labelMap[.good] = "Green"
+        policy.urgencyMap[.good] = 2
+        policy.flagMap[.good] = .pick
+        var configuration = ResolvedXMPExportConfiguration.builtInDefaults
+        configuration.qualityGrading = ResolvedQualityGradingConfiguration(
+            enabled: true,
+            conflictPolicy: .preserve,
+            policy: policy
+        )
+
+        let document = XMPChangePlanner().plan(
+            inputBatch: RawJSONSidecarInputBatch(inputs: [input], failures: []),
+            extractionResults: [emptyExtraction(for: input)],
+            configuration: configuration,
+            snapshotReader: { path in .empty(targetPath: path, exists: false) }
+        )
+        let encoded = try JSONCoding.documentEncoder().encode(document)
+        let fixtureURL = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: "quality-grading-plan-pre-qn2",
+                withExtension: "json",
+                subdirectory: "xmp-plans"
+            )
+                ?? Bundle.module.url(forResource: "quality-grading-plan-pre-qn2", withExtension: "json")
+        )
+        var expected = try Data(contentsOf: fixtureURL)
+        if expected.last == UInt8(ascii: "\n") {
+            expected.removeLast()
+        }
+
+        XCTAssertEqual(encoded, expected)
+    }
+
     func testPreservedForeignLabelSuppressesCorrespondingUrgencyWrite() throws {
         let input = try qualityInput(stampedRating: nil)
         var policy = QualityGradingPolicy(
