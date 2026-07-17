@@ -147,6 +147,95 @@ final class XMPOwnedEngineTests: XCTestCase {
         }
     }
 
+    func testScalarMergerCreatesAttributeScalarsAndDeclaresNamespacesOnce() throws {
+        let parsed = XMPDocumentWriter().makeNewDocument(
+            targetPath: "/tmp/NewScalars.xmp",
+            includeHierarchicalBag: true
+        )
+        let merger = XMPScalarMerger()
+
+        try merger.setScalar(.rating, to: "4", in: parsed)
+        try merger.setScalar(.label, to: "Green", in: parsed)
+        try merger.setScalar(.urgency, to: "2", in: parsed)
+        try merger.setScalar(.rating, to: "5", in: parsed)
+
+        XCTAssertEqual(
+            (parsed.rdfElement.namespaces ?? []).filter {
+                $0.name == "xmp" && $0.stringValue == XMPNamespace.xmp
+            }.count,
+            1
+        )
+        XCTAssertEqual(
+            (parsed.rdfElement.namespaces ?? []).filter {
+                $0.name == "photoshop" && $0.stringValue == XMPNamespace.photoshop
+            }.count,
+            1
+        )
+        let data = try XMPDocumentWriter().data(for: parsed)
+        let reparsed = try XMPDocumentParser().parse(data: data, targetPath: parsed.targetPath)
+        XCTAssertEqual(try XMPScalarReader.read(.rating, in: reparsed)?.value, "5")
+        XCTAssertEqual(try XMPScalarReader.read(.rating, in: reparsed)?.form, .attribute)
+        XCTAssertEqual(try XMPScalarReader.read(.label, in: reparsed)?.value, "Green")
+        XCTAssertEqual(try XMPScalarReader.read(.label, in: reparsed)?.form, .attribute)
+        XCTAssertEqual(try XMPScalarReader.read(.urgency, in: reparsed)?.value, "2")
+        XCTAssertEqual(try XMPScalarReader.read(.urgency, in: reparsed)?.form, .attribute)
+
+        let xml = try XCTUnwrap(String(data: data, encoding: .utf8))
+        XCTAssertEqual(xml.components(separatedBy: "xmlns:xmp=").count - 1, 1)
+        XCTAssertEqual(xml.components(separatedBy: "xmlns:photoshop=").count - 1, 1)
+    }
+
+    func testScalarMergerUpdatesAttributeFormInPlace() throws {
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(attributeScalarXMP.utf8),
+            targetPath: "/tmp/AttributeScalars.xmp"
+        )
+
+        try XMPScalarMerger().setScalar(.rating, to: "5", in: parsed)
+
+        let data = try XMPDocumentWriter().data(for: parsed)
+        let reparsed = try XMPDocumentParser().parse(data: data, targetPath: parsed.targetPath)
+        let occurrence = try XCTUnwrap(try XMPScalarReader.read(.rating, in: reparsed))
+        XCTAssertEqual(occurrence.value, "5")
+        XCTAssertEqual(occurrence.form, .attribute)
+        XCTAssertTrue(try XCTUnwrap(String(data: data, encoding: .utf8)).contains("xmp:Rating=\"5\""))
+    }
+
+    func testScalarMergerUpdatesElementFormInPlace() throws {
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(elementScalarXMP.utf8),
+            targetPath: "/tmp/ElementScalars.xmp"
+        )
+
+        try XMPScalarMerger().setScalar(.label, to: "Red", in: parsed)
+
+        let data = try XMPDocumentWriter().data(for: parsed)
+        let reparsed = try XMPDocumentParser().parse(data: data, targetPath: parsed.targetPath)
+        let occurrence = try XCTUnwrap(try XMPScalarReader.read(.label, in: reparsed))
+        XCTAssertEqual(occurrence.value, "Red")
+        XCTAssertEqual(occurrence.form, .element)
+        XCTAssertTrue(try XCTUnwrap(String(data: data, encoding: .utf8)).contains("<quality:Label>Red</quality:Label>"))
+    }
+
+    func testScalarMergerUpdatesEveryEqualDuplicateOccurrence() throws {
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(equalDuplicateScalarXMP.utf8),
+            targetPath: "/tmp/EqualScalarDuplicates.xmp"
+        )
+        let merger = XMPScalarMerger()
+
+        try merger.setScalar(.rating, to: "5", in: parsed)
+        try merger.setScalar(.label, to: "Red", in: parsed)
+        try merger.setScalar(.urgency, to: "1", in: parsed)
+
+        XCTAssertEqual(try XMPScalarReader.read(.rating, in: parsed)?.value, "5")
+        XCTAssertEqual(try XMPScalarReader.read(.label, in: parsed)?.value, "Red")
+        XCTAssertEqual(try XMPScalarReader.read(.urgency, in: parsed)?.value, "1")
+        let xml = try XCTUnwrap(String(data: XMPDocumentWriter().data(for: parsed), encoding: .utf8))
+        XCTAssertEqual(xml.components(separatedBy: "Rating=\"5\"").count - 1, 1)
+        XCTAssertEqual(xml.components(separatedBy: ">5</xmp:Rating>").count - 1, 1)
+    }
+
     func testParserPrefersDescriptionWhoseAboutMatchesSourceFile() throws {
         let xmp = """
             <?xml version="1.0" encoding="UTF-8"?>
