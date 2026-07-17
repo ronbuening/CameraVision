@@ -85,6 +85,15 @@ final class NormalizationInvocationTests: XCTestCase {
                 noWriteHierarchicalKeywords: true
             ),
             NormalizationInvocationRequest(inputPath: "Images", backupSidecars: true, noBackupSidecars: true),
+            NormalizationInvocationRequest(inputPath: "Images", writeRating: true, noWriteRating: true),
+            NormalizationInvocationRequest(inputPath: "Images", writeLabel: true, noWriteLabel: true),
+            NormalizationInvocationRequest(inputPath: "Images", writeUrgency: true, noWriteUrgency: true),
+            NormalizationInvocationRequest(inputPath: "Images", writeFlag: true, noWriteFlag: true),
+            NormalizationInvocationRequest(
+                inputPath: "Images",
+                writeQualityKeywords: true,
+                noWriteQualityKeywords: true
+            ),
             NormalizationInvocationRequest(inputPath: "Images", writeAIJSON: true, noWriteAIJSON: true),
         ]
 
@@ -93,6 +102,38 @@ final class NormalizationInvocationTests: XCTestCase {
                 _ = try NormalizationInvocationValidator.validate(request)
             }
         }
+    }
+
+    func testNormalizeAcceptsQualityGradingOptionsForExistingAndAnalyzeInputs() throws {
+        let fromJSON = try NormalizationInvocationValidator.validate(
+            NormalizationInvocationRequest(
+                fromJSONPath: "A.ai.json",
+                qualityGrading: true,
+                qualityConflicts: .overwrite,
+                qualityMinConfidence: .low,
+                noWriteRating: true,
+                writeLabel: true,
+                noWriteUrgency: true,
+                writeFlag: true,
+                writeQualityKeywords: true
+            )
+        )
+        XCTAssertEqual(fromJSON, .fromJSON(path: "A.ai.json"))
+
+        let analyze = try NormalizationInvocationValidator.validate(
+            NormalizationInvocationRequest(
+                inputPath: "Images",
+                qualityGrading: true,
+                qualityConflicts: .refresh,
+                qualityMinConfidence: .high,
+                writeRating: true,
+                noWriteLabel: true,
+                writeUrgency: true,
+                noWriteFlag: true,
+                noWriteQualityKeywords: true
+            )
+        )
+        XCTAssertEqual(analyze, .analyze(inputPath: "Images"))
     }
 
     func testApplySessionRejectsDecisionFlagsAndRequiresSessionPath() throws {

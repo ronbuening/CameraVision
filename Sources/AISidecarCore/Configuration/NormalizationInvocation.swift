@@ -34,6 +34,19 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
     public var noWriteHierarchicalKeywords: Bool
     public var backupSidecars: Bool
     public var noBackupSidecars: Bool
+    public var qualityGrading: Bool
+    public var qualityConflicts: ScalarConflictPolicy?
+    public var qualityMinConfidence: XMPMinimumConfidence?
+    public var writeRating: Bool
+    public var noWriteRating: Bool
+    public var writeLabel: Bool
+    public var noWriteLabel: Bool
+    public var writeUrgency: Bool
+    public var noWriteUrgency: Bool
+    public var writeFlag: Bool
+    public var noWriteFlag: Bool
+    public var writeQualityKeywords: Bool
+    public var noWriteQualityKeywords: Bool
     public var writeAIJSON: Bool
     public var noWriteAIJSON: Bool
 
@@ -63,6 +76,19 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
         noWriteHierarchicalKeywords: Bool = false,
         backupSidecars: Bool = false,
         noBackupSidecars: Bool = false,
+        qualityGrading: Bool = false,
+        qualityConflicts: ScalarConflictPolicy? = nil,
+        qualityMinConfidence: XMPMinimumConfidence? = nil,
+        writeRating: Bool = false,
+        noWriteRating: Bool = false,
+        writeLabel: Bool = false,
+        noWriteLabel: Bool = false,
+        writeUrgency: Bool = false,
+        noWriteUrgency: Bool = false,
+        writeFlag: Bool = false,
+        noWriteFlag: Bool = false,
+        writeQualityKeywords: Bool = false,
+        noWriteQualityKeywords: Bool = false,
         writeAIJSON: Bool = false,
         noWriteAIJSON: Bool = false
     ) {
@@ -91,6 +117,19 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
         self.noWriteHierarchicalKeywords = noWriteHierarchicalKeywords
         self.backupSidecars = backupSidecars
         self.noBackupSidecars = noBackupSidecars
+        self.qualityGrading = qualityGrading
+        self.qualityConflicts = qualityConflicts
+        self.qualityMinConfidence = qualityMinConfidence
+        self.writeRating = writeRating
+        self.noWriteRating = noWriteRating
+        self.writeLabel = writeLabel
+        self.noWriteLabel = noWriteLabel
+        self.writeUrgency = writeUrgency
+        self.noWriteUrgency = noWriteUrgency
+        self.writeFlag = writeFlag
+        self.noWriteFlag = noWriteFlag
+        self.writeQualityKeywords = writeQualityKeywords
+        self.noWriteQualityKeywords = noWriteQualityKeywords
         self.writeAIJSON = writeAIJSON
         self.noWriteAIJSON = noWriteAIJSON
     }
@@ -141,6 +180,23 @@ public enum NormalizationInvocationValidator {
         )
         try InvocationRules.rejectConflictingFlag(
             "backup-sidecars", enabled: request.backupSidecars, disabled: request.noBackupSidecars
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-rating", enabled: request.writeRating, disabled: request.noWriteRating
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-label", enabled: request.writeLabel, disabled: request.noWriteLabel
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-urgency", enabled: request.writeUrgency, disabled: request.noWriteUrgency
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-flag", enabled: request.writeFlag, disabled: request.noWriteFlag
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-quality-keywords",
+            enabled: request.writeQualityKeywords,
+            disabled: request.noWriteQualityKeywords
         )
         try InvocationRules.rejectConflictingFlag(
             "write-ai-json", enabled: request.writeAIJSON, disabled: request.noWriteAIJSON

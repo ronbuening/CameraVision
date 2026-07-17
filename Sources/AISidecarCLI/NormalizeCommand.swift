@@ -114,6 +114,9 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Option(help: "Minimum candidate confidence to normalize: low, medium, or high.")
     var minConfidence: XMPMinimumConfidence?
 
+    @OptionGroup
+    var quality: QualityGradingOptions
+
     @Flag(help: "Allow fallback specific tags when normalization policy permits fallback.")
     var allowSpecificTags = false
 
@@ -290,6 +293,19 @@ struct NormalizeCommand: AsyncParsableCommand {
             noWriteHierarchicalKeywords: noWriteHierarchicalKeywords,
             backupSidecars: backupSidecars,
             noBackupSidecars: noBackupSidecars,
+            qualityGrading: quality.qualityGrading,
+            qualityConflicts: quality.qualityConflicts,
+            qualityMinConfidence: quality.qualityMinConfidence,
+            writeRating: quality.writeRating,
+            noWriteRating: quality.noWriteRating,
+            writeLabel: quality.writeLabel,
+            noWriteLabel: quality.noWriteLabel,
+            writeUrgency: quality.writeUrgency,
+            noWriteUrgency: quality.noWriteUrgency,
+            writeFlag: quality.writeFlag,
+            noWriteFlag: quality.noWriteFlag,
+            writeQualityKeywords: quality.writeQualityKeywords,
+            noWriteQualityKeywords: quality.noWriteQualityKeywords,
             writeAIJSON: writeAIJSON,
             noWriteAIJSON: noWriteAIJSON
         )
@@ -331,7 +347,8 @@ struct NormalizeCommand: AsyncParsableCommand {
             allowSessionSubjectPropagation: allowSessionSubjectPropagation ? true : nil,
             allowSessionHabitatPropagation: allowSessionHabitatPropagation ? true : nil,
             allowSessionEventPropagation: allowSessionEventPropagation ? true : nil,
-            writeReportPath: writeReport
+            writeReportPath: writeReport,
+            qualityGrading: quality.overrides
         )
     }
 
