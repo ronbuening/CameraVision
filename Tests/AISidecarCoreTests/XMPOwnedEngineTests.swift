@@ -182,6 +182,45 @@ final class XMPOwnedEngineTests: XCTestCase {
         }
     }
 
+    func testFingerprintRetainsScalarsOutsideTheLocatedRDFIsland() throws {
+        let xmp = """
+            <x:xmpmeta xmlns:x="adobe:ns:meta/">
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                <rdf:Description rdf:about="" xmp:Rating="4"/>
+              </rdf:RDF>
+              <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                       xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+                <rdf:Description rdf:about="" xmp:Rating="2"/>
+              </rdf:RDF>
+            </x:xmpmeta>
+            """
+        let original = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/SecondIsland.xmp"
+        )
+        let changedSecondIsland = try XMPDocumentParser().parse(
+            data: Data(xmp.replacingOccurrences(of: "xmp:Rating=\"2\"", with: "xmp:Rating=\"1\"").utf8),
+            targetPath: "/tmp/ChangedSecondIsland.xmp"
+        )
+        let changedLocatedIsland = try XMPDocumentParser().parse(
+            data: Data(xmp.replacingOccurrences(of: "xmp:Rating=\"4\"", with: "xmp:Rating=\"5\"").utf8),
+            targetPath: "/tmp/ChangedLocatedIsland.xmp"
+        )
+
+        // The reader sees only the located island, so the second island's
+        // lookalike must stay under fingerprint protection.
+        XCTAssertEqual(try XMPScalarReader.read(.rating, in: original)?.value, "4")
+        XCTAssertNotEqual(
+            XMPUnmanagedContentFingerprint.make(from: original),
+            XMPUnmanagedContentFingerprint.make(from: changedSecondIsland)
+        )
+        XCTAssertEqual(
+            XMPUnmanagedContentFingerprint.make(from: original),
+            XMPUnmanagedContentFingerprint.make(from: changedLocatedIsland)
+        )
+    }
+
     func testScalarReaderReadsAttributeFormForEveryManagedScalar() throws {
         let parsed = try XMPDocumentParser().parse(
             data: Data(attributeScalarXMP.utf8),

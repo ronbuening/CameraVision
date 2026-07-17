@@ -334,7 +334,17 @@ struct WriteXMPCommand: AsyncParsableCommand {
     private func qualityConfidence(
         from value: XMPMinimumConfidence?
     ) -> QualityAssessmentRecord.Confidence? {
-        value.flatMap { QualityAssessmentRecord.Confidence(rawValue: $0.rawValue) }
+        // Exhaustive so a new confidence tier cannot silently drop the flag.
+        switch value {
+        case nil:
+            return nil
+        case .low:
+            return .low
+        case .medium:
+            return .medium
+        case .high:
+            return .high
+        }
     }
 
     private func writeChangePlan(_ changePlan: XMPChangePlanDocument) throws {

@@ -79,6 +79,13 @@ final class XMPQualityConflictMatrixTests: XCTestCase {
                 expectedAction: .skipExisting
             ),
             ConflictRow(
+                name: "refresh absent stamp present",
+                policy: .refresh,
+                existingRating: nil,
+                stampedRating: "3",
+                expectedAction: .write
+            ),
+            ConflictRow(
                 name: "overwrite absent",
                 policy: .overwrite,
                 existingRating: nil,

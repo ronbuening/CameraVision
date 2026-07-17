@@ -438,7 +438,7 @@ public struct XMPExportPipeline {
             )
         } catch {
             let restored: (backup: XMPBackupRecord?, errors: [SidecarError])
-            if XMPScalarWritePrecondition.matches(error) {
+            if error is XMPScalarWritePreconditionFailure {
                 // The owned engine checks this before mutation. Restoring the
                 // earlier backup here would itself overwrite the user/app edit
                 // that made the plan stale.
@@ -965,6 +965,9 @@ public struct XMPExportPipeline {
     }
 
     private func sidecarWriteError(from error: Error, targetPath: String) -> SidecarError {
+        if let precondition = error as? XMPScalarWritePreconditionFailure {
+            return precondition.sidecarError
+        }
         if let sidecarError = error as? SidecarError {
             return sidecarError
         }

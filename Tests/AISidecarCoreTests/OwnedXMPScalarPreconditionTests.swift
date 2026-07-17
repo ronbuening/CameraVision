@@ -33,7 +33,7 @@ final class OwnedXMPScalarPreconditionTests: XCTestCase {
                 { _ = try engine.apply(request) },
             ] {
                 XCTAssertThrowsError(try operation()) { error in
-                    let sidecarError = error as? SidecarError
+                    let sidecarError = (error as? XMPScalarWritePreconditionFailure)?.sidecarError
                     XCTAssertEqual(sidecarError?.code, .validationFailed)
                     XCTAssertEqual(sidecarError?.stage, .write)
                     XCTAssertEqual(sidecarError?.recoverable, true)
@@ -59,10 +59,12 @@ final class OwnedXMPScalarPreconditionTests: XCTestCase {
         let engine = OwnedXMPSidecarEngine()
 
         XCTAssertThrowsError(try engine.preview(request)) { error in
-            XCTAssertEqual((error as? SidecarError)?.code, .validationFailed)
+            XCTAssertEqual(
+                (error as? XMPScalarWritePreconditionFailure)?.sidecarError.code, .validationFailed)
         }
         XCTAssertThrowsError(try engine.apply(request)) { error in
-            XCTAssertEqual((error as? SidecarError)?.code, .validationFailed)
+            XCTAssertEqual(
+                (error as? XMPScalarWritePreconditionFailure)?.sidecarError.code, .validationFailed)
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
     }
@@ -136,10 +138,10 @@ final class OwnedXMPScalarPreconditionTests: XCTestCase {
         let engine = OwnedXMPSidecarEngine()
 
         XCTAssertThrowsError(try engine.preview(request)) { error in
-            XCTAssertTrue(XMPScalarWritePrecondition.matches(error))
+            XCTAssertTrue(error is XMPScalarWritePreconditionFailure)
         }
         XCTAssertThrowsError(try engine.apply(request)) { error in
-            XCTAssertTrue(XMPScalarWritePrecondition.matches(error))
+            XCTAssertTrue(error is XMPScalarWritePreconditionFailure)
         }
         XCTAssertEqual(try Data(contentsOf: target), staleData)
     }

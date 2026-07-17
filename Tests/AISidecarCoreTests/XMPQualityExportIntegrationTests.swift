@@ -213,6 +213,43 @@ final class XMPQualityExportIntegrationTests: XCTestCase {
         }
     }
 
+    func testProgressRecordsCarryScalarWriteIndicators() throws {
+        let written = try makeFixture(confidence: "high", existingXMP: nil)
+        let writtenResult = try XMPExportPipeline(logger: Logger(sink: { _ in })).runFromJSON(
+            fromJSONPath: written.jsonRoot.path,
+            configuration: qualityConfiguration(output: written.output, dryRun: false)
+        )
+        let writtenRecord = try progressRecordObject(at: XCTUnwrap(writtenResult.progressLogPath))
+        XCTAssertEqual(writtenRecord["status"] as? String, "created")
+        XCTAssertEqual(writtenRecord["wrote_rating"] as? Bool, true)
+        XCTAssertEqual(writtenRecord["wrote_label"] as? Bool, true)
+        XCTAssertEqual(writtenRecord["wrote_urgency"] as? Bool, true)
+
+        let skipped = try makeFixture(confidence: "high", existingXMP: qualityForeignScalarsXMP)
+        let skippedResult = try XMPExportPipeline(logger: Logger(sink: { _ in })).runFromJSON(
+            fromJSONPath: skipped.jsonRoot.path,
+            configuration: qualityConfiguration(output: skipped.output, dryRun: false)
+        )
+        let skippedRecord = try progressRecordObject(at: XCTUnwrap(skippedResult.progressLogPath))
+        XCTAssertEqual(skippedRecord["wrote_rating"] as? Bool, false)
+        XCTAssertEqual(skippedRecord["wrote_label"] as? Bool, false)
+        XCTAssertEqual(skippedRecord["wrote_urgency"] as? Bool, false)
+
+        let disabled = try makeFixture(confidence: "high", existingXMP: qualityForeignScalarsXMP)
+        var disabledConfiguration = ResolvedXMPExportConfiguration.builtInDefaults
+        disabledConfiguration.outputDir = disabled.output.path
+        disabledConfiguration.backupSidecars = false
+        disabledConfiguration.xmpConflictPolicy = .merge
+        let disabledResult = try XMPExportPipeline(logger: Logger(sink: { _ in })).runFromJSON(
+            fromJSONPath: disabled.jsonRoot.path,
+            configuration: disabledConfiguration
+        )
+        let disabledRecord = try progressRecordObject(at: XCTUnwrap(disabledResult.progressLogPath))
+        XCTAssertNil(disabledRecord["wrote_rating"])
+        XCTAssertNil(disabledRecord["wrote_label"])
+        XCTAssertNil(disabledRecord["wrote_urgency"])
+    }
+
     private struct Fixture {
         let jsonRoot: URL
         let output: URL
@@ -347,6 +384,16 @@ final class XMPQualityExportIntegrationTests: XCTestCase {
             policy: policy
         )
         return configuration
+    }
+
+    private func progressRecordObject(at path: String) throws -> [String: Any] {
+        let contents = try String(contentsOf: URL(fileURLWithPath: path), encoding: .utf8)
+        let line = try XCTUnwrap(
+            contents.split(separator: "\n").last.map(String.init)
+        )
+        return try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
+        )
     }
 
     private func stampFixture(

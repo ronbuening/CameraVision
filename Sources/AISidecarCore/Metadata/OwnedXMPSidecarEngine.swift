@@ -242,7 +242,7 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
         guard try appliedValue(for: scalar, write: write) != nil, write?.existingValue != currentValue else {
             return
         }
-        throw XMPScalarWritePrecondition.failure(for: scalar)
+        throw XMPScalarWritePreconditionFailure(scalar: scalar)
     }
 
     private func validateUrgencyLabelPrecondition(
@@ -256,7 +256,7 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
         }
         let resultingLabel = try appliedValue(for: .label, write: labelWrite) ?? snapshot.label
         guard resultingLabel == labelWrite.plannedValue else {
-            throw XMPScalarWritePrecondition.failure(for: .label)
+            throw XMPScalarWritePreconditionFailure(scalar: .label)
         }
     }
 
@@ -299,27 +299,26 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
     }
 }
 
-enum XMPScalarWritePrecondition {
-    private static let messagePrefix = "Scalar precondition failed for "
+/// Thrown before any mutation when a plan's recorded scalar state no longer
+/// matches the target document. The wrapper type — not the wrapped message —
+/// is the contract that lets the pipeline keep the newer on-disk edit instead
+/// of restoring a pre-plan backup over it.
+struct XMPScalarWritePreconditionFailure: Error, LocalizedError {
+    let sidecarError: SidecarError
 
-    static func failure(for scalar: XMPManagedScalar) -> SidecarError {
-        SidecarError(
+    init(scalar: XMPManagedScalar) {
+        sidecarError = SidecarError(
             code: .validationFailed,
             stage: .write,
             message:
-                "\(messagePrefix)\(scalar.qualifiedPropertyName): the current XMP value no longer "
-                + "matches the value recorded in the change plan.",
+                "Scalar precondition failed for \(scalar.qualifiedPropertyName): the current XMP value "
+                + "no longer matches the value recorded in the change plan.",
             recoverable: true
         )
     }
 
-    static func matches(_ error: Error) -> Bool {
-        guard let error = error as? SidecarError else {
-            return false
-        }
-        return error.code == .validationFailed
-            && error.stage == .write
-            && error.message.hasPrefix(messagePrefix)
+    var errorDescription: String? {
+        sidecarError.errorDescription
     }
 }
 
