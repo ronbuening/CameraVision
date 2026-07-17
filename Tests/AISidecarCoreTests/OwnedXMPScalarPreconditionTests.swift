@@ -12,6 +12,8 @@ final class OwnedXMPScalarPreconditionTests: XCTestCase {
             (.rating, .write, nil),
             (.label, .overwrite, "Red"),
             (.urgency, .overwrite, "1"),
+            (.pick, .overwrite, "1"),
+            (.good, .overwrite, "true"),
         ]
 
         for (index, scalarCase) in cases.enumerated() {
@@ -91,6 +93,33 @@ final class OwnedXMPScalarPreconditionTests: XCTestCase {
         XCTAssertEqual(preview.resultingRating, "4")
         XCTAssertFalse(result.modified)
         XCTAssertEqual(try Data(contentsOf: target), originalData)
+    }
+
+    func testEngineRejectsSplitLightroomFlagPairWithoutWriting() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let splitCases: [(XMPManagedScalar, String)] = [
+            (.pick, "1"),
+            (.good, "true"),
+        ]
+
+        for (scalar, value) in splitCases {
+            let target = root.appendingPathComponent("Split-\(scalar.localName).xmp")
+            let plan = changePlan(
+                targetPath: target.path,
+                scalar: scalar,
+                plannedValue: value,
+                existingValue: nil,
+                action: .write
+            )
+            let engine = OwnedXMPSidecarEngine()
+
+            XCTAssertThrowsError(try engine.apply(XMPWriteRequest(plan: plan))) { error in
+                XCTAssertEqual((error as? SidecarError)?.code, .validationFailed)
+                XCTAssertTrue((error as? SidecarError)?.message.contains("xmpDM:pick/xmpDM:good") == true)
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+        }
     }
 
     func testPipelineDoesNotRestoreBackupOverPostPlanUserScalarEdit() throws {
@@ -219,6 +248,10 @@ final class OwnedXMPScalarPreconditionTests: XCTestCase {
             plan.labelWrite = write
         case .urgency:
             plan.urgencyWrite = write
+        case .pick:
+            plan.pickWrite = write
+        case .good:
+            plan.goodWrite = write
         }
         return plan
     }

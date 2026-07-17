@@ -46,6 +46,8 @@ public struct XMPExportTargetReport: Codable, Sendable, Equatable {
     public var ratingWrite: PlannedScalarWrite? { plan.ratingWrite }
     public var labelWrite: PlannedScalarWrite? { plan.labelWrite }
     public var urgencyWrite: PlannedScalarWrite? { plan.urgencyWrite }
+    public var pickWrite: PlannedScalarWrite? { plan.pickWrite }
+    public var goodWrite: PlannedScalarWrite? { plan.goodWrite }
     public var qualityExplanation: [String]? { plan.qualityExplanation }
 
     enum CodingKeys: String, CodingKey {

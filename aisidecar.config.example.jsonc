@@ -175,6 +175,7 @@
   "xmp_quality_write_rating": true,
   "xmp_quality_write_label": true,
   "xmp_quality_write_urgency": true,
+  "xmp_quality_write_flag": true,
   "xmp_quality_write_keywords": true,
 
   // Write a rejected image as rating -1 instead of its rating-map value.
@@ -209,6 +210,13 @@
   "xmp_quality_urgency_map": {
     "reject": 1,
     "excellent": 2
+  },
+
+  // Lightroom pick flags, written as the coupled xmpDM:pick/xmpDM:good pair
+  // ("pick" = 1/true, "reject" = -1/false). Omitted tiers produce no flag.
+  "xmp_quality_flag_map": {
+    "reject": "reject",
+    "excellent": "pick"
   },
 
   // Phase 3 vocabulary source. Options: "observed-tags", "controlled-vocabulary".

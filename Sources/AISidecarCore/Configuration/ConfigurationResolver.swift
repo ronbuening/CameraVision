@@ -411,6 +411,10 @@ public enum ConfigurationResolver {
                     from: environment["AISIDECAR_XMP_QUALITY_WRITE_URGENCY"],
                     key: "AISIDECAR_XMP_QUALITY_WRITE_URGENCY"
                 ),
+                writeFlag: try boolValue(
+                    from: environment["AISIDECAR_XMP_QUALITY_WRITE_FLAG"],
+                    key: "AISIDECAR_XMP_QUALITY_WRITE_FLAG"
+                ),
                 writeKeywords: try boolValue(
                     from: environment["AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS"],
                     key: "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS"
@@ -977,6 +981,7 @@ private struct QualityGradingConfigurationBuilder {
         merge(&policy.writeRating, config.xmpQualityWriteRating)
         merge(&policy.writeLabel, config.xmpQualityWriteLabel)
         merge(&policy.writeUrgency, config.xmpQualityWriteUrgency)
+        merge(&policy.writeFlag, config.xmpQualityWriteFlag)
         merge(&policy.writeKeywords, config.xmpQualityWriteKeywords)
         merge(&policy.rejectAsMinusOne, config.xmpQualityRejectAsMinusOne)
         merge(&policy.perCriterionProblemKeywords, config.xmpQualityPerCriterionProblemKeywords)
@@ -984,6 +989,7 @@ private struct QualityGradingConfigurationBuilder {
         merge(&policy.ratingMap, config.xmpQualityRatingMap)
         merge(&policy.labelMap, config.xmpQualityLabelMap)
         merge(&policy.urgencyMap, config.xmpQualityUrgencyMap)
+        merge(&policy.flagMap, config.xmpQualityFlagMap)
     }
 
     mutating func apply(overrides: QualityGradingConfigurationOverrides) {
@@ -993,6 +999,7 @@ private struct QualityGradingConfigurationBuilder {
         merge(&policy.writeRating, overrides.writeRating)
         merge(&policy.writeLabel, overrides.writeLabel)
         merge(&policy.writeUrgency, overrides.writeUrgency)
+        merge(&policy.writeFlag, overrides.writeFlag)
         merge(&policy.writeKeywords, overrides.writeKeywords)
         merge(&policy.rejectAsMinusOne, overrides.rejectAsMinusOne)
         merge(&policy.perCriterionProblemKeywords, overrides.perCriterionProblemKeywords)
@@ -1000,6 +1007,7 @@ private struct QualityGradingConfigurationBuilder {
         merge(&policy.ratingMap, overrides.ratingMap)
         merge(&policy.labelMap, overrides.labelMap)
         merge(&policy.urgencyMap, overrides.urgencyMap)
+        merge(&policy.flagMap, overrides.flagMap)
     }
 
     func resolved() throws -> ResolvedQualityGradingConfiguration {

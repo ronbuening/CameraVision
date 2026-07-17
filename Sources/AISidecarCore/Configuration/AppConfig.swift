@@ -50,6 +50,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var xmpQualityWriteRating: Bool?
     public var xmpQualityWriteLabel: Bool?
     public var xmpQualityWriteUrgency: Bool?
+    public var xmpQualityWriteFlag: Bool?
     public var xmpQualityWriteKeywords: Bool?
     public var xmpQualityRejectAsMinusOne: Bool?
     public var xmpQualityPerCriterionProblemKeywords: Bool?
@@ -57,6 +58,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var xmpQualityRatingMap: [QualityTier: Int]?
     public var xmpQualityLabelMap: [QualityTier: String]?
     public var xmpQualityUrgencyMap: [QualityTier: Int]?
+    public var xmpQualityFlagMap: [QualityTier: QualityPickFlag]?
     public var vocabularyPath: String?
     public var vocabularyMode: NormalizationVocabularyMode?
     public var normalizationMode: NormalizationMode?
@@ -119,6 +121,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case xmpQualityWriteRating = "xmp_quality_write_rating"
         case xmpQualityWriteLabel = "xmp_quality_write_label"
         case xmpQualityWriteUrgency = "xmp_quality_write_urgency"
+        case xmpQualityWriteFlag = "xmp_quality_write_flag"
         case xmpQualityWriteKeywords = "xmp_quality_write_keywords"
         case xmpQualityRejectAsMinusOne = "xmp_quality_reject_as_minus_one"
         case xmpQualityPerCriterionProblemKeywords = "xmp_quality_per_criterion_problem_keywords"
@@ -126,6 +129,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case xmpQualityRatingMap = "xmp_quality_rating_map"
         case xmpQualityLabelMap = "xmp_quality_label_map"
         case xmpQualityUrgencyMap = "xmp_quality_urgency_map"
+        case xmpQualityFlagMap = "xmp_quality_flag_map"
         case vocabularyPath = "vocabulary_path"
         case vocabularyMode = "vocabulary_mode"
         case normalizationMode = "normalization_mode"
@@ -189,6 +193,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         xmpQualityWriteRating: Bool? = nil,
         xmpQualityWriteLabel: Bool? = nil,
         xmpQualityWriteUrgency: Bool? = nil,
+        xmpQualityWriteFlag: Bool? = nil,
         xmpQualityWriteKeywords: Bool? = nil,
         xmpQualityRejectAsMinusOne: Bool? = nil,
         xmpQualityPerCriterionProblemKeywords: Bool? = nil,
@@ -196,6 +201,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         xmpQualityRatingMap: [QualityTier: Int]? = nil,
         xmpQualityLabelMap: [QualityTier: String]? = nil,
         xmpQualityUrgencyMap: [QualityTier: Int]? = nil,
+        xmpQualityFlagMap: [QualityTier: QualityPickFlag]? = nil,
         vocabularyPath: String? = nil,
         vocabularyMode: NormalizationVocabularyMode? = nil,
         normalizationMode: NormalizationMode? = nil,
@@ -257,6 +263,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.xmpQualityWriteRating = xmpQualityWriteRating
         self.xmpQualityWriteLabel = xmpQualityWriteLabel
         self.xmpQualityWriteUrgency = xmpQualityWriteUrgency
+        self.xmpQualityWriteFlag = xmpQualityWriteFlag
         self.xmpQualityWriteKeywords = xmpQualityWriteKeywords
         self.xmpQualityRejectAsMinusOne = xmpQualityRejectAsMinusOne
         self.xmpQualityPerCriterionProblemKeywords = xmpQualityPerCriterionProblemKeywords
@@ -264,6 +271,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.xmpQualityRatingMap = xmpQualityRatingMap
         self.xmpQualityLabelMap = xmpQualityLabelMap
         self.xmpQualityUrgencyMap = xmpQualityUrgencyMap
+        self.xmpQualityFlagMap = xmpQualityFlagMap
         self.vocabularyPath = vocabularyPath
         self.vocabularyMode = vocabularyMode
         self.normalizationMode = normalizationMode
@@ -371,6 +379,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.xmpQualityWriteRating = try container.decodeIfPresent(Bool.self, forKey: .xmpQualityWriteRating)
         self.xmpQualityWriteLabel = try container.decodeIfPresent(Bool.self, forKey: .xmpQualityWriteLabel)
         self.xmpQualityWriteUrgency = try container.decodeIfPresent(Bool.self, forKey: .xmpQualityWriteUrgency)
+        self.xmpQualityWriteFlag = try container.decodeIfPresent(Bool.self, forKey: .xmpQualityWriteFlag)
         self.xmpQualityWriteKeywords = try container.decodeIfPresent(Bool.self, forKey: .xmpQualityWriteKeywords)
         self.xmpQualityRejectAsMinusOne = try container.decodeIfPresent(
             Bool.self,
@@ -395,6 +404,11 @@ public struct AppConfig: Codable, Sendable, Equatable {
             Int.self,
             from: container,
             forKey: .xmpQualityUrgencyMap
+        )
+        self.xmpQualityFlagMap = try Self.decodeTierMap(
+            QualityPickFlag.self,
+            from: container,
+            forKey: .xmpQualityFlagMap
         )
         self.vocabularyPath = try container.decodeIfPresent(String.self, forKey: .vocabularyPath)
         self.vocabularyMode = try container.decodeIfPresent(NormalizationVocabularyMode.self, forKey: .vocabularyMode)
@@ -473,6 +487,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(xmpQualityWriteRating, forKey: .xmpQualityWriteRating)
         try container.encodeIfPresent(xmpQualityWriteLabel, forKey: .xmpQualityWriteLabel)
         try container.encodeIfPresent(xmpQualityWriteUrgency, forKey: .xmpQualityWriteUrgency)
+        try container.encodeIfPresent(xmpQualityWriteFlag, forKey: .xmpQualityWriteFlag)
         try container.encodeIfPresent(xmpQualityWriteKeywords, forKey: .xmpQualityWriteKeywords)
         try container.encodeIfPresent(xmpQualityRejectAsMinusOne, forKey: .xmpQualityRejectAsMinusOne)
         try container.encodeIfPresent(
@@ -491,6 +506,10 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(
             xmpQualityUrgencyMap.map(QualityGradingPolicy.rawTierMap),
             forKey: .xmpQualityUrgencyMap
+        )
+        try container.encodeIfPresent(
+            xmpQualityFlagMap.map(QualityGradingPolicy.rawTierMap),
+            forKey: .xmpQualityFlagMap
         )
         try container.encodeIfPresent(vocabularyPath, forKey: .vocabularyPath)
         try container.encodeIfPresent(vocabularyMode, forKey: .vocabularyMode)

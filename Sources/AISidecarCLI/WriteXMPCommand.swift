@@ -132,6 +132,15 @@ struct WriteXMPCommand: AsyncParsableCommand {
     @Flag(name: .customLong("no-write-urgency"), help: "Disable Capture One urgency export.")
     var noWriteUrgency = false
 
+    @Flag(
+        name: .customLong("write-flag"),
+        help: "Write derived pick/reject flags to the Lightroom xmpDM:pick/xmpDM:good pair."
+    )
+    var writeFlag = false
+
+    @Flag(name: .customLong("no-write-flag"), help: "Disable Lightroom pick-flag export.")
+    var noWriteFlag = false
+
     @Flag(name: .customLong("write-quality-keywords"), help: "Write deterministic quality-tier keywords.")
     var writeQualityKeywords = false
 
@@ -251,6 +260,8 @@ struct WriteXMPCommand: AsyncParsableCommand {
             noWriteLabel: noWriteLabel,
             writeUrgency: writeUrgency,
             noWriteUrgency: noWriteUrgency,
+            writeFlag: writeFlag,
+            noWriteFlag: noWriteFlag,
             writeQualityKeywords: writeQualityKeywords,
             noWriteQualityKeywords: noWriteQualityKeywords,
             backupSidecars: backupSidecars,
@@ -288,6 +299,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
                 writeRating: pairedFlag(positive: writeRating, negative: noWriteRating),
                 writeLabel: pairedFlag(positive: writeLabel, negative: noWriteLabel),
                 writeUrgency: pairedFlag(positive: writeUrgency, negative: noWriteUrgency),
+                writeFlag: pairedFlag(positive: writeFlag, negative: noWriteFlag),
                 writeKeywords: pairedFlag(
                     positive: writeQualityKeywords,
                     negative: noWriteQualityKeywords

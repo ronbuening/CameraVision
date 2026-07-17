@@ -36,6 +36,7 @@ final class XMPExportInvocationTests: XCTestCase {
             writeRating: true,
             noWriteLabel: true,
             writeUrgency: true,
+            noWriteFlag: true,
             noWriteQualityKeywords: true
         )
         XCTAssertEqual(
@@ -51,6 +52,7 @@ final class XMPExportInvocationTests: XCTestCase {
             noWriteRating: true,
             writeLabel: true,
             noWriteUrgency: true,
+            writeFlag: true,
             writeQualityKeywords: true
         )
         XCTAssertEqual(
@@ -111,6 +113,7 @@ final class XMPExportInvocationTests: XCTestCase {
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeRating: true, noWriteRating: true),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeLabel: true, noWriteLabel: true),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeUrgency: true, noWriteUrgency: true),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeFlag: true, noWriteFlag: true),
             XMPExportInvocationRequest(
                 fromJSONPath: "A.ai.json",
                 writeQualityKeywords: true,
@@ -128,8 +131,8 @@ final class XMPExportInvocationTests: XCTestCase {
     }
 
     func testSchemaIdentifierConstantsAreStable() {
-        XCTAssertEqual(XMPExportSchemaIdentifiers.exportReport, "ai-sidecar-xmp-export/1.1")
-        XCTAssertEqual(XMPExportSchemaIdentifiers.changePlan, "ai-sidecar-xmp-change-plan/1.1")
+        XCTAssertEqual(XMPExportSchemaIdentifiers.exportReport, "ai-sidecar-xmp-export/1.2")
+        XCTAssertEqual(XMPExportSchemaIdentifiers.changePlan, "ai-sidecar-xmp-change-plan/1.2")
     }
 
     private func assertConfigInvalid(_ operation: () throws -> Void) throws {

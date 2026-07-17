@@ -21,6 +21,8 @@ public enum RawSidecarExportStamp {
         public var rating: String?
         public var label: String?
         public var urgency: String?
+        public var pick: String?
+        public var good: String?
         public var qualityTier: QualityTier?
 
         public init(
@@ -32,6 +34,8 @@ public enum RawSidecarExportStamp {
             rating: String? = nil,
             label: String? = nil,
             urgency: String? = nil,
+            pick: String? = nil,
+            good: String? = nil,
             qualityTier: QualityTier? = nil
         ) {
             self.targetXMPPath = targetXMPPath
@@ -42,6 +46,8 @@ public enum RawSidecarExportStamp {
             self.rating = rating
             self.label = label
             self.urgency = urgency
+            self.pick = pick
+            self.good = good
             self.qualityTier = qualityTier
         }
     }
@@ -85,6 +91,16 @@ public enum RawSidecarExportStamp {
         } else {
             stamp.removeValue(forKey: "urgency")
         }
+        if let pick = contents.pick {
+            stamp["pick"] = .string(pick)
+        } else {
+            stamp.removeValue(forKey: "pick")
+        }
+        if let good = contents.good {
+            stamp["good"] = .string(good)
+        } else {
+            stamp.removeValue(forKey: "good")
+        }
         if let qualityTier = contents.qualityTier {
             stamp["quality_tier"] = .string(qualityTier.rawValue)
         } else {
@@ -113,6 +129,8 @@ public enum RawSidecarExportStamp {
             let rating = optionalRating(stamp),
             let label = optionalLabel(stamp),
             let urgency = optionalUrgency(stamp),
+            let pick = optionalPick(stamp),
+            let good = optionalGood(stamp),
             let qualityTier = optionalQualityTier(stamp)
         else {
             return nil
@@ -127,6 +145,8 @@ public enum RawSidecarExportStamp {
             rating: rating,
             label: label,
             urgency: urgency,
+            pick: pick,
+            good: good,
             qualityTier: qualityTier
         )
     }
@@ -212,6 +232,34 @@ public enum RawSidecarExportStamp {
             return nil
         }
         return .some(urgency)
+    }
+
+    /// The engine only ever writes the picked/rejected pair values; anything
+    /// else (including Lightroom's unflagged "0") is not owned provenance.
+    private static func optionalPick(_ object: [String: JSONValue]) -> String?? {
+        guard let pick = optionalString(object, key: "pick") else {
+            return nil
+        }
+        guard let pick else {
+            return .some(nil)
+        }
+        guard pick == "1" || pick == "-1" else {
+            return nil
+        }
+        return .some(pick)
+    }
+
+    private static func optionalGood(_ object: [String: JSONValue]) -> String?? {
+        guard let good = optionalString(object, key: "good") else {
+            return nil
+        }
+        guard let good else {
+            return .some(nil)
+        }
+        guard good == "true" || good == "false" else {
+            return nil
+        }
+        return .some(good)
     }
 
     /// The outer optional distinguishes a missing value from a malformed value.

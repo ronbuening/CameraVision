@@ -213,6 +213,70 @@ final class XMPQualityExportIntegrationTests: XCTestCase {
         }
     }
 
+    func testGradedFlagWritesLightroomPairEndToEndAndStamps() throws {
+        let fixture = try makeFixture(confidence: "high", existingXMP: nil)
+        var configuration = qualityConfiguration(output: fixture.output, dryRun: false)
+        configuration.qualityGrading.policy.flagMap[.good] = .pick
+
+        let result = try XMPExportPipeline(logger: Logger(sink: { _ in })).runFromJSON(
+            fromJSONPath: fixture.jsonRoot.path,
+            configuration: configuration
+        )
+
+        let plan = try XCTUnwrap(result.changePlan.targetPlans.first)
+        XCTAssertEqual(plan.pickWrite?.field, "xmpDM:pick")
+        XCTAssertEqual(plan.pickWrite?.plannedValue, "1")
+        XCTAssertEqual(plan.pickWrite?.action, .write)
+        XCTAssertEqual(plan.goodWrite?.field, "xmpDM:good")
+        XCTAssertEqual(plan.goodWrite?.plannedValue, "true")
+        XCTAssertEqual(plan.goodWrite?.action, .write)
+
+        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: fixture.target.path)
+        XCTAssertEqual(snapshot.pick, "1")
+        XCTAssertEqual(snapshot.good, "true")
+        let writtenXMP = try String(contentsOf: fixture.target, encoding: .utf8)
+        XCTAssertTrue(writtenXMP.contains("xmpDM:pick=\"1\""))
+        XCTAssertTrue(writtenXMP.contains("xmpDM:good=\"true\""))
+
+        let progressRecord = try progressRecordObject(at: XCTUnwrap(result.progressLogPath))
+        XCTAssertEqual(progressRecord["wrote_pick"] as? Bool, true)
+        XCTAssertEqual(progressRecord["wrote_good"] as? Bool, true)
+
+        for sidecarPath in [fixture.taggingSidecar.path, fixture.qualitySidecar.path] {
+            let stamp = try XCTUnwrap(RawSidecarExportStamp.contents(sidecarPath: sidecarPath))
+            XCTAssertEqual(stamp.pick, "1")
+            XCTAssertEqual(stamp.good, "true")
+        }
+    }
+
+    func testPreserveSkipsLightroomUnflaggedPairWithoutSplittingIt() throws {
+        let fixture = try makeFixture(confidence: "high", existingXMP: lightroomUnflaggedXMP)
+        var configuration = qualityConfiguration(output: fixture.output, dryRun: false)
+        configuration.qualityGrading.policy.flagMap[.good] = .pick
+
+        let result = try XMPExportPipeline(logger: Logger(sink: { _ in })).runFromJSON(
+            fromJSONPath: fixture.jsonRoot.path,
+            configuration: configuration
+        )
+
+        // Lightroom's unflagged state (pick="0", no good) is an existing user
+        // decision under preserve; good follows pick so the pair never splits.
+        let plan = try XCTUnwrap(result.changePlan.targetPlans.first)
+        XCTAssertEqual(plan.pickWrite?.action, .skipExisting)
+        XCTAssertEqual(plan.pickWrite?.existingValue, "0")
+        XCTAssertEqual(plan.goodWrite?.action, .skipExisting)
+        XCTAssertNil(plan.goodWrite?.existingValue)
+
+        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: fixture.target.path)
+        XCTAssertEqual(snapshot.pick, "0")
+        XCTAssertNil(snapshot.good)
+        let stamp = try XCTUnwrap(
+            RawSidecarExportStamp.contents(sidecarPath: fixture.taggingSidecar.path)
+        )
+        XCTAssertNil(stamp.pick)
+        XCTAssertNil(stamp.good)
+    }
+
     func testProgressRecordsCarryScalarWriteIndicators() throws {
         let written = try makeFixture(confidence: "high", existingXMP: nil)
         let writtenResult = try XMPExportPipeline(logger: Logger(sink: { _ in })).runFromJSON(
@@ -440,6 +504,16 @@ private let qualityExistingXMP = """
           <crs:Exposure2012>+0.35</crs:Exposure2012>
           <crs:Contrast2012>12</crs:Contrast2012>
         </rdf:Description>
+      </rdf:RDF>
+    </x:xmpmeta>
+    """
+
+private let lightroomUnflaggedXMP = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <x:xmpmeta xmlns:x="adobe:ns:meta/">
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:xmpDM="http://ns.adobe.com/xmp/1.0/DynamicMedia/">
+        <rdf:Description rdf:about="" xmpDM:pick="0"/>
       </rdf:RDF>
     </x:xmpmeta>
     """

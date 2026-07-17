@@ -58,6 +58,7 @@ public struct QualityGradingConfigurationOverrides: Sendable, Equatable {
     public var writeRating: Bool?
     public var writeLabel: Bool?
     public var writeUrgency: Bool?
+    public var writeFlag: Bool?
     public var writeKeywords: Bool?
     public var rejectAsMinusOne: Bool?
     public var perCriterionProblemKeywords: Bool?
@@ -65,6 +66,7 @@ public struct QualityGradingConfigurationOverrides: Sendable, Equatable {
     public var ratingMap: [QualityTier: Int]?
     public var labelMap: [QualityTier: String]?
     public var urgencyMap: [QualityTier: Int]?
+    public var flagMap: [QualityTier: QualityPickFlag]?
 
     public init(
         enabled: Bool? = nil,
@@ -73,13 +75,15 @@ public struct QualityGradingConfigurationOverrides: Sendable, Equatable {
         writeRating: Bool? = nil,
         writeLabel: Bool? = nil,
         writeUrgency: Bool? = nil,
+        writeFlag: Bool? = nil,
         writeKeywords: Bool? = nil,
         rejectAsMinusOne: Bool? = nil,
         perCriterionProblemKeywords: Bool? = nil,
         keywordRoot: String? = nil,
         ratingMap: [QualityTier: Int]? = nil,
         labelMap: [QualityTier: String]? = nil,
-        urgencyMap: [QualityTier: Int]? = nil
+        urgencyMap: [QualityTier: Int]? = nil,
+        flagMap: [QualityTier: QualityPickFlag]? = nil
     ) {
         self.enabled = enabled
         self.conflictPolicy = conflictPolicy
@@ -87,6 +91,7 @@ public struct QualityGradingConfigurationOverrides: Sendable, Equatable {
         self.writeRating = writeRating
         self.writeLabel = writeLabel
         self.writeUrgency = writeUrgency
+        self.writeFlag = writeFlag
         self.writeKeywords = writeKeywords
         self.rejectAsMinusOne = rejectAsMinusOne
         self.perCriterionProblemKeywords = perCriterionProblemKeywords
@@ -94,6 +99,7 @@ public struct QualityGradingConfigurationOverrides: Sendable, Equatable {
         self.ratingMap = ratingMap
         self.labelMap = labelMap
         self.urgencyMap = urgencyMap
+        self.flagMap = flagMap
     }
 }
 
@@ -368,6 +374,8 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
     public var noWriteLabel: Bool
     public var writeUrgency: Bool
     public var noWriteUrgency: Bool
+    public var writeFlag: Bool
+    public var noWriteFlag: Bool
     public var writeQualityKeywords: Bool
     public var noWriteQualityKeywords: Bool
     public var backupSidecars: Bool
@@ -407,6 +415,8 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         noWriteLabel: Bool = false,
         writeUrgency: Bool = false,
         noWriteUrgency: Bool = false,
+        writeFlag: Bool = false,
+        noWriteFlag: Bool = false,
         writeQualityKeywords: Bool = false,
         noWriteQualityKeywords: Bool = false,
         backupSidecars: Bool = false,
@@ -445,6 +455,8 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         self.noWriteLabel = noWriteLabel
         self.writeUrgency = writeUrgency
         self.noWriteUrgency = noWriteUrgency
+        self.writeFlag = writeFlag
+        self.noWriteFlag = noWriteFlag
         self.writeQualityKeywords = writeQualityKeywords
         self.noWriteQualityKeywords = noWriteQualityKeywords
         self.backupSidecars = backupSidecars
@@ -492,6 +504,9 @@ public enum XMPExportInvocationValidator {
         )
         try InvocationRules.rejectConflictingFlag(
             "write-urgency", enabled: request.writeUrgency, disabled: request.noWriteUrgency
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-flag", enabled: request.writeFlag, disabled: request.noWriteFlag
         )
         try InvocationRules.rejectConflictingFlag(
             "write-quality-keywords",

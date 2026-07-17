@@ -51,6 +51,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertFalse(resolved.qualityGrading.enabled)
         XCTAssertEqual(resolved.qualityGrading.conflictPolicy, .preserve)
         XCTAssertEqual(resolved.qualityGrading.policy.urgencyMap, [.reject: 1, .excellent: 2])
+        XCTAssertTrue(resolved.qualityGrading.policy.writeFlag)
+        XCTAssertEqual(resolved.qualityGrading.policy.flagMap, [.reject: .reject, .excellent: .pick])
     }
 
     func testQualityAssessmentEnvironmentOverridesConfigFile() throws {
@@ -179,13 +181,15 @@ final class ConfigResolutionTests: XCTestCase {
               "xmp_quality_write_rating": false,
               "xmp_quality_write_label": false,
               "xmp_quality_write_urgency": false,
+              "xmp_quality_write_flag": false,
               "xmp_quality_write_keywords": false,
               "xmp_quality_reject_as_minus_one": true,
               "xmp_quality_per_criterion_problem_keywords": true,
               "xmp_quality_keyword_root": "Review Quality",
               "xmp_quality_rating_map": { "reject": -1, "excellent": 4 },
               "xmp_quality_label_map": { "good": "Blue" },
-              "xmp_quality_urgency_map": { "good": 3 }
+              "xmp_quality_urgency_map": { "good": 3 },
+              "xmp_quality_flag_map": { "good": "pick" }
             }
             """
         )
@@ -223,6 +227,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.qualityGrading.policy.ratingMap, [.reject: -1, .excellent: 4])
         XCTAssertEqual(resolved.qualityGrading.policy.labelMap, [.good: "Blue"])
         XCTAssertEqual(resolved.qualityGrading.policy.urgencyMap, [.good: 3])
+        XCTAssertFalse(resolved.qualityGrading.policy.writeFlag)
+        XCTAssertEqual(resolved.qualityGrading.policy.flagMap, [.good: .pick])
     }
 
     func testEnvironmentOverridesConfigFile() throws {
@@ -303,13 +309,15 @@ final class ConfigResolutionTests: XCTestCase {
               "xmp_quality_write_rating": true,
               "xmp_quality_write_label": true,
               "xmp_quality_write_urgency": true,
+              "xmp_quality_write_flag": true,
               "xmp_quality_write_keywords": true,
               "xmp_quality_reject_as_minus_one": false,
               "xmp_quality_per_criterion_problem_keywords": false,
               "xmp_quality_keyword_root": "File Quality",
               "xmp_quality_rating_map": { "neutral": 2 },
               "xmp_quality_label_map": { "neutral": "Yellow" },
-              "xmp_quality_urgency_map": { "neutral": 7 }
+              "xmp_quality_urgency_map": { "neutral": 7 },
+              "xmp_quality_flag_map": { "neutral": "reject" }
             }
             """
         )
@@ -337,6 +345,7 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_XMP_QUALITY_WRITE_RATING": "false",
                 "AISIDECAR_XMP_QUALITY_WRITE_LABEL": "0",
                 "AISIDECAR_XMP_QUALITY_WRITE_URGENCY": "no",
+                "AISIDECAR_XMP_QUALITY_WRITE_FLAG": "no",
                 "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS": "false",
                 "AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE": "true",
                 "AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS": "1",
@@ -373,6 +382,8 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.qualityGrading.policy.ratingMap, [.neutral: 2])
         XCTAssertEqual(resolved.qualityGrading.policy.labelMap, [.neutral: "Yellow"])
         XCTAssertEqual(resolved.qualityGrading.policy.urgencyMap, [.neutral: 7])
+        XCTAssertFalse(resolved.qualityGrading.policy.writeFlag)
+        XCTAssertEqual(resolved.qualityGrading.policy.flagMap, [.neutral: .reject])
     }
 
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
@@ -531,6 +542,7 @@ final class ConfigResolutionTests: XCTestCase {
                     writeRating: true,
                     writeLabel: true,
                     writeUrgency: true,
+                    writeFlag: true,
                     writeKeywords: true
                 )
             ),
@@ -555,6 +567,7 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_XMP_QUALITY_WRITE_RATING": "false",
                 "AISIDECAR_XMP_QUALITY_WRITE_LABEL": "false",
                 "AISIDECAR_XMP_QUALITY_WRITE_URGENCY": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_FLAG": "false",
                 "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS": "false",
                 "AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE": "true",
                 "AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS": "true",
@@ -583,6 +596,7 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertTrue(resolved.qualityGrading.policy.writeRating)
         XCTAssertTrue(resolved.qualityGrading.policy.writeLabel)
         XCTAssertTrue(resolved.qualityGrading.policy.writeUrgency)
+        XCTAssertTrue(resolved.qualityGrading.policy.writeFlag)
         XCTAssertTrue(resolved.qualityGrading.policy.writeKeywords)
         XCTAssertTrue(resolved.qualityGrading.policy.rejectAsMinusOne)
         XCTAssertTrue(resolved.qualityGrading.policy.perCriterionProblemKeywords)

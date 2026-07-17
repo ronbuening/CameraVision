@@ -54,7 +54,7 @@ final class XMPExportReportTests: XCTestCase {
         let markdown = XMPExportSummaryWriter().markdown(for: report)
 
         XCTAssertEqual(try JSONCoding.decoder().decode(XMPExportReport.self, from: reportData), report)
-        XCTAssertTrue(json?.contains(#""schema_version":"ai-sidecar-xmp-export/1.1""#) == true)
+        XCTAssertTrue(json?.contains(#""schema_version":"ai-sidecar-xmp-export/1.2""#) == true)
         XCTAssertTrue(json?.contains(#""rating_write""#) == true)
         XCTAssertTrue(json?.contains(#""skip_existing""#) == true)
         XCTAssertTrue(json?.contains(#""urgency_write""#) == true)

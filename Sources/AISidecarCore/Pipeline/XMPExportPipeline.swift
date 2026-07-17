@@ -406,7 +406,9 @@ public struct XMPExportPipeline {
                 postWriteSnapshot: postSnapshot,
                 plannedRating: appliedScalarValue(plan.ratingWrite),
                 plannedLabel: appliedScalarValue(plan.labelWrite),
-                plannedUrgency: appliedScalarValue(plan.urgencyWrite)
+                plannedUrgency: appliedScalarValue(plan.urgencyWrite),
+                plannedPick: appliedScalarValue(plan.pickWrite),
+                plannedGood: appliedScalarValue(plan.goodWrite)
             )
             let hashOutcome = sourceHashChecks(afterWriteFor: beforeHashes)
             let validationErrors = validation.errors + hashOutcome.errors
@@ -644,6 +646,18 @@ public struct XMPExportPipeline {
                 existingValue: report.writeResult?.existingUrgency,
                 resultingValue: report.writeResult?.resultingUrgency,
                 report: report
+            ),
+            wrotePick: scalarWriteIndicator(
+                report.plan.pickWrite,
+                existingValue: report.writeResult?.existingPick,
+                resultingValue: report.writeResult?.resultingPick,
+                report: report
+            ),
+            wroteGood: scalarWriteIndicator(
+                report.plan.goodWrite,
+                existingValue: report.writeResult?.existingGood,
+                resultingValue: report.writeResult?.resultingGood,
+                report: report
             )
         )
     }
@@ -766,6 +780,18 @@ public struct XMPExportPipeline {
                 priorOwnedValue: prior.urgency,
                 gradingEnabled: gradingEnabled
             ),
+            pick: ownedStampedScalar(
+                write: report.plan.pickWrite,
+                postWriteValue: postSnapshot.pick,
+                priorOwnedValue: prior.pick,
+                gradingEnabled: gradingEnabled
+            ),
+            good: ownedStampedScalar(
+                write: report.plan.goodWrite,
+                postWriteValue: postSnapshot.good,
+                priorOwnedValue: prior.good,
+                gradingEnabled: gradingEnabled
+            ),
             qualityTier: gradingEnabled ? report.plan.qualityTier : prior.qualityTier
         )
         for sidecarPath in sidecarPaths {
@@ -837,6 +863,8 @@ public struct XMPExportPipeline {
             rating: commonOptionalValue(newest.map(\.rating)),
             label: commonOptionalValue(newest.map(\.label)),
             urgency: commonOptionalValue(newest.map(\.urgency)),
+            pick: commonOptionalValue(newest.map(\.pick)),
+            good: commonOptionalValue(newest.map(\.good)),
             qualityTier: commonOptionalValue(newest.map(\.qualityTier))
         )
     }
@@ -880,6 +908,8 @@ public struct XMPExportPipeline {
             && lhs.rating == rhs.rating
             && lhs.label == rhs.label
             && lhs.urgency == rhs.urgency
+            && lhs.pick == rhs.pick
+            && lhs.good == rhs.good
             && lhs.qualityTier == rhs.qualityTier
     }
 
@@ -991,17 +1021,23 @@ private struct PriorStampOwnership {
     var rating: String?
     var label: String?
     var urgency: String?
+    var pick: String?
+    var good: String?
     var qualityTier: QualityTier?
 
     init(
         rating: String? = nil,
         label: String? = nil,
         urgency: String? = nil,
+        pick: String? = nil,
+        good: String? = nil,
         qualityTier: QualityTier? = nil
     ) {
         self.rating = rating
         self.label = label
         self.urgency = urgency
+        self.pick = pick
+        self.good = good
         self.qualityTier = qualityTier
     }
 }

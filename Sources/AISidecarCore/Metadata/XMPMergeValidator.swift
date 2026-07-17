@@ -54,7 +54,9 @@ public struct XMPMergeValidator {
         postWriteSnapshot: XMPMetadataSnapshot,
         plannedRating: String? = nil,
         plannedLabel: String? = nil,
-        plannedUrgency: String? = nil
+        plannedUrgency: String? = nil,
+        plannedPick: String? = nil,
+        plannedGood: String? = nil
     ) -> XMPMergeValidationResult {
         let expectedFlat = plan.flatKeywordsToAdd.map(\.term)
         let expectedHierarchical = plan.hierarchicalKeywordsToAdd.map(\.term)
@@ -123,6 +125,20 @@ public struct XMPMergeValidator {
             plannedValue: plannedUrgency,
             preWriteValue: preWriteSnapshot.urgency,
             postWriteValue: postWriteSnapshot.urgency,
+            errors: &errors
+        )
+        validateScalar(
+            field: "xmpDM:pick",
+            plannedValue: plannedPick,
+            preWriteValue: preWriteSnapshot.pick,
+            postWriteValue: postWriteSnapshot.pick,
+            errors: &errors
+        )
+        validateScalar(
+            field: "xmpDM:good",
+            plannedValue: plannedGood,
+            preWriteValue: preWriteSnapshot.good,
+            postWriteValue: postWriteSnapshot.good,
             errors: &errors
         )
 

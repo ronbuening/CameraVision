@@ -196,6 +196,8 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
     public var ratingWrite: PlannedScalarWrite?
     public var labelWrite: PlannedScalarWrite?
     public var urgencyWrite: PlannedScalarWrite?
+    public var pickWrite: PlannedScalarWrite?
+    public var goodWrite: PlannedScalarWrite?
     public var qualityExplanation: [String]?
     public var qualityTier: QualityTier?
 
@@ -219,6 +221,8 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         case ratingWrite = "rating_write"
         case labelWrite = "label_write"
         case urgencyWrite = "urgency_write"
+        case pickWrite = "pick_write"
+        case goodWrite = "good_write"
         case qualityExplanation = "quality_explanation"
         case qualityTier = "quality_tier"
     }
@@ -243,6 +247,8 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         ratingWrite: PlannedScalarWrite? = nil,
         labelWrite: PlannedScalarWrite? = nil,
         urgencyWrite: PlannedScalarWrite? = nil,
+        pickWrite: PlannedScalarWrite? = nil,
+        goodWrite: PlannedScalarWrite? = nil,
         qualityExplanation: [String]? = nil,
         qualityTier: QualityTier? = nil
     ) {
@@ -265,6 +271,8 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         self.ratingWrite = ratingWrite
         self.labelWrite = labelWrite
         self.urgencyWrite = urgencyWrite
+        self.pickWrite = pickWrite
+        self.goodWrite = goodWrite
         self.qualityExplanation = qualityExplanation
         self.qualityTier = qualityTier
     }
@@ -507,7 +515,7 @@ public struct XMPChangePlanner {
             plan.hierarchicalKeywordsToAdd = hierarchicalKeywords
         }
 
-        guard grade.rating != nil || grade.label != nil || grade.urgency != nil else {
+        guard grade.rating != nil || grade.label != nil || grade.urgency != nil || grade.flag != nil else {
             return plan
         }
         guard let snapshotReader else {
@@ -565,6 +573,26 @@ public struct XMPChangePlanner {
                     )
                     plan.qualityExplanation?.append(
                         "urgency suppressed: resulting label does not match the planned label \(desiredLabel)"
+                    )
+                }
+            }
+
+            if let desiredFlag = grade.flag {
+                plan.pickWrite = scalarWrite(
+                    field: XMPManagedScalar.pick.qualifiedPropertyName,
+                    desiredValue: desiredFlag.pickValue,
+                    existingValue: snapshot.pick,
+                    stampedValue: stamped.pick,
+                    policy: configuration.qualityGrading.conflictPolicy
+                )
+                // xmpDM:good mirrors xmpDM:pick's action so Lightroom's flag
+                // pair can never be split by per-scalar conflict resolution.
+                plan.goodWrite = plan.pickWrite.map { pickWrite in
+                    PlannedScalarWrite(
+                        field: XMPManagedScalar.good.qualifiedPropertyName,
+                        plannedValue: desiredFlag.goodValue,
+                        existingValue: snapshot.good,
+                        action: pickWrite.action
                     )
                 }
             }
@@ -792,7 +820,8 @@ public struct XMPChangePlanner {
         let rating = trustedTiedValue(newest.map(\.rating), field: "rating", explanation: &explanation)
         let label = trustedTiedValue(newest.map(\.label), field: "label", explanation: &explanation)
         let urgency = trustedTiedValue(newest.map(\.urgency), field: "urgency", explanation: &explanation)
-        return TrustedStampedScalars(rating: rating, label: label, urgency: urgency)
+        let pick = trustedTiedValue(newest.map(\.pick), field: "pick", explanation: &explanation)
+        return TrustedStampedScalars(rating: rating, label: label, urgency: urgency, pick: pick)
     }
 
     private func trustedTiedValue(
@@ -906,11 +935,13 @@ private struct TrustedStampedScalars {
     var rating: String?
     var label: String?
     var urgency: String?
+    var pick: String?
 
-    init(rating: String? = nil, label: String? = nil, urgency: String? = nil) {
+    init(rating: String? = nil, label: String? = nil, urgency: String? = nil, pick: String? = nil) {
         self.rating = rating
         self.label = label
         self.urgency = urgency
+        self.pick = pick
     }
 }
 

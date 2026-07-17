@@ -65,7 +65,11 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
             existingLabel: snapshot.label,
             resultingLabel: resultingSnapshot.label,
             existingUrgency: snapshot.urgency,
-            resultingUrgency: resultingSnapshot.urgency
+            resultingUrgency: resultingSnapshot.urgency,
+            existingPick: snapshot.pick,
+            resultingPick: resultingSnapshot.pick,
+            existingGood: snapshot.good,
+            resultingGood: resultingSnapshot.good
         )
     }
 
@@ -110,7 +114,11 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
                 existingLabel: preSnapshot.label,
                 resultingLabel: preSnapshot.label,
                 existingUrgency: preSnapshot.urgency,
-                resultingUrgency: preSnapshot.urgency
+                resultingUrgency: preSnapshot.urgency,
+                existingPick: preSnapshot.pick,
+                resultingPick: preSnapshot.pick,
+                existingGood: preSnapshot.good,
+                resultingGood: preSnapshot.good
             )
         }
 
@@ -136,7 +144,11 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
             existingLabel: preSnapshot.label,
             resultingLabel: postSnapshot.label,
             existingUrgency: preSnapshot.urgency,
-            resultingUrgency: postSnapshot.urgency
+            resultingUrgency: postSnapshot.urgency,
+            existingPick: preSnapshot.pick,
+            resultingPick: postSnapshot.pick,
+            existingGood: preSnapshot.good,
+            resultingGood: postSnapshot.good
         )
     }
 
@@ -205,6 +217,20 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
             with: merger,
             in: parsed
         )
+        try apply(
+            request.pickWrite,
+            to: .pick,
+            existingValue: preWriteSnapshot.pick,
+            with: merger,
+            in: parsed
+        )
+        try apply(
+            request.goodWrite,
+            to: .good,
+            existingValue: preWriteSnapshot.good,
+            with: merger,
+            in: parsed
+        )
 
         let resultingSnapshot = try XMPMetadataSnapshot.make(
             targetPath: parsed.targetPath,
@@ -221,6 +247,24 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
                 recoverable: true
             )
         }
+        let appliedPick = try appliedValue(for: .pick, write: request.pickWrite)
+        let appliedGood = try appliedValue(for: .good, write: request.goodWrite)
+        if appliedPick != nil || appliedGood != nil {
+            // Lightroom treats pick/good as one flag: picked = 1/true,
+            // rejected = -1/false. A split pair would round-trip wrong.
+            let consistentPairs: [(String, String)] = [("1", "true"), ("-1", "false")]
+            let resultingPair = (resultingSnapshot.pick ?? "", resultingSnapshot.good ?? "")
+            guard consistentPairs.contains(where: { $0 == resultingPair }) else {
+                throw SidecarError(
+                    code: .validationFailed,
+                    stage: .write,
+                    message:
+                        "Cannot write an inconsistent xmpDM:pick/xmpDM:good flag pair "
+                        + "(\(resultingPair.0)/\(resultingPair.1)).",
+                    recoverable: true
+                )
+            }
+        }
         return resultingSnapshot
     }
 
@@ -231,6 +275,8 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
         try validateScalarPrecondition(request.ratingWrite, for: .rating, currentValue: snapshot.rating)
         try validateScalarPrecondition(request.labelWrite, for: .label, currentValue: snapshot.label)
         try validateScalarPrecondition(request.urgencyWrite, for: .urgency, currentValue: snapshot.urgency)
+        try validateScalarPrecondition(request.pickWrite, for: .pick, currentValue: snapshot.pick)
+        try validateScalarPrecondition(request.goodWrite, for: .good, currentValue: snapshot.good)
         try validateUrgencyLabelPrecondition(in: request, against: snapshot)
     }
 
@@ -296,6 +342,7 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
 
     private func managedScalarsDiffer(_ lhs: XMPMetadataSnapshot, _ rhs: XMPMetadataSnapshot) -> Bool {
         lhs.rating != rhs.rating || lhs.label != rhs.label || lhs.urgency != rhs.urgency
+            || lhs.pick != rhs.pick || lhs.good != rhs.good
     }
 }
 

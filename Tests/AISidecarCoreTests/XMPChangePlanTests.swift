@@ -56,7 +56,7 @@ final class XMPChangePlanTests: XCTestCase {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         let encoded = String(data: try encoder.encode(document), encoding: .utf8)
-        XCTAssertTrue(encoded?.contains("\"schema_version\" : \"ai-sidecar-xmp-change-plan/1.1\"") == true)
+        XCTAssertTrue(encoded?.contains("\"schema_version\" : \"ai-sidecar-xmp-change-plan/1.2\"") == true)
         XCTAssertTrue(encoded?.contains("\"backup_plan\"") == true)
         XCTAssertTrue(encoded?.contains("\"source_field\"") == true)
         XCTAssertTrue(encoded?.contains("\"normalized_term\"") == true)

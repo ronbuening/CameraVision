@@ -26,6 +26,8 @@ public struct XMPWriteRequest: Codable, Sendable, Equatable {
     public var ratingWrite: PlannedScalarWrite? { plan.ratingWrite }
     public var labelWrite: PlannedScalarWrite? { plan.labelWrite }
     public var urgencyWrite: PlannedScalarWrite? { plan.urgencyWrite }
+    public var pickWrite: PlannedScalarWrite? { plan.pickWrite }
+    public var goodWrite: PlannedScalarWrite? { plan.goodWrite }
 
     public init(plan: XMPChangePlan) {
         self.plan = plan
@@ -48,6 +50,10 @@ public struct XMPWritePreview: Codable, Sendable, Equatable {
     public var resultingLabel: String?
     public var existingUrgency: String?
     public var resultingUrgency: String?
+    public var existingPick: String?
+    public var resultingPick: String?
+    public var existingGood: String?
+    public var resultingGood: String?
     public var warnings: [SidecarError]
     public var errors: [SidecarError]
 
@@ -66,6 +72,10 @@ public struct XMPWritePreview: Codable, Sendable, Equatable {
         case resultingLabel = "resulting_label"
         case existingUrgency = "existing_urgency"
         case resultingUrgency = "resulting_urgency"
+        case existingPick = "existing_pick"
+        case resultingPick = "resulting_pick"
+        case existingGood = "existing_good"
+        case resultingGood = "resulting_good"
         case warnings
         case errors
     }
@@ -86,7 +96,11 @@ public struct XMPWritePreview: Codable, Sendable, Equatable {
         existingLabel: String? = nil,
         resultingLabel: String? = nil,
         existingUrgency: String? = nil,
-        resultingUrgency: String? = nil
+        resultingUrgency: String? = nil,
+        existingPick: String? = nil,
+        resultingPick: String? = nil,
+        existingGood: String? = nil,
+        resultingGood: String? = nil
     ) {
         self.targetXMPPath = targetXMPPath
         self.wouldCreate = wouldCreate
@@ -102,6 +116,10 @@ public struct XMPWritePreview: Codable, Sendable, Equatable {
         self.resultingLabel = resultingLabel
         self.existingUrgency = existingUrgency
         self.resultingUrgency = resultingUrgency
+        self.existingPick = existingPick
+        self.resultingPick = resultingPick
+        self.existingGood = existingGood
+        self.resultingGood = resultingGood
         self.warnings = warnings
         self.errors = errors
     }
@@ -122,6 +140,10 @@ public struct XMPWriteResult: Codable, Sendable, Equatable {
     public var resultingLabel: String?
     public var existingUrgency: String?
     public var resultingUrgency: String?
+    public var existingPick: String?
+    public var resultingPick: String?
+    public var existingGood: String?
+    public var resultingGood: String?
     public var warnings: [SidecarError]
     public var errors: [SidecarError]
 
@@ -139,6 +161,10 @@ public struct XMPWriteResult: Codable, Sendable, Equatable {
         case resultingLabel = "resulting_label"
         case existingUrgency = "existing_urgency"
         case resultingUrgency = "resulting_urgency"
+        case existingPick = "existing_pick"
+        case resultingPick = "resulting_pick"
+        case existingGood = "existing_good"
+        case resultingGood = "resulting_good"
         case warnings
         case errors
     }
@@ -158,7 +184,11 @@ public struct XMPWriteResult: Codable, Sendable, Equatable {
         existingLabel: String? = nil,
         resultingLabel: String? = nil,
         existingUrgency: String? = nil,
-        resultingUrgency: String? = nil
+        resultingUrgency: String? = nil,
+        existingPick: String? = nil,
+        resultingPick: String? = nil,
+        existingGood: String? = nil,
+        resultingGood: String? = nil
     ) {
         self.targetXMPPath = targetXMPPath
         self.created = created
@@ -173,6 +203,10 @@ public struct XMPWriteResult: Codable, Sendable, Equatable {
         self.resultingLabel = resultingLabel
         self.existingUrgency = existingUrgency
         self.resultingUrgency = resultingUrgency
+        self.existingPick = existingPick
+        self.resultingPick = resultingPick
+        self.existingGood = existingGood
+        self.resultingGood = resultingGood
         self.warnings = warnings
         self.errors = errors
     }
@@ -240,6 +274,8 @@ public struct MockMetadataWriteEngine: MetadataWriteEngine {
         let resultingRating = resultingScalar(existing: snapshot.rating, write: request.ratingWrite)
         let resultingLabel = resultingScalar(existing: snapshot.label, write: request.labelWrite)
         let resultingUrgency = resultingScalar(existing: snapshot.urgency, write: request.urgencyWrite)
+        let resultingPick = resultingScalar(existing: snapshot.pick, write: request.pickWrite)
+        let resultingGood = resultingScalar(existing: snapshot.good, write: request.goodWrite)
         return XMPWritePreview(
             targetXMPPath: request.plan.targetXMPPath,
             wouldCreate: !snapshot.exists,
@@ -254,7 +290,11 @@ public struct MockMetadataWriteEngine: MetadataWriteEngine {
             existingLabel: snapshot.label,
             resultingLabel: resultingLabel,
             existingUrgency: snapshot.urgency,
-            resultingUrgency: resultingUrgency
+            resultingUrgency: resultingUrgency,
+            existingPick: snapshot.pick,
+            resultingPick: resultingPick,
+            existingGood: snapshot.good,
+            resultingGood: resultingGood
         )
     }
 
@@ -272,7 +312,9 @@ public struct MockMetadataWriteEngine: MetadataWriteEngine {
             unmanagedContentFingerprint: preSnapshot.unmanagedContentFingerprint,
             rating: preview.resultingRating,
             label: preview.resultingLabel,
-            urgency: preview.resultingUrgency
+            urgency: preview.resultingUrgency,
+            pick: preview.resultingPick,
+            good: preview.resultingGood
         )
         return XMPWriteResult(
             targetXMPPath: request.plan.targetXMPPath,
@@ -287,7 +329,11 @@ public struct MockMetadataWriteEngine: MetadataWriteEngine {
             existingLabel: preview.existingLabel,
             resultingLabel: preview.resultingLabel,
             existingUrgency: preview.existingUrgency,
-            resultingUrgency: preview.resultingUrgency
+            resultingUrgency: preview.resultingUrgency,
+            existingPick: preview.existingPick,
+            resultingPick: preview.resultingPick,
+            existingGood: preview.existingGood,
+            resultingGood: preview.resultingGood
         )
     }
 

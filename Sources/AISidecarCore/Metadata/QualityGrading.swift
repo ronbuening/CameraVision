@@ -33,12 +33,39 @@ public enum QualityTier: String, Codable, CaseIterable, Hashable, Sendable, Comp
     }
 }
 
+/// Lightroom flag states expressible through the coupled xmpDM:pick/xmpDM:good pair.
+///
+/// Lightroom 14.x serializes picked as `xmpDM:pick="1"` + `xmpDM:good="true"`
+/// and rejected as `xmpDM:pick="-1"` + `xmpDM:good="false"`; unflagged is
+/// `xmpDM:pick="0"` with no `xmpDM:good` and is never written by grading.
+public enum QualityPickFlag: String, Codable, CaseIterable, Sendable, Equatable {
+    case pick
+    case reject
+
+    /// Value Lightroom stores in xmpDM:pick for this flag state.
+    public var pickValue: String {
+        switch self {
+        case .pick: "1"
+        case .reject: "-1"
+        }
+    }
+
+    /// Value Lightroom stores in xmpDM:good for this flag state.
+    public var goodValue: String {
+        switch self {
+        case .pick: "true"
+        case .reject: "false"
+        }
+    }
+}
+
 /// User-adjustable mapping from a derived quality tier to metadata-facing channels.
 public struct QualityGradingPolicy: Codable, Sendable, Equatable {
     public var minimumConfidence: QualityAssessmentRecord.Confidence
     public var writeRating: Bool
     public var writeLabel: Bool
     public var writeUrgency: Bool
+    public var writeFlag: Bool
     public var writeKeywords: Bool
     public var rejectAsMinusOne: Bool
     public var perCriterionProblemKeywords: Bool
@@ -46,12 +73,14 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
     public var ratingMap: [QualityTier: Int]
     public var labelMap: [QualityTier: String]
     public var urgencyMap: [QualityTier: Int]
+    public var flagMap: [QualityTier: QualityPickFlag]
 
     public init(
         minimumConfidence: QualityAssessmentRecord.Confidence = .medium,
         writeRating: Bool = true,
         writeLabel: Bool = true,
         writeUrgency: Bool = true,
+        writeFlag: Bool = true,
         writeKeywords: Bool = true,
         rejectAsMinusOne: Bool = false,
         perCriterionProblemKeywords: Bool = false,
@@ -70,12 +99,17 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
         urgencyMap: [QualityTier: Int] = [
             .reject: 1,
             .excellent: 2,
+        ],
+        flagMap: [QualityTier: QualityPickFlag] = [
+            .reject: .reject,
+            .excellent: .pick,
         ]
     ) {
         self.minimumConfidence = minimumConfidence
         self.writeRating = writeRating
         self.writeLabel = writeLabel
         self.writeUrgency = writeUrgency
+        self.writeFlag = writeFlag
         self.writeKeywords = writeKeywords
         self.rejectAsMinusOne = rejectAsMinusOne
         self.perCriterionProblemKeywords = perCriterionProblemKeywords
@@ -83,6 +117,7 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
         self.ratingMap = ratingMap
         self.labelMap = labelMap
         self.urgencyMap = urgencyMap
+        self.flagMap = flagMap
     }
 
     public static let builtInDefaults = QualityGradingPolicy()
@@ -92,6 +127,7 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
         case writeRating = "write_rating"
         case writeLabel = "write_label"
         case writeUrgency = "write_urgency"
+        case writeFlag = "write_flag"
         case writeKeywords = "write_keywords"
         case rejectAsMinusOne = "reject_as_minus_one"
         case perCriterionProblemKeywords = "per_criterion_problem_keywords"
@@ -99,6 +135,7 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
         case ratingMap = "rating_map"
         case labelMap = "label_map"
         case urgencyMap = "urgency_map"
+        case flagMap = "flag_map"
     }
 
     public init(from decoder: Decoder) throws {
@@ -116,6 +153,7 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
         writeRating = try container.decodeIfPresent(Bool.self, forKey: .writeRating) ?? defaults.writeRating
         writeLabel = try container.decodeIfPresent(Bool.self, forKey: .writeLabel) ?? defaults.writeLabel
         writeUrgency = try container.decodeIfPresent(Bool.self, forKey: .writeUrgency) ?? defaults.writeUrgency
+        writeFlag = try container.decodeIfPresent(Bool.self, forKey: .writeFlag) ?? defaults.writeFlag
         writeKeywords = try container.decodeIfPresent(Bool.self, forKey: .writeKeywords) ?? defaults.writeKeywords
         rejectAsMinusOne =
             try container.decodeIfPresent(Bool.self, forKey: .rejectAsMinusOne) ?? defaults.rejectAsMinusOne
@@ -141,6 +179,12 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
             forKey: .urgencyMap,
             default: defaults.urgencyMap
         )
+        flagMap = try Self.decodeTierMap(
+            QualityPickFlag.self,
+            from: container,
+            forKey: .flagMap,
+            default: defaults.flagMap
+        )
 
         try validate()
     }
@@ -151,6 +195,7 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
         try container.encode(writeRating, forKey: .writeRating)
         try container.encode(writeLabel, forKey: .writeLabel)
         try container.encode(writeUrgency, forKey: .writeUrgency)
+        try container.encode(writeFlag, forKey: .writeFlag)
         try container.encode(writeKeywords, forKey: .writeKeywords)
         try container.encode(rejectAsMinusOne, forKey: .rejectAsMinusOne)
         try container.encode(perCriterionProblemKeywords, forKey: .perCriterionProblemKeywords)
@@ -158,6 +203,7 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
         try container.encode(Self.rawTierMap(ratingMap), forKey: .ratingMap)
         try container.encode(Self.rawTierMap(labelMap), forKey: .labelMap)
         try container.encode(Self.rawTierMap(urgencyMap), forKey: .urgencyMap)
+        try container.encode(Self.rawTierMap(flagMap), forKey: .flagMap)
     }
 
     public func validate() throws {
@@ -233,6 +279,7 @@ public struct QualityGrade: Sendable, Equatable {
     public let rating: Int?
     public let label: String?
     public let urgency: Int?
+    public let flag: QualityPickFlag?
     public let keywords: [String]
     public let explanation: [String]
 
@@ -241,6 +288,7 @@ public struct QualityGrade: Sendable, Equatable {
         rating: Int?,
         label: String?,
         urgency: Int?,
+        flag: QualityPickFlag? = nil,
         keywords: [String],
         explanation: [String]
     ) {
@@ -248,6 +296,7 @@ public struct QualityGrade: Sendable, Equatable {
         self.rating = rating
         self.label = label
         self.urgency = urgency
+        self.flag = flag
         self.keywords = keywords
         self.explanation = explanation
     }
@@ -290,6 +339,7 @@ public enum QualityTierDeriver {
             : nil
         let label = policy.writeLabel ? policy.labelMap[tier] : nil
         let urgency = policy.writeUrgency && label != nil ? policy.urgencyMap[tier] : nil
+        let flag = policy.writeFlag ? policy.flagMap[tier] : nil
         var keywords: [String] = []
         if policy.writeKeywords {
             keywords.append("\(policy.keywordRoot)|\(tier.rawValue)")
@@ -306,6 +356,7 @@ public enum QualityTierDeriver {
             rating: rating,
             label: label,
             urgency: urgency,
+            flag: flag,
             keywords: keywords,
             explanation: explanation
         )

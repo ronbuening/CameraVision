@@ -148,6 +148,20 @@ final class XMPMergeValidatorTests: XCTestCase {
                 postWriteSnapshot: post,
                 plannedUrgency: plannedValue
             )
+        case .pick:
+            return XMPMergeValidator().validate(
+                plan: plan,
+                preWriteSnapshot: pre,
+                postWriteSnapshot: post,
+                plannedPick: plannedValue
+            )
+        case .good:
+            return XMPMergeValidator().validate(
+                plan: plan,
+                preWriteSnapshot: pre,
+                postWriteSnapshot: post,
+                plannedGood: plannedValue
+            )
         }
     }
 
@@ -166,6 +180,10 @@ final class XMPMergeValidatorTests: XCTestCase {
             snapshot.label = value
         case .urgency:
             snapshot.urgency = value
+        case .pick:
+            snapshot.pick = value
+        case .good:
+            snapshot.good = value
         }
         return snapshot
     }
@@ -175,6 +193,8 @@ private let scalarCases: [(scalar: XMPManagedScalar, oldValue: String, newValue:
     (.rating, "3", "4"),
     (.label, "Red", "Green"),
     (.urgency, "1", "2"),
+    (.pick, "-1", "1"),
+    (.good, "false", "true"),
 ]
 
 private func changePlan(targetPath: String, flat: [String], hierarchical: [String]) -> XMPChangePlan {

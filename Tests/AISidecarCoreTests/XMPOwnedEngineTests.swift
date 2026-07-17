@@ -80,7 +80,7 @@ final class XMPOwnedEngineTests: XCTestCase {
     func testFingerprintIgnoresManagedScalarValuesInBothForms() throws {
         XCTAssertEqual(
             XMPUnmanagedContentFingerprint.algorithmVersion,
-            "xmp-unmanaged-content-fingerprint/2.0"
+            "xmp-unmanaged-content-fingerprint/3.0"
         )
         let attribute = try XMPDocumentParser().parse(
             data: Data(attributeScalarXMP.utf8),
@@ -92,6 +92,8 @@ final class XMPOwnedEngineTests: XCTestCase {
                     .replacingOccurrences(of: "xmp:Rating=\"4\"", with: "xmp:Rating=\"5\"")
                     .replacingOccurrences(of: "xmp:Label=\"Green\"", with: "xmp:Label=\"Red\"")
                     .replacingOccurrences(of: "photoshop:Urgency=\"2\"", with: "photoshop:Urgency=\"1\"")
+                    .replacingOccurrences(of: "xmpDM:pick=\"1\"", with: "xmpDM:pick=\"-1\"")
+                    .replacingOccurrences(of: "xmpDM:good=\"true\"", with: "xmpDM:good=\"false\"")
                     .utf8
             ),
             targetPath: "/tmp/ChangedAttributeFingerprint.xmp"
@@ -106,6 +108,8 @@ final class XMPOwnedEngineTests: XCTestCase {
                     .replacingOccurrences(of: ">4</quality:Rating>", with: ">5</quality:Rating>")
                     .replacingOccurrences(of: ">Green</quality:Label>", with: ">Red</quality:Label>")
                     .replacingOccurrences(of: ">2</ps:Urgency>", with: ">1</ps:Urgency>")
+                    .replacingOccurrences(of: ">1</dm:pick>", with: ">-1</dm:pick>")
+                    .replacingOccurrences(of: ">true</dm:good>", with: ">false</dm:good>")
                     .utf8
             ),
             targetPath: "/tmp/ChangedElementFingerprint.xmp"
@@ -230,6 +234,8 @@ final class XMPOwnedEngineTests: XCTestCase {
             (.rating, "4"),
             (.label, "Green"),
             (.urgency, "2"),
+            (.pick, "1"),
+            (.good, "true"),
         ]
 
         for (scalar, value) in expected {
@@ -249,6 +255,8 @@ final class XMPOwnedEngineTests: XCTestCase {
             (.rating, "4"),
             (.label, "Green"),
             (.urgency, "2"),
+            (.pick, "1"),
+            (.good, "true"),
         ]
 
         for (scalar, value) in expected {
@@ -1091,8 +1099,10 @@ private let attributeScalarXMP = """
     <?xml version="1.0" encoding="UTF-8"?>
     <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
              xmlns:xmp="http://ns.adobe.com/xap/1.0/"
-             xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">
-      <rdf:Description rdf:about="" xmp:Rating="4" xmp:Label="Green" photoshop:Urgency="2"/>
+             xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"
+             xmlns:xmpDM="http://ns.adobe.com/xmp/1.0/DynamicMedia/">
+      <rdf:Description rdf:about="" xmp:Rating="4" xmp:Label="Green" photoshop:Urgency="2"
+                       xmpDM:pick="1" xmpDM:good="true"/>
     </rdf:RDF>
     """
 
@@ -1100,11 +1110,14 @@ private let elementScalarXMP = """
     <?xml version="1.0" encoding="UTF-8"?>
     <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
              xmlns:quality="http://ns.adobe.com/xap/1.0/"
-             xmlns:ps="http://ns.adobe.com/photoshop/1.0/">
+             xmlns:ps="http://ns.adobe.com/photoshop/1.0/"
+             xmlns:dm="http://ns.adobe.com/xmp/1.0/DynamicMedia/">
       <rdf:Description rdf:about="">
         <quality:Rating>4</quality:Rating>
         <quality:Label>Green</quality:Label>
         <ps:Urgency>2</ps:Urgency>
+        <dm:pick>1</dm:pick>
+        <dm:good>true</dm:good>
       </rdf:Description>
     </rdf:RDF>
     """
@@ -1127,12 +1140,16 @@ private let conflictingScalarXMP = """
     <?xml version="1.0" encoding="UTF-8"?>
     <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
              xmlns:xmp="http://ns.adobe.com/xap/1.0/"
-             xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">
-      <rdf:Description rdf:about="first" xmp:Rating="4" xmp:Label="Green" photoshop:Urgency="2"/>
+             xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"
+             xmlns:xmpDM="http://ns.adobe.com/xmp/1.0/DynamicMedia/">
+      <rdf:Description rdf:about="first" xmp:Rating="4" xmp:Label="Green" photoshop:Urgency="2"
+                       xmpDM:pick="1" xmpDM:good="true"/>
       <rdf:Description rdf:about="second">
         <xmp:Rating>3</xmp:Rating>
         <xmp:Label>Red</xmp:Label>
         <photoshop:Urgency>1</photoshop:Urgency>
+        <xmpDM:pick>-1</xmpDM:pick>
+        <xmpDM:good>false</xmpDM:good>
       </rdf:Description>
     </rdf:RDF>
     """

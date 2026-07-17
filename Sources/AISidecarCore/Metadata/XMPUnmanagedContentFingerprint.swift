@@ -3,7 +3,7 @@ import Foundation
 
 /// Semantic fingerprint for XMP content outside the owned engine's managed fields.
 public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
-    public static let algorithmVersion = "xmp-unmanaged-content-fingerprint/2.0"
+    public static let algorithmVersion = "xmp-unmanaged-content-fingerprint/3.0"
 
     public var algorithmVersion: String
     public var canonicalEntries: [String]
