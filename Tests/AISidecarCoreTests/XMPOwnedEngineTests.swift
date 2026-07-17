@@ -49,6 +49,104 @@ final class XMPOwnedEngineTests: XCTestCase {
             })
     }
 
+    func testScalarReaderReadsAttributeFormForEveryManagedScalar() throws {
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(attributeScalarXMP.utf8),
+            targetPath: "/tmp/AttributeScalars.xmp"
+        )
+        let expected: [(XMPManagedScalar, String)] = [
+            (.rating, "4"),
+            (.label, "Green"),
+            (.urgency, "2"),
+        ]
+
+        for (scalar, value) in expected {
+            let occurrence = try XCTUnwrap(try XMPScalarReader.read(scalar, in: parsed))
+            XCTAssertEqual(occurrence.scalar, scalar)
+            XCTAssertEqual(occurrence.value, value)
+            XCTAssertEqual(occurrence.form, .attribute)
+        }
+    }
+
+    func testScalarReaderReadsElementFormForEveryManagedScalar() throws {
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(elementScalarXMP.utf8),
+            targetPath: "/tmp/ElementScalars.xmp"
+        )
+        let expected: [(XMPManagedScalar, String)] = [
+            (.rating, "4"),
+            (.label, "Green"),
+            (.urgency, "2"),
+        ]
+
+        for (scalar, value) in expected {
+            let occurrence = try XCTUnwrap(try XMPScalarReader.read(scalar, in: parsed.document))
+            XCTAssertEqual(occurrence.scalar, scalar)
+            XCTAssertEqual(occurrence.value, value)
+            XCTAssertEqual(occurrence.form, .element)
+        }
+    }
+
+    func testScalarReaderReturnsNilWhenManagedScalarsAreAbsent() throws {
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(noManagedBagXMP.utf8),
+            targetPath: "/tmp/NoScalars.xmp"
+        )
+
+        for scalar in XMPManagedScalar.allCases {
+            XCTAssertNil(try XMPScalarReader.read(scalar, in: parsed))
+        }
+    }
+
+    func testScalarReaderToleratesEqualOccurrencesAcrossDescriptionsAndForms() throws {
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(equalDuplicateScalarXMP.utf8),
+            targetPath: "/tmp/EqualScalarDuplicates.xmp"
+        )
+        let expected: [(XMPManagedScalar, String)] = [
+            (.rating, "4"),
+            (.label, "Green"),
+            (.urgency, "2"),
+        ]
+
+        for (scalar, value) in expected {
+            XCTAssertEqual(try XMPScalarReader.read(scalar, in: parsed)?.value, value)
+        }
+    }
+
+    func testScalarReaderRejectsConflictingOccurrencesForEveryManagedScalar() throws {
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(conflictingScalarXMP.utf8),
+            targetPath: "/tmp/ConflictingScalars.xmp"
+        )
+
+        for scalar in XMPManagedScalar.allCases {
+            XCTAssertThrowsError(try XMPScalarReader.read(scalar, in: parsed)) { error in
+                XCTAssertEqual((error as? SidecarError)?.code, .xmpUnsupportedRDF)
+                XCTAssertTrue((error as? SidecarError)?.message.contains(scalar.qualifiedPropertyName) == true)
+            }
+        }
+    }
+
+    func testScalarReaderRejectsStructuredScalarElement() throws {
+        let xmp = """
+            <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                     xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+              <rdf:Description rdf:about="">
+                <xmp:Rating><rdf:Description rdf:about="nested"/></xmp:Rating>
+              </rdf:Description>
+            </rdf:RDF>
+            """
+        let parsed = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/StructuredScalar.xmp"
+        )
+
+        XCTAssertThrowsError(try XMPScalarReader.read(.rating, in: parsed)) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .xmpUnsupportedRDF)
+        }
+    }
+
     func testParserPrefersDescriptionWhoseAboutMatchesSourceFile() throws {
         let xmp = """
             <?xml version="1.0" encoding="UTF-8"?>
@@ -509,6 +607,56 @@ private let noManagedBagXMP = """
       <rdf:Description rdf:about="">
         <crs:Exposure2012>+0.35</crs:Exposure2012>
         <aux:rating>5</aux:rating>
+      </rdf:Description>
+    </rdf:RDF>
+    """
+
+private let attributeScalarXMP = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+             xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+             xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">
+      <rdf:Description rdf:about="" xmp:Rating="4" xmp:Label="Green" photoshop:Urgency="2"/>
+    </rdf:RDF>
+    """
+
+private let elementScalarXMP = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+             xmlns:quality="http://ns.adobe.com/xap/1.0/"
+             xmlns:ps="http://ns.adobe.com/photoshop/1.0/">
+      <rdf:Description rdf:about="">
+        <quality:Rating>4</quality:Rating>
+        <quality:Label>Green</quality:Label>
+        <ps:Urgency>2</ps:Urgency>
+      </rdf:Description>
+    </rdf:RDF>
+    """
+
+private let equalDuplicateScalarXMP = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+             xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+             xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">
+      <rdf:Description rdf:about="first" xmp:Rating="4" xmp:Label="Green" photoshop:Urgency="2"/>
+      <rdf:Description rdf:about="second">
+        <xmp:Rating> 4 </xmp:Rating>
+        <xmp:Label> Green </xmp:Label>
+        <photoshop:Urgency> 2 </photoshop:Urgency>
+      </rdf:Description>
+    </rdf:RDF>
+    """
+
+private let conflictingScalarXMP = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+             xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+             xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">
+      <rdf:Description rdf:about="first" xmp:Rating="4" xmp:Label="Green" photoshop:Urgency="2"/>
+      <rdf:Description rdf:about="second">
+        <xmp:Rating>3</xmp:Rating>
+        <xmp:Label>Red</xmp:Label>
+        <photoshop:Urgency>1</photoshop:Urgency>
       </rdf:Description>
     </rdf:RDF>
     """
