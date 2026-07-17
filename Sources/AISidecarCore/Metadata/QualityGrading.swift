@@ -67,7 +67,10 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
             .reject: "Red",
             .excellent: "Green",
         ],
-        urgencyMap: [QualityTier: Int] = [:]
+        urgencyMap: [QualityTier: Int] = [
+            .reject: 1,
+            .excellent: 2,
+        ]
     ) {
         self.minimumConfidence = minimumConfidence
         self.writeRating = writeRating
@@ -152,9 +155,9 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
         try container.encode(rejectAsMinusOne, forKey: .rejectAsMinusOne)
         try container.encode(perCriterionProblemKeywords, forKey: .perCriterionProblemKeywords)
         try container.encode(keywordRoot, forKey: .keywordRoot)
-        try container.encode(rawTierMap(ratingMap), forKey: .ratingMap)
-        try container.encode(rawTierMap(labelMap), forKey: .labelMap)
-        try container.encode(rawTierMap(urgencyMap), forKey: .urgencyMap)
+        try container.encode(Self.rawTierMap(ratingMap), forKey: .ratingMap)
+        try container.encode(Self.rawTierMap(labelMap), forKey: .labelMap)
+        try container.encode(Self.rawTierMap(urgencyMap), forKey: .urgencyMap)
     }
 
     public func validate() throws {
@@ -202,17 +205,24 @@ public struct QualityGradingPolicy: Codable, Sendable, Equatable {
         guard let values = try container.decodeIfPresent([String: Value].self, forKey: key) else {
             return defaultValue
         }
+        return try decodeTierMap(values, fieldName: key.rawValue)
+    }
+
+    static func decodeTierMap<Value>(
+        _ values: [String: Value],
+        fieldName: String
+    ) throws -> [QualityTier: Value] {
         var decoded: [QualityTier: Value] = [:]
         for rawTier in values.keys.sorted() {
             guard let tier = QualityTier(rawValue: rawTier) else {
-                throw SidecarError.configInvalid("Unknown quality tier in \(key.rawValue): \(rawTier)")
+                throw SidecarError.configInvalid("Unknown quality tier in \(fieldName): \(rawTier)")
             }
             decoded[tier] = values[rawTier]
         }
         return decoded
     }
 
-    private func rawTierMap<Value>(_ values: [QualityTier: Value]) -> [String: Value] {
+    static func rawTierMap<Value>(_ values: [QualityTier: Value]) -> [String: Value] {
         Dictionary(uniqueKeysWithValues: values.map { ($0.key.rawValue, $0.value) })
     }
 }

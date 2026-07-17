@@ -47,6 +47,10 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertFalse(resolved.allowSpecificTags)
         XCTAssertEqual(resolved.pairScope, .union)
         XCTAssertTrue(resolved.writeAIJSON)
+        XCTAssertEqual(resolved.qualityGrading, .builtInDefaults)
+        XCTAssertFalse(resolved.qualityGrading.enabled)
+        XCTAssertEqual(resolved.qualityGrading.conflictPolicy, .preserve)
+        XCTAssertEqual(resolved.qualityGrading.policy.urgencyMap, [.reject: 1, .excellent: 2])
     }
 
     func testQualityAssessmentEnvironmentOverridesConfigFile() throws {
@@ -168,7 +172,20 @@ final class ConfigResolutionTests: XCTestCase {
               "min_confidence": "high",
               "allow_specific_tags": true,
               "pair_scope": "raw-only",
-              "write_ai_json": false
+              "write_ai_json": false,
+              "xmp_quality_grading": true,
+              "xmp_quality_conflicts": "refresh",
+              "xmp_quality_min_confidence": "high",
+              "xmp_quality_write_rating": false,
+              "xmp_quality_write_label": false,
+              "xmp_quality_write_urgency": false,
+              "xmp_quality_write_keywords": false,
+              "xmp_quality_reject_as_minus_one": true,
+              "xmp_quality_per_criterion_problem_keywords": true,
+              "xmp_quality_keyword_root": "Review Quality",
+              "xmp_quality_rating_map": { "reject": -1, "excellent": 4 },
+              "xmp_quality_label_map": { "good": "Blue" },
+              "xmp_quality_urgency_map": { "good": 3 }
             }
             """
         )
@@ -193,6 +210,19 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertTrue(resolved.allowSpecificTags)
         XCTAssertEqual(resolved.pairScope, .rawOnly)
         XCTAssertFalse(resolved.writeAIJSON)
+        XCTAssertTrue(resolved.qualityGrading.enabled)
+        XCTAssertEqual(resolved.qualityGrading.conflictPolicy, .refresh)
+        XCTAssertEqual(resolved.qualityGrading.policy.minimumConfidence, .high)
+        XCTAssertFalse(resolved.qualityGrading.policy.writeRating)
+        XCTAssertFalse(resolved.qualityGrading.policy.writeLabel)
+        XCTAssertFalse(resolved.qualityGrading.policy.writeUrgency)
+        XCTAssertFalse(resolved.qualityGrading.policy.writeKeywords)
+        XCTAssertTrue(resolved.qualityGrading.policy.rejectAsMinusOne)
+        XCTAssertTrue(resolved.qualityGrading.policy.perCriterionProblemKeywords)
+        XCTAssertEqual(resolved.qualityGrading.policy.keywordRoot, "Review Quality")
+        XCTAssertEqual(resolved.qualityGrading.policy.ratingMap, [.reject: -1, .excellent: 4])
+        XCTAssertEqual(resolved.qualityGrading.policy.labelMap, [.good: "Blue"])
+        XCTAssertEqual(resolved.qualityGrading.policy.urgencyMap, [.good: 3])
     }
 
     func testEnvironmentOverridesConfigFile() throws {
@@ -266,7 +296,20 @@ final class ConfigResolutionTests: XCTestCase {
               "min_confidence": "medium",
               "allow_specific_tags": false,
               "pair_scope": "union",
-              "write_ai_json": true
+              "write_ai_json": true,
+              "xmp_quality_grading": false,
+              "xmp_quality_conflicts": "preserve",
+              "xmp_quality_min_confidence": "medium",
+              "xmp_quality_write_rating": true,
+              "xmp_quality_write_label": true,
+              "xmp_quality_write_urgency": true,
+              "xmp_quality_write_keywords": true,
+              "xmp_quality_reject_as_minus_one": false,
+              "xmp_quality_per_criterion_problem_keywords": false,
+              "xmp_quality_keyword_root": "File Quality",
+              "xmp_quality_rating_map": { "neutral": 2 },
+              "xmp_quality_label_map": { "neutral": "Yellow" },
+              "xmp_quality_urgency_map": { "neutral": 7 }
             }
             """
         )
@@ -288,6 +331,16 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_ALLOW_SPECIFIC_TAGS": "true",
                 "AISIDECAR_PAIR_SCOPE": "jpeg-only",
                 "AISIDECAR_WRITE_AI_JSON": "false",
+                "AISIDECAR_XMP_QUALITY_GRADING": "yes",
+                "AISIDECAR_XMP_QUALITY_CONFLICTS": "overwrite",
+                "AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE": "low",
+                "AISIDECAR_XMP_QUALITY_WRITE_RATING": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_LABEL": "0",
+                "AISIDECAR_XMP_QUALITY_WRITE_URGENCY": "no",
+                "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS": "false",
+                "AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE": "true",
+                "AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS": "1",
+                "AISIDECAR_XMP_QUALITY_KEYWORD_ROOT": "Environment Quality",
             ],
             defaultConfigPath: configPath
         )
@@ -307,6 +360,19 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertTrue(resolved.allowSpecificTags)
         XCTAssertEqual(resolved.pairScope, .jpegOnly)
         XCTAssertFalse(resolved.writeAIJSON)
+        XCTAssertTrue(resolved.qualityGrading.enabled)
+        XCTAssertEqual(resolved.qualityGrading.conflictPolicy, .overwrite)
+        XCTAssertEqual(resolved.qualityGrading.policy.minimumConfidence, .low)
+        XCTAssertFalse(resolved.qualityGrading.policy.writeRating)
+        XCTAssertFalse(resolved.qualityGrading.policy.writeLabel)
+        XCTAssertFalse(resolved.qualityGrading.policy.writeUrgency)
+        XCTAssertFalse(resolved.qualityGrading.policy.writeKeywords)
+        XCTAssertTrue(resolved.qualityGrading.policy.rejectAsMinusOne)
+        XCTAssertTrue(resolved.qualityGrading.policy.perCriterionProblemKeywords)
+        XCTAssertEqual(resolved.qualityGrading.policy.keywordRoot, "Environment Quality")
+        XCTAssertEqual(resolved.qualityGrading.policy.ratingMap, [.neutral: 2])
+        XCTAssertEqual(resolved.qualityGrading.policy.labelMap, [.neutral: "Yellow"])
+        XCTAssertEqual(resolved.qualityGrading.policy.urgencyMap, [.neutral: 7])
     }
 
     func testSourceIdentityPolicyUsesStableJSONKey() throws {
@@ -332,7 +398,20 @@ final class ConfigResolutionTests: XCTestCase {
             minConfidence: .high,
             allowSpecificTags: true,
             pairScope: .rawOnly,
-            writeAIJSON: false
+            writeAIJSON: false,
+            xmpQualityGrading: true,
+            xmpQualityConflicts: .refresh,
+            xmpQualityMinConfidence: .high,
+            xmpQualityWriteRating: false,
+            xmpQualityWriteLabel: false,
+            xmpQualityWriteUrgency: false,
+            xmpQualityWriteKeywords: false,
+            xmpQualityRejectAsMinusOne: true,
+            xmpQualityPerCriterionProblemKeywords: true,
+            xmpQualityKeywordRoot: "Review Quality",
+            xmpQualityRatingMap: [.belowAverage: 2],
+            xmpQualityLabelMap: [.excellent: "Green"],
+            xmpQualityUrgencyMap: [.excellent: 2]
         )
         let data = try JSONEncoder().encode(config)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -360,6 +439,19 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(object["allow_specific_tags"] as? Bool, true)
         XCTAssertEqual(object["pair_scope"] as? String, "raw-only")
         XCTAssertEqual(object["write_ai_json"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_grading"] as? Bool, true)
+        XCTAssertEqual(object["xmp_quality_conflicts"] as? String, "refresh")
+        XCTAssertEqual(object["xmp_quality_min_confidence"] as? String, "high")
+        XCTAssertEqual(object["xmp_quality_write_rating"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_write_label"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_write_urgency"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_write_keywords"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_reject_as_minus_one"] as? Bool, true)
+        XCTAssertEqual(object["xmp_quality_per_criterion_problem_keywords"] as? Bool, true)
+        XCTAssertEqual(object["xmp_quality_keyword_root"] as? String, "Review Quality")
+        XCTAssertEqual((object["xmp_quality_rating_map"] as? [String: Int])?["below_average"], 2)
+        XCTAssertEqual((object["xmp_quality_label_map"] as? [String: String])?["excellent"], "Green")
+        XCTAssertEqual((object["xmp_quality_urgency_map"] as? [String: Int])?["excellent"], 2)
     }
 
     func testCLIOverridesEnvironment() throws {
@@ -431,7 +523,16 @@ final class ConfigResolutionTests: XCTestCase {
                 minConfidence: .high,
                 allowSpecificTags: false,
                 pairScope: .rawOnly,
-                writeAIJSON: true
+                writeAIJSON: true,
+                qualityGrading: QualityGradingConfigurationOverrides(
+                    enabled: true,
+                    conflictPolicy: .refresh,
+                    minimumConfidence: .high,
+                    writeRating: true,
+                    writeLabel: true,
+                    writeUrgency: true,
+                    writeKeywords: true
+                )
             ),
             environment: [
                 "AISIDECAR_RECURSIVE": "1",
@@ -448,6 +549,16 @@ final class ConfigResolutionTests: XCTestCase {
                 "AISIDECAR_ALLOW_SPECIFIC_TAGS": "true",
                 "AISIDECAR_PAIR_SCOPE": "jpeg-only",
                 "AISIDECAR_WRITE_AI_JSON": "false",
+                "AISIDECAR_XMP_QUALITY_GRADING": "false",
+                "AISIDECAR_XMP_QUALITY_CONFLICTS": "overwrite",
+                "AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE": "low",
+                "AISIDECAR_XMP_QUALITY_WRITE_RATING": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_LABEL": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_URGENCY": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS": "false",
+                "AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE": "true",
+                "AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS": "true",
+                "AISIDECAR_XMP_QUALITY_KEYWORD_ROOT": "Environment Quality",
             ],
             defaultConfigPath: missingConfigPath()
         )
@@ -466,6 +577,75 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertFalse(resolved.allowSpecificTags)
         XCTAssertEqual(resolved.pairScope, .rawOnly)
         XCTAssertTrue(resolved.writeAIJSON)
+        XCTAssertTrue(resolved.qualityGrading.enabled)
+        XCTAssertEqual(resolved.qualityGrading.conflictPolicy, .refresh)
+        XCTAssertEqual(resolved.qualityGrading.policy.minimumConfidence, .high)
+        XCTAssertTrue(resolved.qualityGrading.policy.writeRating)
+        XCTAssertTrue(resolved.qualityGrading.policy.writeLabel)
+        XCTAssertTrue(resolved.qualityGrading.policy.writeUrgency)
+        XCTAssertTrue(resolved.qualityGrading.policy.writeKeywords)
+        XCTAssertTrue(resolved.qualityGrading.policy.rejectAsMinusOne)
+        XCTAssertTrue(resolved.qualityGrading.policy.perCriterionProblemKeywords)
+        XCTAssertEqual(resolved.qualityGrading.policy.keywordRoot, "Environment Quality")
+        XCTAssertEqual(resolved.qualityGrading.policy.ratingMap, QualityGradingPolicy.builtInDefaults.ratingMap)
+    }
+
+    func testResolvedXMPExportConfigurationRoundTripsAndDefaultsLegacyQualityBlock() throws {
+        var current = ResolvedXMPExportConfiguration.builtInDefaults
+        current.qualityGrading = ResolvedQualityGradingConfiguration(
+            enabled: true,
+            conflictPolicy: .refresh,
+            policy: QualityGradingPolicy(keywordRoot: "Review Quality")
+        )
+
+        let data = try JSONEncoder().encode(current)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let qualityObject = try XCTUnwrap(object["quality_grading"] as? [String: Any])
+        XCTAssertEqual(qualityObject["conflict_policy"] as? String, "refresh")
+        XCTAssertEqual(try JSONDecoder().decode(ResolvedXMPExportConfiguration.self, from: data), current)
+
+        object.removeValue(forKey: "quality_grading")
+        let legacyData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        let legacy = try JSONDecoder().decode(ResolvedXMPExportConfiguration.self, from: legacyData)
+        XCTAssertEqual(legacy.qualityGrading, .builtInDefaults)
+    }
+
+    func testXMPQualityGradingResolutionRejectsInvalidPoliciesWhileDisabled() throws {
+        let invalidConfigurations = [
+            #"{ "xmp_quality_rating_map": { "good": 6 } }"#,
+            #"{ "xmp_quality_urgency_map": { "excellent": 0 } }"#,
+            #"{ "xmp_quality_label_map": { "excellent": " " } }"#,
+            #"{ "xmp_quality_keyword_root": "AI|Quality" }"#,
+            #"{ "xmp_quality_rating_map": { "future": 3 } }"#,
+        ]
+
+        for contents in invalidConfigurations {
+            let configPath = try writeConfig(contents)
+            try assertConfigInvalid {
+                _ = try ConfigurationResolver.resolveXMPExport(
+                    environment: [:],
+                    defaultConfigPath: configPath
+                )
+            }
+        }
+    }
+
+    func testXMPQualityGradingResolutionRejectsInvalidEnvironmentValues() throws {
+        let invalidEnvironments = [
+            ["AISIDECAR_XMP_QUALITY_GRADING": "sometimes"],
+            ["AISIDECAR_XMP_QUALITY_CONFLICTS": "replace"],
+            ["AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE": "very-high"],
+            ["AISIDECAR_XMP_QUALITY_WRITE_RATING": "perhaps"],
+        ]
+
+        for environment in invalidEnvironments {
+            try assertConfigInvalid {
+                _ = try ConfigurationResolver.resolveXMPExport(
+                    environment: environment,
+                    defaultConfigPath: missingConfigPath()
+                )
+            }
+        }
     }
 
     func testCLIConfigPathChoosesAlternateJSON() throws {
@@ -540,5 +720,16 @@ final class ConfigResolutionTests: XCTestCase {
         let file = directory.appendingPathComponent("config.json")
         try contents.data(using: .utf8)!.write(to: file)
         return file.path
+    }
+
+    private func assertConfigInvalid(_ operation: () throws -> Void) throws {
+        do {
+            try operation()
+            XCTFail("Expected E_CONFIG_INVALID")
+        } catch let error as SidecarError {
+            XCTAssertEqual(error.code, .configInvalid)
+            XCTAssertEqual(error.stage, .configuration)
+            XCTAssertFalse(error.recoverable)
+        }
     }
 }

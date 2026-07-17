@@ -108,6 +108,42 @@ struct WriteXMPCommand: AsyncParsableCommand {
     @Option(help: "Minimum candidate confidence to export: low, medium, or high.")
     var minConfidence: XMPMinimumConfidence?
 
+    @Flag(help: "Grade stored quality assessments into configured XMP fields.")
+    var qualityGrading = false
+
+    @Flag(name: .customLong("write-rating"), help: "Write derived quality ratings to xmp:Rating.")
+    var writeRating = false
+
+    @Flag(name: .customLong("no-write-rating"), help: "Disable quality rating export.")
+    var noWriteRating = false
+
+    @Flag(name: .customLong("write-label"), help: "Write derived quality labels to xmp:Label.")
+    var writeLabel = false
+
+    @Flag(name: .customLong("no-write-label"), help: "Disable quality label export.")
+    var noWriteLabel = false
+
+    @Flag(
+        name: .customLong("write-urgency"),
+        help: "Write Capture One color companions to photoshop:Urgency."
+    )
+    var writeUrgency = false
+
+    @Flag(name: .customLong("no-write-urgency"), help: "Disable Capture One urgency export.")
+    var noWriteUrgency = false
+
+    @Flag(name: .customLong("write-quality-keywords"), help: "Write deterministic quality-tier keywords.")
+    var writeQualityKeywords = false
+
+    @Flag(name: .customLong("no-write-quality-keywords"), help: "Disable quality-tier keyword export.")
+    var noWriteQualityKeywords = false
+
+    @Option(help: "Managed-scalar conflict policy: preserve, refresh, or overwrite.")
+    var qualityConflicts: ScalarConflictPolicy?
+
+    @Option(help: "Minimum confidence for quality grading: low, medium, or high.")
+    var qualityMinConfidence: XMPMinimumConfidence?
+
     @Flag(help: "Allow specific tags such as scientific names, named places, named events, or named people.")
     var allowSpecificTags = false
 
@@ -202,10 +238,21 @@ struct WriteXMPCommand: AsyncParsableCommand {
             stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext,
+            qualityGrading: qualityGrading,
+            qualityConflicts: qualityConflicts,
+            qualityMinConfidence: qualityMinConfidence,
             writeFlatKeywords: writeFlatKeywords,
             noWriteFlatKeywords: noWriteFlatKeywords,
             writeHierarchicalKeywords: writeHierarchicalKeywords,
             noWriteHierarchicalKeywords: noWriteHierarchicalKeywords,
+            writeRating: writeRating,
+            noWriteRating: noWriteRating,
+            writeLabel: writeLabel,
+            noWriteLabel: noWriteLabel,
+            writeUrgency: writeUrgency,
+            noWriteUrgency: noWriteUrgency,
+            writeQualityKeywords: writeQualityKeywords,
+            noWriteQualityKeywords: noWriteQualityKeywords,
             backupSidecars: backupSidecars,
             noBackupSidecars: noBackupSidecars,
             writeAIJSON: writeAIJSON,
@@ -233,7 +280,19 @@ struct WriteXMPCommand: AsyncParsableCommand {
             minConfidence: minConfidence,
             allowSpecificTags: allowSpecificTags ? true : nil,
             pairScope: pairScope,
-            writeAIJSON: pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON)
+            writeAIJSON: pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON),
+            qualityGrading: QualityGradingConfigurationOverrides(
+                enabled: qualityGrading ? true : nil,
+                conflictPolicy: qualityConflicts,
+                minimumConfidence: qualityConfidence(from: qualityMinConfidence),
+                writeRating: pairedFlag(positive: writeRating, negative: noWriteRating),
+                writeLabel: pairedFlag(positive: writeLabel, negative: noWriteLabel),
+                writeUrgency: pairedFlag(positive: writeUrgency, negative: noWriteUrgency),
+                writeKeywords: pairedFlag(
+                    positive: writeQualityKeywords,
+                    negative: noWriteQualityKeywords
+                )
+            )
         )
     }
 
@@ -270,6 +329,12 @@ struct WriteXMPCommand: AsyncParsableCommand {
             return false
         }
         return nil
+    }
+
+    private func qualityConfidence(
+        from value: XMPMinimumConfidence?
+    ) -> QualityAssessmentRecord.Confidence? {
+        value.flatMap { QualityAssessmentRecord.Confidence(rawValue: $0.rawValue) }
     }
 
     private func writeChangePlan(_ changePlan: XMPChangePlanDocument) throws {

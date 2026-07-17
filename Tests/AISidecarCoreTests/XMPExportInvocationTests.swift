@@ -27,6 +27,38 @@ final class XMPExportInvocationTests: XCTestCase {
         XCTAssertEqual(analyze, .analyzeAndWrite(inputPath: "Image.JPG"))
     }
 
+    func testQualityGradingOptionsAreValidInBothInputModes() throws {
+        let fromJSONRequest = XMPExportInvocationRequest(
+            fromJSONPath: "Image.JPG.ai.json",
+            qualityGrading: true,
+            qualityConflicts: .refresh,
+            qualityMinConfidence: .high,
+            writeRating: true,
+            noWriteLabel: true,
+            writeUrgency: true,
+            noWriteQualityKeywords: true
+        )
+        XCTAssertEqual(
+            try XMPExportInvocationValidator.validate(fromJSONRequest),
+            .fromJSON(path: "Image.JPG.ai.json")
+        )
+
+        let analyzeRequest = XMPExportInvocationRequest(
+            inputPath: "Image.JPG",
+            qualityGrading: true,
+            qualityConflicts: .overwrite,
+            qualityMinConfidence: .low,
+            noWriteRating: true,
+            writeLabel: true,
+            noWriteUrgency: true,
+            writeQualityKeywords: true
+        )
+        XCTAssertEqual(
+            try XMPExportInvocationValidator.validate(analyzeRequest),
+            .analyzeAndWrite(inputPath: "Image.JPG")
+        )
+    }
+
     func testRejectsFromJSONWithAnalyzeOnlyOptions() throws {
         let invalidRequests = [
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", mode: .both),
@@ -75,6 +107,14 @@ final class XMPExportInvocationTests: XCTestCase {
                 fromJSONPath: "A.ai.json",
                 writeHierarchicalKeywords: true,
                 noWriteHierarchicalKeywords: true
+            ),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeRating: true, noWriteRating: true),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeLabel: true, noWriteLabel: true),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeUrgency: true, noWriteUrgency: true),
+            XMPExportInvocationRequest(
+                fromJSONPath: "A.ai.json",
+                writeQualityKeywords: true,
+                noWriteQualityKeywords: true
             ),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", backupSidecars: true, noBackupSidecars: true),
             XMPExportInvocationRequest(inputPath: "Image.JPG", writeAIJSON: true, noWriteAIJSON: true),

@@ -380,7 +380,51 @@ public enum ConfigurationResolver {
                 from: environment["AISIDECAR_PAIR_SCOPE"],
                 key: "AISIDECAR_PAIR_SCOPE"
             ),
-            writeAIJSON: try boolValue(from: environment["AISIDECAR_WRITE_AI_JSON"], key: "AISIDECAR_WRITE_AI_JSON")
+            writeAIJSON: try boolValue(
+                from: environment["AISIDECAR_WRITE_AI_JSON"],
+                key: "AISIDECAR_WRITE_AI_JSON"
+            ),
+            qualityGrading: QualityGradingConfigurationOverrides(
+                enabled: try boolValue(
+                    from: environment["AISIDECAR_XMP_QUALITY_GRADING"],
+                    key: "AISIDECAR_XMP_QUALITY_GRADING"
+                ),
+                conflictPolicy: try enumValue(
+                    ScalarConflictPolicy.self,
+                    from: environment["AISIDECAR_XMP_QUALITY_CONFLICTS"],
+                    key: "AISIDECAR_XMP_QUALITY_CONFLICTS"
+                ),
+                minimumConfidence: try enumValue(
+                    QualityAssessmentRecord.Confidence.self,
+                    from: environment["AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE"],
+                    key: "AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE"
+                ),
+                writeRating: try boolValue(
+                    from: environment["AISIDECAR_XMP_QUALITY_WRITE_RATING"],
+                    key: "AISIDECAR_XMP_QUALITY_WRITE_RATING"
+                ),
+                writeLabel: try boolValue(
+                    from: environment["AISIDECAR_XMP_QUALITY_WRITE_LABEL"],
+                    key: "AISIDECAR_XMP_QUALITY_WRITE_LABEL"
+                ),
+                writeUrgency: try boolValue(
+                    from: environment["AISIDECAR_XMP_QUALITY_WRITE_URGENCY"],
+                    key: "AISIDECAR_XMP_QUALITY_WRITE_URGENCY"
+                ),
+                writeKeywords: try boolValue(
+                    from: environment["AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS"],
+                    key: "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS"
+                ),
+                rejectAsMinusOne: try boolValue(
+                    from: environment["AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE"],
+                    key: "AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE"
+                ),
+                perCriterionProblemKeywords: try boolValue(
+                    from: environment["AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS"],
+                    key: "AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS"
+                ),
+                keywordRoot: environment["AISIDECAR_XMP_QUALITY_KEYWORD_ROOT"]
+            )
         )
     }
 
@@ -829,6 +873,7 @@ private struct XMPExportConfigurationBuilder {
     private var allowSpecificTags: Bool
     private var pairScope: XMPPairScope
     private var writeAIJSON: Bool
+    private var qualityGrading: QualityGradingConfigurationBuilder
 
     init(defaults: ResolvedXMPExportConfiguration) {
         self.recursive = defaults.recursive
@@ -846,6 +891,7 @@ private struct XMPExportConfigurationBuilder {
         self.allowSpecificTags = defaults.allowSpecificTags
         self.pairScope = defaults.pairScope
         self.writeAIJSON = defaults.writeAIJSON
+        self.qualityGrading = QualityGradingConfigurationBuilder(defaults: defaults.qualityGrading)
     }
 
     mutating func apply(config: AppConfig) {
@@ -864,6 +910,7 @@ private struct XMPExportConfigurationBuilder {
         merge(&allowSpecificTags, config.allowSpecificTags)
         merge(&pairScope, config.pairScope)
         merge(&writeAIJSON, config.writeAIJSON)
+        qualityGrading.apply(config: config)
     }
 
     mutating func apply(overrides: XMPExportConfigurationOverrides) {
@@ -882,6 +929,7 @@ private struct XMPExportConfigurationBuilder {
         merge(&allowSpecificTags, overrides.allowSpecificTags)
         merge(&pairScope, overrides.pairScope)
         merge(&writeAIJSON, overrides.writeAIJSON)
+        qualityGrading.apply(overrides: overrides.qualityGrading)
     }
 
     func resolved() throws -> ResolvedXMPExportConfiguration {
@@ -889,6 +937,7 @@ private struct XMPExportConfigurationBuilder {
             throw SidecarError.configInvalid("xmp_conflict_policy backup-and-merge requires backup_sidecars to be true")
         }
 
+        let resolvedQualityGrading = try qualityGrading.resolved()
         return ResolvedXMPExportConfiguration(
             recursive: recursive,
             outputDir: outputDir,
@@ -904,7 +953,63 @@ private struct XMPExportConfigurationBuilder {
             minConfidence: minConfidence,
             allowSpecificTags: allowSpecificTags,
             pairScope: pairScope,
-            writeAIJSON: writeAIJSON
+            writeAIJSON: writeAIJSON,
+            qualityGrading: resolvedQualityGrading
+        )
+    }
+}
+
+private struct QualityGradingConfigurationBuilder {
+    private var enabled: Bool
+    private var conflictPolicy: ScalarConflictPolicy
+    private var policy: QualityGradingPolicy
+
+    init(defaults: ResolvedQualityGradingConfiguration) {
+        self.enabled = defaults.enabled
+        self.conflictPolicy = defaults.conflictPolicy
+        self.policy = defaults.policy
+    }
+
+    mutating func apply(config: AppConfig) {
+        merge(&enabled, config.xmpQualityGrading)
+        merge(&conflictPolicy, config.xmpQualityConflicts)
+        merge(&policy.minimumConfidence, config.xmpQualityMinConfidence)
+        merge(&policy.writeRating, config.xmpQualityWriteRating)
+        merge(&policy.writeLabel, config.xmpQualityWriteLabel)
+        merge(&policy.writeUrgency, config.xmpQualityWriteUrgency)
+        merge(&policy.writeKeywords, config.xmpQualityWriteKeywords)
+        merge(&policy.rejectAsMinusOne, config.xmpQualityRejectAsMinusOne)
+        merge(&policy.perCriterionProblemKeywords, config.xmpQualityPerCriterionProblemKeywords)
+        merge(&policy.keywordRoot, config.xmpQualityKeywordRoot)
+        merge(&policy.ratingMap, config.xmpQualityRatingMap)
+        merge(&policy.labelMap, config.xmpQualityLabelMap)
+        merge(&policy.urgencyMap, config.xmpQualityUrgencyMap)
+    }
+
+    mutating func apply(overrides: QualityGradingConfigurationOverrides) {
+        merge(&enabled, overrides.enabled)
+        merge(&conflictPolicy, overrides.conflictPolicy)
+        merge(&policy.minimumConfidence, overrides.minimumConfidence)
+        merge(&policy.writeRating, overrides.writeRating)
+        merge(&policy.writeLabel, overrides.writeLabel)
+        merge(&policy.writeUrgency, overrides.writeUrgency)
+        merge(&policy.writeKeywords, overrides.writeKeywords)
+        merge(&policy.rejectAsMinusOne, overrides.rejectAsMinusOne)
+        merge(&policy.perCriterionProblemKeywords, overrides.perCriterionProblemKeywords)
+        merge(&policy.keywordRoot, overrides.keywordRoot)
+        merge(&policy.ratingMap, overrides.ratingMap)
+        merge(&policy.labelMap, overrides.labelMap)
+        merge(&policy.urgencyMap, overrides.urgencyMap)
+    }
+
+    func resolved() throws -> ResolvedQualityGradingConfiguration {
+        // Validate the complete policy even while grading is disabled so dormant
+        // configuration errors fail before any batch work begins.
+        try policy.validate()
+        return ResolvedQualityGradingConfiguration(
+            enabled: enabled,
+            conflictPolicy: conflictPolicy,
+            policy: policy
         )
     }
 }
@@ -1109,7 +1214,8 @@ extension XMPExportConfigurationOverrides {
             minConfidence: minConfidence,
             allowSpecificTags: allowSpecificTags,
             pairScope: pairScope,
-            writeAIJSON: writeAIJSON
+            writeAIJSON: writeAIJSON,
+            qualityGrading: qualityGrading
         )
     }
 }

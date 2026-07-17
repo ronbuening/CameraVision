@@ -3,6 +3,13 @@ import XCTest
 @testable import AISidecarCore
 
 final class QualityGradingTests: XCTestCase {
+    func testBuiltInLabelAndUrgencyMappingsMatchCaptureOneEvidence() {
+        let policy = QualityGradingPolicy.builtInDefaults
+
+        XCTAssertEqual(policy.labelMap, [.reject: "Red", .excellent: "Green"])
+        XCTAssertEqual(policy.urgencyMap, [.reject: 1, .excellent: 2])
+    }
+
     func testRuleTableCoversEveryTierRowAndThresholdBoundary() throws {
         struct Case {
             var name: String

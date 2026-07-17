@@ -64,6 +64,12 @@ extension XMPConflictPolicy: ExpressibleByArgument {
     }
 }
 
+extension ScalarConflictPolicy: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
 extension XMPMinimumConfidence: ExpressibleByArgument {
     public init?(argument: String) {
         self.init(rawValue: argument)
