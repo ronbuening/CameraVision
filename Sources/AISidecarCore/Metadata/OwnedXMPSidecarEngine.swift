@@ -31,7 +31,7 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
             return .empty(targetPath: targetPath, exists: false)
         }
         let parsed = try XMPDocumentParser(fileManager: fileManagerBox.value).parseFile(at: targetPath)
-        return XMPMetadataSnapshot.make(targetPath: targetPath, exists: true, parsed: parsed)
+        return try XMPMetadataSnapshot.make(targetPath: targetPath, exists: true, parsed: parsed)
     }
 
     public func preview(_ request: XMPWriteRequest) throws -> XMPWritePreview {
@@ -103,7 +103,7 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
     public func validateReadable(at targetXMPPath: String) throws -> XMPMetadataSnapshot {
         let targetPath = URL(fileURLWithPath: targetXMPPath).standardizedFileURL.path
         let parsed = try XMPDocumentParser(fileManager: fileManagerBox.value).parseFile(at: targetPath)
-        return XMPMetadataSnapshot.make(targetPath: targetPath, exists: true, parsed: parsed)
+        return try XMPMetadataSnapshot.make(targetPath: targetPath, exists: true, parsed: parsed)
     }
 
     public func shutdown() throws {}

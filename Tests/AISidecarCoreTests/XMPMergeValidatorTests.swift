@@ -54,7 +54,7 @@ final class XMPMergeValidatorTests: XCTestCase {
 
     private func snapshot(from xml: String, path: String) throws -> XMPMetadataSnapshot {
         let parsed = try XMPDocumentParser().parse(data: Data(xml.utf8), targetPath: path)
-        return XMPMetadataSnapshot.make(targetPath: path, exists: true, parsed: parsed)
+        return try XMPMetadataSnapshot.make(targetPath: path, exists: true, parsed: parsed)
     }
 }
 

@@ -39,14 +39,147 @@ final class XMPOwnedEngineTests: XCTestCase {
             data: Data(noManagedBagXMP.utf8),
             targetPath: "/tmp/MissingBags.xmp"
         )
-        let snapshot = XMPMetadataSnapshot.make(targetPath: "/tmp/MissingBags.xmp", exists: true, parsed: parsed)
+        let snapshot = try XMPMetadataSnapshot.make(
+            targetPath: "/tmp/MissingBags.xmp",
+            exists: true,
+            parsed: parsed
+        )
 
         XCTAssertEqual(snapshot.flatKeywords, [])
         XCTAssertEqual(snapshot.hierarchicalKeywords, [])
-        XCTAssertTrue(
-            snapshot.unmanagedContentFingerprint.canonicalEntries.contains {
-                $0.contains("rating") || $0.contains("Exposure2012")
-            })
+        XCTAssertNil(snapshot.rating)
+        XCTAssertNil(snapshot.label)
+        XCTAssertNil(snapshot.urgency)
+        XCTAssertTrue(snapshot.unmanagedContentFingerprint.canonicalEntries.contains { $0.contains("aux") })
+        XCTAssertTrue(snapshot.unmanagedContentFingerprint.canonicalEntries.contains { $0.contains("Exposure2012") })
+    }
+
+    func testSnapshotReadsManagedScalarsFromAttributeAndElementForms() throws {
+        for (xml, path) in [
+            (attributeScalarXMP, "/tmp/AttributeSnapshot.xmp"),
+            (elementScalarXMP, "/tmp/ElementSnapshot.xmp"),
+        ] {
+            let parsed = try XMPDocumentParser().parse(data: Data(xml.utf8), targetPath: path)
+            let snapshot = try XMPMetadataSnapshot.make(targetPath: path, exists: true, parsed: parsed)
+
+            XCTAssertEqual(snapshot.rating, "4")
+            XCTAssertEqual(snapshot.label, "Green")
+            XCTAssertEqual(snapshot.urgency, "2")
+        }
+    }
+
+    func testSnapshotRejectsConflictingManagedScalars() throws {
+        let path = "/tmp/ConflictingSnapshot.xmp"
+        let parsed = try XMPDocumentParser().parse(data: Data(conflictingScalarXMP.utf8), targetPath: path)
+
+        XCTAssertThrowsError(try XMPMetadataSnapshot.make(targetPath: path, exists: true, parsed: parsed)) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .xmpUnsupportedRDF)
+        }
+    }
+
+    func testFingerprintIgnoresManagedScalarValuesInBothForms() throws {
+        XCTAssertEqual(
+            XMPUnmanagedContentFingerprint.algorithmVersion,
+            "xmp-unmanaged-content-fingerprint/2.0"
+        )
+        let attribute = try XMPDocumentParser().parse(
+            data: Data(attributeScalarXMP.utf8),
+            targetPath: "/tmp/AttributeFingerprint.xmp"
+        )
+        let changedAttribute = try XMPDocumentParser().parse(
+            data: Data(
+                attributeScalarXMP
+                    .replacingOccurrences(of: "xmp:Rating=\"4\"", with: "xmp:Rating=\"5\"")
+                    .replacingOccurrences(of: "xmp:Label=\"Green\"", with: "xmp:Label=\"Red\"")
+                    .replacingOccurrences(of: "photoshop:Urgency=\"2\"", with: "photoshop:Urgency=\"1\"")
+                    .utf8
+            ),
+            targetPath: "/tmp/ChangedAttributeFingerprint.xmp"
+        )
+        let element = try XMPDocumentParser().parse(
+            data: Data(elementScalarXMP.utf8),
+            targetPath: "/tmp/ElementFingerprint.xmp"
+        )
+        let changedElement = try XMPDocumentParser().parse(
+            data: Data(
+                elementScalarXMP
+                    .replacingOccurrences(of: ">4</quality:Rating>", with: ">5</quality:Rating>")
+                    .replacingOccurrences(of: ">Green</quality:Label>", with: ">Red</quality:Label>")
+                    .replacingOccurrences(of: ">2</ps:Urgency>", with: ">1</ps:Urgency>")
+                    .utf8
+            ),
+            targetPath: "/tmp/ChangedElementFingerprint.xmp"
+        )
+
+        XCTAssertEqual(
+            XMPUnmanagedContentFingerprint.make(from: attribute),
+            XMPUnmanagedContentFingerprint.make(from: changedAttribute)
+        )
+        XCTAssertEqual(
+            XMPUnmanagedContentFingerprint.make(from: element),
+            XMPUnmanagedContentFingerprint.make(from: changedElement)
+        )
+    }
+
+    func testFingerprintStillChangesForUnmanagedContent() throws {
+        let original = try XMPDocumentParser().parse(
+            data: Data(existingDevelopSettingsXMP.utf8),
+            targetPath: "/tmp/OriginalDevelopSettings.xmp"
+        )
+        let changed = try XMPDocumentParser().parse(
+            data: Data(
+                existingDevelopSettingsXMP
+                    .replacingOccurrences(of: ">+0.35</crs:Exposure2012>", with: ">+1.00</crs:Exposure2012>")
+                    .utf8
+            ),
+            targetPath: "/tmp/ChangedDevelopSettings.xmp"
+        )
+
+        XCTAssertNotEqual(
+            XMPUnmanagedContentFingerprint.make(from: original),
+            XMPUnmanagedContentFingerprint.make(from: changed)
+        )
+    }
+
+    func testFingerprintRetainsNestedAndForeignNamespaceScalarLookalikes() throws {
+        let xmp = """
+            <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                     xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+                     xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"
+                     xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+                     xmlns:foreign="urn:example:foreign">
+              <rdf:Description rdf:about="" foreign:Rating="4">
+                <foreign:Label>Green</foreign:Label>
+                <crs:Container xmp:Rating="4">
+                  <xmp:Label>Green</xmp:Label>
+                  <photoshop:Urgency>2</photoshop:Urgency>
+                </crs:Container>
+              </rdf:Description>
+            </rdf:RDF>
+            """
+        let original = try XMPDocumentParser().parse(
+            data: Data(xmp.utf8),
+            targetPath: "/tmp/ScalarLookalikes.xmp"
+        )
+        let originalFingerprint = XMPUnmanagedContentFingerprint.make(from: original)
+        let replacements = [
+            ("foreign:Rating=\"4\"", "foreign:Rating=\"5\""),
+            (">Green</foreign:Label>", ">Red</foreign:Label>"),
+            ("xmp:Rating=\"4\"", "xmp:Rating=\"5\""),
+            (">Green</xmp:Label>", ">Red</xmp:Label>"),
+            (">2</photoshop:Urgency>", ">1</photoshop:Urgency>"),
+        ]
+
+        XCTAssertNil(try XMPScalarReader.read(.rating, in: original))
+        XCTAssertNil(try XMPScalarReader.read(.label, in: original))
+        XCTAssertNil(try XMPScalarReader.read(.urgency, in: original))
+        for (oldValue, newValue) in replacements {
+            let changed = try XMPDocumentParser().parse(
+                data: Data(xmp.replacingOccurrences(of: oldValue, with: newValue).utf8),
+                targetPath: "/tmp/ChangedScalarLookalikes.xmp"
+            )
+            XCTAssertNotEqual(originalFingerprint, XMPUnmanagedContentFingerprint.make(from: changed))
+        }
     }
 
     func testScalarReaderReadsAttributeFormForEveryManagedScalar() throws {

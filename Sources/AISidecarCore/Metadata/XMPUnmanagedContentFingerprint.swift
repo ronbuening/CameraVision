@@ -1,9 +1,9 @@
 import CryptoKit
 import Foundation
 
-/// Semantic fingerprint for XMP content outside the Phase 2 managed keyword fields.
+/// Semantic fingerprint for XMP content outside the owned engine's managed fields.
 public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
-    public static let algorithmVersion = "xmp-unmanaged-content-fingerprint/1.0"
+    public static let algorithmVersion = "xmp-unmanaged-content-fingerprint/2.0"
 
     public var algorithmVersion: String
     public var canonicalEntries: [String]
@@ -55,7 +55,7 @@ public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
     }
 
     private static func appendEntries(for element: XMLElement, currentPath: [String], entries: inout [String]) {
-        guard !XMPXML.isManagedProperty(element) else {
+        guard !XMPXML.isManagedProperty(element), !isOwnedManagedScalarElement(element) else {
             return
         }
 
@@ -63,7 +63,7 @@ public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
         entries.append("element|\(pathString)|uri=\(element.uri ?? "")|local=\(element.xmlLocalName)")
 
         let attributes = (element.attributes ?? [])
-            .filter { !XMPXML.isManagedAttribute($0) }
+            .filter { !XMPXML.isManagedAttribute($0) && !isOwnedManagedScalarAttribute($0, on: element) }
             .sorted { lhs, rhs in
                 attributeSortKey(lhs) < attributeSortKey(rhs)
             }
@@ -73,7 +73,9 @@ public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
             )
         }
 
-        let elementChildren = XMPXML.elementChildren(of: element).filter { !XMPXML.isManagedProperty($0) }
+        let elementChildren = XMPXML.elementChildren(of: element).filter {
+            !XMPXML.isManagedProperty($0) && !isOwnedManagedScalarElement($0)
+        }
         let hasElementChildren = !elementChildren.isEmpty
         let text = (element.children ?? [])
             .filter { $0.kind == .text }
@@ -104,6 +106,33 @@ public struct XMPUnmanagedContentFingerprint: Codable, Sendable, Equatable {
 
     private static func attributeSortKey(_ attribute: XMLNode) -> String {
         "\(attribute.uri ?? "")|\(attribute.xmlLocalName)|\(attribute.stringValue ?? "")"
+    }
+
+    private static func isOwnedManagedScalarElement(_ element: XMLElement) -> Bool {
+        guard
+            XMPManagedScalar.allCases.contains(where: {
+                element.xmlLocalName == $0.localName && element.uri == $0.namespaceURI
+            }), let description = element.parent as? XMLElement, isDirectRDFDescription(description)
+        else {
+            return false
+        }
+        return true
+    }
+
+    private static func isOwnedManagedScalarAttribute(_ attribute: XMLNode, on element: XMLElement) -> Bool {
+        guard isDirectRDFDescription(element) else {
+            return false
+        }
+        return XMPManagedScalar.allCases.contains {
+            attribute.xmlLocalName == $0.localName && attribute.uri == $0.namespaceURI
+        }
+    }
+
+    private static func isDirectRDFDescription(_ element: XMLElement) -> Bool {
+        guard XMPXML.isRDFDescription(element), let parent = element.parent as? XMLElement else {
+            return false
+        }
+        return XMPXML.isRDFRoot(parent)
     }
 }
 
