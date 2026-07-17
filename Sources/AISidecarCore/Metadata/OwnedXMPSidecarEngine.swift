@@ -37,6 +37,7 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
     public func preview(_ request: XMPWriteRequest) throws -> XMPWritePreview {
         try validateExecutablePlan(request.plan)
         let snapshot = try readSnapshot(at: request.plan.targetXMPPath)
+        try validateScalarPreconditions(in: request, against: snapshot)
         let parsed = try parsedDocumentForWrite(
             targetPath: request.plan.targetXMPPath,
             existed: snapshot.exists,
@@ -74,6 +75,7 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
         let targetPath = targetURL.path
         let existed = fileManagerBox.value.fileExists(atPath: targetPath)
         let preSnapshot = try readSnapshot(at: targetPath)
+        try validateScalarPreconditions(in: request, against: preSnapshot)
 
         let parsed = try parsedDocumentForWrite(
             targetPath: targetPath,
@@ -222,6 +224,42 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
         return resultingSnapshot
     }
 
+    private func validateScalarPreconditions(
+        in request: XMPWriteRequest,
+        against snapshot: XMPMetadataSnapshot
+    ) throws {
+        try validateScalarPrecondition(request.ratingWrite, for: .rating, currentValue: snapshot.rating)
+        try validateScalarPrecondition(request.labelWrite, for: .label, currentValue: snapshot.label)
+        try validateScalarPrecondition(request.urgencyWrite, for: .urgency, currentValue: snapshot.urgency)
+        try validateUrgencyLabelPrecondition(in: request, against: snapshot)
+    }
+
+    private func validateScalarPrecondition(
+        _ write: PlannedScalarWrite?,
+        for scalar: XMPManagedScalar,
+        currentValue: String?
+    ) throws {
+        guard try appliedValue(for: scalar, write: write) != nil, write?.existingValue != currentValue else {
+            return
+        }
+        throw XMPScalarWritePrecondition.failure(for: scalar)
+    }
+
+    private func validateUrgencyLabelPrecondition(
+        in request: XMPWriteRequest,
+        against snapshot: XMPMetadataSnapshot
+    ) throws {
+        guard try appliedValue(for: .urgency, write: request.urgencyWrite) != nil,
+            let labelWrite = request.labelWrite
+        else {
+            return
+        }
+        let resultingLabel = try appliedValue(for: .label, write: labelWrite) ?? snapshot.label
+        guard resultingLabel == labelWrite.plannedValue else {
+            throw XMPScalarWritePrecondition.failure(for: .label)
+        }
+    }
+
     private func apply(
         _ write: PlannedScalarWrite?,
         to scalar: XMPManagedScalar,
@@ -258,6 +296,30 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
 
     private func managedScalarsDiffer(_ lhs: XMPMetadataSnapshot, _ rhs: XMPMetadataSnapshot) -> Bool {
         lhs.rating != rhs.rating || lhs.label != rhs.label || lhs.urgency != rhs.urgency
+    }
+}
+
+enum XMPScalarWritePrecondition {
+    private static let messagePrefix = "Scalar precondition failed for "
+
+    static func failure(for scalar: XMPManagedScalar) -> SidecarError {
+        SidecarError(
+            code: .validationFailed,
+            stage: .write,
+            message:
+                "\(messagePrefix)\(scalar.qualifiedPropertyName): the current XMP value no longer "
+                + "matches the value recorded in the change plan.",
+            recoverable: true
+        )
+    }
+
+    static func matches(_ error: Error) -> Bool {
+        guard let error = error as? SidecarError else {
+            return false
+        }
+        return error.code == .validationFailed
+            && error.stage == .write
+            && error.message.hasPrefix(messagePrefix)
     }
 }
 

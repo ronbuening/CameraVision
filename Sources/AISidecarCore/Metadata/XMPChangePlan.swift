@@ -26,6 +26,7 @@ public struct SourceMemberPlan: Codable, Sendable, Equatable {
     public var skipReason: XMPSourceMemberSkipReason?
     public var flatKeywordContributionCount: Int
     public var hierarchicalKeywordContributionCount: Int
+    public var qualitySidecarPath: String?
 
     enum CodingKeys: String, CodingKey {
         case sourcePath = "source_path"
@@ -40,6 +41,7 @@ public struct SourceMemberPlan: Codable, Sendable, Equatable {
         case skipReason = "skip_reason"
         case flatKeywordContributionCount = "flat_keyword_contribution_count"
         case hierarchicalKeywordContributionCount = "hierarchical_keyword_contribution_count"
+        case qualitySidecarPath = "quality_sidecar_path"
     }
 
     public init(
@@ -54,7 +56,8 @@ public struct SourceMemberPlan: Codable, Sendable, Equatable {
         selected: Bool,
         skipReason: XMPSourceMemberSkipReason?,
         flatKeywordContributionCount: Int,
-        hierarchicalKeywordContributionCount: Int
+        hierarchicalKeywordContributionCount: Int,
+        qualitySidecarPath: String? = nil
     ) {
         self.sourcePath = sourcePath
         self.sourceRelativePath = sourceRelativePath
@@ -68,6 +71,7 @@ public struct SourceMemberPlan: Codable, Sendable, Equatable {
         self.skipReason = skipReason
         self.flatKeywordContributionCount = flatKeywordContributionCount
         self.hierarchicalKeywordContributionCount = hierarchicalKeywordContributionCount
+        self.qualitySidecarPath = qualitySidecarPath
     }
 }
 
@@ -193,6 +197,7 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
     public var labelWrite: PlannedScalarWrite?
     public var urgencyWrite: PlannedScalarWrite?
     public var qualityExplanation: [String]?
+    public var qualityTier: QualityTier?
 
     enum CodingKeys: String, CodingKey {
         case status
@@ -215,6 +220,7 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         case labelWrite = "label_write"
         case urgencyWrite = "urgency_write"
         case qualityExplanation = "quality_explanation"
+        case qualityTier = "quality_tier"
     }
 
     public init(
@@ -237,7 +243,8 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         ratingWrite: PlannedScalarWrite? = nil,
         labelWrite: PlannedScalarWrite? = nil,
         urgencyWrite: PlannedScalarWrite? = nil,
-        qualityExplanation: [String]? = nil
+        qualityExplanation: [String]? = nil,
+        qualityTier: QualityTier? = nil
     ) {
         self.status = status
         self.targetXMPPath = targetXMPPath
@@ -259,6 +266,7 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         self.labelWrite = labelWrite
         self.urgencyWrite = urgencyWrite
         self.qualityExplanation = qualityExplanation
+        self.qualityTier = qualityTier
     }
 }
 
@@ -333,7 +341,8 @@ public struct XMPChangePlanner {
     public func plan(
         inputBatch: RawJSONSidecarInputBatch,
         extractionResults: [CandidateExtractionResult],
-        configuration: ResolvedXMPExportConfiguration
+        configuration: ResolvedXMPExportConfiguration,
+        snapshotReader: (@Sendable (String) throws -> XMPMetadataSnapshot)? = nil
     ) -> XMPChangePlanDocument {
         var entries: [XMPNamingEntry] = []
         var inputFailures = inputBatch.failures.map { failure in
@@ -400,29 +409,37 @@ public struct XMPChangePlanner {
         )
         return XMPChangePlanDocument(
             dryRun: configuration.dryRun,
-            targetPlans: groups.map { targetPlan(for: $0, configuration: configuration) },
+            targetPlans: groups.map {
+                targetPlan(
+                    for: $0,
+                    configuration: configuration,
+                    snapshotReader: snapshotReader
+                )
+            },
             inputFailures: inputFailures.sorted { comparePaths($0.sidecarPath, $1.sidecarPath) }
         )
     }
 
     private func targetPlan(
         for selectedGroup: SameBaseNameSelectedGroup,
-        configuration: ResolvedXMPExportConfiguration
+        configuration: ResolvedXMPExportConfiguration,
+        snapshotReader: (@Sendable (String) throws -> XMPMetadataSnapshot)?
     ) -> XMPChangePlan {
         let selectedSidecars = Set(selectedGroup.selectedMembers.map { $0.input.sidecarPath.standardizedFileURL.path })
         let sourceMembers = selectedGroup.group.members.map { member in
             sourceMemberPlan(
                 for: member,
                 selected: selectedSidecars.contains(member.input.sidecarPath.standardizedFileURL.path),
-                pairScope: configuration.pairScope
+                pairScope: configuration.pairScope,
+                includesQualityProvenance: configuration.qualityGrading.enabled
             )
         }
-        let flatKeywords = plannedKeywords(from: selectedGroup.selectedMembers, keyPath: \.flatKeywords)
-        let hierarchicalKeywords = plannedKeywords(from: selectedGroup.selectedMembers, keyPath: \.hierarchicalKeywords)
+        var flatKeywords = plannedKeywords(from: selectedGroup.selectedMembers, keyPath: \.flatKeywords)
+        var hierarchicalKeywords = plannedKeywords(from: selectedGroup.selectedMembers, keyPath: \.hierarchicalKeywords)
         let selectedResults = selectedGroup.selectedMembers.map(\.extractionResult)
         let sourceVerificationWarnings = selectedGroup.group.members.flatMap(\.input.warnings)
 
-        return XMPChangePlan(
+        var plan = XMPChangePlan(
             status: selectedGroup.failures.isEmpty ? .planned : .failed,
             targetXMPPath: selectedGroup.group.targetXMPPath,
             targetRelativePath: selectedGroup.group.targetRelativePath,
@@ -445,12 +462,128 @@ public struct XMPChangePlanner {
             validationPlan: .phase2Default,
             failures: selectedGroup.failures
         )
+
+        guard configuration.qualityGrading.enabled else {
+            return plan
+        }
+
+        let quality = qualityAssessments(from: selectedGroup.selectedMembers)
+        let policy = configuration.qualityGrading.policy
+        let whole = quality.recordsByRole[.wholeImage]
+        let subject = quality.recordsByRole[.subjectIsolated]
+        let ungradedReason = QualityTierDeriver.ungradedReason(
+            whole: whole,
+            subject: subject,
+            policy: policy
+        )
+        guard let grade = QualityTierDeriver.grade(whole: whole, subject: subject, policy: policy) else {
+            plan.qualityExplanation = qualityExplanation(
+                grade: nil,
+                ungradedReason: ungradedReason ?? .noRecords,
+                records: quality.recordsByRole,
+                issues: quality.issues
+            )
+            return plan
+        }
+
+        plan.qualityTier = grade.tier
+        plan.qualityExplanation = qualityExplanation(
+            grade: grade,
+            ungradedReason: nil,
+            records: quality.recordsByRole,
+            issues: quality.issues
+        )
+        if policy.writeKeywords {
+            if configuration.writeFlatKeywords {
+                flatKeywords = mergingQualityKeywords(flatKeywords, terms: flatQualityKeywords(from: grade.keywords))
+            }
+            if configuration.writeHierarchicalKeywords {
+                hierarchicalKeywords = mergingQualityKeywords(
+                    hierarchicalKeywords,
+                    terms: hierarchicalQualityKeywords(from: grade.keywords)
+                )
+            }
+            plan.flatKeywordsToAdd = flatKeywords
+            plan.hierarchicalKeywordsToAdd = hierarchicalKeywords
+        }
+
+        guard grade.rating != nil || grade.label != nil || grade.urgency != nil else {
+            return plan
+        }
+        guard let snapshotReader else {
+            plan.status = .failed
+            plan.failures.append(
+                qualityPlanningError(
+                    "Quality grading requires a prepared XMP snapshot reader for \(plan.targetXMPPath)."
+                ))
+            return plan
+        }
+
+        do {
+            let snapshot = try snapshotReader(plan.targetXMPPath)
+            let stamped: TrustedStampedScalars
+            if configuration.qualityGrading.conflictPolicy == .refresh {
+                stamped = trustedStampedScalars(
+                    from: quality.contributors,
+                    targetXMPPath: plan.targetXMPPath,
+                    explanation: &plan.qualityExplanation
+                )
+            } else {
+                stamped = TrustedStampedScalars()
+            }
+            plan.ratingWrite = scalarWrite(
+                field: XMPManagedScalar.rating.qualifiedPropertyName,
+                desiredValue: grade.rating.map(String.init),
+                existingValue: snapshot.rating,
+                stampedValue: stamped.rating,
+                policy: configuration.qualityGrading.conflictPolicy
+            )
+            plan.labelWrite = scalarWrite(
+                field: XMPManagedScalar.label.qualifiedPropertyName,
+                desiredValue: grade.label,
+                existingValue: snapshot.label,
+                stampedValue: stamped.label,
+                policy: configuration.qualityGrading.conflictPolicy
+            )
+
+            if let desiredUrgency = grade.urgency.map(String.init), let desiredLabel = grade.label {
+                let resultingLabel = projectedValue(existingValue: snapshot.label, write: plan.labelWrite)
+                if resultingLabel == desiredLabel {
+                    plan.urgencyWrite = scalarWrite(
+                        field: XMPManagedScalar.urgency.qualifiedPropertyName,
+                        desiredValue: desiredUrgency,
+                        existingValue: snapshot.urgency,
+                        stampedValue: stamped.urgency,
+                        policy: configuration.qualityGrading.conflictPolicy
+                    )
+                } else {
+                    plan.urgencyWrite = PlannedScalarWrite(
+                        field: XMPManagedScalar.urgency.qualifiedPropertyName,
+                        plannedValue: desiredUrgency,
+                        existingValue: snapshot.urgency,
+                        action: .skipExisting
+                    )
+                    plan.qualityExplanation?.append(
+                        "urgency suppressed: resulting label does not match the planned label \(desiredLabel)"
+                    )
+                }
+            }
+        } catch {
+            plan.status = .failed
+            plan.failures.append(
+                qualityPlanningError(
+                    "Unable to read XMP scalars for quality grading at \(plan.targetXMPPath): "
+                        + error.localizedDescription
+                ))
+        }
+        return plan
     }
 
     private func sourceMemberPlan(
         for member: SameBaseNameGroupMember,
         selected: Bool,
-        pairScope: XMPPairScope
+        pairScope: XMPPairScope,
+        includesQualityProvenance: Bool
     ) -> SourceMemberPlan {
         let source = member.input.document.sidecar.source
         return SourceMemberPlan(
@@ -465,7 +598,10 @@ public struct XMPChangePlanner {
             selected: selected,
             skipReason: selected ? nil : skipReason(pairScope: pairScope),
             flatKeywordContributionCount: selected ? member.extractionResult.flatKeywords.count : 0,
-            hierarchicalKeywordContributionCount: selected ? member.extractionResult.hierarchicalKeywords.count : 0
+            hierarchicalKeywordContributionCount: selected ? member.extractionResult.hierarchicalKeywords.count : 0,
+            qualitySidecarPath: selected && includesQualityProvenance
+                ? distinctQualitySidecarPath(for: member.input)
+                : nil
         )
     }
 
@@ -478,6 +614,253 @@ public struct XMPChangePlanner {
         case .jpegOnly:
             return .pairScopeJPEGOnly
         }
+    }
+
+    private func distinctQualitySidecarPath(for input: ResolvedRawSidecarInput) -> String? {
+        guard let qualitySidecarPath = input.qualitySidecarPath?.standardizedFileURL.path,
+            qualitySidecarPath != input.sidecarPath.standardizedFileURL.path
+        else {
+            return nil
+        }
+        return qualitySidecarPath
+    }
+
+    private func qualityAssessments(from members: [SameBaseNameGroupMember]) -> QualityAssessmentSelection {
+        var contributorByPath: [String: QualityDocumentContributor] = [:]
+        for member in members {
+            let input = member.input
+            let primaryPath = input.sidecarPath.standardizedFileURL.path
+            contributorByPath[primaryPath] = QualityDocumentContributor(
+                path: primaryPath,
+                document: input.document
+            )
+            if let qualityPath = input.qualitySidecarPath?.standardizedFileURL.path,
+                let qualityDocument = input.qualityDocument
+            {
+                contributorByPath[qualityPath] = QualityDocumentContributor(
+                    path: qualityPath,
+                    document: qualityDocument
+                )
+            }
+        }
+
+        let contributors = contributorByPath.values.sorted {
+            if $0.document.sidecar.createdAt == $1.document.sidecar.createdAt {
+                return comparePaths($0.path, $1.path)
+            }
+            return $0.document.sidecar.createdAt < $1.document.sidecar.createdAt
+        }
+        var recordsByRole: [ModelInputRole: QualityAssessmentRecord] = [:]
+        var issues: [QualityExtractionIssue] = []
+        for contributor in contributors {
+            let extraction = QualityAssessmentExtractor.extract(
+                from: ResolvedRawSidecarInput(
+                    sidecarPath: URL(fileURLWithPath: contributor.path),
+                    document: contributor.document,
+                    sourcePath: URL(fileURLWithPath: contributor.document.sidecar.source.path),
+                    sourceIdentityStatus: .matched,
+                    relativePath: nil,
+                    warnings: []
+                ))
+            issues.append(contentsOf: extraction.issues)
+            for record in extraction.records {
+                recordsByRole[record.role] = record
+            }
+        }
+        return QualityAssessmentSelection(
+            contributors: contributors,
+            recordsByRole: recordsByRole,
+            issues: issues
+        )
+    }
+
+    private func qualityExplanation(
+        grade: QualityGrade?,
+        ungradedReason: QualityUngradedReason?,
+        records: [ModelInputRole: QualityAssessmentRecord],
+        issues: [QualityExtractionIssue]
+    ) -> [String] {
+        var explanation: [String]
+        if let grade {
+            explanation = ["tier=\(grade.tier.rawValue)"]
+        } else {
+            explanation = ["ungraded reason=\((ungradedReason ?? .noRecords).rawValue)"]
+        }
+
+        if let primary = records[.wholeImage] ?? records[.subjectIsolated] {
+            let strongCount = primary.criteria.values.filter { $0 == .strong }.count
+            let problemCount = primary.criteria.values.filter { $0 == .problem }.count
+            explanation.append("counts strong=\(strongCount) problem=\(problemCount)")
+            explanation.append("confidence=\(primary.confidence.rawValue)")
+        }
+        for role in ModelInputRole.allCases {
+            guard let record = records[role] else {
+                continue
+            }
+            explanation.append("source role=\(role.rawValue) prompt_version=\(record.promptVersion)")
+        }
+        for code in issues.map({ $0.code.rawValue }).sorted() {
+            explanation.append("extraction_issue=\(code)")
+        }
+        if let grade {
+            explanation.append(contentsOf: grade.explanation.map { "rule=\($0)" })
+        }
+        return explanation
+    }
+
+    private func hierarchicalQualityKeywords(from paths: [String]) -> [String] {
+        let normalizedPaths = paths.compactMap { path -> String? in
+            let components = path.split(separator: "|", omittingEmptySubsequences: false)
+                .map { KeywordTextNormalizer.normalize(String($0)) }
+            guard !components.isEmpty, components.allSatisfy({ !$0.isEmpty }) else {
+                return nil
+            }
+            return components.joined(separator: "|")
+        }
+        return normalizedSafeKeywords(normalizedPaths)
+    }
+
+    private func flatQualityKeywords(from paths: [String]) -> [String] {
+        let flattened = paths.map { path in
+            path.split(separator: "|", omittingEmptySubsequences: false)
+                .map { KeywordTextNormalizer.normalize(String($0)) }
+                .joined(separator: " ")
+        }
+        return normalizedSafeKeywords(flattened)
+    }
+
+    private func normalizedSafeKeywords(_ terms: [String]) -> [String] {
+        var result: [String] = []
+        var seen: Set<String> = []
+        for term in terms {
+            let normalized = KeywordTextNormalizer.normalize(term)
+            guard !normalized.isEmpty, !KeywordSafetyPolicy.isUnsafeKeyword(normalized) else {
+                continue
+            }
+            let key = KeywordTextNormalizer.deduplicationKey(for: normalized)
+            if seen.insert(key).inserted {
+                result.append(normalized)
+            }
+        }
+        return result
+    }
+
+    private func mergingQualityKeywords(_ existing: [PlannedKeyword], terms: [String]) -> [PlannedKeyword] {
+        var merged = existing
+        var seen = Set(existing.map(\.normalizedKey))
+        for term in terms {
+            let key = KeywordTextNormalizer.deduplicationKey(for: term)
+            guard seen.insert(key).inserted else {
+                continue
+            }
+            merged.append(PlannedKeyword(term: term, normalizedKey: key, candidates: []))
+        }
+        return merged
+    }
+
+    private func trustedStampedScalars(
+        from contributors: [QualityDocumentContributor],
+        targetXMPPath: String,
+        explanation: inout [String]?
+    ) -> TrustedStampedScalars {
+        var stamps: [RawSidecarExportStamp.Contents] = []
+        for contributor in contributors {
+            let hasStamp = ((try? contributor.document.jsonValue())?.objectValue)?[RawSidecarExportStamp.key] != nil
+            guard hasStamp else {
+                continue
+            }
+            guard let contents = RawSidecarExportStamp.contents(from: contributor.document) else {
+                explanation?.append("refresh provenance unavailable: malformed export stamp")
+                return TrustedStampedScalars()
+            }
+            stamps.append(contents)
+        }
+        guard let newestDate = stamps.map(\.exportedAt).max() else {
+            return TrustedStampedScalars()
+        }
+        let newest = stamps.filter { $0.exportedAt == newestDate }
+        let standardizedTarget = URL(fileURLWithPath: targetXMPPath).standardizedFileURL.path
+        guard
+            newest.allSatisfy({
+                URL(fileURLWithPath: $0.targetXMPPath).standardizedFileURL.path == standardizedTarget
+            })
+        else {
+            explanation?.append("refresh provenance unavailable: newest export stamp targets another XMP sidecar")
+            return TrustedStampedScalars()
+        }
+
+        let rating = trustedTiedValue(newest.map(\.rating), field: "rating", explanation: &explanation)
+        let label = trustedTiedValue(newest.map(\.label), field: "label", explanation: &explanation)
+        let urgency = trustedTiedValue(newest.map(\.urgency), field: "urgency", explanation: &explanation)
+        return TrustedStampedScalars(rating: rating, label: label, urgency: urgency)
+    }
+
+    private func trustedTiedValue(
+        _ values: [String?],
+        field: String,
+        explanation: inout [String]?
+    ) -> String? {
+        guard let first = values.first else {
+            return nil
+        }
+        guard values.dropFirst().allSatisfy({ $0 == first }) else {
+            explanation?.append("refresh provenance unavailable: newest export stamps disagree on \(field)")
+            return nil
+        }
+        return first
+    }
+
+    private func scalarWrite(
+        field: String,
+        desiredValue: String?,
+        existingValue: String?,
+        stampedValue: String?,
+        policy: ScalarConflictPolicy
+    ) -> PlannedScalarWrite? {
+        guard let desiredValue else {
+            return nil
+        }
+        let action: PlannedScalarWrite.Action
+        switch policy {
+        case .preserve:
+            action = existingValue == nil ? .write : .skipExisting
+        case .refresh:
+            if existingValue == nil {
+                action = .write
+            } else if existingValue == desiredValue {
+                action = .skipExisting
+            } else if existingValue == stampedValue {
+                action = .overwrite
+            } else {
+                action = .skipExisting
+            }
+        case .overwrite:
+            action = .overwrite
+        }
+        return PlannedScalarWrite(
+            field: field,
+            plannedValue: desiredValue,
+            existingValue: existingValue,
+            action: action
+        )
+    }
+
+    private func projectedValue(existingValue: String?, write: PlannedScalarWrite?) -> String? {
+        switch write?.action {
+        case .write, .overwrite:
+            return write?.plannedValue
+        case .skipExisting, nil:
+            return existingValue
+        }
+    }
+
+    private func qualityPlanningError(_ message: String) -> SidecarError {
+        SidecarError(
+            code: .validationFailed,
+            stage: .write,
+            message: message,
+            recoverable: true
+        )
     }
 
     private func plannedKeywords(
@@ -505,6 +888,29 @@ public struct XMPChangePlanner {
         }
 
         return keywords
+    }
+}
+
+private struct QualityDocumentContributor {
+    var path: String
+    var document: RawJSONSidecarDocument
+}
+
+private struct QualityAssessmentSelection {
+    var contributors: [QualityDocumentContributor]
+    var recordsByRole: [ModelInputRole: QualityAssessmentRecord]
+    var issues: [QualityExtractionIssue]
+}
+
+private struct TrustedStampedScalars {
+    var rating: String?
+    var label: String?
+    var urgency: String?
+
+    init(rating: String? = nil, label: String? = nil, urgency: String? = nil) {
+        self.rating = rating
+        self.label = label
+        self.urgency = urgency
     }
 }
 

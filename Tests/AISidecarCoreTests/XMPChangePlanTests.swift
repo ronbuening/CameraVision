@@ -114,6 +114,7 @@ final class XMPChangePlanTests: XCTestCase {
             action: .overwrite
         )
         plan.qualityExplanation = ["tier=good", "problem_count=0"]
+        plan.qualityTier = .good
 
         let encoder = JSONCoding.documentEncoder()
         let data = try encoder.encode(plan)
@@ -125,18 +126,21 @@ final class XMPChangePlanTests: XCTestCase {
         XCTAssertEqual((object["label_write"] as? [String: Any])?["action"] as? String, "skip_existing")
         XCTAssertEqual((object["urgency_write"] as? [String: Any])?["action"] as? String, "overwrite")
         XCTAssertEqual(object["quality_explanation"] as? [String], ["tier=good", "problem_count=0"])
+        XCTAssertEqual(object["quality_tier"] as? String, "good")
 
         var legacyObject = object
         legacyObject.removeValue(forKey: "rating_write")
         legacyObject.removeValue(forKey: "label_write")
         legacyObject.removeValue(forKey: "urgency_write")
         legacyObject.removeValue(forKey: "quality_explanation")
+        legacyObject.removeValue(forKey: "quality_tier")
         let legacyData = try JSONSerialization.data(withJSONObject: legacyObject, options: [.sortedKeys])
         let legacyPlan = try JSONDecoder().decode(XMPChangePlan.self, from: legacyData)
         XCTAssertNil(legacyPlan.ratingWrite)
         XCTAssertNil(legacyPlan.labelWrite)
         XCTAssertNil(legacyPlan.urgencyWrite)
         XCTAssertNil(legacyPlan.qualityExplanation)
+        XCTAssertNil(legacyPlan.qualityTier)
         XCTAssertEqual(legacyPlan.targetXMPPath, plan.targetXMPPath)
     }
 
