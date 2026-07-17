@@ -659,6 +659,200 @@ final class XMPOwnedEngineTests: XCTestCase {
         XCTAssertEqual(snapshot.hierarchicalKeywords, ["wading bird"])
     }
 
+    func testOwnedEngineWritesNewSidecarWithKeywordsAndManagedScalars() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Graded.xmp")
+        let engine = OwnedXMPSidecarEngine()
+        let plan = changePlan(
+            targetPath: target.path,
+            flat: ["AI Quality good"],
+            hierarchical: ["AI Quality|good"],
+            ratingWrite: scalarWrite(.rating, value: "4", existingValue: nil, action: .write),
+            labelWrite: scalarWrite(.label, value: "Green", existingValue: nil, action: .write),
+            urgencyWrite: scalarWrite(.urgency, value: "2", existingValue: nil, action: .write)
+        )
+
+        let preview = try engine.preview(XMPWriteRequest(plan: plan))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+        XCTAssertNil(preview.existingRating)
+        XCTAssertEqual(preview.resultingRating, "4")
+        XCTAssertEqual(preview.resultingLabel, "Green")
+        XCTAssertEqual(preview.resultingUrgency, "2")
+
+        let result = try engine.apply(XMPWriteRequest(plan: plan))
+        let snapshot = try engine.readSnapshot(at: target.path)
+        XCTAssertTrue(result.created)
+        XCTAssertFalse(result.modified)
+        XCTAssertEqual(snapshot.flatKeywords, ["AI Quality good"])
+        XCTAssertEqual(snapshot.hierarchicalKeywords, ["AI Quality|good"])
+        XCTAssertEqual(snapshot.rating, "4")
+        XCTAssertEqual(snapshot.label, "Green")
+        XCTAssertEqual(snapshot.urgency, "2")
+        XCTAssertEqual(result.existingRating, result.preWriteSnapshot.rating)
+        XCTAssertEqual(result.resultingRating, result.postWriteSnapshot.rating)
+        XCTAssertEqual(result.existingLabel, result.preWriteSnapshot.label)
+        XCTAssertEqual(result.resultingLabel, result.postWriteSnapshot.label)
+        XCTAssertEqual(result.existingUrgency, result.preWriteSnapshot.urgency)
+        XCTAssertEqual(result.resultingUrgency, result.postWriteSnapshot.urgency)
+        XCTAssertEqual(snapshot.unmanagedContentFingerprint, result.postWriteSnapshot.unmanagedContentFingerprint)
+
+        let xml = try String(contentsOf: target, encoding: .utf8)
+        XCTAssertTrue(xml.contains("xmp:Rating=\"4\""))
+        XCTAssertTrue(xml.contains("xmp:Label=\"Green\""))
+        XCTAssertTrue(xml.contains("photoshop:Urgency=\"2\""))
+    }
+
+    func testOwnedEnginePreservesForeignRatingWhileWritingOtherScalarsAndKeywords() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Foreign.xmp")
+        try foreignScalarXMP.write(to: target, atomically: true, encoding: .utf8)
+        let engine = OwnedXMPSidecarEngine()
+        let preSnapshot = try engine.readSnapshot(at: target.path)
+        let originalBytes = try Data(contentsOf: target)
+        let plan = changePlan(
+            targetPath: target.path,
+            flat: ["AI Quality good"],
+            hierarchical: ["AI Quality|good"],
+            ratingWrite: scalarWrite(.rating, value: "4", existingValue: "3", action: .skipExisting),
+            labelWrite: scalarWrite(.label, value: "Green", existingValue: nil, action: .write),
+            urgencyWrite: scalarWrite(.urgency, value: "2", existingValue: nil, action: .write)
+        )
+
+        let preview = try engine.preview(XMPWriteRequest(plan: plan))
+        XCTAssertEqual(try Data(contentsOf: target), originalBytes)
+        XCTAssertEqual(preview.existingRating, "3")
+        XCTAssertEqual(preview.resultingRating, "3")
+        XCTAssertEqual(preview.resultingLabel, "Green")
+        XCTAssertEqual(preview.resultingUrgency, "2")
+
+        let result = try engine.apply(XMPWriteRequest(plan: plan))
+        let postSnapshot = try engine.readSnapshot(at: target.path)
+        XCTAssertTrue(result.modified)
+        XCTAssertEqual(postSnapshot.rating, "3")
+        XCTAssertEqual(postSnapshot.label, "Green")
+        XCTAssertEqual(postSnapshot.urgency, "2")
+        XCTAssertEqual(postSnapshot.flatKeywords, ["existing bird", "AI Quality good"])
+        XCTAssertEqual(postSnapshot.hierarchicalKeywords, ["existing habitat", "AI Quality|good"])
+        XCTAssertEqual(postSnapshot.unmanagedContentFingerprint, preSnapshot.unmanagedContentFingerprint)
+    }
+
+    func testOwnedEngineScalarOnlyWriteBypassesKeywordNoChangeExit() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("ScalarOnly.xmp")
+        try attributeScalarXMP.write(to: target, atomically: true, encoding: .utf8)
+        let engine = OwnedXMPSidecarEngine()
+        let plan = changePlan(
+            targetPath: target.path,
+            flat: [],
+            hierarchical: [],
+            ratingWrite: scalarWrite(.rating, value: "5", existingValue: "4", action: .overwrite)
+        )
+
+        let result = try engine.apply(XMPWriteRequest(plan: plan))
+
+        XCTAssertFalse(result.created)
+        XCTAssertTrue(result.modified)
+        XCTAssertEqual(result.existingRating, "4")
+        XCTAssertEqual(result.resultingRating, "5")
+        XCTAssertEqual(try engine.readSnapshot(at: target.path).rating, "5")
+    }
+
+    func testOwnedEngineSkipOnlyScalarPlanLeavesBytesUnchanged() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("SkippedScalars.xmp")
+        try attributeScalarXMP.write(to: target, atomically: true, encoding: .utf8)
+        let originalBytes = try Data(contentsOf: target)
+        let engine = OwnedXMPSidecarEngine()
+        let plan = changePlan(
+            targetPath: target.path,
+            flat: [],
+            hierarchical: [],
+            ratingWrite: scalarWrite(.rating, value: "1", existingValue: "4", action: .skipExisting),
+            labelWrite: scalarWrite(.label, value: "Red", existingValue: "Green", action: .skipExisting),
+            urgencyWrite: scalarWrite(.urgency, value: "1", existingValue: "2", action: .skipExisting)
+        )
+
+        let preview = try engine.preview(XMPWriteRequest(plan: plan))
+        let result = try engine.apply(XMPWriteRequest(plan: plan))
+
+        XCTAssertEqual(preview.resultingRating, "4")
+        XCTAssertEqual(preview.resultingLabel, "Green")
+        XCTAssertEqual(preview.resultingUrgency, "2")
+        XCTAssertFalse(result.created)
+        XCTAssertFalse(result.modified)
+        XCTAssertEqual(result.preWriteSnapshot, result.postWriteSnapshot)
+        XCTAssertEqual(try Data(contentsOf: target), originalBytes)
+    }
+
+    func testOwnedEngineRejectsUrgencyWriteWithoutResultingLabel() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("UrgencyWithoutLabel.xmp")
+        let plan = changePlan(
+            targetPath: target.path,
+            flat: [],
+            hierarchical: [],
+            urgencyWrite: scalarWrite(.urgency, value: "2", existingValue: nil, action: .write)
+        )
+        let engine = OwnedXMPSidecarEngine()
+
+        for operation in [
+            { try engine.preview(XMPWriteRequest(plan: plan)) as Any },
+            { try engine.apply(XMPWriteRequest(plan: plan)) as Any },
+        ] {
+            XCTAssertThrowsError(try operation()) { error in
+                XCTAssertEqual((error as? SidecarError)?.code, .validationFailed)
+            }
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+    }
+
+    func testOwnedEngineRejectsConflictingScalarsWithoutReplacingFile() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("ConflictingScalars.xmp")
+        try conflictingScalarXMP.write(to: target, atomically: true, encoding: .utf8)
+        let originalBytes = try Data(contentsOf: target)
+        let plan = changePlan(
+            targetPath: target.path,
+            flat: [],
+            hierarchical: [],
+            ratingWrite: scalarWrite(.rating, value: "5", existingValue: nil, action: .overwrite)
+        )
+
+        XCTAssertThrowsError(try OwnedXMPSidecarEngine().apply(XMPWriteRequest(plan: plan))) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .xmpUnsupportedRDF)
+        }
+        XCTAssertEqual(try Data(contentsOf: target), originalBytes)
+    }
+
+    func testOwnedEnginePreviewRejectsIncompatiblePreferredPrefixWithoutWriting() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("BadPrefix.xmp")
+        let original = """
+            <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xmp="urn:foreign">
+              <rdf:Description rdf:about=""/>
+            </rdf:RDF>
+            """
+        try original.write(to: target, atomically: true, encoding: .utf8)
+        let plan = changePlan(
+            targetPath: target.path,
+            flat: [],
+            hierarchical: [],
+            labelWrite: scalarWrite(.label, value: "Green", existingValue: nil, action: .write)
+        )
+
+        XCTAssertThrowsError(try OwnedXMPSidecarEngine().preview(XMPWriteRequest(plan: plan))) { error in
+            XCTAssertEqual((error as? SidecarError)?.code, .xmpUnsupportedRDF)
+        }
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), original)
+    }
+
     func testOwnedEngineMergesExistingSidecarAndPreservesUnmanagedFingerprint() throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
@@ -724,7 +918,8 @@ final class XMPOwnedEngineTests: XCTestCase {
                     plan: changePlan(
                         targetPath: target.path,
                         flat: ["new keyword"],
-                        hierarchical: []
+                        hierarchical: [],
+                        ratingWrite: scalarWrite(.rating, value: "4", existingValue: nil, action: .write)
                     )))
         ) { error in
             XCTAssertEqual((error as? SidecarError)?.code, .xmpUnsupportedRDF)
@@ -764,7 +959,10 @@ final class XMPOwnedEngineTests: XCTestCase {
     private func changePlan(
         targetPath: String,
         flat: [String],
-        hierarchical: [String]
+        hierarchical: [String],
+        ratingWrite: PlannedScalarWrite? = nil,
+        labelWrite: PlannedScalarWrite? = nil,
+        urgencyWrite: PlannedScalarWrite? = nil
     ) -> XMPChangePlan {
         XMPChangePlan(
             status: .planned,
@@ -785,7 +983,24 @@ final class XMPOwnedEngineTests: XCTestCase {
                 conflictPolicy: .merge
             ),
             validationPlan: .phase2Default,
-            failures: []
+            failures: [],
+            ratingWrite: ratingWrite,
+            labelWrite: labelWrite,
+            urgencyWrite: urgencyWrite
+        )
+    }
+
+    private func scalarWrite(
+        _ scalar: XMPManagedScalar,
+        value: String,
+        existingValue: String?,
+        action: PlannedScalarWrite.Action
+    ) -> PlannedScalarWrite {
+        PlannedScalarWrite(
+            field: scalar.qualifiedPropertyName,
+            plannedValue: value,
+            existingValue: existingValue,
+            action: action
         )
     }
 
@@ -903,6 +1118,25 @@ private let existingDevelopSettingsXMP = """
           </lr:hierarchicalSubject>
           <crs:Exposure2012>+0.35</crs:Exposure2012>
           <crs:Contrast2012>12</crs:Contrast2012>
+        </rdf:Description>
+      </rdf:RDF>
+    </x:xmpmeta>
+    """
+
+private let foreignScalarXMP = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="foreign-fixture">
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/"
+               xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
+               xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+               xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+               xmlns:foreign="urn:example:foreign">
+        <rdf:Description rdf:about="" xmp:Rating="3" foreign:Preserve="yes">
+          <dc:subject><rdf:Bag><rdf:li>existing bird</rdf:li></rdf:Bag></dc:subject>
+          <lr:hierarchicalSubject><rdf:Bag><rdf:li>existing habitat</rdf:li></rdf:Bag></lr:hierarchicalSubject>
+          <crs:Exposure2012>+0.35</crs:Exposure2012>
+          <foreign:Custom>keep me</foreign:Custom>
         </rdf:Description>
       </rdf:RDF>
     </x:xmpmeta>

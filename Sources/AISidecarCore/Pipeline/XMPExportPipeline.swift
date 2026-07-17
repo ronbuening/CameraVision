@@ -386,13 +386,18 @@ public struct XMPExportPipeline {
         }
 
         let beforeHashes = sourceHashesBeforeWrite(for: plan)
+        var completedWriteResult: XMPWriteResult?
         do {
             let writeResult = try engine.apply(XMPWriteRequest(plan: plan))
+            completedWriteResult = writeResult
             let postSnapshot = try engine.validateReadable(at: plan.targetXMPPath)
             let validation = validator.validate(
                 plan: plan,
                 preWriteSnapshot: writeResult.preWriteSnapshot,
-                postWriteSnapshot: postSnapshot
+                postWriteSnapshot: postSnapshot,
+                plannedRating: appliedScalarValue(plan.ratingWrite),
+                plannedLabel: appliedScalarValue(plan.labelWrite),
+                plannedUrgency: appliedScalarValue(plan.urgencyWrite)
             )
             let hashOutcome = sourceHashChecks(afterWriteFor: beforeHashes)
             let validationErrors = validation.errors + hashOutcome.errors
@@ -423,11 +428,14 @@ public struct XMPExportPipeline {
                 startedAt: startedAt
             )
         } catch {
-            let restored = restoreBackupIfNeeded(backup)
+            let restored =
+                completedWriteResult.map { restoreAfterValidationFailure(writeResult: $0, backup: backup) }
+                ?? restoreBackupIfNeeded(backup)
             return targetReport(
                 plan: plan,
                 status: .failed,
                 preview: preview,
+                writeResult: completedWriteResult,
                 backup: restored.backup ?? backup,
                 sourceHashChecks: sourceHashChecks(afterWriteFor: beforeHashes).checks,
                 errors: [sidecarWriteError(from: error, targetPath: plan.targetXMPPath)] + restored.errors,
@@ -601,8 +609,55 @@ public struct XMPExportPipeline {
             backup: report.backup,
             validation: report.validation,
             errors: report.errors,
-            durationMs: report.durationMs
+            durationMs: report.durationMs,
+            wroteRating: scalarWriteIndicator(
+                report.plan.ratingWrite,
+                existingValue: report.writeResult?.existingRating,
+                resultingValue: report.writeResult?.resultingRating,
+                report: report
+            ),
+            wroteLabel: scalarWriteIndicator(
+                report.plan.labelWrite,
+                existingValue: report.writeResult?.existingLabel,
+                resultingValue: report.writeResult?.resultingLabel,
+                report: report
+            ),
+            wroteUrgency: scalarWriteIndicator(
+                report.plan.urgencyWrite,
+                existingValue: report.writeResult?.existingUrgency,
+                resultingValue: report.writeResult?.resultingUrgency,
+                report: report
+            )
         )
+    }
+
+    private func appliedScalarValue(_ write: PlannedScalarWrite?) -> String? {
+        switch write?.action {
+        case .write, .overwrite:
+            return write?.plannedValue
+        case .skipExisting, nil:
+            return nil
+        }
+    }
+
+    private func scalarWriteIndicator(
+        _ write: PlannedScalarWrite?,
+        existingValue: String?,
+        resultingValue: String?,
+        report: XMPExportTargetReport
+    ) -> Bool? {
+        guard let write else {
+            return nil
+        }
+        guard report.status == .created || report.status == .written else {
+            return false
+        }
+        switch write.action {
+        case .write, .overwrite:
+            return existingValue != resultingValue && resultingValue == write.plannedValue
+        case .skipExisting:
+            return false
+        }
     }
 
     private func logRecord(for report: XMPExportTargetReport) -> LogRecord {

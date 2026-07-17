@@ -37,7 +37,18 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
     public func preview(_ request: XMPWriteRequest) throws -> XMPWritePreview {
         try validateExecutablePlan(request.plan)
         let snapshot = try readSnapshot(at: request.plan.targetXMPPath)
-        let outcome = XMPKeywordMerger().preview(plan: request.plan, snapshot: snapshot)
+        let parsed = try parsedDocumentForWrite(
+            targetPath: request.plan.targetXMPPath,
+            existed: snapshot.exists,
+            includeHierarchicalBag: !request.plan.hierarchicalKeywordsToAdd.isEmpty,
+            sourceFileNames: request.plan.sourceMembers.map(\.sourceFileName)
+        )
+        let outcome = try XMPKeywordMerger().merge(plan: request.plan, into: parsed)
+        let resultingSnapshot = try applyPlannedScalars(
+            from: request,
+            preWriteSnapshot: snapshot,
+            to: parsed
+        )
         return XMPWritePreview(
             targetXMPPath: request.plan.targetXMPPath,
             wouldCreate: !snapshot.exists,
@@ -47,7 +58,13 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
             resultingHierarchicalKeywords: outcome.resultingHierarchicalKeywords,
             flatKeywordsToAdd: outcome.addedFlatKeywords,
             hierarchicalKeywordsToAdd: outcome.addedHierarchicalKeywords,
-            warnings: request.plan.sourceVerificationWarnings + request.plan.groupWarnings
+            warnings: request.plan.sourceVerificationWarnings + request.plan.groupWarnings,
+            existingRating: snapshot.rating,
+            resultingRating: resultingSnapshot.rating,
+            existingLabel: snapshot.label,
+            resultingLabel: resultingSnapshot.label,
+            existingUrgency: snapshot.urgency,
+            resultingUrgency: resultingSnapshot.urgency
         )
     }
 
@@ -65,7 +82,16 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
             sourceFileNames: request.plan.sourceMembers.map(\.sourceFileName)
         )
         let outcome = try XMPKeywordMerger().merge(plan: request.plan, into: parsed)
-        let shouldWrite = !existed || !outcome.addedFlatKeywords.isEmpty || !outcome.addedHierarchicalKeywords.isEmpty
+        let resultingSnapshot = try applyPlannedScalars(
+            from: request,
+            preWriteSnapshot: preSnapshot,
+            to: parsed
+        )
+        let shouldWrite =
+            !existed
+            || !outcome.addedFlatKeywords.isEmpty
+            || !outcome.addedHierarchicalKeywords.isEmpty
+            || managedScalarsDiffer(preSnapshot, resultingSnapshot)
 
         guard shouldWrite else {
             return XMPWriteResult(
@@ -76,7 +102,13 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
                 postWriteSnapshot: preSnapshot,
                 addedFlatKeywords: [],
                 addedHierarchicalKeywords: [],
-                warnings: request.plan.sourceVerificationWarnings + request.plan.groupWarnings
+                warnings: request.plan.sourceVerificationWarnings + request.plan.groupWarnings,
+                existingRating: preSnapshot.rating,
+                resultingRating: preSnapshot.rating,
+                existingLabel: preSnapshot.label,
+                resultingLabel: preSnapshot.label,
+                existingUrgency: preSnapshot.urgency,
+                resultingUrgency: preSnapshot.urgency
             )
         }
 
@@ -96,7 +128,13 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
             postWriteSnapshot: postSnapshot,
             addedFlatKeywords: outcome.addedFlatKeywords,
             addedHierarchicalKeywords: outcome.addedHierarchicalKeywords,
-            warnings: request.plan.sourceVerificationWarnings + request.plan.groupWarnings
+            warnings: request.plan.sourceVerificationWarnings + request.plan.groupWarnings,
+            existingRating: preSnapshot.rating,
+            resultingRating: postSnapshot.rating,
+            existingLabel: preSnapshot.label,
+            resultingLabel: postSnapshot.label,
+            existingUrgency: preSnapshot.urgency,
+            resultingUrgency: postSnapshot.urgency
         )
     }
 
@@ -136,6 +174,90 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
                     recoverable: true
                 )
         }
+    }
+
+    private func applyPlannedScalars(
+        from request: XMPWriteRequest,
+        preWriteSnapshot: XMPMetadataSnapshot,
+        to parsed: XMPParsedDocument
+    ) throws -> XMPMetadataSnapshot {
+        let merger = XMPScalarMerger()
+        try apply(
+            request.ratingWrite,
+            to: .rating,
+            existingValue: preWriteSnapshot.rating,
+            with: merger,
+            in: parsed
+        )
+        try apply(
+            request.labelWrite,
+            to: .label,
+            existingValue: preWriteSnapshot.label,
+            with: merger,
+            in: parsed
+        )
+        try apply(
+            request.urgencyWrite,
+            to: .urgency,
+            existingValue: preWriteSnapshot.urgency,
+            with: merger,
+            in: parsed
+        )
+
+        let resultingSnapshot = try XMPMetadataSnapshot.make(
+            targetPath: parsed.targetPath,
+            exists: true,
+            parsed: parsed
+        )
+        if try appliedValue(for: .urgency, write: request.urgencyWrite) != nil,
+            resultingSnapshot.label?.isEmpty != false
+        {
+            throw SidecarError(
+                code: .validationFailed,
+                stage: .write,
+                message: "Cannot write photoshop:Urgency without a resulting xmp:Label value.",
+                recoverable: true
+            )
+        }
+        return resultingSnapshot
+    }
+
+    private func apply(
+        _ write: PlannedScalarWrite?,
+        to scalar: XMPManagedScalar,
+        existingValue: String?,
+        with merger: XMPScalarMerger,
+        in parsed: XMPParsedDocument
+    ) throws {
+        guard let value = try appliedValue(for: scalar, write: write), value != existingValue else {
+            return
+        }
+        try merger.setScalar(scalar, to: value, in: parsed)
+    }
+
+    private func appliedValue(for scalar: XMPManagedScalar, write: PlannedScalarWrite?) throws -> String? {
+        guard let write else {
+            return nil
+        }
+        guard write.field == scalar.qualifiedPropertyName else {
+            throw SidecarError(
+                code: .validationFailed,
+                stage: .write,
+                message:
+                    "Scalar plan slot for \(scalar.qualifiedPropertyName) contains mismatched field \(write.field).",
+                recoverable: true
+            )
+        }
+        switch write.action {
+        case .write, .overwrite:
+            return write.plannedValue
+        case .skipExisting:
+            return nil
+        }
+    }
+
+    private func managedScalarsDiffer(_ lhs: XMPMetadataSnapshot, _ rhs: XMPMetadataSnapshot) -> Bool {
+        lhs.rating != rhs.rating || lhs.label != rhs.label || lhs.urgency != rhs.urgency
     }
 }
 

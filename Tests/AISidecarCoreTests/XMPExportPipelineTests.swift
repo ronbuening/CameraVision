@@ -271,6 +271,110 @@ final class XMPExportPipelineTests: XCTestCase {
         )
     }
 
+    func testScalarValidationFailureRestoresBackupAndOriginalScalar() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Rated.xmp")
+        try existingRatingXMP.write(to: target, atomically: true, encoding: .utf8)
+        let plan = XMPChangePlan(
+            status: .planned,
+            targetXMPPath: target.path,
+            targetRelativePath: "Rated.xmp",
+            pairScope: .union,
+            sourceMembers: [],
+            flatKeywordsToAdd: [],
+            hierarchicalKeywordsToAdd: [],
+            skippedCandidates: [],
+            candidateExtractionIssues: [],
+            sourceVerificationWarnings: [],
+            groupWarnings: [],
+            existingPolicy: .backupAndMerge,
+            backupPlan: BackupPlan(
+                backupSidecars: true,
+                backupRequiredBeforeMerge: true,
+                conflictPolicy: .backupAndMerge
+            ),
+            validationPlan: .phase2Default,
+            failures: [],
+            ratingWrite: PlannedScalarWrite(
+                field: "xmp:Rating",
+                plannedValue: "4",
+                existingValue: "3",
+                action: .overwrite
+            )
+        )
+        let document = XMPChangePlanDocument(dryRun: false, targetPlans: [plan], inputFailures: [])
+
+        let result = try XMPExportPipeline(
+            engine: ValidationFailingEngine(),
+            logger: Logger(sink: { _ in }),
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_000_000)),
+            filenameSuffix: { "a3f2" }
+        ).runChangePlan(
+            document,
+            inputPath: root.path,
+            configuration: exportConfiguration(outputDir: root.path)
+        )
+
+        let report = try XCTUnwrap(result.report?.targetReports.first)
+        XCTAssertEqual(report.status, .failed)
+        XCTAssertEqual(report.errors.first?.code, .validationFailed)
+        XCTAssertTrue(report.errors.first?.message.contains("xmp:Rating") == true)
+        XCTAssertNotNil(report.backup?.restoredAt)
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), existingRatingXMP)
+        XCTAssertEqual(try OwnedXMPSidecarEngine().readSnapshot(at: target.path).rating, "3")
+    }
+
+    func testThrownScalarReadabilityValidationRemovesNewSidecar() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("NewRated.xmp")
+        let plan = XMPChangePlan(
+            status: .planned,
+            targetXMPPath: target.path,
+            targetRelativePath: "NewRated.xmp",
+            pairScope: .union,
+            sourceMembers: [],
+            flatKeywordsToAdd: [],
+            hierarchicalKeywordsToAdd: [],
+            skippedCandidates: [],
+            candidateExtractionIssues: [],
+            sourceVerificationWarnings: [],
+            groupWarnings: [],
+            existingPolicy: .backupAndMerge,
+            backupPlan: BackupPlan(
+                backupSidecars: true,
+                backupRequiredBeforeMerge: true,
+                conflictPolicy: .backupAndMerge
+            ),
+            validationPlan: .phase2Default,
+            failures: [],
+            ratingWrite: PlannedScalarWrite(
+                field: "xmp:Rating",
+                plannedValue: "4",
+                existingValue: nil,
+                action: .write
+            )
+        )
+        let document = XMPChangePlanDocument(dryRun: false, targetPlans: [plan], inputFailures: [])
+
+        let result = try XMPExportPipeline(
+            engine: ThrowingPostWriteValidationEngine(),
+            logger: Logger(sink: { _ in }),
+            filenameSuffix: { "a3f2" }
+        ).runChangePlan(
+            document,
+            inputPath: root.path,
+            configuration: exportConfiguration(outputDir: root.path)
+        )
+
+        let report = try XCTUnwrap(result.report?.targetReports.first)
+        XCTAssertEqual(report.status, .failed)
+        XCTAssertEqual(report.errors.first?.code, .validationFailed)
+        XCTAssertTrue(report.writeResult?.created == true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+    }
+
     func testInterruptionAfterBackupRestoresOriginalSidecar() throws {
         let fixture = try makeFromJSONFixture(existingXMP: existingDevelopSettingsXMP)
         let monitor = InterruptionMonitor()
@@ -486,7 +590,41 @@ private struct ValidationFailingEngine: MetadataWriteEngine {
         var snapshot = try engine.validateReadable(at: targetXMPPath)
         snapshot.flatKeywords = snapshot.flatKeywords.filter { $0 != "wading bird" }
         snapshot.hierarchicalKeywords = snapshot.hierarchicalKeywords.filter { $0 != "wading bird" }
+        snapshot.rating = nil
         return snapshot
+    }
+
+    func shutdown() throws {
+        try engine.shutdown()
+    }
+}
+
+private struct ThrowingPostWriteValidationEngine: MetadataWriteEngine {
+    private let engine = OwnedXMPSidecarEngine()
+
+    func prepare(configuration: ResolvedXMPExportConfiguration) throws -> MetadataWriteEngineContext {
+        try engine.prepare(configuration: configuration)
+    }
+
+    func readSnapshot(at targetXMPPath: String) throws -> XMPMetadataSnapshot {
+        try engine.readSnapshot(at: targetXMPPath)
+    }
+
+    func preview(_ request: XMPWriteRequest) throws -> XMPWritePreview {
+        try engine.preview(request)
+    }
+
+    func apply(_ request: XMPWriteRequest) throws -> XMPWriteResult {
+        try engine.apply(request)
+    }
+
+    func validateReadable(at _: String) throws -> XMPMetadataSnapshot {
+        throw SidecarError(
+            code: .validationFailed,
+            stage: .write,
+            message: "Injected post-write scalar readability failure.",
+            recoverable: true
+        )
     }
 
     func shutdown() throws {
@@ -517,4 +655,12 @@ private let existingDevelopSettingsXMP = """
         </rdf:Description>
       </rdf:RDF>
     </x:xmpmeta>
+    """
+
+private let existingRatingXMP = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+             xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+      <rdf:Description rdf:about="" xmp:Rating="3"/>
+    </rdf:RDF>
     """
