@@ -58,6 +58,8 @@ The batch-command help for `analyze`, `assess-quality`, `write-xmp`, `normalize`
 failures, and `130` for interruption.
 The `analyze`, `assess-quality`, `write-xmp`, and `normalize` help must also list `--model-timeout`
 and `--model-retry-limit`; `write-xmp` and `normalize` accept them only in their analyze modes.
+`--assess-quality` must appear in `analyze` and `write-xmp` help but **not** in `assess-quality` help —
+that command forces the quality-only profile and rejects the flag as an unknown option.
 
 ## CLI Exit Status Checks
 
