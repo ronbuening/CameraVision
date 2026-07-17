@@ -211,3 +211,14 @@ Update: `README.md` (the experimental section's three-step composition and its q
 - **AC-QN-4** Grading semantics (conflict matrix, pair coupling, stamps, preconditions) are provably shared: one implementation, exercised by both planners' test suites.
 - **AC-QN-5** Apply-session grading reflects apply-time sidecar/XMP state, never frozen session state.
 - **AC-QN-6** The GUI pass that follows needs only: three toggles bound to existing override fields, Settings keys that already exist, and read-only display of plan/report fields — all documented with file/symbol citations.
+
+## 5. Completion audit
+
+- **AC-QN-1:** `AnalyzeAndNormalizePipelineTests.testAnalyzeAssessQualityAndNormalizeWritesFullGradedOutputInOneRun` drives a combined-contract model response through analysis, normalization, grading, XMP execution, and contributor stamping in one temp-file run.
+- **AC-QN-2:** `NormalizeQualityGradingIntegrationTests.testQualityKeywordsBypassVocabularyAndNormalizationProvenance` and `testNormalizePreservesExistingQualityAndForeignKeywords` pin the bypass and additive merge.
+- **AC-QN-3:** pre-plan artifact fixtures are asserted by `NormalizeQualityDefaultOffIdentityTests`, `ApplySessionPipelineTests.testDefaultOffApplyMatchesPreQN6ArtifactHashes`, and `XMPQualityConflictMatrixTests.testDisabledGradingKeepsPlanBytesStableAndNeverReadsXMP`.
+- **AC-QN-4:** both planners delegate to the sole `QualityGradingPlanApplier`; normalized and direct conflict/stamp/pair/precondition suites exercise it.
+- **AC-QN-5:** apply-session integration tests cover mutated and removed assessments, current-XMP conflicts, contributor identity, `--allow-stale`, and surviving sibling remapping.
+- **AC-QN-6:** the QN7 binding table cites the public override/resolver, Settings, plan, report, and progress symbols; the independent final audit found no Core seam or documentation gap.
+
+Final verification on 2026-07-17: `swift test` passed 746 tests with 2 skipped and 0 failures; the focused acceptance gate passed 89 tests; all three CLI grading help surfaces and `git diff --check` passed. No file under `Sources/CupricAspectApp` changed.
