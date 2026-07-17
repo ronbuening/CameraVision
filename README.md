@@ -16,9 +16,11 @@ auditable results:
 | **CupricAspect** | A native macOS SwiftUI app with a guided, five-step workflow | Reviewing and correcting tags visually before you write anything |
 | **aisidecar** | A single command-line tool with subcommands | Scripting, batch runs, and automation |
 
-> **Status:** CupricAspect is in beta (`0.1.0-beta.1`). The `aisidecar` CLI is
-> feature-complete for its analyze → export → normalize workflows. Everything in
-> this README reflects the tools as they ship today.
+> **Status:** CameraVision is in beta (`0.2.0-beta.1`). The `aisidecar` CLI is
+> feature-complete for its analyze → export → normalize workflows, and `0.2.0`
+> adds an **experimental** AI quality assessment and grading pipeline (see
+> [Experimental: AI quality assessment & grading](#experimental-ai-quality-assessment--grading)).
+> Everything in this README reflects the tools as they ship today.
 
 ---
 
@@ -34,6 +36,10 @@ auditable results:
 - **Normalizes keywords across a batch.** Optionally reconciles a folder's keywords
   against a controlled vocabulary, propagating confident tags and explaining every
   decision.
+- **Grades image quality (experimental).** Optionally asks the model for a
+  structured perceptual quality assessment per image, then — only when you enable
+  grading — turns it into culling metadata your editor already understands:
+  quality keywords, Red/Green color labels, and Lightroom pick/reject flags.
 - **Replays decisions.** Saves a durable normalization session you can re-apply later
   without re-running the model.
 
@@ -220,6 +226,7 @@ product version.
 | Command | Purpose |
 |---|---|
 | `analyze` | Scan images, render model inputs, call Ollama, and write raw `.ai.json` sidecars. |
+| `assess-quality` | *(experimental)* Assess perceptual image quality and write quality-only `.quality.ai.json` sidecars. |
 | `write-xmp` | Export accepted candidates to XMP sidecars — or analyze-and-write in one command. |
 | `normalize` | Build normalized batch decisions, sessions, reports, dry-run plans, or normalized XMP writes. |
 | `apply-session` | Re-apply stored normalization decisions without rerunning analysis. |
@@ -310,6 +317,51 @@ swift run aisidecar apply-session \
 swift run aisidecar analyze /path/to/photos --mode both \
   --export-model-inputs /tmp/aisidecar-model-inputs
 ```
+
+### Experimental: AI quality assessment & grading
+
+> **Experimental.** This feature is new in `0.2.0-beta.1`. The metadata it writes
+> follows what Lightroom Classic and Capture One themselves write, but round-trip
+> verification inside those apps is still in progress, and defaults may change
+> based on that evidence. Try it on a staging copy with `--output-dir` first.
+
+The feature has two halves, both off by default:
+
+**1. Assess.** Ask the model for a structured quality assessment — focus,
+composition, exposure, lighting, and so on, plus an overall verdict and
+confidence. It's stored as an auditable `quality_assessment` block in the raw
+JSON sidecars; nothing touches XMP at this stage:
+
+```bash
+# alongside tagging:
+swift run aisidecar analyze /path/to/photos --assess-quality --output-dir /tmp/ai
+# or quality-only sidecars, no tagging:
+swift run aisidecar assess-quality /path/to/photos --output-dir /tmp/ai
+```
+
+**2. Grade.** During XMP export, `--quality-grading` deterministically derives a
+quality tier (reject / below-average / neutral / good / excellent) from the
+stored assessments and writes culling metadata your editor understands:
+
+- **Quality keywords** — `AI Quality|<tier>` (all tiers)
+- **Color labels** — `Red` for reject, `Green` for excellent, with the matching
+  Capture One `photoshop:Urgency` companion values
+- **Lightroom pick flags** — reject-tier images flagged rejected, excellent-tier
+  images flagged picked (`xmpDM:pick`/`xmpDM:good`, exactly as Lightroom writes them)
+- **Star ratings** — off by default so your own star edits stay untouched;
+  opt in with `--write-rating` for a 1–5 tier mapping
+
+```bash
+swift run aisidecar write-xmp --from-json /tmp/ai --recursive \
+  --source-root /path/to/photos --quality-grading --dry-run \
+  --output-dir /tmp/aisidecar-xmp-preview
+```
+
+Grading is conservative by default: assessments below `medium` confidence are
+reported as ungraded rather than guessed, existing metadata values are never
+overwritten (`--quality-conflicts preserve`), and every channel can be toggled
+individually (`--no-write-label`, `--no-write-flag`, …). Tier-to-value maps are
+configurable in the config file (`xmp_quality_*` keys).
 
 ---
 

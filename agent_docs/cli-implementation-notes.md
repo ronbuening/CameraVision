@@ -97,9 +97,12 @@ The `write-xmp` flags are:
 --quality-min-confidence <low|medium|high>
 ```
 
-The built-in master switch is off. If enabled without channel overrides, rating, label, label-coupled urgency,
-Lightroom pick flags, and quality keywords are on; minimum confidence is `medium`; scalar conflict handling is
-`preserve`; and the keyword root is `AI Quality`. Ratings map reject→1, below-average→2, neutral→3, good→4,
+The built-in master switch is off. If enabled without channel overrides, label, label-coupled urgency,
+Lightroom pick flags, and quality keywords are on; the rating channel is opt-in (`--write-rating` /
+`xmp_quality_write_rating`) so `xmp:Rating` stays free for the user's own star edits; minimum confidence is
+`medium`; scalar conflict handling is
+`preserve`; and the keyword root is `AI Quality`. When enabled, ratings map reject→1, below-average→2, neutral→3,
+good→4,
 excellent→5. Labels map reject→Red
 and excellent→Green; their Capture One companions map to Urgency 1 and 2 respectively. Capture One 16.8.4 samples
 show all label/urgency values as child elements and establish Red→1, Green→2, Blue→3, Pink→4, Purple→5, Orange→6,
