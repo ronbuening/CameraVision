@@ -143,6 +143,34 @@ public struct ValidationPlan: Codable, Sendable, Equatable {
     )
 }
 
+/// One planned write to a managed XMP scalar property.
+public struct PlannedScalarWrite: Codable, Sendable, Equatable {
+    public enum Action: String, Codable, Sendable, Equatable {
+        case write
+        case skipExisting = "skip_existing"
+        case overwrite
+    }
+
+    public let field: String
+    public let plannedValue: String
+    public let existingValue: String?
+    public let action: Action
+
+    enum CodingKeys: String, CodingKey {
+        case field
+        case plannedValue = "planned_value"
+        case existingValue = "existing_value"
+        case action
+    }
+
+    public init(field: String, plannedValue: String, existingValue: String?, action: Action) {
+        self.field = field
+        self.plannedValue = plannedValue
+        self.existingValue = existingValue
+        self.action = action
+    }
+}
+
 /// Planned changes for one target XMP sidecar.
 public struct XMPChangePlan: Codable, Sendable, Equatable {
     public var status: XMPTargetPlanStatus
@@ -161,6 +189,10 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
     public var validationPlan: ValidationPlan
     public var preview: XMPWritePreview?
     public var failures: [SidecarError]
+    public var ratingWrite: PlannedScalarWrite?
+    public var labelWrite: PlannedScalarWrite?
+    public var urgencyWrite: PlannedScalarWrite?
+    public var qualityExplanation: [String]?
 
     enum CodingKeys: String, CodingKey {
         case status
@@ -179,6 +211,10 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         case validationPlan = "validation_plan"
         case preview
         case failures
+        case ratingWrite = "rating_write"
+        case labelWrite = "label_write"
+        case urgencyWrite = "urgency_write"
+        case qualityExplanation = "quality_explanation"
     }
 
     public init(
@@ -197,7 +233,11 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         backupPlan: BackupPlan,
         validationPlan: ValidationPlan,
         preview: XMPWritePreview? = nil,
-        failures: [SidecarError]
+        failures: [SidecarError],
+        ratingWrite: PlannedScalarWrite? = nil,
+        labelWrite: PlannedScalarWrite? = nil,
+        urgencyWrite: PlannedScalarWrite? = nil,
+        qualityExplanation: [String]? = nil
     ) {
         self.status = status
         self.targetXMPPath = targetXMPPath
@@ -215,6 +255,10 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         self.validationPlan = validationPlan
         self.preview = preview
         self.failures = failures
+        self.ratingWrite = ratingWrite
+        self.labelWrite = labelWrite
+        self.urgencyWrite = urgencyWrite
+        self.qualityExplanation = qualityExplanation
     }
 }
 

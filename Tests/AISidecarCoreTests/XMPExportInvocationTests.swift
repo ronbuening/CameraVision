@@ -88,8 +88,8 @@ final class XMPExportInvocationTests: XCTestCase {
     }
 
     func testSchemaIdentifierConstantsAreStable() {
-        XCTAssertEqual(XMPExportSchemaIdentifiers.exportReport, "ai-sidecar-xmp-export/1.0")
-        XCTAssertEqual(XMPExportSchemaIdentifiers.changePlan, "ai-sidecar-xmp-change-plan/1.0")
+        XCTAssertEqual(XMPExportSchemaIdentifiers.exportReport, "ai-sidecar-xmp-export/1.1")
+        XCTAssertEqual(XMPExportSchemaIdentifiers.changePlan, "ai-sidecar-xmp-change-plan/1.1")
     }
 
     private func assertConfigInvalid(_ operation: () throws -> Void) throws {

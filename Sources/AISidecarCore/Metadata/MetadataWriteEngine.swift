@@ -23,6 +23,10 @@ public struct MetadataWriteEngineContext: Codable, Sendable, Equatable {
 public struct XMPWriteRequest: Codable, Sendable, Equatable {
     public var plan: XMPChangePlan
 
+    public var ratingWrite: PlannedScalarWrite? { plan.ratingWrite }
+    public var labelWrite: PlannedScalarWrite? { plan.labelWrite }
+    public var urgencyWrite: PlannedScalarWrite? { plan.urgencyWrite }
+
     public init(plan: XMPChangePlan) {
         self.plan = plan
     }
@@ -38,6 +42,12 @@ public struct XMPWritePreview: Codable, Sendable, Equatable {
     public var resultingHierarchicalKeywords: [String]
     public var flatKeywordsToAdd: [String]
     public var hierarchicalKeywordsToAdd: [String]
+    public var existingRating: String?
+    public var resultingRating: String?
+    public var existingLabel: String?
+    public var resultingLabel: String?
+    public var existingUrgency: String?
+    public var resultingUrgency: String?
     public var warnings: [SidecarError]
     public var errors: [SidecarError]
 
@@ -50,6 +60,12 @@ public struct XMPWritePreview: Codable, Sendable, Equatable {
         case resultingHierarchicalKeywords = "resulting_hierarchical_keywords"
         case flatKeywordsToAdd = "flat_keywords_to_add"
         case hierarchicalKeywordsToAdd = "hierarchical_keywords_to_add"
+        case existingRating = "existing_rating"
+        case resultingRating = "resulting_rating"
+        case existingLabel = "existing_label"
+        case resultingLabel = "resulting_label"
+        case existingUrgency = "existing_urgency"
+        case resultingUrgency = "resulting_urgency"
         case warnings
         case errors
     }
@@ -64,7 +80,13 @@ public struct XMPWritePreview: Codable, Sendable, Equatable {
         flatKeywordsToAdd: [String],
         hierarchicalKeywordsToAdd: [String],
         warnings: [SidecarError] = [],
-        errors: [SidecarError] = []
+        errors: [SidecarError] = [],
+        existingRating: String? = nil,
+        resultingRating: String? = nil,
+        existingLabel: String? = nil,
+        resultingLabel: String? = nil,
+        existingUrgency: String? = nil,
+        resultingUrgency: String? = nil
     ) {
         self.targetXMPPath = targetXMPPath
         self.wouldCreate = wouldCreate
@@ -74,6 +96,12 @@ public struct XMPWritePreview: Codable, Sendable, Equatable {
         self.resultingHierarchicalKeywords = resultingHierarchicalKeywords
         self.flatKeywordsToAdd = flatKeywordsToAdd
         self.hierarchicalKeywordsToAdd = hierarchicalKeywordsToAdd
+        self.existingRating = existingRating
+        self.resultingRating = resultingRating
+        self.existingLabel = existingLabel
+        self.resultingLabel = resultingLabel
+        self.existingUrgency = existingUrgency
+        self.resultingUrgency = resultingUrgency
         self.warnings = warnings
         self.errors = errors
     }
@@ -88,6 +116,12 @@ public struct XMPWriteResult: Codable, Sendable, Equatable {
     public var postWriteSnapshot: XMPMetadataSnapshot
     public var addedFlatKeywords: [String]
     public var addedHierarchicalKeywords: [String]
+    public var existingRating: String?
+    public var resultingRating: String?
+    public var existingLabel: String?
+    public var resultingLabel: String?
+    public var existingUrgency: String?
+    public var resultingUrgency: String?
     public var warnings: [SidecarError]
     public var errors: [SidecarError]
 
@@ -99,6 +133,12 @@ public struct XMPWriteResult: Codable, Sendable, Equatable {
         case postWriteSnapshot = "post_write_snapshot"
         case addedFlatKeywords = "added_flat_keywords"
         case addedHierarchicalKeywords = "added_hierarchical_keywords"
+        case existingRating = "existing_rating"
+        case resultingRating = "resulting_rating"
+        case existingLabel = "existing_label"
+        case resultingLabel = "resulting_label"
+        case existingUrgency = "existing_urgency"
+        case resultingUrgency = "resulting_urgency"
         case warnings
         case errors
     }
@@ -112,7 +152,13 @@ public struct XMPWriteResult: Codable, Sendable, Equatable {
         addedFlatKeywords: [String],
         addedHierarchicalKeywords: [String],
         warnings: [SidecarError] = [],
-        errors: [SidecarError] = []
+        errors: [SidecarError] = [],
+        existingRating: String? = nil,
+        resultingRating: String? = nil,
+        existingLabel: String? = nil,
+        resultingLabel: String? = nil,
+        existingUrgency: String? = nil,
+        resultingUrgency: String? = nil
     ) {
         self.targetXMPPath = targetXMPPath
         self.created = created
@@ -121,6 +167,12 @@ public struct XMPWriteResult: Codable, Sendable, Equatable {
         self.postWriteSnapshot = postWriteSnapshot
         self.addedFlatKeywords = addedFlatKeywords
         self.addedHierarchicalKeywords = addedHierarchicalKeywords
+        self.existingRating = existingRating
+        self.resultingRating = resultingRating
+        self.existingLabel = existingLabel
+        self.resultingLabel = resultingLabel
+        self.existingUrgency = existingUrgency
+        self.resultingUrgency = resultingUrgency
         self.warnings = warnings
         self.errors = errors
     }
@@ -185,6 +237,9 @@ public struct MockMetadataWriteEngine: MetadataWriteEngine {
         let snapshot = try readSnapshot(at: request.plan.targetXMPPath)
         let flatTerms = request.plan.flatKeywordsToAdd.map(\.term)
         let hierarchicalTerms = request.plan.hierarchicalKeywordsToAdd.map(\.term)
+        let resultingRating = resultingScalar(existing: snapshot.rating, write: request.ratingWrite)
+        let resultingLabel = resultingScalar(existing: snapshot.label, write: request.labelWrite)
+        let resultingUrgency = resultingScalar(existing: snapshot.urgency, write: request.urgencyWrite)
         return XMPWritePreview(
             targetXMPPath: request.plan.targetXMPPath,
             wouldCreate: !snapshot.exists,
@@ -193,7 +248,13 @@ public struct MockMetadataWriteEngine: MetadataWriteEngine {
             resultingFlatKeywords: snapshot.flatKeywords + flatTerms,
             resultingHierarchicalKeywords: snapshot.hierarchicalKeywords + hierarchicalTerms,
             flatKeywordsToAdd: flatTerms,
-            hierarchicalKeywordsToAdd: hierarchicalTerms
+            hierarchicalKeywordsToAdd: hierarchicalTerms,
+            existingRating: snapshot.rating,
+            resultingRating: resultingRating,
+            existingLabel: snapshot.label,
+            resultingLabel: resultingLabel,
+            existingUrgency: snapshot.urgency,
+            resultingUrgency: resultingUrgency
         )
     }
 
@@ -208,7 +269,10 @@ public struct MockMetadataWriteEngine: MetadataWriteEngine {
             exists: true,
             flatKeywords: preview.resultingFlatKeywords,
             hierarchicalKeywords: preview.resultingHierarchicalKeywords,
-            unmanagedContentFingerprint: preSnapshot.unmanagedContentFingerprint
+            unmanagedContentFingerprint: preSnapshot.unmanagedContentFingerprint,
+            rating: preview.resultingRating,
+            label: preview.resultingLabel,
+            urgency: preview.resultingUrgency
         )
         return XMPWriteResult(
             targetXMPPath: request.plan.targetXMPPath,
@@ -217,7 +281,13 @@ public struct MockMetadataWriteEngine: MetadataWriteEngine {
             preWriteSnapshot: preSnapshot,
             postWriteSnapshot: postSnapshot,
             addedFlatKeywords: preview.flatKeywordsToAdd,
-            addedHierarchicalKeywords: preview.hierarchicalKeywordsToAdd
+            addedHierarchicalKeywords: preview.hierarchicalKeywordsToAdd,
+            existingRating: preview.existingRating,
+            resultingRating: preview.resultingRating,
+            existingLabel: preview.existingLabel,
+            resultingLabel: preview.resultingLabel,
+            existingUrgency: preview.existingUrgency,
+            resultingUrgency: preview.resultingUrgency
         )
     }
 
@@ -229,4 +299,13 @@ public struct MockMetadataWriteEngine: MetadataWriteEngine {
     }
 
     public func shutdown() throws {}
+
+    private func resultingScalar(existing: String?, write: PlannedScalarWrite?) -> String? {
+        switch write?.action {
+        case .write, .overwrite:
+            return write?.plannedValue
+        case .skipExisting, nil:
+            return existing
+        }
+    }
 }
