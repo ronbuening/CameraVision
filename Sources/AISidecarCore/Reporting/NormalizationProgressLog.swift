@@ -30,6 +30,13 @@ public struct NormalizationProgressRecord: Codable, Sendable, Equatable {
     public var targetRelativePath: String?
     public var plannedFlatKeywords: [String]
     public var plannedHierarchicalKeywords: [String]
+    public var ratingWrite: PlannedScalarWrite?
+    public var labelWrite: PlannedScalarWrite?
+    public var urgencyWrite: PlannedScalarWrite?
+    public var pickWrite: PlannedScalarWrite?
+    public var goodWrite: PlannedScalarWrite?
+    public var qualityTier: QualityTier?
+    public var qualityExplanation: [String]?
     public var errors: [SidecarError]
 
     enum CodingKeys: String, CodingKey {
@@ -44,6 +51,13 @@ public struct NormalizationProgressRecord: Codable, Sendable, Equatable {
         case targetRelativePath = "target_relative_path"
         case plannedFlatKeywords = "planned_flat_keywords"
         case plannedHierarchicalKeywords = "planned_hierarchical_keywords"
+        case ratingWrite = "rating_write"
+        case labelWrite = "label_write"
+        case urgencyWrite = "urgency_write"
+        case pickWrite = "pick_write"
+        case goodWrite = "good_write"
+        case qualityTier = "quality_tier"
+        case qualityExplanation = "quality_explanation"
         case errors
     }
 
@@ -59,6 +73,13 @@ public struct NormalizationProgressRecord: Codable, Sendable, Equatable {
         targetRelativePath: String? = nil,
         plannedFlatKeywords: [String] = [],
         plannedHierarchicalKeywords: [String] = [],
+        ratingWrite: PlannedScalarWrite? = nil,
+        labelWrite: PlannedScalarWrite? = nil,
+        urgencyWrite: PlannedScalarWrite? = nil,
+        pickWrite: PlannedScalarWrite? = nil,
+        goodWrite: PlannedScalarWrite? = nil,
+        qualityTier: QualityTier? = nil,
+        qualityExplanation: [String]? = nil,
         errors: [SidecarError] = []
     ) {
         self.timestamp = timestamp
@@ -72,6 +93,13 @@ public struct NormalizationProgressRecord: Codable, Sendable, Equatable {
         self.targetRelativePath = targetRelativePath
         self.plannedFlatKeywords = plannedFlatKeywords
         self.plannedHierarchicalKeywords = plannedHierarchicalKeywords
+        self.ratingWrite = ratingWrite
+        self.labelWrite = labelWrite
+        self.urgencyWrite = urgencyWrite
+        self.pickWrite = pickWrite
+        self.goodWrite = goodWrite
+        self.qualityTier = qualityTier
+        self.qualityExplanation = qualityExplanation
         self.errors = errors
     }
 }

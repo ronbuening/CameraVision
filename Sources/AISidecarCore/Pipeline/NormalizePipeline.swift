@@ -23,17 +23,26 @@ public struct NormalizePipeline {
     private let sessionWriter: NormalizationSessionWriter
     private let reportWriter: NormalizationReportWriter
     private let summaryWriter: NormalizationSummaryWriter
+    private let snapshotReader: @Sendable (String) throws -> XMPMetadataSnapshot
 
     public init(
         inputResolver: NormalizationInputResolver = NormalizationInputResolver(),
         sessionWriter: NormalizationSessionWriter = NormalizationSessionWriter(),
         reportWriter: NormalizationReportWriter = NormalizationReportWriter(),
-        summaryWriter: NormalizationSummaryWriter = NormalizationSummaryWriter()
+        summaryWriter: NormalizationSummaryWriter = NormalizationSummaryWriter(),
+        snapshotReader: (@Sendable (String) throws -> XMPMetadataSnapshot)? = nil,
+        fileManager: FileManager = .default
     ) {
         self.inputResolver = inputResolver
         self.sessionWriter = sessionWriter
         self.reportWriter = reportWriter
         self.summaryWriter = summaryWriter
+        if let snapshotReader {
+            self.snapshotReader = snapshotReader
+        } else {
+            let metadataEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
+            self.snapshotReader = { try metadataEngine.readSnapshot(at: $0) }
+        }
     }
 
     /// Resolve inputs and write session/report/summary/progress artifacts without touching XMP sidecars.
@@ -175,13 +184,19 @@ public struct NormalizePipeline {
             engineVersion: OwnedXMPSidecarEngine.engineVersion,
             writerRecipeVersion: OwnedXMPSidecarEngine.writerRecipeVersion
         )
+        let shouldBuildXMPPlans = includeXMPPlans || configuration.qualityGrading.enabled
+        let planningConfiguration = qualityPlanningConfiguration(
+            from: configuration,
+            resolvesScalars: includeXMPPlans
+        )
         let normalizedPlans =
-            try includeXMPPlans
+            try shouldBuildXMPPlans
             ? NormalizedXMPChangePlanner().plan(
                 input: input,
                 decisions: consensus.perAssetDecisions,
                 candidateSkips: consensus.skips,
-                configuration: configuration
+                configuration: planningConfiguration,
+                snapshotReader: includeXMPPlans ? snapshotReader : nil
             )
             : nil
         let privacy = NormalizationPrivacyRecord(privacyMode: configuration.affinityPrivacyMode)
@@ -407,6 +422,13 @@ public struct NormalizePipeline {
                     targetRelativePath: plan.targetRelativePath,
                     plannedFlatKeywords: plan.flatKeywordsToAdd.map(\.term),
                     plannedHierarchicalKeywords: plan.hierarchicalKeywordsToAdd.map(\.term),
+                    ratingWrite: plan.ratingWrite,
+                    labelWrite: plan.labelWrite,
+                    urgencyWrite: plan.urgencyWrite,
+                    pickWrite: plan.pickWrite,
+                    goodWrite: plan.goodWrite,
+                    qualityTier: plan.qualityTier,
+                    qualityExplanation: plan.qualityExplanation,
                     errors: plan.failures
                 )
             )
@@ -431,8 +453,27 @@ public struct NormalizePipeline {
             minConfidence: configuration.minConfidence,
             allowSpecificTags: configuration.allowSpecificTags,
             pairScope: configuration.pairScope,
-            writeAIJSON: configuration.writeAIJSON
+            writeAIJSON: configuration.writeAIJSON,
+            qualityGrading: configuration.qualityGrading
         )
+    }
+
+    private func qualityPlanningConfiguration(
+        from configuration: ResolvedNormalizationConfiguration,
+        resolvesScalars: Bool
+    ) -> ResolvedNormalizationConfiguration {
+        guard configuration.qualityGrading.enabled, !resolvesScalars else {
+            return configuration
+        }
+        // Session-only plans are previews without a current-XMP snapshot. Keep
+        // the derived tier, explanation, and quality keywords, but do not claim
+        // scalar conflict decisions that only an authoritative write plan can make.
+        var preview = configuration
+        preview.qualityGrading.policy.writeRating = false
+        preview.qualityGrading.policy.writeLabel = false
+        preview.qualityGrading.policy.writeUrgency = false
+        preview.qualityGrading.policy.writeFlag = false
+        return preview
     }
 
     private func interruptedError(_ message: String) -> SidecarError {
