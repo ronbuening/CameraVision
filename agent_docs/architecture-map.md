@@ -84,8 +84,8 @@ GUI model tests live in `Tests/CupricAspectAppTests` (offline, deterministic —
 | Artifact | Where |
 |---|---|
 | Raw AI sidecar | Tagging/combined: `<image>.<ext>.ai.json`; quality-only: `<image>.<ext>.quality.ai.json`; beside the image or mirrored under `--output-dir`; `run_configuration.task_profile` records the model contract. After a successful export (including an unchanged target), the pipeline attempts to update contributing tagging and quality siblings with an additive `xmp_export` stamp containing any actual tool-owned scalar values and the quality tier when graded; stamp failures are warnings after the validated XMP result. |
-| XMP sidecar | Owned parser/writer output, target naming in `Metadata/XMPNaming.swift`; managed fields are the `dc:subject` and `lr:hierarchicalSubject` bags plus opt-in `xmp:Rating`, `xmp:Label`, and label-coupled `photoshop:Urgency` scalars. |
-| XMP dry-run plan / export report | `ai-sidecar-xmp-change-plan/1.1` / `ai-sidecar-xmp-export/1.1`; scalar plan rows, derived tier, and quality explanation are additive and appear only when grading is enabled. |
+| XMP sidecar | Owned parser/writer output, target naming in `Metadata/XMPNaming.swift`; managed fields are the `dc:subject` and `lr:hierarchicalSubject` bags plus opt-in `xmp:Rating`, `xmp:Label`, label-coupled `photoshop:Urgency`, and the coupled Lightroom `xmpDM:pick`/`xmpDM:good` flag-pair scalars. |
+| XMP dry-run plan / export report | `ai-sidecar-xmp-change-plan/1.2` / `ai-sidecar-xmp-export/1.2`; scalar plan rows, derived tier, and quality explanation are additive and appear only when grading is enabled. |
 | Progress log / report / summary | `*-progress-*.jsonl` / `*-report-*.json` / `*-summary-*.md` (names in `Reporting/ArtifactNames.swift`) |
 | Normalization session | `normalization-session-*.json`, reusable by `apply-session` |
 | Model-input export manifest | `model-input-export-*.json`, protected diagnostic manifest |

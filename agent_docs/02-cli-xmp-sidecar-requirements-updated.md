@@ -1,9 +1,10 @@
 # Phase 2 Requirements - CLI XMP Sidecar Writer
 
-Version: 0.8
-Date: 2026-07-16
-Supersedes: 0.7
-Change log: v0.8: recorded the image-quality feature's scoped F12 expansion of the owned engine to managed
+Version: 0.9
+Date: 2026-07-17
+Supersedes: 0.8
+Change log: v0.9: added the Lightroom pick-flag pair (`xmpDM:pick`/`xmpDM:good`) as coupled managed scalars with
+the additive 1.2 plan/report schemas. v0.8: recorded the image-quality feature's scoped F12 expansion of the owned engine to managed
 `xmp:Rating`, `xmp:Label`, and `photoshop:Urgency` scalars and the additive 1.1 plan/report schemas. v0.7: specified deterministic exact-filename
 `rdf:about` merge-target selection, including encoded URLs and Windows paths (FR2-029e-1).
 Builds on: Phase 1 Requirements v0.6 (`01-cli-raw-json-sidecar-requirements.md`)
@@ -388,13 +389,18 @@ document; it does not reopen Phase 2 or change its keywords-only default. `write
 quality metadata changes only when resolved quality grading is enabled by a CLI, environment, or config-file value. `analyze`,
 `assess-quality`, and all raw-sidecar paths remain unable to create or modify XMP.
 
-The engine additionally treats these three properties as managed single-value fields under FR-IQ-040 through
+The engine additionally treats these five properties as managed single-value fields under FR-IQ-040 through
 FR-IQ-045:
 
 - `xmp:Rating` in `http://ns.adobe.com/xap/1.0/`, with project-authored canonical values `-1` or `0` through `5`;
-- `xmp:Label` in `http://ns.adobe.com/xap/1.0/`, as project-authored nonblank label text without `|`; and
+- `xmp:Label` in `http://ns.adobe.com/xap/1.0/`, as project-authored nonblank label text without `|`;
 - `photoshop:Urgency` in `http://ns.adobe.com/photoshop/1.0/`, with project-authored canonical values `1` through
-  `8`, written only when the projected final `xmp:Label` equals the grade's desired label.
+  `8`, written only when the projected final `xmp:Label` equals the grade's desired label; and
+- `xmpDM:pick` and `xmpDM:good` in `http://ns.adobe.com/xmp/1.0/DynamicMedia/` — Lightroom's coupled pick-flag
+  pair, authored by this project only as the consistent pairs `1`/`true` (picked) and `-1`/`false` (rejected).
+  The engine refuses to write a split pair, and Lightroom's unflagged state (`pick="0"` with no `good`) is never
+  written; the planner resolves the flag channel with `xmpDM:pick` as the conflict-policy driver and
+  `xmpDM:good` following its action.
 
 Those domains constrain values authored by this project and trusted from its export stamps. Foreign values are
 compared lexically and remain preservation-protected unless an explicit scalar policy permits replacement.
@@ -402,7 +408,7 @@ For each property, the parser reads both an attribute on `rdf:Description` and a
 preserves the form already present; a new value is created as an attribute. Structured scalar content, an
 incompatible preferred-prefix binding during creation, or multiple conflicting occurrences fail closed as
 unsupported RDF. The same plan-first, backup, atomic replacement, semantic-preservation, post-write
-validation, and restore guarantees in FR2-025 through FR2-029 apply. Managed scalars are excluded from the v2
+validation, and restore guarantees in FR2-025 through FR2-029 apply. Managed scalars are excluded from the v3
 unmanaged-content fingerprint, but an unplanned scalar must remain equal before and after the write. A mutating
 scalar plan is also rejected if a fresh pre-write snapshot no longer matches its planned existing value.
 
@@ -413,8 +419,8 @@ successful created, modified, or unchanged export, the pipeline attempts to stam
 values owned by this tool, plus the derived quality tier when graded. A stamp failure is reported as a warning and
 does not invalidate or roll back an XMP result that already passed validation. The additive change-plan and
 export-report schema identifiers are
-`ai-sidecar-xmp-change-plan/1.1` and
-`ai-sidecar-xmp-export/1.1`.
+`ai-sidecar-xmp-change-plan/1.2` and
+`ai-sidecar-xmp-export/1.2`.
 
 Capture One 16.8.4 samples in `agent_docs/XMP_Samples/CaptureOne_ColorLabels/` serialize `xmp:Label` and
 `photoshop:Urgency` as child elements, rather than the attribute form previously assumed in doc 12 §5.6.1. The
@@ -422,6 +428,12 @@ observed mapping is Red→1, Green→2, Blue→3, Pink→4, Purple→5, Orange�
 provided. The read-both/update-in-place/create-as-attribute contract therefore remains intentional. Evidence and
 the default-map rationale are recorded in `agent_docs/release-evidence/c1-urgency-mapping.md`; application read-back
 claims remain gated on the IQ-M5 live verification in doc 12.
+
+Lightroom Classic 15.4.1 samples in `agent_docs/XMP_Samples/Lightroom_Flags/` serialize the pick-flag pair as
+attributes on the main `rdf:Description`: unflagged is `xmpDM:pick="0"` with no `xmpDM:good`, rejected is
+`pick="-1"` + `good="false"`, and picked is `pick="1"` + `good="true"`. The flag channel mirrors those pairs
+exactly and is recorded in `agent_docs/release-evidence/lr-pick-flag-mapping.md`; Lightroom read-back claims
+remain gated on the same IQ-M5 live verification.
 
 ## 10. Output and Reporting Requirements
 
@@ -447,9 +459,9 @@ suffix-free names.
 
 `aisidecar cleanup` may remove these progress/report/summary artifacts from a selected folder, but it shall not remove XMP sidecars, backups, source images, or derivative cache artifacts.
 
-FR2-032a - The export report schema identifier shall be `ai-sidecar-xmp-export/1.1`.
+FR2-032a - The export report schema identifier shall be `ai-sidecar-xmp-export/1.2`.
 
-FR2-032b - The dry-run change-plan schema identifier shall be `ai-sidecar-xmp-change-plan/1.1`.
+FR2-032b - The dry-run change-plan schema identifier shall be `ai-sidecar-xmp-change-plan/1.2`.
 
 FR2-032c - Progress records shall be self-contained JSONL entries and shall be flushed after each completed XMP target, not after each source member. This matches the one-write-per-XMP-target rule.
 

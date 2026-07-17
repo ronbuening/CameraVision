@@ -100,7 +100,7 @@ swift run aisidecar write-xmp \
 
 The input may be a combined `.ai.json` sidecar containing `quality_assessment`, a standalone
 `.quality.ai.json`, or a folder containing same-image tagging and quality siblings; the resolver groups siblings
-automatically. `--dry-run` prints an `ai-sidecar-xmp-change-plan/1.1` document and does not create or modify XMP.
+automatically. `--dry-run` prints an `ai-sidecar-xmp-change-plan/1.2` document and does not create or modify XMP.
 `--output-dir` points the planned `target_xmp_path` values into the disposable staging tree. Inspect
 `quality_tier`, `quality_explanation`, any `rating_write` / `label_write` / `urgency_write` rows, and the flat or
 hierarchical quality-keyword additions. As with every XMP dry run, input or target-plan failures produce exit `1`.

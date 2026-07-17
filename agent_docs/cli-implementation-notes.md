@@ -91,28 +91,35 @@ The `write-xmp` flags are:
 --write-rating / --no-write-rating
 --write-label / --no-write-label
 --write-urgency / --no-write-urgency
+--write-flag / --no-write-flag
 --write-quality-keywords / --no-write-quality-keywords
 --quality-conflicts <preserve|refresh|overwrite>
 --quality-min-confidence <low|medium|high>
 ```
 
-The built-in master switch is off. If enabled without channel overrides, rating, label, label-coupled urgency, and
-quality keywords are on; minimum confidence is `medium`; scalar conflict handling is `preserve`; and the keyword
-root is `AI Quality`. Ratings map reject→1, below-average→2, neutral→3, good→4, excellent→5. Labels map reject→Red
+The built-in master switch is off. If enabled without channel overrides, rating, label, label-coupled urgency,
+Lightroom pick flags, and quality keywords are on; minimum confidence is `medium`; scalar conflict handling is
+`preserve`; and the keyword root is `AI Quality`. Ratings map reject→1, below-average→2, neutral→3, good→4,
+excellent→5. Labels map reject→Red
 and excellent→Green; their Capture One companions map to Urgency 1 and 2 respectively. Capture One 16.8.4 samples
 show all label/urgency values as child elements and establish Red→1, Green→2, Blue→3, Pink→4, Purple→5, Orange→6,
-Yellow→7 (`agent_docs/release-evidence/c1-urgency-mapping.md`). The engine still creates absent scalars as
+Yellow→7 (`agent_docs/release-evidence/c1-urgency-mapping.md`). Pick flags map reject→rejected and
+excellent→picked, written as Lightroom Classic 15.4.1's coupled `xmpDM:pick`/`xmpDM:good` attribute pair —
+`-1`/`false` and `1`/`true` respectively (`agent_docs/release-evidence/lr-pick-flag-mapping.md`); the engine never
+writes a split pair or Lightroom's unflagged `pick="0"`. The engine still creates absent scalars as
 attributes, reads both forms, and updates the form it finds. Reject-as-minus-one and per-criterion problem keywords
 are off. Quality paths use `AI Quality|<tier>` in the hierarchical bag and the space-joined `AI Quality <tier>` in
 the flat bag, subject to the existing keyword-channel toggles and safety checks.
 
 Normal CLI > environment > config file > built-in precedence applies. Direct config keys are
 `xmp_quality_grading`, `xmp_quality_conflicts`, `xmp_quality_min_confidence`, `xmp_quality_write_rating`,
-`xmp_quality_write_label`, `xmp_quality_write_urgency`, and `xmp_quality_write_keywords`; their environment forms
-are `AISIDECAR_XMP_QUALITY_{GRADING,CONFLICTS,MIN_CONFIDENCE,WRITE_RATING,WRITE_LABEL,WRITE_URGENCY,WRITE_KEYWORDS}`.
+`xmp_quality_write_label`, `xmp_quality_write_urgency`, `xmp_quality_write_flag`, and `xmp_quality_write_keywords`;
+their environment forms are
+`AISIDECAR_XMP_QUALITY_{GRADING,CONFLICTS,MIN_CONFIDENCE,WRITE_RATING,WRITE_LABEL,WRITE_URGENCY,WRITE_FLAG,WRITE_KEYWORDS}`.
 `xmp_quality_reject_as_minus_one`, `xmp_quality_per_criterion_problem_keywords`, and `xmp_quality_keyword_root` are
 config/environment policy knobs with matching uppercase `AISIDECAR_XMP_QUALITY_*` names.
-The structured `xmp_quality_rating_map`, `xmp_quality_label_map`, and `xmp_quality_urgency_map` are config-file only.
+The structured `xmp_quality_rating_map`, `xmp_quality_label_map`, `xmp_quality_urgency_map`, and
+`xmp_quality_flag_map` (values `pick`/`reject`) are config-file only.
 All configured maps and keyword roots are validated even while grading is disabled, so a dormant invalid policy
 fails before batch work begins.
 
