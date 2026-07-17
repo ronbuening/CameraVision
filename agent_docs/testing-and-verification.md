@@ -43,6 +43,7 @@ coverage for legacy colon-bearing, suffix-free names. ISO-8601 provenance fields
 ```bash
 swift run aisidecar --help
 swift run aisidecar analyze --help
+swift run aisidecar assess-quality --help
 swift run aisidecar write-xmp --help
 swift run aisidecar normalize --help
 swift run aisidecar apply-session --help
@@ -52,11 +53,11 @@ swift run aisidecar purge --help
 swift run aisidecar cleanup --help
 ```
 
-The batch-command help for `analyze`, `write-xmp`, `normalize`, `apply-session`,
-and `cleanup` documents the stable process statuses: `0` for success, `1` for one
-or more item failures, and `130` for interruption.
-The `analyze`, `write-xmp`, and `normalize` help must also list `--model-timeout`
-and `--model-retry-limit`; the latter two commands accept them only in their analyze modes.
+The batch-command help for `analyze`, `assess-quality`, `write-xmp`, `normalize`,
+`apply-session`, and `cleanup` documents the stable process statuses: `0` for success, `1` for one or more item
+failures, and `130` for interruption.
+The `analyze`, `assess-quality`, `write-xmp`, and `normalize` help must also list `--model-timeout`
+and `--model-retry-limit`; `write-xmp` and `normalize` accept them only in their analyze modes.
 
 ## CLI Exit Status Checks
 
@@ -84,6 +85,25 @@ swift run aisidecar benchmark --spec source-identity-fast --max-hash-copies 1 --
 swift run aisidecar analyze <image-or-folder> --recursive --dry-scan
 swift run aisidecar cleanup <folder> --recursive --dry-run
 ```
+
+Replay a stored assessment into the quality-grading plan without a model call or XMP write:
+
+```bash
+swift run aisidecar write-xmp \
+  --from-json <json-file-or-folder> \
+  --recursive \
+  --source-root <image-root> \
+  --quality-grading \
+  --dry-run \
+  --output-dir <tmp-output>
+```
+
+The input may be a combined `.ai.json` sidecar containing `quality_assessment`, a standalone
+`.quality.ai.json`, or a folder containing same-image tagging and quality siblings; the resolver groups siblings
+automatically. `--dry-run` prints an `ai-sidecar-xmp-change-plan/1.1` document and does not create or modify XMP.
+`--output-dir` points the planned `target_xmp_path` values into the disposable staging tree. Inspect
+`quality_tier`, `quality_explanation`, any `rating_write` / `label_write` / `urgency_write` rows, and the flat or
+hierarchical quality-keyword additions. As with every XMP dry run, input or target-plan failures produce exit `1`.
 
 ## Manual End-to-End Smoke Checks (need Ollama + a vision model)
 
