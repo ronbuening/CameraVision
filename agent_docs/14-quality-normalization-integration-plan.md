@@ -21,7 +21,7 @@ Update Status (`pending` / `in progress` / `done` / `blocked`) and Notes as stag
 
 | Stage | Title | Depends on | Size | Status | Notes |
 |---|---|---|---|---|---|
-| QN1 | Grading block on the normalization configuration | — | S | pending | |
+| QN1 | Grading block on the normalization configuration | — | S | done | Actual config path: `Configuration/NormalizationConfiguration.swift`. Reality note: Sources has three normalization→XMP execution converters, not two; `AnalyzeAndNormalizePipeline` was added to scope with `NormalizeAndWritePipeline` and `ApplySessionPipeline` so none drops grading. The other two constructors are non-execution adapters: `NormalizationInputResolver` configures raw-sidecar resolution (grading is unused), while `NormalizePipeline` configures candidate extraction and is deferred to QN3's grading seam. Default grading is omitted from encoded resolved normalization config to preserve flag-absent session/report bytes; legacy absence decodes to defaults. `swift test` passed (716 tests, 2 skipped); `Scripts/format.sh` completed on 2026-07-17. |
 | QN2 | Extract the shared grading plan applier | — | M | pending | |
 | QN3 | Grading in the normalized write path | QN1, QN2 | L | pending | |
 | QN4 | `--assess-quality` on normalize's analyze mode | — | M | pending | |

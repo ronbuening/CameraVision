@@ -73,6 +73,7 @@ public struct NormalizationConfigurationOverrides: Sendable, Equatable {
     public var allowSessionEventPropagation: Bool?
     public var affinityPrivacyMode: AffinityPrivacyMode?
     public var writeReportPath: String?
+    public var qualityGrading: QualityGradingConfigurationOverrides
 
     public init(
         recursive: Bool? = nil,
@@ -107,7 +108,8 @@ public struct NormalizationConfigurationOverrides: Sendable, Equatable {
         allowSessionHabitatPropagation: Bool? = nil,
         allowSessionEventPropagation: Bool? = nil,
         affinityPrivacyMode: AffinityPrivacyMode? = nil,
-        writeReportPath: String? = nil
+        writeReportPath: String? = nil,
+        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
     ) {
         self.recursive = recursive
         self.outputDir = outputDir
@@ -142,6 +144,7 @@ public struct NormalizationConfigurationOverrides: Sendable, Equatable {
         self.allowSessionEventPropagation = allowSessionEventPropagation
         self.affinityPrivacyMode = affinityPrivacyMode
         self.writeReportPath = writeReportPath
+        self.qualityGrading = qualityGrading
     }
 }
 
@@ -179,6 +182,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
     public var allowSessionEventPropagation: Bool
     public var affinityPrivacyMode: AffinityPrivacyMode
     public var writeReportPath: String?
+    public var qualityGrading: ResolvedQualityGradingConfiguration
 
     enum CodingKeys: String, CodingKey {
         case recursive
@@ -213,6 +217,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         case allowSessionEventPropagation = "allow_session_event_propagation"
         case affinityPrivacyMode = "affinity_privacy_mode"
         case writeReportPath = "write_report_path"
+        case qualityGrading = "quality_grading"
     }
 
     public init(
@@ -247,7 +252,8 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         allowSessionHabitatPropagation: Bool,
         allowSessionEventPropagation: Bool,
         affinityPrivacyMode: AffinityPrivacyMode,
-        writeReportPath: String?
+        writeReportPath: String?,
+        qualityGrading: ResolvedQualityGradingConfiguration = .builtInDefaults
     ) {
         self.recursive = recursive
         self.outputDir = outputDir
@@ -281,6 +287,88 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         self.allowSessionEventPropagation = allowSessionEventPropagation
         self.affinityPrivacyMode = affinityPrivacyMode
         self.writeReportPath = writeReportPath
+        self.qualityGrading = qualityGrading
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        recursive = try container.decode(Bool.self, forKey: .recursive)
+        outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
+        logLevel = try container.decode(LogLevel.self, forKey: .logLevel)
+        logFormat = try container.decode(LogFormat.self, forKey: .logFormat)
+        dryRun = try container.decode(Bool.self, forKey: .dryRun)
+        sourceRoot = try container.decodeIfPresent(String.self, forKey: .sourceRoot)
+        sourceVerification = try container.decode(XMPSourceVerificationPolicy.self, forKey: .sourceVerification)
+        writeFlatKeywords = try container.decode(Bool.self, forKey: .writeFlatKeywords)
+        writeHierarchicalKeywords = try container.decode(Bool.self, forKey: .writeHierarchicalKeywords)
+        backupSidecars = try container.decode(Bool.self, forKey: .backupSidecars)
+        xmpConflictPolicy = try container.decode(XMPConflictPolicy.self, forKey: .xmpConflictPolicy)
+        minConfidence = try container.decode(XMPMinimumConfidence.self, forKey: .minConfidence)
+        allowSpecificTags = try container.decode(Bool.self, forKey: .allowSpecificTags)
+        pairScope = try container.decode(XMPPairScope.self, forKey: .pairScope)
+        writeAIJSON = try container.decode(Bool.self, forKey: .writeAIJSON)
+        vocabularyPath = try container.decodeIfPresent(String.self, forKey: .vocabularyPath)
+        vocabularyMode = try container.decode(NormalizationVocabularyMode.self, forKey: .vocabularyMode)
+        normalizationMode = try container.decode(NormalizationMode.self, forKey: .normalizationMode)
+        sessionSubject = try container.decodeIfPresent(String.self, forKey: .sessionSubject)
+        sessionHabitat = try container.decodeIfPresent(String.self, forKey: .sessionHabitat)
+        sessionEvent = try container.decodeIfPresent(String.self, forKey: .sessionEvent)
+        consensusThreshold = try container.decode(Double.self, forKey: .consensusThreshold)
+        affinityMode = try container.decode(NormalizationAffinityMode.self, forKey: .affinityMode)
+        affinityProfile = try container.decode(NormalizationAffinityProfile.self, forKey: .affinityProfile)
+        minAffinityForConsensus = try container.decode(Double.self, forKey: .minAffinityForConsensus)
+        sessionOnly = try container.decode(Bool.self, forKey: .sessionOnly)
+        unknownSessionContextPolicy = try container.decode(
+            UnknownSessionContextPolicy.self,
+            forKey: .unknownSessionContextPolicy
+        )
+        allowSessionSubjectPropagation = try container.decode(Bool.self, forKey: .allowSessionSubjectPropagation)
+        allowSessionHabitatPropagation = try container.decode(Bool.self, forKey: .allowSessionHabitatPropagation)
+        allowSessionEventPropagation = try container.decode(Bool.self, forKey: .allowSessionEventPropagation)
+        affinityPrivacyMode = try container.decode(AffinityPrivacyMode.self, forKey: .affinityPrivacyMode)
+        writeReportPath = try container.decodeIfPresent(String.self, forKey: .writeReportPath)
+        qualityGrading =
+            try container.decodeIfPresent(ResolvedQualityGradingConfiguration.self, forKey: .qualityGrading)
+            ?? .builtInDefaults
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(recursive, forKey: .recursive)
+        try container.encodeIfPresent(outputDir, forKey: .outputDir)
+        try container.encode(logLevel, forKey: .logLevel)
+        try container.encode(logFormat, forKey: .logFormat)
+        try container.encode(dryRun, forKey: .dryRun)
+        try container.encodeIfPresent(sourceRoot, forKey: .sourceRoot)
+        try container.encode(sourceVerification, forKey: .sourceVerification)
+        try container.encode(writeFlatKeywords, forKey: .writeFlatKeywords)
+        try container.encode(writeHierarchicalKeywords, forKey: .writeHierarchicalKeywords)
+        try container.encode(backupSidecars, forKey: .backupSidecars)
+        try container.encode(xmpConflictPolicy, forKey: .xmpConflictPolicy)
+        try container.encode(minConfidence, forKey: .minConfidence)
+        try container.encode(allowSpecificTags, forKey: .allowSpecificTags)
+        try container.encode(pairScope, forKey: .pairScope)
+        try container.encode(writeAIJSON, forKey: .writeAIJSON)
+        try container.encodeIfPresent(vocabularyPath, forKey: .vocabularyPath)
+        try container.encode(vocabularyMode, forKey: .vocabularyMode)
+        try container.encode(normalizationMode, forKey: .normalizationMode)
+        try container.encodeIfPresent(sessionSubject, forKey: .sessionSubject)
+        try container.encodeIfPresent(sessionHabitat, forKey: .sessionHabitat)
+        try container.encodeIfPresent(sessionEvent, forKey: .sessionEvent)
+        try container.encode(consensusThreshold, forKey: .consensusThreshold)
+        try container.encode(affinityMode, forKey: .affinityMode)
+        try container.encode(affinityProfile, forKey: .affinityProfile)
+        try container.encode(minAffinityForConsensus, forKey: .minAffinityForConsensus)
+        try container.encode(sessionOnly, forKey: .sessionOnly)
+        try container.encode(unknownSessionContextPolicy, forKey: .unknownSessionContextPolicy)
+        try container.encode(allowSessionSubjectPropagation, forKey: .allowSessionSubjectPropagation)
+        try container.encode(allowSessionHabitatPropagation, forKey: .allowSessionHabitatPropagation)
+        try container.encode(allowSessionEventPropagation, forKey: .allowSessionEventPropagation)
+        try container.encode(affinityPrivacyMode, forKey: .affinityPrivacyMode)
+        try container.encodeIfPresent(writeReportPath, forKey: .writeReportPath)
+        if qualityGrading != .builtInDefaults {
+            try container.encode(qualityGrading, forKey: .qualityGrading)
+        }
     }
 
     public static let builtInDefaults = ResolvedNormalizationConfiguration(
@@ -315,7 +403,8 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         allowSessionHabitatPropagation: false,
         allowSessionEventPropagation: false,
         affinityPrivacyMode: .standard,
-        writeReportPath: nil
+        writeReportPath: nil,
+        qualityGrading: .builtInDefaults
     )
 }
 

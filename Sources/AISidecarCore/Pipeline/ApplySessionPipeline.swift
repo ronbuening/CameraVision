@@ -450,7 +450,8 @@ public struct ApplySessionPipeline {
             minConfidence: session.resolvedConfiguration.minConfidence,
             allowSpecificTags: session.resolvedConfiguration.allowSpecificTags,
             pairScope: session.resolvedConfiguration.pairScope,
-            writeAIJSON: false
+            writeAIJSON: false,
+            qualityGrading: session.resolvedConfiguration.qualityGrading
         )
     }
 
