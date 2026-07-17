@@ -155,6 +155,309 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.targetXMP.path))
     }
 
+    func testApplySessionRegradesMutatedCurrentAssessmentAndWritesFullQualityOutput() throws {
+        let fixture = try makeFixture(confidence: "high")
+        let sessionResult = try NormalizePipeline().runSessionOnly(
+            mode: .fromJSON(path: fixture.jsonRoot.path),
+            configuration: fixture.configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_010),
+            sessionID: "apply-current-quality"
+        )
+        XCTAssertEqual(sessionResult.session.xmpWritePlans.first?.xmpChangePlan.qualityTier, .good)
+
+        let currentDocument = try RawJSONSidecarReader().read(from: fixture.qualitySidecar)
+        _ = try writeSidecar(
+            source: currentDocument.sidecar.source,
+            named: fixture.qualitySidecar.lastPathComponent,
+            in: fixture.jsonRoot,
+            modelRuns: [
+                qualityRun(
+                    confidence: "high",
+                    overall: "problem",
+                    focus: "problem"
+                )
+            ],
+            createdAt: Date(timeIntervalSince1970: 1_700_000_002)
+        )
+
+        let result = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        ).run(
+            sessionPath: try XCTUnwrap(sessionResult.session.artifacts.sessionPath),
+            configuration: applyConfiguration(for: fixture),
+            timestamp: Date(timeIntervalSince1970: 1_800_000_011)
+        )
+
+        let plan = try XCTUnwrap(result.report.xmpWritePlans.first?.xmpChangePlan)
+        XCTAssertEqual(plan.qualityTier, .reject)
+        XCTAssertEqual(plan.ratingWrite?.plannedValue, "1")
+        XCTAssertEqual(plan.labelWrite?.plannedValue, "Red")
+        XCTAssertEqual(plan.urgencyWrite?.plannedValue, "1")
+        XCTAssertEqual(plan.pickWrite?.plannedValue, "-1")
+        XCTAssertEqual(plan.goodWrite?.plannedValue, "false")
+        XCTAssertEqual(plan.sourceMembers.first?.qualitySidecarPath, fixture.qualitySidecar.path)
+
+        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: fixture.targetXMP.path)
+        XCTAssertEqual(snapshot.flatKeywords, ["Birds", "AI Quality reject"])
+        XCTAssertEqual(snapshot.hierarchicalKeywords, ["Subject|Wildlife|Birds", "AI Quality|reject"])
+        XCTAssertEqual(snapshot.rating, "1")
+        XCTAssertEqual(snapshot.label, "Red")
+        XCTAssertEqual(snapshot.urgency, "1")
+        XCTAssertEqual(snapshot.pick, "-1")
+        XCTAssertEqual(snapshot.good, "false")
+
+        let taggingStamp = try XCTUnwrap(RawSidecarExportStamp.contents(sidecarPath: fixture.taggingSidecar.path))
+        let qualityStamp = try XCTUnwrap(RawSidecarExportStamp.contents(sidecarPath: fixture.qualitySidecar.path))
+        XCTAssertEqual(taggingStamp, qualityStamp)
+        XCTAssertEqual(taggingStamp.qualityTier, .reject)
+        XCTAssertTrue(
+            try decodeProgress(at: result.report.artifacts.progressPath).contains {
+                $0.stage == .xmpTarget
+                    && $0.qualityTier == .reject
+                    && $0.ratingWrite?.plannedValue == "1"
+                    && $0.pickWrite?.plannedValue == "-1"
+            }
+        )
+    }
+
+    func testApplySessionUsesCurrentXMPForQualityConflicts() throws {
+        let fixture = try makeFixture(confidence: "high", existingXMP: existingForeignQualityScalarsXMP)
+        let sessionResult = try NormalizePipeline().runSessionOnly(
+            mode: .fromJSON(path: fixture.jsonRoot.path),
+            configuration: fixture.configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_012),
+            sessionID: "apply-current-xmp"
+        )
+
+        let result = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        ).run(
+            sessionPath: try XCTUnwrap(sessionResult.session.artifacts.sessionPath),
+            configuration: applyConfiguration(for: fixture),
+            timestamp: Date(timeIntervalSince1970: 1_800_000_013)
+        )
+
+        let plan = try XCTUnwrap(result.report.xmpWritePlans.first?.xmpChangePlan)
+        XCTAssertEqual(plan.ratingWrite?.action, .skipExisting)
+        XCTAssertEqual(plan.labelWrite?.action, .skipExisting)
+        XCTAssertEqual(plan.urgencyWrite?.action, .skipExisting)
+        XCTAssertEqual(plan.pickWrite?.action, .skipExisting)
+        XCTAssertEqual(plan.goodWrite?.action, .skipExisting)
+        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: fixture.targetXMP.path)
+        XCTAssertEqual(snapshot.rating, "5")
+        XCTAssertEqual(snapshot.label, "Blue")
+        XCTAssertEqual(snapshot.urgency, "3")
+        XCTAssertEqual(snapshot.pick, "-1")
+        XCTAssertEqual(snapshot.good, "false")
+    }
+
+    func testApplySessionMissingCurrentAssessmentIsUngradedInsteadOfUsingPreview() throws {
+        let fixture = try makeFixture(confidence: "high")
+        let sessionResult = try NormalizePipeline().runSessionOnly(
+            mode: .fromJSON(path: fixture.jsonRoot.path),
+            configuration: fixture.configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_014),
+            sessionID: "apply-missing-quality"
+        )
+        XCTAssertEqual(sessionResult.session.xmpWritePlans.first?.xmpChangePlan.qualityTier, .good)
+
+        let currentDocument = try RawJSONSidecarReader().read(from: fixture.qualitySidecar)
+        _ = try writeSidecar(
+            source: currentDocument.sidecar.source,
+            named: fixture.qualitySidecar.lastPathComponent,
+            in: fixture.jsonRoot,
+            modelRuns: [],
+            createdAt: Date(timeIntervalSince1970: 1_700_000_003)
+        )
+
+        let result = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        ).run(
+            sessionPath: try XCTUnwrap(sessionResult.session.artifacts.sessionPath),
+            configuration: applyConfiguration(for: fixture),
+            timestamp: Date(timeIntervalSince1970: 1_800_000_015)
+        )
+
+        let plan = try XCTUnwrap(result.report.xmpWritePlans.first?.xmpChangePlan)
+        XCTAssertNil(plan.qualityTier)
+        XCTAssertEqual(plan.qualityExplanation?.first, "ungraded reason=no_records")
+        XCTAssertNil(plan.ratingWrite)
+        XCTAssertNil(plan.labelWrite)
+        XCTAssertNil(plan.urgencyWrite)
+        XCTAssertNil(plan.pickWrite)
+        XCTAssertNil(plan.goodWrite)
+        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: fixture.targetXMP.path)
+        XCTAssertEqual(snapshot.flatKeywords, ["Birds"])
+        XCTAssertEqual(snapshot.hierarchicalKeywords, ["Subject|Wildlife|Birds"])
+    }
+
+    func testApplySessionRejectsCurrentQualityContributorForAnotherSource() throws {
+        let fixture = try makeFixture(confidence: "high")
+        let sessionResult = try NormalizePipeline().runSessionOnly(
+            mode: .fromJSON(path: fixture.jsonRoot.path),
+            configuration: fixture.configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_019),
+            sessionID: "apply-mismatched-quality-contributor"
+        )
+
+        let currentDocument = try RawJSONSidecarReader().read(from: fixture.qualitySidecar)
+        var wrongSource = currentDocument.sidecar.source
+        wrongSource.identity.sha256 = String(repeating: "c", count: 64)
+        _ = try writeSidecar(
+            source: wrongSource,
+            named: fixture.qualitySidecar.lastPathComponent,
+            in: fixture.jsonRoot,
+            modelRuns: [
+                qualityRun(
+                    confidence: "high",
+                    overall: "problem",
+                    focus: "problem"
+                )
+            ],
+            createdAt: Date(timeIntervalSince1970: 1_700_000_004)
+        )
+
+        let result = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        ).run(
+            sessionPath: try XCTUnwrap(sessionResult.session.artifacts.sessionPath),
+            configuration: applyConfiguration(for: fixture),
+            timestamp: Date(timeIntervalSince1970: 1_800_000_020)
+        )
+
+        let plan = try XCTUnwrap(result.report.xmpWritePlans.first?.xmpChangePlan)
+        XCTAssertNil(plan.qualityTier)
+        XCTAssertEqual(plan.qualityExplanation?.first, "ungraded reason=no_records")
+        XCTAssertNil(plan.sourceMembers.first?.qualitySidecarPath)
+        XCTAssertTrue(result.report.warnings.contains { $0.code == .sourceIdentityMismatch })
+        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: fixture.targetXMP.path)
+        XCTAssertEqual(snapshot.flatKeywords, ["Birds"])
+        XCTAssertNil(snapshot.rating)
+        XCTAssertNil(RawSidecarExportStamp.contents(sidecarPath: fixture.qualitySidecar.path))
+    }
+
+    func testApplySessionAllowStaleStillUsesCurrentQualityContributors() throws {
+        let fixture = try makeFixture(confidence: "high")
+        let sessionResult = try NormalizePipeline().runSessionOnly(
+            mode: .fromJSON(path: fixture.jsonRoot.path),
+            configuration: fixture.configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_023),
+            sessionID: "apply-stale-quality-contributor"
+        )
+        let qualityDocument = try RawJSONSidecarReader().read(from: fixture.qualitySidecar)
+        try Data("changed source bytes".utf8).write(
+            to: URL(fileURLWithPath: qualityDocument.sidecar.source.path)
+        )
+
+        var configuration = applyConfiguration(for: fixture)
+        configuration.allowStale = true
+        let result = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        ).run(
+            sessionPath: try XCTUnwrap(sessionResult.session.artifacts.sessionPath),
+            configuration: configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_024)
+        )
+
+        XCTAssertEqual(result.report.xmpWritePlans.first?.xmpChangePlan.qualityTier, .good)
+        XCTAssertTrue(result.report.warnings.contains { $0.code == .sessionStale })
+        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: fixture.targetXMP.path)
+        XCTAssertEqual(snapshot.flatKeywords, ["Birds", "AI Quality good"])
+        XCTAssertEqual(snapshot.rating, "4")
+    }
+
+    func testApplySessionGradesFromSurvivingQualitySiblingWhenRecordedPrimaryIsGone() throws {
+        let fixture = try makeFixture(confidence: "high", sidecarPrefix: "nested/")
+        let sessionResult = try NormalizePipeline().runSessionOnly(
+            mode: .fromJSON(path: fixture.jsonRoot.path),
+            configuration: fixture.configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_021),
+            sessionID: "apply-surviving-quality-sibling"
+        )
+        try FileManager.default.removeItem(at: fixture.taggingSidecar)
+
+        let result = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        ).run(
+            sessionPath: try XCTUnwrap(sessionResult.session.artifacts.sessionPath),
+            configuration: applyConfiguration(for: fixture),
+            timestamp: Date(timeIntervalSince1970: 1_800_000_022)
+        )
+
+        let plan = try XCTUnwrap(result.report.xmpWritePlans.first?.xmpChangePlan)
+        XCTAssertEqual(plan.qualityTier, .good)
+        XCTAssertEqual(plan.sourceMembers.first?.sourceSidecarPath, fixture.qualitySidecar.path)
+        XCTAssertEqual(
+            plan.sourceMembers.first?.sourceSidecarRelativePath,
+            "nested/Bird.JPG.quality.ai.json"
+        )
+        XCTAssertNil(plan.sourceMembers.first?.qualitySidecarPath)
+        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: fixture.targetXMP.path)
+        XCTAssertEqual(snapshot.flatKeywords, ["Birds", "AI Quality good"])
+        XCTAssertEqual(snapshot.rating, "4")
+        let stamp = try XCTUnwrap(RawSidecarExportStamp.contents(sidecarPath: fixture.qualitySidecar.path))
+        XCTAssertEqual(stamp.qualityTier, .good)
+    }
+
+    func testLegacyShapedSessionAppliesWithQualityOffAndOn() throws {
+        var fixture = try makeFixture(confidence: "high")
+        let qualityGrading = fixture.configuration.qualityGrading
+        fixture.configuration.qualityGrading = .builtInDefaults
+        let sessionResult = try NormalizePipeline().runSessionOnly(
+            mode: .fromJSON(path: fixture.jsonRoot.path),
+            configuration: fixture.configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_016),
+            sessionID: "pre-quality-normalization-session"
+        )
+        let sessionPath = try XCTUnwrap(sessionResult.session.artifacts.sessionPath)
+        let sessionObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: sessionPath)))
+                as? [String: Any]
+        )
+        let resolved = try XCTUnwrap(sessionObject["resolved_configuration"] as? [String: Any])
+        XCTAssertNil(resolved["quality_grading"])
+        XCTAssertTrue(sessionResult.session.xmpWritePlans.isEmpty)
+
+        let offOutput = fixture.root.appendingPathComponent("legacy-off")
+        var offConfiguration = ResolvedApplySessionConfiguration.builtInDefaults
+        offConfiguration.outputDir = offOutput.path
+        offConfiguration.backupSidecars = false
+        offConfiguration.xmpConflictPolicy = .merge
+        _ = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        ).run(
+            sessionPath: sessionPath,
+            configuration: offConfiguration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_017)
+        )
+        let offSnapshot = try OwnedXMPSidecarEngine().readSnapshot(
+            at: offOutput.appendingPathComponent("Bird.xmp").path
+        )
+        XCTAssertEqual(offSnapshot.flatKeywords, ["Birds"])
+        XCTAssertNil(offSnapshot.rating)
+        XCTAssertNil(offSnapshot.label)
+
+        let onOutput = fixture.root.appendingPathComponent("legacy-on")
+        var onConfiguration = applyConfiguration(for: fixture)
+        onConfiguration.outputDir = onOutput.path
+        onConfiguration.qualityGrading = qualityGrading
+        let onResult = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        ).run(
+            sessionPath: sessionPath,
+            configuration: onConfiguration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_018)
+        )
+        let onPlan = try XCTUnwrap(onResult.report.xmpWritePlans.first?.xmpChangePlan)
+        XCTAssertEqual(onPlan.qualityTier, .good)
+        let onSnapshot = try OwnedXMPSidecarEngine().readSnapshot(
+            at: onOutput.appendingPathComponent("Bird.xmp").path
+        )
+        XCTAssertEqual(onSnapshot.flatKeywords, ["Birds", "AI Quality good"])
+        XCTAssertEqual(onSnapshot.rating, "4")
+        XCTAssertEqual(onSnapshot.label, "Green")
+    }
+
     func testUngradedReasonFlowsThroughNormalizeReportAndProgress() throws {
         var fixture = try makeFixture(confidence: "low")
         fixture.configuration.dryRun = true
@@ -217,7 +520,8 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
     private func makeFixture(
         confidence: String,
         existingXMP: String? = nil,
-        includesQualityRenamingVocabulary: Bool = false
+        includesQualityRenamingVocabulary: Bool = false,
+        sidecarPrefix: String = ""
     ) throws -> NormalizeQualityFixture {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
@@ -228,14 +532,14 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         let source = try scannedSourceImage(sourceURL)
         let taggingSidecar = try writeSidecar(
             source: source,
-            named: "Bird.JPG.ai.json",
+            named: "\(sidecarPrefix)Bird.JPG.ai.json",
             in: jsonRoot,
             modelRuns: [taggingRun()],
             createdAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
         let qualitySidecar = try writeSidecar(
             source: source,
-            named: "Bird.JPG.quality.ai.json",
+            named: "\(sidecarPrefix)Bird.JPG.quality.ai.json",
             in: jsonRoot,
             modelRuns: [qualityRun(confidence: confidence)],
             createdAt: Date(timeIntervalSince1970: 1_700_000_001)
@@ -330,8 +634,11 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         modelRuns: [ModelRunRecord],
         createdAt: Date
     ) throws -> URL {
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let url = root.appendingPathComponent(name)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
         let sidecar = RawJSONSidecar(
             source: source,
             runConfiguration: .builtInDefaults,
@@ -357,15 +664,19 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         )
     }
 
-    private func qualityRun(confidence: String) -> ModelRunRecord {
+    private func qualityRun(
+        confidence: String,
+        overall: String = "acceptable",
+        focus: String = "strong"
+    ) -> ModelRunRecord {
         modelRun(
             parsedResponseJSON: .object([
                 "quality_assessment": .object([
                     "composition": .string("strong"),
                     "confidence": .string(confidence),
                     "concerns": .array([]),
-                    "focus": .string("strong"),
-                    "overall_effectiveness": .string("acceptable"),
+                    "focus": .string(focus),
+                    "overall_effectiveness": .string(overall),
                     "strengths": .array([]),
                 ])
             ]),
@@ -391,6 +702,18 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
             durationMs: 1,
             error: nil
         )
+    }
+
+    private func applyConfiguration(
+        for fixture: NormalizeQualityFixture
+    ) -> ResolvedApplySessionConfiguration {
+        var configuration = ResolvedApplySessionConfiguration.builtInDefaults
+        configuration.outputDir = fixture.targetXMP.deletingLastPathComponent().path
+        configuration.sourceRoot = fixture.configuration.sourceRoot
+        configuration.backupSidecars = false
+        configuration.xmpConflictPolicy = .merge
+        configuration.qualityGrading = fixture.configuration.qualityGrading
+        return configuration
     }
 
     private func decodeProgress(at path: String) throws -> [NormalizationProgressRecord] {

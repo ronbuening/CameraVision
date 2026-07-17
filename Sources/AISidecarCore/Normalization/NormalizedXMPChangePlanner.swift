@@ -341,6 +341,9 @@ public struct NormalizedXMPChangePlanner {
         var inputsByPath: [String: ResolvedRawSidecarInput] = [:]
         for input in rawSidecarInputs {
             inputsByPath[input.sidecarPath.standardizedFileURL.path] = input
+            if let qualitySidecarPath = input.qualitySidecarPath?.standardizedFileURL.path {
+                inputsByPath[qualitySidecarPath] = input
+            }
         }
 
         var result: [String: ResolvedRawSidecarInput] = [:]

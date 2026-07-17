@@ -420,6 +420,7 @@ public struct ApplySessionConfigurationOverrides: Sendable, Equatable {
     public var backupSidecars: Bool?
     public var xmpConflictPolicy: XMPConflictPolicy?
     public var allowStale: Bool?
+    public var qualityGrading: QualityGradingConfigurationOverrides
 
     public init(
         outputDir: String? = nil,
@@ -431,7 +432,8 @@ public struct ApplySessionConfigurationOverrides: Sendable, Equatable {
         sourceVerification: XMPSourceVerificationPolicy? = nil,
         backupSidecars: Bool? = nil,
         xmpConflictPolicy: XMPConflictPolicy? = nil,
-        allowStale: Bool? = nil
+        allowStale: Bool? = nil,
+        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
     ) {
         self.outputDir = outputDir
         self.configPath = configPath
@@ -443,6 +445,7 @@ public struct ApplySessionConfigurationOverrides: Sendable, Equatable {
         self.backupSidecars = backupSidecars
         self.xmpConflictPolicy = xmpConflictPolicy
         self.allowStale = allowStale
+        self.qualityGrading = qualityGrading
     }
 }
 
@@ -457,6 +460,7 @@ public struct ResolvedApplySessionConfiguration: Codable, Sendable, Equatable {
     public var backupSidecars: Bool
     public var xmpConflictPolicy: XMPConflictPolicy
     public var allowStale: Bool
+    public var qualityGrading: ResolvedQualityGradingConfiguration
 
     enum CodingKeys: String, CodingKey {
         case outputDir = "output_dir"
@@ -468,6 +472,7 @@ public struct ResolvedApplySessionConfiguration: Codable, Sendable, Equatable {
         case backupSidecars = "backup_sidecars"
         case xmpConflictPolicy = "xmp_conflict_policy"
         case allowStale = "allow_stale"
+        case qualityGrading = "quality_grading"
     }
 
     public init(
@@ -479,7 +484,8 @@ public struct ResolvedApplySessionConfiguration: Codable, Sendable, Equatable {
         sourceVerification: XMPSourceVerificationPolicy,
         backupSidecars: Bool,
         xmpConflictPolicy: XMPConflictPolicy,
-        allowStale: Bool
+        allowStale: Bool,
+        qualityGrading: ResolvedQualityGradingConfiguration = .builtInDefaults
     ) {
         self.outputDir = outputDir
         self.logLevel = logLevel
@@ -490,6 +496,39 @@ public struct ResolvedApplySessionConfiguration: Codable, Sendable, Equatable {
         self.backupSidecars = backupSidecars
         self.xmpConflictPolicy = xmpConflictPolicy
         self.allowStale = allowStale
+        self.qualityGrading = qualityGrading
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
+        logLevel = try container.decode(LogLevel.self, forKey: .logLevel)
+        logFormat = try container.decode(LogFormat.self, forKey: .logFormat)
+        dryRun = try container.decode(Bool.self, forKey: .dryRun)
+        sourceRoot = try container.decodeIfPresent(String.self, forKey: .sourceRoot)
+        sourceVerification = try container.decode(XMPSourceVerificationPolicy.self, forKey: .sourceVerification)
+        backupSidecars = try container.decode(Bool.self, forKey: .backupSidecars)
+        xmpConflictPolicy = try container.decode(XMPConflictPolicy.self, forKey: .xmpConflictPolicy)
+        allowStale = try container.decode(Bool.self, forKey: .allowStale)
+        qualityGrading =
+            try container.decodeIfPresent(ResolvedQualityGradingConfiguration.self, forKey: .qualityGrading)
+            ?? .builtInDefaults
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(outputDir, forKey: .outputDir)
+        try container.encode(logLevel, forKey: .logLevel)
+        try container.encode(logFormat, forKey: .logFormat)
+        try container.encode(dryRun, forKey: .dryRun)
+        try container.encodeIfPresent(sourceRoot, forKey: .sourceRoot)
+        try container.encode(sourceVerification, forKey: .sourceVerification)
+        try container.encode(backupSidecars, forKey: .backupSidecars)
+        try container.encode(xmpConflictPolicy, forKey: .xmpConflictPolicy)
+        try container.encode(allowStale, forKey: .allowStale)
+        if qualityGrading != .builtInDefaults {
+            try container.encode(qualityGrading, forKey: .qualityGrading)
+        }
     }
 
     public static let builtInDefaults = ResolvedApplySessionConfiguration(
@@ -501,6 +540,7 @@ public struct ResolvedApplySessionConfiguration: Codable, Sendable, Equatable {
         sourceVerification: .fail,
         backupSidecars: true,
         xmpConflictPolicy: .backupAndMerge,
-        allowStale: false
+        allowStale: false,
+        qualityGrading: .builtInDefaults
     )
 }

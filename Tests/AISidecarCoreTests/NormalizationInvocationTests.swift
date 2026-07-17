@@ -160,8 +160,48 @@ final class NormalizationInvocationTests: XCTestCase {
             )
         }
 
+        let qualityConflicts = [
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeRating: true,
+                noWriteRating: true
+            ),
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeLabel: true,
+                noWriteLabel: true
+            ),
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeUrgency: true,
+                noWriteUrgency: true
+            ),
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeFlag: true,
+                noWriteFlag: true
+            ),
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeQualityKeywords: true,
+                noWriteQualityKeywords: true
+            ),
+        ]
+        for request in qualityConflicts {
+            try assertConfigInvalid {
+                _ = try ApplySessionInvocationValidator.validate(request)
+            }
+        }
+
         let session = try ApplySessionInvocationValidator.validate(
-            ApplySessionInvocationRequest(sessionPath: "normalization-session.json")
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeRating: true,
+                writeLabel: true,
+                writeUrgency: true,
+                writeFlag: true,
+                writeQualityKeywords: true
+            )
         )
         XCTAssertEqual(session, "normalization-session.json")
     }

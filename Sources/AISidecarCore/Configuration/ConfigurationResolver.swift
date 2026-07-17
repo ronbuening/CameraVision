@@ -568,7 +568,8 @@ public enum ConfigurationResolver {
                 XMPConflictPolicy.self,
                 from: environment["AISIDECAR_XMP_CONFLICT_POLICY"],
                 key: "AISIDECAR_XMP_CONFLICT_POLICY"
-            )
+            ),
+            qualityGrading: try qualityGradingEnvironmentOverrides(from: environment)
         )
     }
 
@@ -1143,9 +1144,11 @@ private struct NormalizationConfigurationBuilder {
 
 private struct ApplySessionConfigurationBuilder {
     private var config: ResolvedApplySessionConfiguration
+    private var qualityGrading: QualityGradingConfigurationBuilder
 
     init(defaults: ResolvedApplySessionConfiguration) {
         self.config = defaults
+        self.qualityGrading = QualityGradingConfigurationBuilder(defaults: defaults.qualityGrading)
     }
 
     mutating func apply(config fileConfig: AppConfig) {
@@ -1157,6 +1160,7 @@ private struct ApplySessionConfigurationBuilder {
         merge(&config.sourceVerification, fileConfig.sourceVerification)
         merge(&config.backupSidecars, fileConfig.backupSidecars)
         merge(&config.xmpConflictPolicy, fileConfig.xmpConflictPolicy)
+        qualityGrading.apply(config: fileConfig)
     }
 
     mutating func apply(overrides: ApplySessionConfigurationOverrides) {
@@ -1169,13 +1173,16 @@ private struct ApplySessionConfigurationBuilder {
         merge(&config.backupSidecars, overrides.backupSidecars)
         merge(&config.xmpConflictPolicy, overrides.xmpConflictPolicy)
         merge(&config.allowStale, overrides.allowStale)
+        qualityGrading.apply(overrides: overrides.qualityGrading)
     }
 
     func resolved() throws -> ResolvedApplySessionConfiguration {
         if config.xmpConflictPolicy == .backupAndMerge, !config.backupSidecars {
             throw SidecarError.configInvalid("xmp_conflict_policy backup-and-merge requires backup_sidecars to be true")
         }
-        return config
+        var resolved = config
+        resolved.qualityGrading = try qualityGrading.resolved()
+        return resolved
     }
 }
 
@@ -1291,7 +1298,8 @@ extension ApplySessionConfigurationOverrides {
             sourceVerification: sourceVerification,
             backupSidecars: backupSidecars,
             xmpConflictPolicy: xmpConflictPolicy,
-            allowStale: allowStale
+            allowStale: allowStale,
+            qualityGrading: qualityGrading
         )
     }
 }
