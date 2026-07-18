@@ -44,6 +44,25 @@ final class Step3OptionsViewTests: XCTestCase {
     }
 
     @MainActor
+    func testQualityBoolControlsMapToDistinctOverrideFields() {
+        let options = AnalysisOptions(environment: [:])
+        options.assessQuality = true
+        options.qualityGradingEnabled = true
+        options.qualityWriteRating = false
+
+        var overrides = effectiveOverrides(options: options, action: .write)
+        XCTAssertEqual(overrides.enabled, true)
+        XCTAssertEqual(overrides.writeRating, false)
+
+        options.qualityGradingEnabled = false
+        options.qualityWriteRating = true
+
+        overrides = effectiveOverrides(options: options, action: .write)
+        XCTAssertEqual(overrides.enabled, false)
+        XCTAssertEqual(overrides.writeRating, true)
+    }
+
+    @MainActor
     func testDisabledGroupForcesEffectiveGradingOffWithoutClearingRetainedChoices() {
         let options = AnalysisOptions(environment: [:])
         options.assessQuality = false

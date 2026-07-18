@@ -80,10 +80,19 @@ struct Step3ApplyView: View {
 
     private var qualityGradingCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("QUALITY")
-                .font(.system(size: 10.5, weight: .semibold))
-                .kerning(0.6)
-                .foregroundStyle(theme.textFaint)
+            HStack(spacing: 8) {
+                Text("QUALITY")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .kerning(0.6)
+                    .foregroundStyle(theme.textFaint)
+                Text("EXPERIMENTAL")
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .foregroundStyle(theme.accent.accent)
+                    .padding(.vertical, 2)
+                    .padding(.horizontal, 6)
+                    .background(theme.accent.soft)
+                    .clipShape(Capsule())
+            }
             Toggle("Quality grading", isOn: $qualityGradingEnabled)
                 .toggleStyle(.switch)
                 .tint(theme.accent.accent)
