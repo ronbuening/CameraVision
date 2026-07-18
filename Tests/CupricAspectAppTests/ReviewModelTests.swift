@@ -132,6 +132,45 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testReviewBuilderUsesResolverAndMapsOnlyGUIQualityFields() throws {
+        let configURL = root.appendingPathComponent("review-config.json")
+        try Data(
+            """
+            {
+              "xmp_quality_write_label": false,
+              "xmp_quality_write_keywords": false,
+              "xmp_quality_min_confidence": "high"
+            }
+            """.utf8
+        ).write(to: configURL)
+        let model = ReviewModel(
+            stateDirectory: root.appendingPathComponent("state"),
+            environment: [:],
+            defaultConfigPath: configURL.path
+        )
+        let overrides = QualityGradingConfigurationOverrides(
+            enabled: true,
+            conflictPolicy: .refresh,
+            writeRating: true
+        )
+
+        let configuration = try model.buildConfiguration(
+            sourceRoot: "/src",
+            outputDir: "/out",
+            qualityGrading: overrides
+        )
+
+        XCTAssertEqual(configuration.vocabularyMode, .observedTags)
+        XCTAssertEqual(configuration.normalizationMode, .singleImage)
+        XCTAssertTrue(configuration.qualityGrading.enabled)
+        XCTAssertEqual(configuration.qualityGrading.conflictPolicy, .refresh)
+        XCTAssertTrue(configuration.qualityGrading.policy.writeRating)
+        XCTAssertFalse(configuration.qualityGrading.policy.writeLabel)
+        XCTAssertFalse(configuration.qualityGrading.policy.writeKeywords)
+        XCTAssertEqual(configuration.qualityGrading.policy.minimumConfidence, .high)
+    }
+
+    @MainActor
     func testAssetRowsDoesNotTrapOnDuplicateAssetIDInInMemorySession() throws {
         let model = makeModel()
         var session = try makeBaseSession(terms: ["bird"])

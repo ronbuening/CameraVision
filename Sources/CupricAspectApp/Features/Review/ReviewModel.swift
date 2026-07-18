@@ -48,6 +48,8 @@ final class ReviewModel {
     private let autosaveDecisionLimit: Int
     private let autosaveInterval: TimeInterval
     private let stateDirectory: URL
+    private let environment: [String: String]
+    private let defaultConfigPath: String?
     private let now: () -> Date
     private var changesSinceAutosave = 0
     private var lastAutosaveAt: Date
@@ -56,11 +58,15 @@ final class ReviewModel {
         stateDirectory: URL = ReviewModel.defaultStateDirectory,
         autosaveDecisionLimit: Int = 25,
         autosaveInterval: TimeInterval = 300,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaultConfigPath: String? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.stateDirectory = stateDirectory
         self.autosaveDecisionLimit = autosaveDecisionLimit
         self.autosaveInterval = autosaveInterval
+        self.environment = environment
+        self.defaultConfigPath = defaultConfigPath
         self.now = now
         self.lastAutosaveAt = now()
         recoveryAvailable = FileManager.default.fileExists(atPath: recoveryURL.path)
@@ -147,7 +153,11 @@ final class ReviewModel {
 
     /// Build the review base session over the folder's `.ai.json` files.
     /// Model-free; artifacts land inside the app state directory.
-    func buildSession(jsonRoot: String, sourceRoot: String) {
+    func buildSession(
+        jsonRoot: String,
+        sourceRoot: String,
+        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
+    ) {
         guard !building else { return }
         building = true
         buildError = nil
@@ -159,13 +169,12 @@ final class ReviewModel {
         Task {
             defer { building = false }
             do {
+                let configuration = try buildConfiguration(
+                    sourceRoot: sourceRoot,
+                    outputDir: artifactDir,
+                    qualityGrading: qualityGrading
+                )
                 let result = try await Task.detached(priority: .userInitiated) {
-                    var configuration = ResolvedNormalizationConfiguration.builtInDefaults
-                    configuration.vocabularyMode = .observedTags
-                    configuration.normalizationMode = .singleImage
-                    configuration.recursive = true
-                    configuration.sourceRoot = sourceRoot
-                    configuration.outputDir = artifactDir
                     return try NormalizePipeline().runSessionOnly(
                         mode: .fromJSON(path: jsonRoot),
                         configuration: configuration
@@ -176,6 +185,25 @@ final class ReviewModel {
                 buildError = (error as? SidecarError)?.message ?? error.localizedDescription
             }
         }
+    }
+
+    func buildConfiguration(
+        sourceRoot: String,
+        outputDir: String,
+        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
+    ) throws -> ResolvedNormalizationConfiguration {
+        try ConfigurationResolver.resolveNormalization(
+            cli: NormalizationConfigurationOverrides(
+                recursive: true,
+                outputDir: outputDir,
+                sourceRoot: sourceRoot,
+                vocabularyMode: .observedTags,
+                normalizationMode: .singleImage,
+                qualityGrading: qualityGrading
+            ),
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        )
     }
 
     /// Adopt a session document (fresh build, import, or recovery) and

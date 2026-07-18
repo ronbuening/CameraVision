@@ -30,11 +30,20 @@ final class ExportModel {
     private var pendingSourceRoot: String?
     private var pendingOutputDir: String?
     private var pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    private(set) var pendingQualityGrading = QualityGradingConfigurationOverrides()
     private var pendingCleanupRecursive = false
     private let stateDirectory: URL
+    private let environment: [String: String]
+    private let defaultConfigPath: String?
 
-    init(stateDirectory: URL = ReviewModel.defaultStateDirectory) {
+    init(
+        stateDirectory: URL = ReviewModel.defaultStateDirectory,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaultConfigPath: String? = nil
+    ) {
         self.stateDirectory = stateDirectory
+        self.environment = environment
+        self.defaultConfigPath = defaultConfigPath
     }
 
     var plannedTargets: [XMPChangePlan] { changePlan?.targetPlans ?? [] }
@@ -71,15 +80,23 @@ final class ExportModel {
         sourceRoot: String,
         outputDir: String?,
         dryRun: Bool,
-        xmpConflictPolicy: XMPConflictPolicy
-    ) -> ResolvedApplySessionConfiguration {
-        var configuration = ResolvedApplySessionConfiguration.builtInDefaults
-        configuration.sourceRoot = sourceRoot
-        configuration.outputDir = outputDir
-        configuration.dryRun = dryRun
-        configuration.xmpConflictPolicy = xmpConflictPolicy
-        configuration.backupSidecars = true
-        return configuration
+        xmpConflictPolicy: XMPConflictPolicy,
+        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides(),
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaultConfigPath: String? = nil
+    ) throws -> ResolvedApplySessionConfiguration {
+        try ConfigurationResolver.resolveApplySession(
+            cli: ApplySessionConfigurationOverrides(
+                outputDir: outputDir,
+                dryRun: dryRun,
+                sourceRoot: sourceRoot,
+                backupSidecars: true,
+                xmpConflictPolicy: xmpConflictPolicy,
+                qualityGrading: qualityGrading
+            ),
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        )
     }
 
     /// FR4-029: dry-run the session and hold the change plan for review.
@@ -88,7 +105,8 @@ final class ExportModel {
         sourceRoot: String,
         outputDir: String?,
         recursive: Bool = false,
-        xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+        xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy,
+        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
     ) {
         guard phase != .planning, phase != .writing else { return }
         phase = .planning
@@ -99,17 +117,22 @@ final class ExportModel {
         cleanupWarning = nil
 
         let sessionDir = stateDirectory.appendingPathComponent("export-sessions", isDirectory: true)
+        let environment = environment
+        let defaultConfigPath = defaultConfigPath
         Task {
             do {
                 let (plan, sessionPath) = try await Task.detached(priority: .userInitiated) {
                     try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
                     let sessionPath = sessionDir.appendingPathComponent("export-\(UUID().uuidString).json").path
                     try NormalizationSessionWriter().write(session, to: sessionPath)
-                    let configuration = ExportModel.applyConfiguration(
+                    let configuration = try ExportModel.applyConfiguration(
                         sourceRoot: sourceRoot,
                         outputDir: outputDir,
                         dryRun: true,
-                        xmpConflictPolicy: xmpConflictPolicy
+                        xmpConflictPolicy: xmpConflictPolicy,
+                        qualityGrading: qualityGrading,
+                        environment: environment,
+                        defaultConfigPath: defaultConfigPath
                     )
                     let result = try ApplySessionPipeline(
                         xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
@@ -121,6 +144,7 @@ final class ExportModel {
                 pendingSourceRoot = sourceRoot
                 pendingOutputDir = outputDir
                 pendingXMPConflictPolicy = xmpConflictPolicy
+                pendingQualityGrading = qualityGrading
                 pendingCleanupRecursive = recursive
                 phase = .planReady
             } catch {
@@ -141,17 +165,23 @@ final class ExportModel {
         phase = .writing
         let outputDir = pendingOutputDir
         let xmpConflictPolicy = pendingXMPConflictPolicy
+        let qualityGrading = pendingQualityGrading
         let cleanupAfterWrite = cleanupAfterWrite
         let cleanupRoot = outputDir ?? sourceRoot
         let cleanupRecursive = pendingCleanupRecursive
+        let environment = environment
+        let defaultConfigPath = defaultConfigPath
         Task {
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
-                    let configuration = ExportModel.applyConfiguration(
+                    let configuration = try ExportModel.applyConfiguration(
                         sourceRoot: sourceRoot,
                         outputDir: outputDir,
                         dryRun: false,
-                        xmpConflictPolicy: xmpConflictPolicy
+                        xmpConflictPolicy: xmpConflictPolicy,
+                        qualityGrading: qualityGrading,
+                        environment: environment,
+                        defaultConfigPath: defaultConfigPath
                     )
                     return try ApplySessionPipeline(
                         xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
@@ -194,6 +224,7 @@ final class ExportModel {
         cleanupAfterWrite = false
         cleanupRemovedCount = nil
         cleanupWarning = nil
+        pendingQualityGrading = QualityGradingConfigurationOverrides()
     }
 
     func reset() {
@@ -205,6 +236,7 @@ final class ExportModel {
         cleanupWarning = nil
         pendingSessionPath = nil
         pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+        pendingQualityGrading = QualityGradingConfigurationOverrides()
         pendingCleanupRecursive = false
     }
 }

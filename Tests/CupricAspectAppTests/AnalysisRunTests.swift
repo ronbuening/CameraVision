@@ -15,6 +15,7 @@ final class AnalysisRunTests: XCTestCase {
         options.concurrency = 3
         options.profile = "gemma4-26b-benchmark-1024"
         options.contextWindow = 4_096
+        options.assessQuality = true
 
         let configuration = try options.buildConfiguration(recursive: false, outputDir: "/tmp/out")
 
@@ -24,6 +25,7 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(configuration.stageConcurrency, 3)
         XCTAssertEqual(configuration.profile, "gemma4-26b-benchmark-1024")
         XCTAssertEqual(configuration.modelContextWindow, 4_096)
+        XCTAssertEqual(configuration.taskProfile, .taggingWithQuality)
         XCTAssertFalse(configuration.recursive)
         XCTAssertEqual(configuration.outputDir, "/tmp/out")
     }
@@ -60,24 +62,34 @@ final class AnalysisRunTests: XCTestCase {
 
     @MainActor
     func testUserEditedOptionsSurviveRepeatedDefaultLoadsAndResetReseeds() throws {
-        let configPath = try writeConfig(#"{ "existing": "fail", "stage_concurrency": 2 }"#)
+        let configPath = try writeConfig(
+            #"{ "existing": "fail", "stage_concurrency": 2, "quality_assessment": true, "xmp_quality_grading": true }"#
+        )
         let options = AnalysisOptions(environment: [:], defaultConfigPath: configPath)
 
         options.loadResolvedDefaults()
         XCTAssertEqual(options.existing, .fail)
         XCTAssertEqual(options.concurrency, 2)
+        XCTAssertTrue(options.assessQuality)
+        XCTAssertTrue(options.qualityGradingEnabled)
 
         options.existing = .overwrite
         options.concurrency = 4
+        options.assessQuality = false
+        options.qualityGradingEnabled = false
         options.loadResolvedDefaults()
 
         XCTAssertEqual(options.existing, .overwrite)
         XCTAssertEqual(options.concurrency, 4)
+        XCTAssertFalse(options.assessQuality)
+        XCTAssertFalse(options.qualityGradingEnabled)
 
         options.resetToResolvedDefaults()
 
         XCTAssertEqual(options.existing, .fail)
         XCTAssertEqual(options.concurrency, 2)
+        XCTAssertTrue(options.assessQuality)
+        XCTAssertTrue(options.qualityGradingEnabled)
     }
 
     @MainActor
@@ -123,6 +135,74 @@ final class AnalysisRunTests: XCTestCase {
         options.loadResolvedDefaults()
 
         XCTAssertEqual(options.xmpConflictPolicy, .backupAndMerge)
+    }
+
+    @MainActor
+    func testResolvedQualityDefaultsSeedRunScopedState() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "quality_assessment": true,
+              "xmp_quality_grading": true,
+              "xmp_quality_write_rating": true,
+              "xmp_quality_conflicts": "overwrite"
+            }
+            """
+        )
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: configPath)
+
+        options.loadResolvedDefaults()
+
+        XCTAssertTrue(options.assessQuality)
+        XCTAssertTrue(options.qualityGradingEnabled)
+        XCTAssertTrue(options.qualityWriteRating)
+        XCTAssertEqual(options.qualityConflictPolicy, .overwrite)
+    }
+
+    @MainActor
+    func testQualityGradingOverridesMapOnlyGUIOwnedFields() {
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: missingConfigPath())
+        options.qualityGradingEnabled = true
+        options.qualityWriteRating = true
+        options.qualityConflictPolicy = .refresh
+
+        let overrides = options.qualityGradingOverrides()
+
+        XCTAssertEqual(overrides.enabled, true)
+        XCTAssertEqual(overrides.writeRating, true)
+        XCTAssertEqual(overrides.conflictPolicy, .refresh)
+        XCTAssertNil(overrides.writeLabel)
+        XCTAssertNil(overrides.writeUrgency)
+        XCTAssertNil(overrides.writeFlag)
+        XCTAssertNil(overrides.writeKeywords)
+        XCTAssertNil(overrides.minimumConfidence)
+        XCTAssertNil(overrides.ratingMap)
+        XCTAssertNil(overrides.labelMap)
+    }
+
+    @MainActor
+    func testDefaultOffQualityMatchesResolverConfiguration() throws {
+        let configPath = missingConfigPath()
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: configPath)
+
+        let configuration = try options.buildConfiguration(recursive: true, outputDir: "/tmp/out")
+        let expected = try ConfigurationResolver.resolve(
+            cli: RunConfigurationOverrides(
+                mode: options.mode,
+                existing: options.existing,
+                recursive: true,
+                outputDir: "/tmp/out",
+                profile: options.profile,
+                stageConcurrency: options.concurrency,
+                gpsContext: options.gps,
+                modelContextWindow: options.contextWindow
+            ),
+            environment: [:],
+            defaultConfigPath: configPath
+        )
+
+        XCTAssertEqual(configuration, expected)
+        XCTAssertEqual(configuration.taskProfile, .tagging)
     }
 
     func testSecondsPerImageUsesProcessedCount() {

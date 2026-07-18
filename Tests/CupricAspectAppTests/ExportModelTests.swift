@@ -164,12 +164,14 @@ final class ExportModelTests: XCTestCase {
         )
     }
 
-    func testApplyConfigurationCarriesSelectedXMPConflictPolicy() {
-        let configuration = ExportModel.applyConfiguration(
+    func testApplyConfigurationCarriesSelectedXMPConflictPolicy() throws {
+        let configuration = try ExportModel.applyConfiguration(
             sourceRoot: "/source",
             outputDir: "/out",
             dryRun: true,
-            xmpConflictPolicy: .fail
+            xmpConflictPolicy: .fail,
+            environment: [:],
+            defaultConfigPath: root.appendingPathComponent("missing-config.json").path
         )
 
         XCTAssertEqual(configuration.sourceRoot, "/source")
@@ -177,6 +179,81 @@ final class ExportModelTests: XCTestCase {
         XCTAssertTrue(configuration.dryRun)
         XCTAssertEqual(configuration.xmpConflictPolicy, .fail)
         XCTAssertTrue(configuration.backupSidecars)
+    }
+
+    func testApplyConfigurationQualityOverridesPreserveResolverOwnedChannels() throws {
+        let configURL = root.appendingPathComponent("config.json")
+        try Data(
+            """
+            {
+              "xmp_quality_write_label": false,
+              "xmp_quality_write_keywords": false,
+              "xmp_quality_min_confidence": "high"
+            }
+            """.utf8
+        ).write(to: configURL)
+        let overrides = QualityGradingConfigurationOverrides(
+            enabled: true,
+            conflictPolicy: .refresh,
+            writeRating: true
+        )
+
+        let configuration = try ExportModel.applyConfiguration(
+            sourceRoot: "/source",
+            outputDir: "/out",
+            dryRun: true,
+            xmpConflictPolicy: .merge,
+            qualityGrading: overrides,
+            environment: [:],
+            defaultConfigPath: configURL.path
+        )
+
+        XCTAssertTrue(configuration.qualityGrading.enabled)
+        XCTAssertEqual(configuration.qualityGrading.conflictPolicy, .refresh)
+        XCTAssertTrue(configuration.qualityGrading.policy.writeRating)
+        XCTAssertFalse(configuration.qualityGrading.policy.writeLabel)
+        XCTAssertFalse(configuration.qualityGrading.policy.writeKeywords)
+        XCTAssertEqual(configuration.qualityGrading.policy.minimumConfidence, .high)
+    }
+
+    @MainActor
+    func testPlanFreezesQualityOverridesForMatchingWrite() async throws {
+        let (session, sourceRoot) = try makeSession()
+        let overrides = QualityGradingConfigurationOverrides(
+            enabled: true,
+            conflictPolicy: .overwrite,
+            writeRating: true
+        )
+        let export = ExportModel(
+            stateDirectory: root.appendingPathComponent("state"),
+            environment: [:],
+            defaultConfigPath: root.appendingPathComponent("missing-config.json").path
+        )
+
+        export.plan(
+            session: session,
+            sourceRoot: sourceRoot.path,
+            outputDir: nil,
+            qualityGrading: overrides
+        )
+        try await waitUntil("quality dry-run plan") { export.phase == .planReady }
+
+        XCTAssertEqual(export.pendingQualityGrading, overrides)
+        let plannedExplanation = try XCTUnwrap(export.plannedTargets.first?.qualityExplanation)
+
+        export.confirmWrite()
+        try await waitUntil("quality write") {
+            if export.phase == .written { return true }
+            if case .failed = export.phase { return true }
+            return false
+        }
+        guard export.phase == .written else {
+            return XCTFail("write failed: \(export.phase)")
+        }
+
+        let reportPlan = try XCTUnwrap(export.exportReport?.targetReports.first?.plan)
+        XCTAssertEqual(reportPlan.qualityExplanation, plannedExplanation)
+        XCTAssertEqual(reportPlan.ratingWrite, export.plannedTargets.first?.ratingWrite)
     }
 
     @MainActor
