@@ -160,6 +160,20 @@ final class AnalysisRunTests: XCTestCase {
     }
 
     @MainActor
+    func testAssessQualityOffOverridesEffectiveConfigDefaultOn() throws {
+        let configPath = try writeConfig(#"{ "quality_assessment": true }"#)
+        let options = AnalysisOptions(environment: [:], defaultConfigPath: configPath)
+
+        options.loadResolvedDefaults()
+        XCTAssertTrue(options.assessQuality)
+        options.assessQuality = false
+
+        let configuration = try options.buildConfiguration(recursive: true, outputDir: nil)
+
+        XCTAssertEqual(configuration.taskProfile, .tagging)
+    }
+
+    @MainActor
     func testQualityGradingOverridesMapOnlyGUIOwnedFields() {
         let options = AnalysisOptions(environment: [:], defaultConfigPath: missingConfigPath())
         options.qualityGradingEnabled = true

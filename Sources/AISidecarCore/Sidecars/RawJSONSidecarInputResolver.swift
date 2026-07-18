@@ -113,8 +113,10 @@ public struct RawJSONSidecarInputResolver {
     ///
     /// Apply-session already verifies source identity against the frozen session. This path
     /// deliberately resolves only current contributor documents so `--allow-stale` and
-    /// source-verification skips are not contradicted by a second identity gate.
-    func resolveCurrentSidecarPair(at sidecarPath: String) -> RawJSONSidecarInputBatch {
+    /// source-verification skips are not contradicted by a second identity gate. Read-only
+    /// display surfaces (the GUI's quality panel) use the same path so what they show is
+    /// what apply-time grading would consume.
+    public func resolveCurrentSidecarPair(at sidecarPath: String) -> RawJSONSidecarInputBatch {
         let referenceURL = absoluteURL(for: sidecarPath)
         guard isRawSidecar(referenceURL) else {
             return RawJSONSidecarInputBatch(

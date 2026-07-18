@@ -51,7 +51,6 @@ final class QualityPresentationTests: XCTestCase {
                 )
             ]
         )
-        let extraction = QualityAssessmentExtractor.extract(from: [combined, qualitySibling])
         let assets = [
             sourceAsset(id: "combined", source: combinedSource),
             sourceAsset(id: "quality", source: qualityOnlySource),
@@ -78,7 +77,10 @@ final class QualityPresentationTests: XCTestCase {
         let rows = ReviewModel.qualityPresentation(
             sourceAssets: assets,
             xmpWritePlans: writePlans,
-            extractionResults: extraction
+            extractionByAssetID: [
+                "combined": QualityAssessmentExtractor.extract(from: combined),
+                "quality": QualityAssessmentExtractor.extract(from: qualitySibling),
+            ]
         )
 
         XCTAssertEqual(rows["combined"]?.records.map(\.role), [.wholeImage, .subjectIsolated])
@@ -117,7 +119,7 @@ final class QualityPresentationTests: XCTestCase {
         let rows = ReviewModel.qualityPresentation(
             sourceAssets: [sourceAsset(id: "issue", source: source)],
             xmpWritePlans: [],
-            extractionResults: QualityAssessmentExtractor.extract(from: [input])
+            extractionByAssetID: ["issue": QualityAssessmentExtractor.extract(from: input)]
         )
 
         XCTAssertEqual(rows["issue"]?.records.count, 1)
@@ -235,7 +237,7 @@ final class QualityPresentationTests: XCTestCase {
             ReviewModel.qualityPresentation(
                 sourceAssets: [sourceAsset(id: "legacy", source: source)],
                 xmpWritePlans: [],
-                extractionResults: []
+                extractionByAssetID: [:]
             ).isEmpty
         )
     }

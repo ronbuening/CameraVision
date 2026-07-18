@@ -10,6 +10,8 @@ import XCTest
 /// after a real write the M1 queue derivation reports `exported`.
 final class ExportModelTests: XCTestCase {
     private var root: URL!
+    /// The builder entry points require callers to state quality grading explicitly.
+    private let noQualityGrading = QualityGradingConfigurationOverrides()
 
     override func setUpWithError() throws {
         root = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -122,7 +124,7 @@ final class ExportModelTests: XCTestCase {
         )
 
         let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
-        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil)
+        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil, qualityGrading: noQualityGrading)
         try await waitUntil("dry-run plan") { export.phase == .planReady }
 
         XCTAssertEqual(export.writableTargets.count, 1)
@@ -170,6 +172,7 @@ final class ExportModelTests: XCTestCase {
             outputDir: "/out",
             dryRun: true,
             xmpConflictPolicy: .fail,
+            qualityGrading: noQualityGrading,
             environment: [:],
             defaultConfigPath: root.appendingPathComponent("missing-config.json").path
         )
@@ -260,6 +263,33 @@ final class ExportModelTests: XCTestCase {
         )
 
         XCTAssertEqual(configuration.qualityGrading, .builtInDefaults)
+    }
+
+    func testApplyConfigurationDefaultOffMatchesResolverWithoutQualityOverrides() throws {
+        let missingConfig = root.appendingPathComponent("missing-config.json").path
+
+        let configuration = try ExportModel.applyConfiguration(
+            sourceRoot: "/source",
+            outputDir: "/out",
+            dryRun: true,
+            xmpConflictPolicy: .backupAndMerge,
+            qualityGrading: noQualityGrading,
+            environment: [:],
+            defaultConfigPath: missingConfig
+        )
+        let expected = try ConfigurationResolver.resolveApplySession(
+            cli: ApplySessionConfigurationOverrides(
+                outputDir: "/out",
+                dryRun: true,
+                sourceRoot: "/source",
+                backupSidecars: true,
+                xmpConflictPolicy: .backupAndMerge
+            ),
+            environment: [:],
+            defaultConfigPath: missingConfig
+        )
+
+        XCTAssertEqual(configuration, expected, "empty quality overrides resolve like no quality overrides at all")
     }
 
     @MainActor
@@ -386,6 +416,84 @@ final class ExportModelTests: XCTestCase {
     }
 
     @MainActor
+    func testConfirmWriteReplaysFrozenConfigurationDespiteConfigAndToggleChanges() async throws {
+        let (session, sourceRoot) = try makeSession()
+        let sidecarURL = sourceRoot.appendingPathComponent("A.JPG.ai.json")
+        let current = try RawJSONSidecarReader().read(from: sidecarURL)
+        let updated = RawJSONSidecar(
+            source: current.sidecar.source,
+            runConfiguration: current.sidecar.runConfiguration,
+            modelRuns: [qualityAssessmentRun(confidence: "medium")],
+            createdAt: Date(timeIntervalSince1970: 1_700_000_001)
+        )
+        try RawJSONSidecarDocument(sidecar: updated).encodedData().write(to: sidecarURL)
+
+        let configURL = root.appendingPathComponent("frozen-config.json")
+        let export = ExportModel(
+            stateDirectory: root.appendingPathComponent("state"),
+            environment: [:],
+            defaultConfigPath: configURL.path
+        )
+        export.applyQualityGradingEnabled = true
+        export.plan(
+            session: session,
+            sourceRoot: sourceRoot.path,
+            outputDir: nil,
+            qualityGrading: export.applyQualityGradingOverrides
+        )
+        try await waitUntil("dry-run plan") { export.phase == .planReady }
+        let plannedTier = try XCTUnwrap(export.plannedTargets.first?.qualityTier)
+
+        // Divergence attempts after review: the config file gains a stricter
+        // confidence threshold that would leave this medium-confidence
+        // assessment ungraded, and the live apply toggle flips off. The
+        // committed write must replay the reviewed configuration regardless.
+        try Data(#"{"xmp_quality_min_confidence":"high"}"#.utf8).write(to: configURL)
+        export.applyQualityGradingEnabled = false
+
+        export.confirmWrite()
+        try await waitUntil("frozen-configuration write") {
+            if export.phase == .written { return true }
+            if case .failed = export.phase { return true }
+            return false
+        }
+        guard export.phase == .written else {
+            return XCTFail("write failed: \(export.phase)")
+        }
+        let reportPlan = try XCTUnwrap(export.exportReport?.targetReports.first?.plan)
+        XCTAssertEqual(reportPlan.qualityTier, plannedTier)
+    }
+
+    private func qualityAssessmentRun(confidence: String) -> ModelRunRecord {
+        ModelRunRecord(
+            inputRole: .wholeImage,
+            model: "test:model",
+            modelDigest: "sha256:test",
+            runtime: "test",
+            runtimeVersion: "1.0",
+            promptVersion: "prompt/quality",
+            promptSHA256: String(repeating: "a", count: 64),
+            responseSchemaVersion: "schema/quality",
+            requestOptions: .default,
+            inputDerivativeSHA256: String(repeating: "b", count: 64),
+            rawResponseText: "{}",
+            parsedResponseJSON: .object([
+                "quality_assessment": .object([
+                    "composition": .string("acceptable"),
+                    "confidence": .string(confidence),
+                    "concerns": .array([]),
+                    "focus": .string("problem"),
+                    "overall_effectiveness": .string("problem"),
+                    "strengths": .array([]),
+                ])
+            ]),
+            jsonValid: true,
+            durationMs: 1,
+            error: nil
+        )
+    }
+
+    @MainActor
     func testCleanupAfterSuccessfulWriteRemovesOwnedArtifactsAndPreservesOutputs() async throws {
         let (session, sourceRoot) = try makeSession()
         let rawSidecar = sourceRoot.appendingPathComponent("A.JPG.ai.json")
@@ -398,7 +506,13 @@ final class ExportModelTests: XCTestCase {
 
         let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
         export.cleanupAfterWrite = true
-        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil, recursive: true)
+        export.plan(
+            session: session,
+            sourceRoot: sourceRoot.path,
+            outputDir: nil,
+            recursive: true,
+            qualityGrading: noQualityGrading
+        )
         XCTAssertFalse(export.cleanupAfterWrite, "fresh plans default cleanup to off")
         try await waitUntil("dry-run plan") { export.phase == .planReady }
 
@@ -422,7 +536,13 @@ final class ExportModelTests: XCTestCase {
         let rawSidecar = sourceRoot.appendingPathComponent("A.JPG.ai.json")
 
         let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
-        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil, recursive: true)
+        export.plan(
+            session: session,
+            sourceRoot: sourceRoot.path,
+            outputDir: nil,
+            recursive: true,
+            qualityGrading: noQualityGrading
+        )
         try await waitUntil("dry-run plan") { export.phase == .planReady }
 
         export.confirmWrite()
@@ -455,7 +575,8 @@ final class ExportModelTests: XCTestCase {
             sourceRoot: sourceRoot.path,
             outputDir: nil,
             recursive: true,
-            xmpConflictPolicy: .fail
+            xmpConflictPolicy: .fail,
+            qualityGrading: noQualityGrading
         )
         try await waitUntil("dry-run plan") { export.phase == .planReady }
         XCTAssertFalse(export.failedTargets.isEmpty)
@@ -502,7 +623,7 @@ final class ExportModelTests: XCTestCase {
         ).write(to: xmpURL)
 
         let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
-        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil)
+        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil, qualityGrading: noQualityGrading)
         try await waitUntil("dry-run plan") { export.phase == .planReady }
 
         XCTAssertEqual(export.mergeTargets.count, 1)
@@ -537,7 +658,7 @@ final class ExportModelTests: XCTestCase {
     func testCancelPlanWritesNothing() async throws {
         let (session, sourceRoot) = try makeSession()
         let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
-        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil)
+        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil, qualityGrading: noQualityGrading)
         try await waitUntil("dry-run plan") { export.phase == .planReady }
 
         export.cancelPlan()
@@ -550,7 +671,7 @@ final class ExportModelTests: XCTestCase {
         let sourceRoot = try makeRawSidecarSource(terms: ["bird", "tree"])
         let normalization = NormalizationModel(stateDirectory: root.appendingPathComponent("normalize-state"))
 
-        normalization.run(jsonRoot: sourceRoot.path, sourceRoot: sourceRoot.path)
+        normalization.run(jsonRoot: sourceRoot.path, sourceRoot: sourceRoot.path, qualityGrading: noQualityGrading)
         try await waitUntil("normalization run") {
             switch normalization.phase {
             case .ready, .failed:
@@ -567,7 +688,12 @@ final class ExportModelTests: XCTestCase {
         let outputDir = root.appendingPathComponent("xmp-out")
         let xmpURL = outputDir.appendingPathComponent("A.xmp")
         let export = ExportModel(stateDirectory: root.appendingPathComponent("export-state"))
-        export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: outputDir.path)
+        export.plan(
+            session: session,
+            sourceRoot: sourceRoot.path,
+            outputDir: outputDir.path,
+            qualityGrading: noQualityGrading
+        )
         try await waitUntil("dry-run plan") {
             switch export.phase {
             case .planReady, .failed:

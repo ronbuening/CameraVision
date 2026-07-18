@@ -80,10 +80,19 @@ struct Step3ApplyView: View {
 
     private var qualityGradingCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("QUALITY")
-                .font(.system(size: 10.5, weight: .semibold))
-                .kerning(0.6)
-                .foregroundStyle(theme.textFaint)
+            HStack(spacing: 8) {
+                Text("QUALITY")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .kerning(0.6)
+                    .foregroundStyle(theme.textFaint)
+                Text("EXPERIMENTAL")
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .foregroundStyle(theme.accent.accent)
+                    .padding(.vertical, 2)
+                    .padding(.horizontal, 6)
+                    .background(theme.accent.soft)
+                    .clipShape(Capsule())
+            }
             Toggle("Quality grading", isOn: $qualityGradingEnabled)
                 .toggleStyle(.switch)
                 .tint(theme.accent.accent)
@@ -97,9 +106,9 @@ struct Step3ApplyView: View {
                     .foregroundStyle(theme.text)
                 Spacer()
                 Picker("", selection: $qualityConflictPolicy) {
-                    Text("Preserve — never replace existing values").tag(ScalarConflictPolicy.preserve)
-                    Text("Refresh — replace only values this app wrote before").tag(ScalarConflictPolicy.refresh)
-                    Text("Overwrite — always replace").tag(ScalarConflictPolicy.overwrite)
+                    Text(ScalarConflictPolicy.preserve.wizardLabel).tag(ScalarConflictPolicy.preserve)
+                    Text(ScalarConflictPolicy.refresh.wizardLabel).tag(ScalarConflictPolicy.refresh)
+                    Text(ScalarConflictPolicy.overwrite.wizardLabel).tag(ScalarConflictPolicy.overwrite)
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)

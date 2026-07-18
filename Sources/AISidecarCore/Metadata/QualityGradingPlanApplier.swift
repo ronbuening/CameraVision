@@ -203,7 +203,7 @@ struct QualityGradingPlanApplier {
         if let grade {
             explanation = ["tier=\(grade.tier.rawValue)"]
         } else {
-            explanation = ["ungraded reason=\((ungradedReason ?? .noRecords).rawValue)"]
+            explanation = ["\(XMPChangePlan.ungradedReasonPrefix)\((ungradedReason ?? .noRecords).rawValue)"]
         }
 
         if let primary = records[.wholeImage] ?? records[.subjectIsolated] {

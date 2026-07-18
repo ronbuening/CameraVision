@@ -201,6 +201,20 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
     public var qualityExplanation: [String]?
     public var qualityTier: QualityTier?
 
+    /// Prefix of the explanation entry recording why a plan stayed ungraded.
+    /// Consumers must match through this constant (or `ungradedReasonExplanation`)
+    /// rather than restating the literal.
+    public static let ungradedReasonPrefix = "ungraded reason="
+
+    /// The ungraded-reason explanation entry, present only when the plan
+    /// carries quality explanations without a derived tier.
+    public var ungradedReasonExplanation: String? {
+        guard qualityTier == nil else {
+            return nil
+        }
+        return qualityExplanation?.first { $0.hasPrefix(Self.ungradedReasonPrefix) }
+    }
+
     enum CodingKeys: String, CodingKey {
         case status
         case targetXMPPath = "target_xmp_path"

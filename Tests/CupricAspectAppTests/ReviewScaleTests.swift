@@ -26,7 +26,7 @@ final class ReviewScaleTests: XCTestCase {
 
         let review = ReviewModel(stateDirectory: state)
         let buildStart = Date()
-        review.buildSession(jsonRoot: root, sourceRoot: root)
+        review.buildSession(jsonRoot: root, sourceRoot: root, qualityGrading: QualityGradingConfigurationOverrides())
         let deadline = Date().addingTimeInterval(120)
         while review.building || (review.session == nil && review.buildError == nil) {
             guard Date() < deadline else { return XCTFail("session build timed out") }

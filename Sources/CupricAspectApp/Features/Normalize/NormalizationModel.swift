@@ -105,7 +105,7 @@ final class NormalizationModel {
     func run(
         jsonRoot: String,
         sourceRoot: String,
-        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
+        qualityGrading: QualityGradingConfigurationOverrides
     ) {
         guard phase != .running else { return }
         phase = .running
@@ -143,7 +143,7 @@ final class NormalizationModel {
     func buildConfiguration(
         sourceRoot: String,
         outputDir: String,
-        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
+        qualityGrading: QualityGradingConfigurationOverrides
     ) throws -> ResolvedNormalizationConfiguration {
         try ConfigurationResolver.resolveNormalization(
             cli: NormalizationConfigurationOverrides(

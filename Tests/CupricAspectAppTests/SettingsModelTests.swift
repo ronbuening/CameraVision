@@ -197,12 +197,18 @@ final class SettingsModelTests: XCTestCase {
             environment: [
                 "AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE": "low",
                 "AISIDECAR_XMP_QUALITY_WRITE_LABEL": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_URGENCY": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_FLAG": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS": "false",
                 "AISIDECAR_XMP_QUALITY_WRITE_RATING": "true",
             ]
         )
 
         XCTAssertEqual(model.qualityMinimumConfidence, .low)
         XCTAssertFalse(model.qualityWriteLabel)
+        XCTAssertFalse(model.qualityWriteUrgency)
+        XCTAssertFalse(model.qualityWriteFlag)
+        XCTAssertFalse(model.qualityWriteKeywords)
         XCTAssertTrue(model.qualityWriteRating)
     }
 

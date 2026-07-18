@@ -62,7 +62,10 @@ final class ExportModel {
     private var pendingSessionPath: String?
     private var pendingSourceRoot: String?
     private var pendingOutputDir: String?
-    private var pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    /// The full resolved configuration the reviewed dry run used, frozen on plan
+    /// success and replayed by `confirmWrite()` with only `dryRun` flipped —
+    /// config-file edits between plan and confirm cannot change the committed write.
+    private(set) var pendingConfiguration: ResolvedApplySessionConfiguration?
     private(set) var pendingQualityGrading = QualityGradingConfigurationOverrides()
     private var pendingCleanupRecursive = false
     private let stateDirectory: URL
@@ -181,9 +184,7 @@ final class ExportModel {
             }
         }
         let explanations = plan.qualityExplanation ?? []
-        let ungradedReason =
-            plan.qualityTier == nil
-            ? explanations.first { $0.hasPrefix("ungraded reason=") } : nil
+        let ungradedReason = plan.ungradedReasonExplanation
         guard plan.qualityTier != nil || ungradedReason != nil || !explanations.isEmpty || !scalars.isEmpty else {
             return nil
         }
@@ -204,7 +205,7 @@ final class ExportModel {
         outputDir: String?,
         dryRun: Bool,
         xmpConflictPolicy: XMPConflictPolicy,
-        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides(),
+        qualityGrading: QualityGradingConfigurationOverrides,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         defaultConfigPath: String? = nil
     ) throws -> ResolvedApplySessionConfiguration {
@@ -229,7 +230,7 @@ final class ExportModel {
         outputDir: String?,
         recursive: Bool = false,
         xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy,
-        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
+        qualityGrading: QualityGradingConfigurationOverrides
     ) {
         guard phase != .planning, phase != .writing else { return }
         phase = .planning
@@ -244,7 +245,7 @@ final class ExportModel {
         let defaultConfigPath = defaultConfigPath
         Task {
             do {
-                let (plan, sessionPath) = try await Task.detached(priority: .userInitiated) {
+                let (plan, sessionPath, configuration) = try await Task.detached(priority: .userInitiated) {
                     try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
                     let sessionPath = sessionDir.appendingPathComponent("export-\(UUID().uuidString).json").path
                     try NormalizationSessionWriter().write(session, to: sessionPath)
@@ -260,13 +261,13 @@ final class ExportModel {
                     let result = try ApplySessionPipeline(
                         xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
                     ).run(sessionPath: sessionPath, configuration: configuration)
-                    return (result.changePlan, sessionPath)
+                    return (result.changePlan, sessionPath, configuration)
                 }.value
                 changePlan = plan
                 pendingSessionPath = sessionPath
                 pendingSourceRoot = sourceRoot
                 pendingOutputDir = outputDir
-                pendingXMPConflictPolicy = xmpConflictPolicy
+                pendingConfiguration = configuration
                 pendingQualityGrading = qualityGrading
                 pendingCleanupRecursive = recursive
                 phase = .planReady
@@ -281,31 +282,21 @@ final class ExportModel {
     func confirmWrite() {
         guard phase == .planReady,
             let sessionPath = pendingSessionPath,
-            let sourceRoot = pendingSourceRoot
+            let sourceRoot = pendingSourceRoot,
+            let frozenConfiguration = pendingConfiguration
         else {
             return
         }
         phase = .writing
         let outputDir = pendingOutputDir
-        let xmpConflictPolicy = pendingXMPConflictPolicy
-        let qualityGrading = pendingQualityGrading
         let cleanupAfterWrite = cleanupAfterWrite
         let cleanupRoot = outputDir ?? sourceRoot
         let cleanupRecursive = pendingCleanupRecursive
-        let environment = environment
-        let defaultConfigPath = defaultConfigPath
         Task {
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
-                    let configuration = try ExportModel.applyConfiguration(
-                        sourceRoot: sourceRoot,
-                        outputDir: outputDir,
-                        dryRun: false,
-                        xmpConflictPolicy: xmpConflictPolicy,
-                        qualityGrading: qualityGrading,
-                        environment: environment,
-                        defaultConfigPath: defaultConfigPath
-                    )
+                    var configuration = frozenConfiguration
+                    configuration.dryRun = false
                     return try ApplySessionPipeline(
                         xmpPipeline: XMPExportPipeline(logger: GUILog.shared.makeLogger())
                     ).run(sessionPath: sessionPath, configuration: configuration)
@@ -347,6 +338,7 @@ final class ExportModel {
         cleanupAfterWrite = false
         cleanupRemovedCount = nil
         cleanupWarning = nil
+        pendingConfiguration = nil
         pendingQualityGrading = QualityGradingConfigurationOverrides()
     }
 
@@ -358,12 +350,17 @@ final class ExportModel {
         cleanupRemovedCount = nil
         cleanupWarning = nil
         pendingSessionPath = nil
-        pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+        pendingConfiguration = nil
         pendingQualityGrading = QualityGradingConfigurationOverrides()
         pendingCleanupRecursive = false
         resetApplyQualityDefaults()
     }
 
+    /// Seeds the apply-flow grading controls from the effective resolver once
+    /// per init/`reset()` — deliberately not re-read mid-session, so the
+    /// controls always show exactly what the next plan will use even if
+    /// config.json changes underneath. A committed write is additionally
+    /// pinned by the frozen `pendingConfiguration`.
     private func resetApplyQualityDefaults() {
         guard
             let resolved = try? ConfigurationResolver.resolveApplySession(

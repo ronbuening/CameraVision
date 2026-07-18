@@ -188,7 +188,7 @@ struct ChangePlanSheet: View {
             Divider().overlay(theme.border)
             HStack(spacing: 7) {
                 if let tier = quality.tier {
-                    qualityBadge(tier.rawValue, color: theme.green)
+                    qualityBadge(tier.rawValue, color: QualityTierPalette.color(for: tier, theme: theme))
                 } else if quality.ungradedReason != nil {
                     qualityBadge("ungraded", color: theme.accent.accent)
                 }
@@ -395,7 +395,7 @@ struct ExportReportView: View {
         if let quality = ExportModel.qualityPresentation(for: target) {
             HStack(spacing: 6) {
                 if let tier = quality.tier {
-                    reportQualityBadge(tier.rawValue, color: theme.green)
+                    reportQualityBadge(tier.rawValue, color: QualityTierPalette.color(for: tier, theme: theme))
                 } else if quality.ungradedReason != nil {
                     reportQualityBadge("ungraded", color: theme.accent.accent)
                 }
