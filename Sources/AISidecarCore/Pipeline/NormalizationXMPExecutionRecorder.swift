@@ -73,6 +73,13 @@ struct NormalizationXMPExecutionRecorder {
                     plannedHierarchicalKeywords: target.writeResult?.addedHierarchicalKeywords
                         ?? target.preview?.hierarchicalKeywordsToAdd
                         ?? target.plan.hierarchicalKeywordsToAdd.map(\.term),
+                    ratingWrite: target.plan.ratingWrite,
+                    labelWrite: target.plan.labelWrite,
+                    urgencyWrite: target.plan.urgencyWrite,
+                    pickWrite: target.plan.pickWrite,
+                    goodWrite: target.plan.goodWrite,
+                    qualityTier: target.plan.qualityTier,
+                    qualityExplanation: target.plan.qualityExplanation,
                     errors: target.errors
                 )
             )

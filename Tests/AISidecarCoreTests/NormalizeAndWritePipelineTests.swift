@@ -52,6 +52,27 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
             })
     }
 
+    func testNormalizeAndWriteCarriesQualityGradingIntoExportConfiguration() throws {
+        var fixture = try makeFixture()
+        let grading = ResolvedQualityGradingConfiguration(
+            enabled: true,
+            conflictPolicy: .refresh,
+            policy: QualityGradingPolicy(
+                writeFlag: false,
+                keywordRoot: "Review Quality",
+                ratingMap: [.good: 4]
+            )
+        )
+        fixture.configuration.qualityGrading = grading
+
+        let result = try NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
+            mode: .fromJSON(path: fixture.jsonRoot.path),
+            configuration: fixture.configuration
+        )
+
+        XCTAssertEqual(result.exportResult.report?.configuration.qualityGrading, grading)
+    }
+
     func testInterruptedBeforeSessionWriteLeavesNoNormalizationArtifacts() throws {
         let fixture = try makeFixture()
         let monitor = InterruptionMonitor()

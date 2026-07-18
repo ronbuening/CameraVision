@@ -1,0 +1,108 @@
+{
+  "dry_run" : false,
+  "input_failures" : [
+
+  ],
+  "schema_version" : "ai-sidecar-xmp-change-plan/1.2",
+  "target_plans" : [
+    {
+      "backup_plan" : {
+        "backup_required_before_merge" : true,
+        "backup_sidecars" : true,
+        "conflict_policy" : "backup-and-merge"
+      },
+      "candidate_extraction_issues" : [
+
+      ],
+      "existing_policy" : "backup-and-merge",
+      "failures" : [
+
+      ],
+      "flat_keywords_to_add" : [
+        {
+          "candidates" : [
+
+          ],
+          "normalized_key" : "ai quality good",
+          "term" : "AI Quality good"
+        }
+      ],
+      "good_write" : {
+        "action" : "write",
+        "field" : "xmpDM:good",
+        "planned_value" : "true"
+      },
+      "group_warnings" : [
+
+      ],
+      "hierarchical_keywords_to_add" : [
+        {
+          "candidates" : [
+
+          ],
+          "normalized_key" : "ai quality|good",
+          "term" : "AI Quality|good"
+        }
+      ],
+      "label_write" : {
+        "action" : "write",
+        "field" : "xmp:Label",
+        "planned_value" : "Green"
+      },
+      "pair_scope" : "union",
+      "pick_write" : {
+        "action" : "write",
+        "field" : "xmpDM:pick",
+        "planned_value" : "1"
+      },
+      "quality_explanation" : [
+        "tier=good",
+        "counts strong=2 problem=0",
+        "confidence=high",
+        "source role=whole_image prompt_version=prompt.whole_image.quality",
+        "rule=acceptable overall with at least two strengths and no problems"
+      ],
+      "quality_tier" : "good",
+      "rating_write" : {
+        "action" : "write",
+        "field" : "xmp:Rating",
+        "planned_value" : "4"
+      },
+      "skipped_candidates" : [
+
+      ],
+      "source_members" : [
+        {
+          "flat_keyword_contribution_count" : 0,
+          "hierarchical_keyword_contribution_count" : 0,
+          "pair_kind" : "jpeg",
+          "selected" : true,
+          "source_file_name" : "Bird.JPG",
+          "source_identity_status" : "matched",
+          "source_path" : "/photos/Bird.JPG",
+          "source_relative_path" : "Bird.JPG",
+          "source_sidecar_path" : "/sidecars/Bird.JPG.quality.ai.json",
+          "source_sidecar_relative_path" : "Bird.JPG.quality.ai.json",
+          "source_type" : "jpg"
+        }
+      ],
+      "source_verification_warnings" : [
+
+      ],
+      "status" : "planned",
+      "target_relative_path" : "Bird.xmp",
+      "target_xmp_path" : "/photos/Bird.xmp",
+      "urgency_write" : {
+        "action" : "write",
+        "field" : "photoshop:Urgency",
+        "planned_value" : "2"
+      },
+      "validation_plan" : {
+        "validate_existing_keyword_preservation" : true,
+        "validate_keyword_additions" : true,
+        "validate_readable_xmp" : true,
+        "validate_unmanaged_content_preservation" : true
+      }
+    }
+  ]
+}

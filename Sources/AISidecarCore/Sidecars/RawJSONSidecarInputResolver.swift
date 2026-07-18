@@ -109,6 +109,90 @@ public struct RawJSONSidecarInputResolver {
         return RawJSONSidecarInputBatch(inputs: groupedSidecarInputs(inputs), failures: [])
     }
 
+    /// Re-read one stored sidecar reference and whichever current pair member still exists.
+    ///
+    /// Apply-session already verifies source identity against the frozen session. This path
+    /// deliberately resolves only current contributor documents so `--allow-stale` and
+    /// source-verification skips are not contradicted by a second identity gate.
+    func resolveCurrentSidecarPair(at sidecarPath: String) -> RawJSONSidecarInputBatch {
+        let referenceURL = absoluteURL(for: sidecarPath)
+        guard isRawSidecar(referenceURL) else {
+            return RawJSONSidecarInputBatch(
+                inputs: [],
+                failures: [
+                    RawJSONSidecarInputFailure(
+                        sidecarPath: referenceURL,
+                        relativePath: referenceURL.lastPathComponent,
+                        error: validationError(
+                            "Stored raw sidecar reference must be a .ai.json file: \(referenceURL.path)",
+                            recoverable: true
+                        )
+                    )
+                ]
+            )
+        }
+
+        let siblingURL = siblingSidecarURL(for: referenceURL)
+        let candidateURLs = [referenceURL, siblingURL]
+            .reduce(into: [URL]()) { result, candidate in
+                guard isRegularFile(candidate), !result.contains(candidate) else {
+                    return
+                }
+                result.append(candidate)
+            }
+        guard !candidateURLs.isEmpty else {
+            return RawJSONSidecarInputBatch(
+                inputs: [],
+                failures: [
+                    RawJSONSidecarInputFailure(
+                        sidecarPath: referenceURL,
+                        relativePath: referenceURL.lastPathComponent,
+                        error: validationError(
+                            "Stored raw sidecar and its quality pair are unavailable: \(referenceURL.path)",
+                            recoverable: true
+                        )
+                    )
+                ]
+            )
+        }
+
+        var inputs: [ResolvedRawSidecarInput] = []
+        var failures: [RawJSONSidecarInputFailure] = []
+        for candidate in candidateURLs {
+            do {
+                inputs.append(
+                    ResolvedRawSidecarInput(
+                        sidecarPath: candidate,
+                        document: try reader.read(from: candidate),
+                        sourcePath: nil,
+                        sourceIdentityStatus: .skipped,
+                        relativePath: candidate.lastPathComponent,
+                        warnings: []
+                    )
+                )
+            } catch {
+                failures.append(
+                    RawJSONSidecarInputFailure(
+                        sidecarPath: candidate,
+                        relativePath: candidate.lastPathComponent,
+                        error: error as? SidecarError
+                            ?? validationError(
+                                "Unable to re-read current raw sidecar \(candidate.path): "
+                                    + error.localizedDescription,
+                                recoverable: true
+                            )
+                    )
+                )
+            }
+        }
+        return RawJSONSidecarInputBatch(
+            inputs: groupedSidecarInputs(inputs),
+            failures: failures.sorted {
+                comparePaths($0.sidecarPath.path, $1.sidecarPath.path)
+            }
+        )
+    }
+
     private func resolveFolder(
         _ root: URL,
         configuration: ResolvedXMPExportConfiguration

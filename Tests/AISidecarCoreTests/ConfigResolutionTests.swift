@@ -56,6 +56,114 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(resolved.qualityGrading.policy.flagMap, [.reject: .reject, .excellent: .pick])
     }
 
+    func testNormalizationDefaultsIncludeDormantQualityGrading() throws {
+        let resolved = try ConfigurationResolver.resolveNormalization(
+            environment: [:],
+            defaultConfigPath: missingConfigPath()
+        )
+
+        XCTAssertEqual(resolved, .builtInDefaults)
+        XCTAssertEqual(resolved.qualityGrading, .builtInDefaults)
+    }
+
+    func testNormalizationQualityGradingUsesFileEnvironmentAndCLIPrecedence() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "xmp_quality_grading": false,
+              "xmp_quality_write_flag": false,
+              "xmp_quality_rating_map": { "good": 3 }
+            }
+            """
+        )
+
+        let fileResolved = try ConfigurationResolver.resolveNormalization(
+            environment: [:],
+            defaultConfigPath: configPath
+        )
+        XCTAssertFalse(fileResolved.qualityGrading.enabled)
+        XCTAssertFalse(fileResolved.qualityGrading.policy.writeFlag)
+        XCTAssertEqual(fileResolved.qualityGrading.policy.ratingMap, [.good: 3])
+
+        let environmentResolved = try ConfigurationResolver.resolveNormalization(
+            environment: [
+                "AISIDECAR_XMP_QUALITY_GRADING": "true",
+                "AISIDECAR_XMP_QUALITY_WRITE_FLAG": "true",
+            ],
+            defaultConfigPath: configPath
+        )
+        XCTAssertTrue(environmentResolved.qualityGrading.enabled)
+        XCTAssertTrue(environmentResolved.qualityGrading.policy.writeFlag)
+        XCTAssertEqual(environmentResolved.qualityGrading.policy.ratingMap, [.good: 3])
+
+        let cliResolved = try ConfigurationResolver.resolveNormalization(
+            cli: NormalizationConfigurationOverrides(
+                qualityGrading: QualityGradingConfigurationOverrides(
+                    enabled: false,
+                    writeFlag: false,
+                    ratingMap: [.good: 4]
+                )
+            ),
+            environment: [
+                "AISIDECAR_XMP_QUALITY_GRADING": "true",
+                "AISIDECAR_XMP_QUALITY_WRITE_FLAG": "true",
+            ],
+            defaultConfigPath: configPath
+        )
+        XCTAssertFalse(cliResolved.qualityGrading.enabled)
+        XCTAssertFalse(cliResolved.qualityGrading.policy.writeFlag)
+        XCTAssertEqual(cliResolved.qualityGrading.policy.ratingMap, [.good: 4])
+    }
+
+    func testApplySessionQualityGradingUsesFileEnvironmentAndCLIPrecedence() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "xmp_quality_grading": false,
+              "xmp_quality_write_label": false,
+              "xmp_quality_rating_map": { "good": 3 }
+            }
+            """
+        )
+
+        let fileResolved = try ConfigurationResolver.resolveApplySession(
+            environment: [:],
+            defaultConfigPath: configPath
+        )
+        XCTAssertFalse(fileResolved.qualityGrading.enabled)
+        XCTAssertFalse(fileResolved.qualityGrading.policy.writeLabel)
+        XCTAssertEqual(fileResolved.qualityGrading.policy.ratingMap, [.good: 3])
+
+        let environmentResolved = try ConfigurationResolver.resolveApplySession(
+            environment: [
+                "AISIDECAR_XMP_QUALITY_GRADING": "true",
+                "AISIDECAR_XMP_QUALITY_WRITE_LABEL": "true",
+            ],
+            defaultConfigPath: configPath
+        )
+        XCTAssertTrue(environmentResolved.qualityGrading.enabled)
+        XCTAssertTrue(environmentResolved.qualityGrading.policy.writeLabel)
+        XCTAssertEqual(environmentResolved.qualityGrading.policy.ratingMap, [.good: 3])
+
+        let cliResolved = try ConfigurationResolver.resolveApplySession(
+            cli: ApplySessionConfigurationOverrides(
+                qualityGrading: QualityGradingConfigurationOverrides(
+                    enabled: false,
+                    writeLabel: false,
+                    ratingMap: [.good: 4]
+                )
+            ),
+            environment: [
+                "AISIDECAR_XMP_QUALITY_GRADING": "true",
+                "AISIDECAR_XMP_QUALITY_WRITE_LABEL": "true",
+            ],
+            defaultConfigPath: configPath
+        )
+        XCTAssertFalse(cliResolved.qualityGrading.enabled)
+        XCTAssertFalse(cliResolved.qualityGrading.policy.writeLabel)
+        XCTAssertEqual(cliResolved.qualityGrading.policy.ratingMap, [.good: 4])
+    }
+
     func testQualityAssessmentEnvironmentOverridesConfigFile() throws {
         let configPath = try writeConfig(
             """
@@ -625,6 +733,54 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(legacy.qualityGrading, .builtInDefaults)
     }
 
+    func testResolvedNormalizationConfigurationRoundTripsAndDefaultsLegacyQualityBlock() throws {
+        var current = ResolvedNormalizationConfiguration.builtInDefaults
+        current.qualityGrading = ResolvedQualityGradingConfiguration(
+            enabled: true,
+            conflictPolicy: .refresh,
+            policy: QualityGradingPolicy(keywordRoot: "Review Quality")
+        )
+
+        let data = try JSONEncoder().encode(current)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let qualityObject = try XCTUnwrap(object["quality_grading"] as? [String: Any])
+        XCTAssertEqual(qualityObject["conflict_policy"] as? String, "refresh")
+        XCTAssertEqual(try JSONDecoder().decode(ResolvedNormalizationConfiguration.self, from: data), current)
+
+        object.removeValue(forKey: "quality_grading")
+        let legacyData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        let legacy = try JSONDecoder().decode(ResolvedNormalizationConfiguration.self, from: legacyData)
+        XCTAssertEqual(legacy.qualityGrading, .builtInDefaults)
+
+        let defaultData = try JSONEncoder().encode(ResolvedNormalizationConfiguration.builtInDefaults)
+        let defaultObject = try XCTUnwrap(JSONSerialization.jsonObject(with: defaultData) as? [String: Any])
+        XCTAssertNil(defaultObject["quality_grading"])
+    }
+
+    func testResolvedApplySessionConfigurationRoundTripsAndDefaultsLegacyQualityBlock() throws {
+        var current = ResolvedApplySessionConfiguration.builtInDefaults
+        current.qualityGrading = ResolvedQualityGradingConfiguration(
+            enabled: true,
+            conflictPolicy: .refresh,
+            policy: QualityGradingPolicy(keywordRoot: "Review Quality")
+        )
+
+        let data = try JSONEncoder().encode(current)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let qualityObject = try XCTUnwrap(object["quality_grading"] as? [String: Any])
+        XCTAssertEqual(qualityObject["conflict_policy"] as? String, "refresh")
+        XCTAssertEqual(try JSONDecoder().decode(ResolvedApplySessionConfiguration.self, from: data), current)
+
+        object.removeValue(forKey: "quality_grading")
+        let legacyData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        let legacy = try JSONDecoder().decode(ResolvedApplySessionConfiguration.self, from: legacyData)
+        XCTAssertEqual(legacy.qualityGrading, .builtInDefaults)
+
+        let defaultData = try JSONEncoder().encode(ResolvedApplySessionConfiguration.builtInDefaults)
+        let defaultObject = try XCTUnwrap(JSONSerialization.jsonObject(with: defaultData) as? [String: Any])
+        XCTAssertNil(defaultObject["quality_grading"])
+    }
+
     func testXMPQualityGradingResolutionRejectsInvalidPoliciesWhileDisabled() throws {
         let invalidConfigurations = [
             #"{ "xmp_quality_rating_map": { "good": 6 } }"#,
@@ -642,6 +798,28 @@ final class ConfigResolutionTests: XCTestCase {
                     defaultConfigPath: configPath
                 )
             }
+        }
+    }
+
+    func testNormalizationQualityGradingRejectsInvalidPoliciesWhileDisabled() throws {
+        let configPath = try writeConfig(#"{ "xmp_quality_rating_map": { "good": 6 } }"#)
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolveNormalization(
+                environment: [:],
+                defaultConfigPath: configPath
+            )
+        }
+    }
+
+    func testApplySessionQualityGradingRejectsInvalidPoliciesWhileDisabled() throws {
+        let configPath = try writeConfig(#"{ "xmp_quality_rating_map": { "good": 6 } }"#)
+
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolveApplySession(
+                environment: [:],
+                defaultConfigPath: configPath
+            )
         }
     }
 

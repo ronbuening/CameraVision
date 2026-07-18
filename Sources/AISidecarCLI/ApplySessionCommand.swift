@@ -42,6 +42,8 @@ struct ApplySessionCommand: AsyncParsableCommand {
     @Option(help: "Existing XMP policy: fail, merge, or backup-and-merge.")
     var xmpConflictPolicy: XMPConflictPolicy?
 
+    @OptionGroup var quality: QualityGradingOptions
+
     @Flag(help: "Allow writes for assets whose source identity has changed.")
     var allowStale = false
 
@@ -137,6 +139,16 @@ struct ApplySessionCommand: AsyncParsableCommand {
             sessionPath: sessionPath,
             backupSidecars: backupSidecars,
             noBackupSidecars: noBackupSidecars,
+            writeRating: quality.writeRating,
+            noWriteRating: quality.noWriteRating,
+            writeLabel: quality.writeLabel,
+            noWriteLabel: quality.noWriteLabel,
+            writeUrgency: quality.writeUrgency,
+            noWriteUrgency: quality.noWriteUrgency,
+            writeFlag: quality.writeFlag,
+            noWriteFlag: quality.noWriteFlag,
+            writeQualityKeywords: quality.writeQualityKeywords,
+            noWriteQualityKeywords: quality.noWriteQualityKeywords,
             invalidNormalizationFlags: invalidFlags
         )
     }
@@ -152,7 +164,8 @@ struct ApplySessionCommand: AsyncParsableCommand {
             sourceVerification: sourceVerification,
             backupSidecars: pairedFlag(positive: backupSidecars, negative: noBackupSidecars),
             xmpConflictPolicy: xmpConflictPolicy,
-            allowStale: allowStale ? true : nil
+            allowStale: allowStale ? true : nil,
+            qualityGrading: quality.overrides
         )
     }
 

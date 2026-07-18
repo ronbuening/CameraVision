@@ -50,6 +50,91 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
             })
     }
 
+    func testAnalyzeAssessQualityAndNormalizeWritesFullGradedOutputInOneRun() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        let vocabularyPath = try writeVocabulary()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: vocabularyPath).deletingLastPathComponent())
+        }
+        _ = try writeTestImage("Bird.JPG", in: root)
+
+        let runner = AnalyzeNormalizeVisionRunner(
+            response: Self.response([
+                "main_subjects": .array([Self.candidate("bird", confidence: "high")]),
+                "quality_assessment": .object([
+                    "composition": .string("strong"),
+                    "confidence": .string("high"),
+                    "concerns": .array([]),
+                    "focus": .string("strong"),
+                    "overall_effectiveness": .string("acceptable"),
+                    "strengths": .array([]),
+                ]),
+            ])
+        )
+        var normalize = normalizationConfiguration(outputDir: output.path, vocabularyPath: vocabularyPath)
+        var gradingPolicy = QualityGradingPolicy(
+            minimumConfidence: .medium,
+            writeRating: true,
+            writeLabel: true,
+            writeUrgency: true,
+            writeFlag: true,
+            writeKeywords: true
+        )
+        gradingPolicy.labelMap[.good] = "Green"
+        gradingPolicy.urgencyMap[.good] = 2
+        gradingPolicy.flagMap[.good] = .pick
+        normalize.backupSidecars = false
+        normalize.xmpConflictPolicy = .merge
+        normalize.qualityGrading = ResolvedQualityGradingConfiguration(
+            enabled: true,
+            conflictPolicy: .preserve,
+            policy: gradingPolicy
+        )
+
+        let result = try await pipeline(runner: runner).run(
+            inputPath: root.path,
+            runConfiguration: try resolvedRunConfiguration(
+                outputDir: output.path,
+                qualityAssessment: true
+            ),
+            normalizationConfiguration: normalize
+        )
+
+        let sidecarURL = output.appendingPathComponent("Bird.JPG.ai.json")
+        let sidecar = try RawJSONSidecarReader().read(from: sidecarURL).sidecar
+        XCTAssertEqual(sidecar.runConfiguration.taskProfile, .taggingWithQuality)
+        let response = try XCTUnwrap(sidecar.modelRuns.first?.parsedResponseJSON?.objectValue)
+        XCTAssertNotNil(response["main_subjects"])
+        XCTAssertNotNil(response["quality_assessment"])
+
+        let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: output.appendingPathComponent("Bird.xmp").path)
+        XCTAssertEqual(snapshot.flatKeywords, ["Birds", "AI Quality good"])
+        XCTAssertEqual(snapshot.hierarchicalKeywords, ["Subject|Wildlife|Birds", "AI Quality|good"])
+        XCTAssertEqual(snapshot.rating, "4")
+        XCTAssertEqual(snapshot.label, "Green")
+        XCTAssertEqual(snapshot.urgency, "2")
+        XCTAssertEqual(snapshot.pick, "1")
+        XCTAssertEqual(snapshot.good, "true")
+
+        let plan = try XCTUnwrap(result.normalizeResult.report.xmpWritePlans.first?.xmpChangePlan)
+        XCTAssertEqual(plan.qualityTier, .good)
+        XCTAssertEqual(plan.ratingWrite?.plannedValue, "4")
+        XCTAssertEqual(plan.labelWrite?.plannedValue, "Green")
+        XCTAssertEqual(plan.urgencyWrite?.plannedValue, "2")
+        XCTAssertEqual(plan.pickWrite?.plannedValue, "1")
+        XCTAssertEqual(plan.goodWrite?.plannedValue, "true")
+        let stamp = try XCTUnwrap(RawSidecarExportStamp.contents(sidecarPath: sidecarURL.path))
+        XCTAssertEqual(stamp.qualityTier, .good)
+        XCTAssertEqual(stamp.rating, "4")
+        XCTAssertEqual(stamp.label, "Green")
+        XCTAssertEqual(stamp.urgency, "2")
+        XCTAssertEqual(stamp.pick, "1")
+        XCTAssertEqual(stamp.good, "true")
+    }
+
     func testPartialAnalysisFailureNormalizesOnlySuccessfulRawSidecarsAndReportsFailure() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -218,6 +303,57 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         XCTAssertEqual(result.normalizeResult.report.xmpExportReport?.writtenCount, 1)
     }
 
+    func testAnalyzeAndNormalizePersistsSelectedPromptSchemaAndTaskProfile() async throws {
+        let expectations: [(Bool?, ModelTaskProfile, String, String)] = [
+            (
+                nil,
+                .tagging,
+                "aisidecar.prompt.whole_image/1.5.0",
+                "urn:aisidecar:response:whole-image:1.5.0"
+            ),
+            (
+                true,
+                .taggingWithQuality,
+                "aisidecar.prompt.whole_image/1.6.0",
+                "urn:aisidecar:response:whole-image:1.6.0"
+            ),
+        ]
+
+        for (qualityAssessment, taskProfile, promptVersion, schemaVersion) in expectations {
+            let root = try temporaryDirectory()
+            let output = try temporaryDirectory()
+            let vocabularyPath = try writeVocabulary()
+            addTeardownBlock {
+                try? FileManager.default.removeItem(at: root)
+                try? FileManager.default.removeItem(at: output)
+                try? FileManager.default.removeItem(
+                    at: URL(fileURLWithPath: vocabularyPath).deletingLastPathComponent()
+                )
+            }
+            _ = try writeTestImage("Bird.JPG", in: root)
+
+            _ = try await pipeline().run(
+                inputPath: root.path,
+                runConfiguration: try resolvedRunConfiguration(
+                    outputDir: output.path,
+                    qualityAssessment: qualityAssessment
+                ),
+                normalizationConfiguration: normalizationConfiguration(
+                    outputDir: output.path,
+                    vocabularyPath: vocabularyPath
+                )
+            )
+
+            let sidecar = try RawJSONSidecarReader().read(
+                from: output.appendingPathComponent("Bird.JPG.ai.json")
+            ).sidecar
+            let run = try XCTUnwrap(sidecar.modelRuns.first)
+            XCTAssertEqual(sidecar.runConfiguration.taskProfile, taskProfile)
+            XCTAssertEqual(run.promptVersion, promptVersion)
+            XCTAssertEqual(run.responseSchemaVersion, schemaVersion)
+        }
+    }
+
     private func pipeline(runner: any VisionModelRunner = AnalyzeNormalizeVisionRunner()) -> AnalyzeAndNormalizePipeline
     {
         AnalyzeAndNormalizePipeline(
@@ -250,6 +386,27 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
             derivativeCacheSizeBytes: 20 * 1024 * 1024,
             stageConcurrency: 1,
             gpsContext: gpsContext
+        )
+    }
+
+    private func resolvedRunConfiguration(
+        outputDir: String,
+        qualityAssessment: Bool?
+    ) throws -> ResolvedRunConfiguration {
+        try ConfigurationResolver.resolve(
+            cli: RunConfigurationOverrides(
+                mode: .whole,
+                existing: .overwrite,
+                recursive: true,
+                qualityAssessment: qualityAssessment,
+                outputDir: outputDir,
+                logLevel: .debug,
+                logFormat: .json,
+                derivativeCacheDir: URL(fileURLWithPath: outputDir).appendingPathComponent("cache").path,
+                stageConcurrency: 1
+            ),
+            environment: [:],
+            defaultConfigPath: URL(fileURLWithPath: outputDir).appendingPathComponent("missing-config.json").path
         )
     }
 

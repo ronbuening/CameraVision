@@ -25,7 +25,8 @@
   // Scan folders recursively for commands that accept folder input.
   "recursive": false,
 
-  // Add a perceptual quality assessment to each analyze model response.
+  // Add a perceptual quality assessment to each analyze model response,
+  // including analyze-mode write-xmp and normalize runs.
   "quality_assessment": false,
 
   // Redirect generated outputs while preserving the source-relative tree.
@@ -156,9 +157,12 @@
   // Preserve raw .ai.json sidecars in analyze-and-write or analyze-and-normalize modes.
   "write_ai_json": true,
 
-  // Derive ratings, color labels, Capture One urgency values, and quality
-  // keywords from stored quality assessments during write-xmp. This master
-  // switch is off by default, so write-xmp remains keywords-only unless enabled.
+  // Derive ratings, color labels, Capture One urgency values, pick flags, and
+  // quality keywords from stored assessments during write-xmp, normalize, and
+  // apply-session. This default-off master keeps all three on their prior
+  // keyword-only behavior. normalize --assess-quality is controlled separately
+  // by quality_assessment; apply-session never runs a model and grades from the
+  // current contributor sidecars and current XMP.
   "xmp_quality_grading": false,
 
   // Existing managed-scalar handling, independent of xmp_conflict_policy.

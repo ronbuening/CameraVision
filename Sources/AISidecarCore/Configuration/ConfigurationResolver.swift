@@ -384,51 +384,57 @@ public enum ConfigurationResolver {
                 from: environment["AISIDECAR_WRITE_AI_JSON"],
                 key: "AISIDECAR_WRITE_AI_JSON"
             ),
-            qualityGrading: QualityGradingConfigurationOverrides(
-                enabled: try boolValue(
-                    from: environment["AISIDECAR_XMP_QUALITY_GRADING"],
-                    key: "AISIDECAR_XMP_QUALITY_GRADING"
-                ),
-                conflictPolicy: try enumValue(
-                    ScalarConflictPolicy.self,
-                    from: environment["AISIDECAR_XMP_QUALITY_CONFLICTS"],
-                    key: "AISIDECAR_XMP_QUALITY_CONFLICTS"
-                ),
-                minimumConfidence: try enumValue(
-                    QualityAssessmentRecord.Confidence.self,
-                    from: environment["AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE"],
-                    key: "AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE"
-                ),
-                writeRating: try boolValue(
-                    from: environment["AISIDECAR_XMP_QUALITY_WRITE_RATING"],
-                    key: "AISIDECAR_XMP_QUALITY_WRITE_RATING"
-                ),
-                writeLabel: try boolValue(
-                    from: environment["AISIDECAR_XMP_QUALITY_WRITE_LABEL"],
-                    key: "AISIDECAR_XMP_QUALITY_WRITE_LABEL"
-                ),
-                writeUrgency: try boolValue(
-                    from: environment["AISIDECAR_XMP_QUALITY_WRITE_URGENCY"],
-                    key: "AISIDECAR_XMP_QUALITY_WRITE_URGENCY"
-                ),
-                writeFlag: try boolValue(
-                    from: environment["AISIDECAR_XMP_QUALITY_WRITE_FLAG"],
-                    key: "AISIDECAR_XMP_QUALITY_WRITE_FLAG"
-                ),
-                writeKeywords: try boolValue(
-                    from: environment["AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS"],
-                    key: "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS"
-                ),
-                rejectAsMinusOne: try boolValue(
-                    from: environment["AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE"],
-                    key: "AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE"
-                ),
-                perCriterionProblemKeywords: try boolValue(
-                    from: environment["AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS"],
-                    key: "AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS"
-                ),
-                keywordRoot: environment["AISIDECAR_XMP_QUALITY_KEYWORD_ROOT"]
-            )
+            qualityGrading: try qualityGradingEnvironmentOverrides(from: environment)
+        )
+    }
+
+    private static func qualityGradingEnvironmentOverrides(
+        from environment: [String: String]
+    ) throws -> QualityGradingConfigurationOverrides {
+        QualityGradingConfigurationOverrides(
+            enabled: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_GRADING"],
+                key: "AISIDECAR_XMP_QUALITY_GRADING"
+            ),
+            conflictPolicy: try enumValue(
+                ScalarConflictPolicy.self,
+                from: environment["AISIDECAR_XMP_QUALITY_CONFLICTS"],
+                key: "AISIDECAR_XMP_QUALITY_CONFLICTS"
+            ),
+            minimumConfidence: try enumValue(
+                QualityAssessmentRecord.Confidence.self,
+                from: environment["AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE"],
+                key: "AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE"
+            ),
+            writeRating: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_WRITE_RATING"],
+                key: "AISIDECAR_XMP_QUALITY_WRITE_RATING"
+            ),
+            writeLabel: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_WRITE_LABEL"],
+                key: "AISIDECAR_XMP_QUALITY_WRITE_LABEL"
+            ),
+            writeUrgency: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_WRITE_URGENCY"],
+                key: "AISIDECAR_XMP_QUALITY_WRITE_URGENCY"
+            ),
+            writeFlag: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_WRITE_FLAG"],
+                key: "AISIDECAR_XMP_QUALITY_WRITE_FLAG"
+            ),
+            writeKeywords: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS"],
+                key: "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS"
+            ),
+            rejectAsMinusOne: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE"],
+                key: "AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE"
+            ),
+            perCriterionProblemKeywords: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS"],
+                key: "AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS"
+            ),
+            keywordRoot: environment["AISIDECAR_XMP_QUALITY_KEYWORD_ROOT"]
         )
     }
 
@@ -533,7 +539,8 @@ public enum ConfigurationResolver {
                 from: environment["AISIDECAR_AFFINITY_PRIVACY_MODE"],
                 key: "AISIDECAR_AFFINITY_PRIVACY_MODE"
             ),
-            writeReportPath: environment["AISIDECAR_WRITE_REPORT"]
+            writeReportPath: environment["AISIDECAR_WRITE_REPORT"],
+            qualityGrading: try qualityGradingEnvironmentOverrides(from: environment)
         )
     }
 
@@ -561,7 +568,8 @@ public enum ConfigurationResolver {
                 XMPConflictPolicy.self,
                 from: environment["AISIDECAR_XMP_CONFLICT_POLICY"],
                 key: "AISIDECAR_XMP_CONFLICT_POLICY"
-            )
+            ),
+            qualityGrading: try qualityGradingEnvironmentOverrides(from: environment)
         )
     }
 
@@ -1024,10 +1032,12 @@ private struct QualityGradingConfigurationBuilder {
 
 private struct NormalizationConfigurationBuilder {
     private var config: ResolvedNormalizationConfiguration
+    private var qualityGrading: QualityGradingConfigurationBuilder
     private var vocabularyModeWasSet = false
 
     init(defaults: ResolvedNormalizationConfiguration) {
         self.config = defaults
+        self.qualityGrading = QualityGradingConfigurationBuilder(defaults: defaults.qualityGrading)
     }
 
     mutating func apply(config fileConfig: AppConfig) {
@@ -1066,6 +1076,7 @@ private struct NormalizationConfigurationBuilder {
         merge(&config.allowSessionEventPropagation, fileConfig.allowSessionEventPropagation)
         merge(&config.affinityPrivacyMode, fileConfig.affinityPrivacyMode)
         merge(&config.writeReportPath, fileConfig.writeReportPath)
+        qualityGrading.apply(config: fileConfig)
     }
 
     mutating func apply(overrides: NormalizationConfigurationOverrides) {
@@ -1104,6 +1115,7 @@ private struct NormalizationConfigurationBuilder {
         merge(&config.allowSessionEventPropagation, overrides.allowSessionEventPropagation)
         merge(&config.affinityPrivacyMode, overrides.affinityPrivacyMode)
         merge(&config.writeReportPath, overrides.writeReportPath)
+        qualityGrading.apply(overrides: overrides.qualityGrading)
     }
 
     func resolved() throws -> ResolvedNormalizationConfiguration {
@@ -1125,15 +1137,18 @@ private struct NormalizationConfigurationBuilder {
         if config.xmpConflictPolicy == .backupAndMerge, !config.backupSidecars {
             throw SidecarError.configInvalid("xmp_conflict_policy backup-and-merge requires backup_sidecars to be true")
         }
+        config.qualityGrading = try qualityGrading.resolved()
         return config
     }
 }
 
 private struct ApplySessionConfigurationBuilder {
     private var config: ResolvedApplySessionConfiguration
+    private var qualityGrading: QualityGradingConfigurationBuilder
 
     init(defaults: ResolvedApplySessionConfiguration) {
         self.config = defaults
+        self.qualityGrading = QualityGradingConfigurationBuilder(defaults: defaults.qualityGrading)
     }
 
     mutating func apply(config fileConfig: AppConfig) {
@@ -1145,6 +1160,7 @@ private struct ApplySessionConfigurationBuilder {
         merge(&config.sourceVerification, fileConfig.sourceVerification)
         merge(&config.backupSidecars, fileConfig.backupSidecars)
         merge(&config.xmpConflictPolicy, fileConfig.xmpConflictPolicy)
+        qualityGrading.apply(config: fileConfig)
     }
 
     mutating func apply(overrides: ApplySessionConfigurationOverrides) {
@@ -1157,13 +1173,16 @@ private struct ApplySessionConfigurationBuilder {
         merge(&config.backupSidecars, overrides.backupSidecars)
         merge(&config.xmpConflictPolicy, overrides.xmpConflictPolicy)
         merge(&config.allowStale, overrides.allowStale)
+        qualityGrading.apply(overrides: overrides.qualityGrading)
     }
 
     func resolved() throws -> ResolvedApplySessionConfiguration {
         if config.xmpConflictPolicy == .backupAndMerge, !config.backupSidecars {
             throw SidecarError.configInvalid("xmp_conflict_policy backup-and-merge requires backup_sidecars to be true")
         }
-        return config
+        var resolved = config
+        resolved.qualityGrading = try qualityGrading.resolved()
+        return resolved
     }
 }
 
@@ -1262,7 +1281,8 @@ extension NormalizationConfigurationOverrides {
             allowSessionHabitatPropagation: allowSessionHabitatPropagation,
             allowSessionEventPropagation: allowSessionEventPropagation,
             affinityPrivacyMode: affinityPrivacyMode,
-            writeReportPath: writeReportPath
+            writeReportPath: writeReportPath,
+            qualityGrading: qualityGrading
         )
     }
 }
@@ -1278,7 +1298,8 @@ extension ApplySessionConfigurationOverrides {
             sourceVerification: sourceVerification,
             backupSidecars: backupSidecars,
             xmpConflictPolicy: xmpConflictPolicy,
-            allowStale: allowStale
+            allowStale: allowStale,
+            qualityGrading: qualityGrading
         )
     }
 }

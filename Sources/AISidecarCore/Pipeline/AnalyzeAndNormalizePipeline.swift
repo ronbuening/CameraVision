@@ -289,7 +289,8 @@ public struct AnalyzeAndNormalizePipeline {
             minConfidence: configuration.minConfidence,
             allowSpecificTags: configuration.allowSpecificTags,
             pairScope: configuration.pairScope,
-            writeAIJSON: configuration.writeAIJSON
+            writeAIJSON: configuration.writeAIJSON,
+            qualityGrading: configuration.qualityGrading
         )
     }
 

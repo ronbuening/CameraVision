@@ -144,6 +144,28 @@ final class RawJSONSidecarInputResolverTests: XCTestCase {
         XCTAssertEqual(batch.inputs.first?.qualitySidecarPath, quality)
     }
 
+    func testCurrentPairResolutionKeepsReadableContributorWithoutRecheckingSourceIdentity() throws {
+        let root = try temporaryDirectory()
+        let source = try writeSource("Bird.JPG", data: Data("source".utf8), in: root)
+        let sourceImage = try makeSourceImage(for: source)
+        let tagging = try writeSidecar(makeSidecar(source: sourceImage), named: "Bird.JPG.ai.json", in: root)
+        let quality = try writeSidecar(
+            makeSidecar(source: sourceImage, taskProfile: .qualityOnly),
+            named: "Bird.JPG.quality.ai.json",
+            in: root
+        )
+        try FileManager.default.removeItem(at: source)
+        try Data("{".utf8).write(to: quality)
+
+        let batch = RawJSONSidecarInputResolver().resolveCurrentSidecarPair(at: tagging.path)
+
+        XCTAssertEqual(batch.inputs.map(\.sidecarPath), [tagging])
+        XCTAssertNil(batch.inputs.first?.sourcePath)
+        XCTAssertEqual(batch.inputs.first?.sourceIdentityStatus, .skipped)
+        XCTAssertEqual(batch.failures.map(\.sidecarPath), [quality])
+        XCTAssertEqual(batch.failures.map(\.error.code), [.validationFailed])
+    }
+
     func testDirectFromJSONRejectsNonSidecarFile() throws {
         let root = try temporaryDirectory()
         let file = try writeSource("Bird.JPG", data: Data("source".utf8), in: root)
