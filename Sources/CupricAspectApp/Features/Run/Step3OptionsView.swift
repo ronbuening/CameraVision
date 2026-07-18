@@ -4,6 +4,11 @@ import SwiftUI
 /// Wizard Step 3 — "Review & options" (design doc §6 Step 3). RAW+JPEG pair
 /// scope is export-only and arrives with M7's export options.
 struct Step3OptionsView: View {
+    struct QualityGradingAvailability: Equatable {
+        var isVisible: Bool
+        var controlsEnabled: Bool
+    }
+
     let action: WizardAction
     @Bindable var options: AnalysisOptions
     @Bindable var runModel: AnalysisRunModel
@@ -34,6 +39,11 @@ struct Step3OptionsView: View {
             }
             .padding(.top, 14)
 
+            if Self.qualityGradingAvailability(action: action, assessQuality: options.assessQuality).isVisible {
+                qualityGradingCard
+                    .padding(.top, 14)
+            }
+
             advancedCard
                 .padding(.top, 14)
 
@@ -47,6 +57,18 @@ struct Step3OptionsView: View {
             options.loadResolvedDefaults()
             refreshVisionTags()
             runPreflight()
+        }
+    }
+
+    nonisolated static func qualityGradingAvailability(
+        action: WizardAction,
+        assessQuality: Bool
+    ) -> QualityGradingAvailability {
+        switch action {
+        case .write, .normalize:
+            QualityGradingAvailability(isVisible: true, controlsEnabled: assessQuality)
+        case .analyze, .apply:
+            QualityGradingAvailability(isVisible: false, controlsEnabled: false)
         }
     }
 
@@ -123,6 +145,56 @@ struct Step3OptionsView: View {
         .background(theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
+    }
+
+    private var qualityGradingCard: some View {
+        let availability = Self.qualityGradingAvailability(action: action, assessQuality: options.assessQuality)
+        return VStack(alignment: .leading, spacing: 12) {
+            sectionLabel("QUALITY")
+            if !availability.controlsEnabled {
+                Text("Assess image quality in Step 2 before this Wizard run can grade.")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(theme.accent.accent)
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Quality grading", isOn: $options.qualityGradingEnabled)
+                    .toggleStyle(.switch)
+                    .tint(theme.accent.accent)
+
+                Divider().overlay(theme.border)
+
+                Toggle("Write star ratings", isOn: $options.qualityWriteRating)
+                    .toggleStyle(.checkbox)
+                Text("stars stay yours unless you opt in")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(theme.textFaint)
+
+                HStack(spacing: 12) {
+                    Text("Existing culling metadata")
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(theme.text)
+                    Spacer()
+                    qualityConflictPolicyPicker
+                }
+            }
+            .disabled(!availability.controlsEnabled)
+            .opacity(availability.controlsEnabled ? 1 : 0.5)
+        }
+        .padding(EdgeInsets(top: 15, leading: 17, bottom: 15, trailing: 17))
+        .background(theme.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
+    }
+
+    private var qualityConflictPolicyPicker: some View {
+        Picker("", selection: $options.qualityConflictPolicy) {
+            Text("Preserve — never replace existing values").tag(ScalarConflictPolicy.preserve)
+            Text("Refresh — replace only values this app wrote before").tag(ScalarConflictPolicy.refresh)
+            Text("Overwrite — always replace").tag(ScalarConflictPolicy.overwrite)
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .fixedSize()
     }
 
     private var modelPicker: some View {

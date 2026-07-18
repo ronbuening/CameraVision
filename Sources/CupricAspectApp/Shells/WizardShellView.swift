@@ -95,7 +95,8 @@ struct WizardShellView: View {
                     if let source = importModel.sourceFolder {
                         normalizationModel.run(
                             jsonRoot: importModel.outputFolder?.path ?? source.path,
-                            sourceRoot: source.path
+                            sourceRoot: source.path,
+                            qualityGrading: effectiveQualityGradingOverrides
                         )
                     }
                 } else {
@@ -103,7 +104,8 @@ struct WizardShellView: View {
                     if let source = importModel.sourceFolder {
                         reviewModel.buildSession(
                             jsonRoot: importModel.outputFolder?.path ?? source.path,
-                            sourceRoot: source.path
+                            sourceRoot: source.path,
+                            qualityGrading: effectiveQualityGradingOverrides
                         )
                     }
                 }
@@ -358,8 +360,18 @@ struct WizardShellView: View {
             sourceRoot: source.path,
             outputDir: importModel.outputFolder?.path,
             recursive: importModel.recursive,
-            xmpConflictPolicy: options.xmpConflictPolicy
+            xmpConflictPolicy: options.xmpConflictPolicy,
+            qualityGrading: selectedAction == .apply
+                ? QualityGradingConfigurationOverrides() : effectiveQualityGradingOverrides
         )
+    }
+
+    private var effectiveQualityGradingOverrides: QualityGradingConfigurationOverrides {
+        let availability = Step3OptionsView.qualityGradingAvailability(
+            action: selectedAction ?? .analyze,
+            assessQuality: options.assessQuality
+        )
+        return options.qualityGradingOverrides(controlsEnabled: availability.controlsEnabled)
     }
 
     private var missingExportSessionMessage: String {

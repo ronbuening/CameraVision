@@ -106,6 +106,13 @@ final class AnalysisOptions {
             writeRating: qualityWriteRating
         )
     }
+
+    func qualityGradingOverrides(controlsEnabled: Bool) -> QualityGradingConfigurationOverrides {
+        guard controlsEnabled else {
+            return QualityGradingConfigurationOverrides(enabled: false)
+        }
+        return qualityGradingOverrides()
+    }
 }
 
 /// Ollama connectivity per FR4-051: checked on demand (launch, entering
