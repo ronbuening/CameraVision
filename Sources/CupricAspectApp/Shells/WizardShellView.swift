@@ -264,6 +264,10 @@ struct WizardShellView: View {
         case 2:
             Step2ActionView(
                 selection: $selectedAction,
+                assessQuality: Binding(
+                    get: { options.assessQuality },
+                    set: { options.assessQuality = $0 }
+                ),
                 onApplySession: {
                     selectedAction = .apply
                     step = 3

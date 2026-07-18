@@ -22,7 +22,7 @@ Doc 13 §0's eight rules apply verbatim. GUI-specific additions:
 | Stage | Title | Depends on | Size | Status | Notes |
 |---|---|---|---|---|---|
 | G1 | Quality run-state + resolver plumbing (no UI) | — | M | done | Implemented 2026-07-17. Quality state is seeded once in `AnalysisOptions`, mapped through the existing optional Core overrides, and normalization/review/apply builders now use the standard resolvers. The apply override freezes after a successful plan and is reused for confirmation. Focused 49-test gate and full `swift test` passed (754 tests, 2 skipped); `Scripts/format.sh` and `git diff --check` passed. |
-| G2 | Step 2 "Assess image quality" toggle | G1 | M | pending | |
+| G2 | Step 2 "Assess image quality" toggle | G1 | M | done | Implemented 2026-07-17. Step 2 now presents an always-enabled assess-quality toggle beneath the action cards, with the `EXPERIMENTAL` chip and action-specific copy. The binding updates `AnalysisOptions.assessQuality` without altering the action selection. Focused 20-test gate and full `swift test` passed (757 tests, 2 skipped); `Scripts/format.sh` and `git diff --check` passed. |
 | G3 | Step 3 Options grading group | G1; QN1+QN3+QN5 for the normalize action | M | pending | |
 | G4 | Settings defaults for quality | G3 | S | pending | |
 | G5 | Apply-session grading toggle | G1; QN6 | S | pending | |
