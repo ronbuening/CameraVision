@@ -286,7 +286,18 @@ struct WizardShellView: View {
                     failureBanner(message)
                 }
                 if selectedAction == .apply {
-                    Step3ApplyView(session: $applySession, sessionPath: $applySessionPath)
+                    Step3ApplyView(
+                        session: $applySession,
+                        sessionPath: $applySessionPath,
+                        qualityGradingEnabled: Binding(
+                            get: { exportModel.applyQualityGradingEnabled },
+                            set: { exportModel.applyQualityGradingEnabled = $0 }
+                        ),
+                        qualityConflictPolicy: Binding(
+                            get: { exportModel.applyQualityConflictPolicy },
+                            set: { exportModel.applyQualityConflictPolicy = $0 }
+                        )
+                    )
                 } else {
                     Step3OptionsView(
                         action: selectedAction ?? .analyze,
@@ -362,7 +373,7 @@ struct WizardShellView: View {
             recursive: importModel.recursive,
             xmpConflictPolicy: options.xmpConflictPolicy,
             qualityGrading: selectedAction == .apply
-                ? QualityGradingConfigurationOverrides() : effectiveQualityGradingOverrides
+                ? exportModel.applyQualityGradingOverrides : effectiveQualityGradingOverrides
         )
     }
 

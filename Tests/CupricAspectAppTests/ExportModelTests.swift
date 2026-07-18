@@ -217,6 +217,135 @@ final class ExportModelTests: XCTestCase {
     }
 
     @MainActor
+    func testApplyQualityStateMapsOnlyApplyOwnedOverrides() {
+        let export = ExportModel(
+            stateDirectory: root.appendingPathComponent("state"),
+            environment: [:],
+            defaultConfigPath: root.appendingPathComponent("missing-config.json").path
+        )
+        export.applyQualityGradingEnabled = true
+        export.applyQualityConflictPolicy = .refresh
+
+        let overrides = export.applyQualityGradingOverrides
+
+        XCTAssertEqual(overrides.enabled, true)
+        XCTAssertEqual(overrides.conflictPolicy, .refresh)
+        XCTAssertNil(overrides.minimumConfidence)
+        XCTAssertNil(overrides.writeRating)
+        XCTAssertNil(overrides.writeLabel)
+        XCTAssertNil(overrides.writeUrgency)
+        XCTAssertNil(overrides.writeFlag)
+        XCTAssertNil(overrides.writeKeywords)
+    }
+
+    @MainActor
+    func testApplyQualityDefaultOffStateResolvesToBuiltInIdentity() throws {
+        let missingConfig = root.appendingPathComponent("missing-config.json").path
+        let export = ExportModel(
+            stateDirectory: root.appendingPathComponent("state"),
+            environment: [:],
+            defaultConfigPath: missingConfig
+        )
+
+        XCTAssertFalse(export.applyQualityGradingEnabled)
+        XCTAssertEqual(export.applyQualityConflictPolicy, .preserve)
+        let configuration = try ExportModel.applyConfiguration(
+            sourceRoot: "/source",
+            outputDir: nil,
+            dryRun: true,
+            xmpConflictPolicy: .backupAndMerge,
+            qualityGrading: export.applyQualityGradingOverrides,
+            environment: [:],
+            defaultConfigPath: missingConfig
+        )
+
+        XCTAssertEqual(configuration.qualityGrading, .builtInDefaults)
+    }
+
+    @MainActor
+    func testApplyQualityStateSeedsFromEffectiveConfiguration() throws {
+        let configURL = root.appendingPathComponent("config.json")
+        try Data(
+            #"{"xmp_quality_grading":true,"xmp_quality_conflicts":"refresh"}"#.utf8
+        ).write(to: configURL)
+
+        let export = ExportModel(
+            stateDirectory: root.appendingPathComponent("state"),
+            environment: [:],
+            defaultConfigPath: configURL.path
+        )
+
+        XCTAssertTrue(export.applyQualityGradingEnabled)
+        XCTAssertEqual(export.applyQualityConflictPolicy, .refresh)
+    }
+
+    @MainActor
+    func testApplyQualityPlanReadsAssessmentAddedAfterSessionCreation() async throws {
+        let (session, sourceRoot) = try makeSession()
+        let sidecarURL = sourceRoot.appendingPathComponent("A.JPG.ai.json")
+        let current = try RawJSONSidecarReader().read(from: sidecarURL)
+        let qualityRun = ModelRunRecord(
+            inputRole: .wholeImage,
+            model: "test:model",
+            modelDigest: "sha256:test",
+            runtime: "test",
+            runtimeVersion: "1.0",
+            promptVersion: "prompt/quality",
+            promptSHA256: String(repeating: "a", count: 64),
+            responseSchemaVersion: "schema/quality",
+            requestOptions: .default,
+            inputDerivativeSHA256: String(repeating: "b", count: 64),
+            rawResponseText: "{}",
+            parsedResponseJSON: .object([
+                "quality_assessment": .object([
+                    "composition": .string("acceptable"),
+                    "confidence": .string("high"),
+                    "concerns": .array([]),
+                    "focus": .string("problem"),
+                    "overall_effectiveness": .string("problem"),
+                    "strengths": .array([]),
+                ])
+            ]),
+            jsonValid: true,
+            durationMs: 1,
+            error: nil
+        )
+        let updated = RawJSONSidecar(
+            source: current.sidecar.source,
+            runConfiguration: current.sidecar.runConfiguration,
+            modelRuns: [qualityRun],
+            createdAt: Date(timeIntervalSince1970: 1_700_000_001)
+        )
+        try RawJSONSidecarDocument(sidecar: updated).encodedData().write(to: sidecarURL)
+
+        let export = ExportModel(
+            stateDirectory: root.appendingPathComponent("state"),
+            environment: [:],
+            defaultConfigPath: root.appendingPathComponent("missing-config.json").path
+        )
+        export.applyQualityGradingEnabled = true
+        export.applyQualityConflictPolicy = .overwrite
+        export.plan(
+            session: session,
+            sourceRoot: sourceRoot.path,
+            outputDir: nil,
+            qualityGrading: export.applyQualityGradingOverrides
+        )
+        try await waitUntil("current-sidecar quality plan") {
+            switch export.phase {
+            case .planReady, .failed: true
+            default: false
+            }
+        }
+
+        guard export.phase == .planReady else {
+            return XCTFail("dry-run plan failed: \(export.phase)")
+        }
+        XCTAssertEqual(export.plannedTargets.first?.qualityTier, .reject)
+        XCTAssertTrue(export.plannedTargets.first?.qualityExplanation?.contains("tier=reject") == true)
+    }
+
+    @MainActor
     func testPlanFreezesQualityOverridesForMatchingWrite() async throws {
         let (session, sourceRoot) = try makeSession()
         let overrides = QualityGradingConfigurationOverrides(

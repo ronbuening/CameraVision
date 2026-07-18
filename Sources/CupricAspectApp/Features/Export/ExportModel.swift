@@ -25,6 +25,8 @@ final class ExportModel {
     private(set) var cleanupRemovedCount: Int?
     private(set) var cleanupWarning: String?
     var cleanupAfterWrite = false
+    var applyQualityGradingEnabled = ResolvedQualityGradingConfiguration.builtInDefaults.enabled
+    var applyQualityConflictPolicy = ResolvedQualityGradingConfiguration.builtInDefaults.conflictPolicy
 
     private var pendingSessionPath: String?
     private var pendingSourceRoot: String?
@@ -44,6 +46,7 @@ final class ExportModel {
         self.stateDirectory = stateDirectory
         self.environment = environment
         self.defaultConfigPath = defaultConfigPath
+        resetApplyQualityDefaults()
     }
 
     var plannedTargets: [XMPChangePlan] { changePlan?.targetPlans ?? [] }
@@ -70,6 +73,13 @@ final class ExportModel {
         mergeTargets.reduce(0) {
             $0 + ($1.preview.map { $0.existingFlatKeywords.count + $0.existingHierarchicalKeywords.count } ?? 0)
         }
+    }
+
+    var applyQualityGradingOverrides: QualityGradingConfigurationOverrides {
+        QualityGradingConfigurationOverrides(
+            enabled: applyQualityGradingEnabled,
+            conflictPolicy: applyQualityConflictPolicy
+        )
     }
 
     func reportValidationFailure(_ error: SidecarError) {
@@ -238,5 +248,21 @@ final class ExportModel {
         pendingXMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
         pendingQualityGrading = QualityGradingConfigurationOverrides()
         pendingCleanupRecursive = false
+        resetApplyQualityDefaults()
+    }
+
+    private func resetApplyQualityDefaults() {
+        guard
+            let resolved = try? ConfigurationResolver.resolveApplySession(
+                environment: environment,
+                defaultConfigPath: defaultConfigPath
+            )
+        else {
+            applyQualityGradingEnabled = ResolvedQualityGradingConfiguration.builtInDefaults.enabled
+            applyQualityConflictPolicy = ResolvedQualityGradingConfiguration.builtInDefaults.conflictPolicy
+            return
+        }
+        applyQualityGradingEnabled = resolved.qualityGrading.enabled
+        applyQualityConflictPolicy = resolved.qualityGrading.conflictPolicy
     }
 }
