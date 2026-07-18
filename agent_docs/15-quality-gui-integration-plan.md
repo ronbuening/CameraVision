@@ -21,7 +21,7 @@ Doc 13 §0's eight rules apply verbatim. GUI-specific additions:
 
 | Stage | Title | Depends on | Size | Status | Notes |
 |---|---|---|---|---|---|
-| G1 | Quality run-state + persistence (no UI) | — | M | pending | |
+| G1 | Quality run-state + persistence (no UI) | — | M | blocked | Reality note: the shipped app has no persisted wizard/run-options container. `WizardShellView` owns an ephemeral `@State AnalysisOptions`; `AnalysisOptions.loadResolvedDefaults()` only reloads shared config defaults; `StateHousekeeping` only prunes scratch artifacts; and `ReviewModel` recovery persists the reviewed normalization session, not wizard options. Persisting only quality fields would invent the parallel store D-G4 forbids, while adding them to the session would require out-of-scope Core/schema work. Maintainer decision required: define/approve an app-side wizard-state persistence container, or revise AC-G5/G1 persistence scope. |
 | G2 | Step 2 "Assess image quality" toggle | G1 | M | pending | |
 | G3 | Step 3 Options grading group | G1; QN1+QN3+QN5 for the normalize action | M | pending | |
 | G4 | Settings defaults for quality | G3 | S | pending | |
