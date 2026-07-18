@@ -181,7 +181,9 @@ does not change your saved default. An **Advanced flags** disclosure covers GPS
 context, existing-sidecar handling, and concurrency. For **Analyze & write XMP** and
 **Normalize**, the experimental **Quality grading** group becomes available when
 assessment is enabled in Step 2. It controls grading for this run, offers opt-in star
-ratings, and lets you preserve, refresh, or overwrite existing culling metadata. The
+ratings, and lets you preserve, refresh, or overwrite existing culling metadata. While
+assessment is off, grading stays off for that run even if `config.json` enables it by
+default — the wizard never grades a run it did not assess. The
 Apply Prior Session path has its own grading switch and always re-grades from the
 current contributor sidecars, never from the saved session preview.
 
@@ -223,6 +225,13 @@ before/after value.
   themes with copper, brass, or patina accents. The experimental **Quality grading
   defaults** subsection persists the five metadata-channel defaults and minimum
   confidence; tier maps remain config-file-only.
+- **Config defaults now reach wizard runs.** Normalize runs and the write path's
+  review session resolve through the standard configuration chain, so `config.json`
+  and environment defaults (vocabulary mode/path, quality channels, and the rest)
+  apply to GUI runs exactly as they do to the CLI. Per-run wizard controls still
+  override them for that run. If your config sets `vocabulary_mode` to
+  `controlled_vocabulary`, make sure `vocabulary_path` is valid — GUI normalize
+  runs now honor it too.
 - **Studio shell** (nonlinear, sidebar navigation) is planned for a later release;
   its toggle is visible but disabled ("coming soon") during the beta.
 

@@ -101,6 +101,19 @@ final class Step3OptionsViewTests: XCTestCase {
         XCTAssertEqual(configuration.qualityGrading, .builtInDefaults)
     }
 
+    func testQualityGradingCopyIsPinnedToPlanWording() {
+        XCTAssertEqual(ScalarConflictPolicy.preserve.wizardLabel, "Preserve — never replace existing values")
+        XCTAssertEqual(ScalarConflictPolicy.refresh.wizardLabel, "Refresh — replace only values this app wrote before")
+        XCTAssertEqual(ScalarConflictPolicy.overwrite.wizardLabel, "Overwrite — always replace")
+        XCTAssertEqual(Step3OptionsView.ratingOptInRationale, "stars stay yours unless you opt in")
+        XCTAssertEqual(
+            Step3OptionsView.gradingRequiresAssessmentExplanation,
+            "Assess image quality in Step 2 before this Wizard run can grade. "
+                + "While assessment is off, grading stays off for this run — "
+                + "even when your configuration enables it by default."
+        )
+    }
+
     @MainActor
     private func effectiveOverrides(
         options: AnalysisOptions,

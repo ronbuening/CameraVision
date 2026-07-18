@@ -321,12 +321,7 @@ struct Step5ReviewView: View {
     }
 
     private func qualityTierColor(_ tier: QualityTier) -> Color {
-        switch tier {
-        case .reject: theme.danger
-        case .belowAverage: theme.accent.accent
-        case .neutral: theme.textDim
-        case .good, .excellent: theme.green
-        }
+        QualityTierPalette.color(for: tier, theme: theme)
     }
 
     private func chipView(_ chip: ReviewModel.Chip) -> some View {

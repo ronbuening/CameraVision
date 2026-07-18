@@ -106,9 +106,9 @@ struct Step3ApplyView: View {
                     .foregroundStyle(theme.text)
                 Spacer()
                 Picker("", selection: $qualityConflictPolicy) {
-                    Text("Preserve — never replace existing values").tag(ScalarConflictPolicy.preserve)
-                    Text("Refresh — replace only values this app wrote before").tag(ScalarConflictPolicy.refresh)
-                    Text("Overwrite — always replace").tag(ScalarConflictPolicy.overwrite)
+                    Text(ScalarConflictPolicy.preserve.wizardLabel).tag(ScalarConflictPolicy.preserve)
+                    Text(ScalarConflictPolicy.refresh.wizardLabel).tag(ScalarConflictPolicy.refresh)
+                    Text(ScalarConflictPolicy.overwrite.wizardLabel).tag(ScalarConflictPolicy.overwrite)
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)

@@ -216,7 +216,7 @@ final class ReviewModel {
     func buildSession(
         jsonRoot: String,
         sourceRoot: String,
-        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
+        qualityGrading: QualityGradingConfigurationOverrides
     ) {
         guard !building else { return }
         building = true
@@ -250,7 +250,7 @@ final class ReviewModel {
     func buildConfiguration(
         sourceRoot: String,
         outputDir: String,
-        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
+        qualityGrading: QualityGradingConfigurationOverrides
     ) throws -> ResolvedNormalizationConfiguration {
         try ConfigurationResolver.resolveNormalization(
             cli: NormalizationConfigurationOverrides(
@@ -281,7 +281,7 @@ final class ReviewModel {
         qualityByAssetID = Self.qualityPresentation(
             sourceAssets: sessionDocument.sourceAssets,
             xmpWritePlans: sessionDocument.xmpWritePlans,
-            extractionResults: []
+            extractionByAssetID: [:]
         )
         loadQualityAssessments(for: sessionDocument)
     }
@@ -289,7 +289,7 @@ final class ReviewModel {
     nonisolated static func qualityPresentation(
         sourceAssets: [NormalizationSourceAsset],
         xmpWritePlans: [NormalizedXMPWritePlan],
-        extractionResults: [QualityExtractionResult]
+        extractionByAssetID: [String: QualityExtractionResult]
     ) -> [String: AssetQuality] {
         struct PlannedQuality {
             var tier: QualityTier?
@@ -297,17 +297,11 @@ final class ReviewModel {
             var ungradedReason: String?
         }
 
-        var extractionBySource: [String: QualityExtractionResult] = [:]
-        for result in extractionResults {
-            extractionBySource[qualitySourceKey(path: result.sourceImagePath, relativePath: "")] = result
-        }
         var planBySource: [String: PlannedQuality] = [:]
         for writePlan in xmpWritePlans {
             let plan = writePlan.xmpChangePlan
             let explanations = plan.qualityExplanation ?? []
-            let ungradedReason =
-                plan.qualityTier == nil
-                ? explanations.first { $0.hasPrefix("ungraded reason=") } : nil
+            let ungradedReason = plan.ungradedReasonExplanation
             guard plan.qualityTier != nil || ungradedReason != nil || !explanations.isEmpty else { continue }
             let planned = PlannedQuality(
                 tier: plan.qualityTier,
@@ -324,7 +318,7 @@ final class ReviewModel {
         var presentation: [String: AssetQuality] = [:]
         for asset in sourceAssets {
             let key = qualitySourceKey(path: asset.sourcePath, relativePath: asset.sourceRelativePath)
-            let extraction = extractionBySource[key]
+            let extraction = extractionByAssetID[asset.assetID]
             let planned = planBySource[key]
             let records = extraction?.records ?? []
             let issues = extraction?.issues.map(qualityIssueDiagnostic) ?? []
@@ -372,47 +366,39 @@ final class ReviewModel {
             qualityByAssetID = Self.qualityPresentation(
                 sourceAssets: sessionDocument.sourceAssets,
                 xmpWritePlans: sessionDocument.xmpWritePlans,
-                extractionResults: loaded.results
+                extractionByAssetID: loaded.resultsByAssetID
             )
             qualityDiagnostics = loaded.diagnostics
         }
     }
 
-    private nonisolated static func loadQualityExtraction(
+    /// Re-read the session's stored sidecar references through the same
+    /// current-pair resolver apply-session grading uses (QN6), so the panel
+    /// shows exactly the contributor documents an apply-time grade would
+    /// consume — no source re-hashing and no second identity gate.
+    nonisolated static func loadQualityExtraction(
         for sessionDocument: NormalizationSessionDocument
-    ) -> (results: [QualityExtractionResult], diagnostics: [String]) {
-        let inputPaths: [String]
-        if sessionDocument.session.workflow == .fromJSON {
-            inputPaths = [sessionDocument.session.inputPath]
-        } else {
-            inputPaths = sessionDocument.sourceAISidecars.map(\.sidecarPath)
-        }
-        guard !inputPaths.isEmpty else { return ([], []) }
-
-        var inputsByPath: [String: ResolvedRawSidecarInput] = [:]
+    ) -> (resultsByAssetID: [String: QualityExtractionResult], diagnostics: [String]) {
+        let resolver = RawJSONSidecarInputResolver()
+        var resultsByAssetID: [String: QualityExtractionResult] = [:]
         var diagnostics: [String] = []
-        for path in inputPaths {
-            do {
-                let batch = try NormalizationInputResolver().resolve(
-                    mode: .fromJSON(path: path),
-                    configuration: sessionDocument.resolvedConfiguration
-                )
-                for input in batch.rawSidecarInputs {
-                    inputsByPath[input.sidecarPath.standardizedFileURL.path] = input
+        var consumedSidecarPaths: Set<String> = []
+        for record in sessionDocument.sourceAISidecars {
+            let referencePath = URL(fileURLWithPath: record.sidecarPath).standardizedFileURL.path
+            guard !consumedSidecarPaths.contains(referencePath) else { continue }
+            let batch = resolver.resolveCurrentSidecarPair(at: record.sidecarPath)
+            diagnostics.append(contentsOf: batch.failures.map { "\($0.error.code.rawValue): \($0.error.message)" })
+            for input in batch.inputs {
+                consumedSidecarPaths.insert(input.sidecarPath.standardizedFileURL.path)
+                if let qualityPath = input.qualitySidecarPath {
+                    consumedSidecarPaths.insert(qualityPath.standardizedFileURL.path)
                 }
-                diagnostics.append(contentsOf: batch.failures.map { "\($0.error.code.rawValue): \($0.error.message)" })
-            } catch {
-                let sidecarError = error as? SidecarError
-                diagnostics.append(
-                    "\(sidecarError?.code.rawValue ?? "read_failed"): "
-                        + (sidecarError?.message ?? error.localizedDescription)
-                )
+                if resultsByAssetID[record.sourceAssetID] == nil {
+                    resultsByAssetID[record.sourceAssetID] = QualityAssessmentExtractor.extract(from: input)
+                }
             }
         }
-        let inputs = inputsByPath.values.sorted {
-            $0.sidecarPath.standardizedFileURL.path < $1.sidecarPath.standardizedFileURL.path
-        }
-        return (QualityAssessmentExtractor.extract(from: inputs), diagnostics)
+        return (resultsByAssetID, diagnostics)
     }
 
     /// FR4-059: user-initiated file operations surface failures instead of
