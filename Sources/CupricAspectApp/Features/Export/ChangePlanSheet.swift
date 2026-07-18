@@ -173,12 +173,64 @@ struct ChangePlanSheet: View {
                     .foregroundStyle(theme.textFaint)
                     .lineLimit(2)
             }
+            qualityPlanRows(plan)
         }
         .padding(EdgeInsets(top: 10, leading: 13, bottom: 10, trailing: 13))
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 9))
         .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(theme.border))
+    }
+
+    @ViewBuilder
+    private func qualityPlanRows(_ plan: XMPChangePlan) -> some View {
+        if let quality = ExportModel.qualityPresentation(for: plan) {
+            Divider().overlay(theme.border)
+            HStack(spacing: 7) {
+                if let tier = quality.tier {
+                    qualityBadge(tier.rawValue, color: theme.green)
+                } else if quality.ungradedReason != nil {
+                    qualityBadge("ungraded", color: theme.accent.accent)
+                }
+                Text("quality grading")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(theme.textDim)
+                Spacer()
+            }
+            ForEach(quality.scalars) { scalar in
+                HStack(spacing: 8) {
+                    Text(scalar.field)
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(theme.text)
+                    Text("\(scalar.plannedExistingValue ?? "—") → \(scalar.plannedValue)")
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(theme.textDim)
+                    Spacer()
+                    scalarActionBadge(scalar.action)
+                }
+            }
+            ForEach(Array(quality.explanations.enumerated()), id: \.offset) { _, explanation in
+                Text(explanation)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(theme.textFaint)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    private func scalarActionBadge(_ action: PlannedScalarWrite.Action) -> some View {
+        let color = action == .skipExisting ? theme.accent.accent : theme.green
+        return qualityBadge(action.rawValue, color: color)
+    }
+
+    private func qualityBadge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+            .foregroundStyle(color)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 6)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
     }
 
     /// Per-target disclosure of the merge outcome the dry-run previewed:
@@ -283,30 +335,41 @@ struct ExportReportView: View {
                 .font(.system(size: 10, weight: .semibold))
                 .kerning(0.5)
                 .foregroundStyle(theme.textFaint)
+            let qualitySummary = ExportModel.qualitySummary(for: report)
+            if !qualitySummary.isEmpty {
+                Text(
+                    "Quality: \(qualitySummary.gradedTargetCount) graded · \(qualitySummary.ungradedTargetCount) ungraded · \(qualitySummary.writtenScalarCount) scalars written · \(qualitySummary.skippedScalarCount) skipped by policy"
+                )
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(theme.textDim)
+            }
             ForEach(Array(report.targetReports.enumerated()), id: \.offset) { _, target in
-                HStack(spacing: 8) {
-                    Text(target.plan.targetRelativePath)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(theme.text)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    statusBadge(target.status)
-                    if target.backup != nil {
-                        Text("backup ✓")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(theme.green)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 8) {
+                        Text(target.plan.targetRelativePath)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(theme.text)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        statusBadge(target.status)
+                        if target.backup != nil {
+                            Text("backup ✓")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(theme.green)
+                        }
+                        if let validation = target.validation {
+                            Text(validation.valid ? "validated ✓" : "validation failed — restored")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(validation.valid ? theme.green : theme.danger)
+                        }
+                        if !target.errors.isEmpty {
+                            Text(target.errors.map(\.code.rawValue).joined(separator: ", "))
+                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(theme.danger)
+                        }
+                        Spacer()
                     }
-                    if let validation = target.validation {
-                        Text(validation.valid ? "validated ✓" : "validation failed — restored")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(validation.valid ? theme.green : theme.danger)
-                    }
-                    if !target.errors.isEmpty {
-                        Text(target.errors.map(\.code.rawValue).joined(separator: ", "))
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(theme.danger)
-                    }
-                    Spacer()
+                    qualityReportRows(target)
                 }
             }
             Text(
@@ -325,6 +388,43 @@ struct ExportReportView: View {
         .background(theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(theme.border))
+    }
+
+    @ViewBuilder
+    private func qualityReportRows(_ target: XMPExportTargetReport) -> some View {
+        if let quality = ExportModel.qualityPresentation(for: target) {
+            HStack(spacing: 6) {
+                if let tier = quality.tier {
+                    reportQualityBadge(tier.rawValue, color: theme.green)
+                } else if quality.ungradedReason != nil {
+                    reportQualityBadge("ungraded", color: theme.accent.accent)
+                }
+                Spacer()
+            }
+            ForEach(quality.scalars) { scalar in
+                Text(
+                    "\(scalar.field): \(scalar.resultExistingValue ?? "—") → \(scalar.resultResultingValue ?? "—") · \(scalar.action.rawValue)"
+                )
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(scalar.action == .skipExisting ? theme.accent.accent : theme.textDim)
+            }
+            ForEach(Array(quality.explanations.enumerated()), id: \.offset) { _, explanation in
+                Text(explanation)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(theme.textFaint)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    private func reportQualityBadge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+            .foregroundStyle(color)
+            .padding(.vertical, 1.5)
+            .padding(.horizontal, 6)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
     }
 
     private func statusBadge(_ status: XMPExportTargetStatus) -> some View {

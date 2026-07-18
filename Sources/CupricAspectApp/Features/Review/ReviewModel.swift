@@ -13,6 +13,25 @@ import Observation
 @MainActor
 @Observable
 final class ReviewModel {
+    struct AssetQuality: Equatable {
+        var records: [QualityAssessmentRecord]
+        var issueDiagnostics: [String]
+        var tier: QualityTier?
+        var explanations: [String]
+        var ungradedReason: String?
+    }
+
+    struct QualitySummary: Equatable {
+        var assessedAssetCount: Int
+        var tierCounts: [QualityTier: Int]
+        var ungradedAssetCount: Int
+        var issueCount: Int
+
+        var isEmpty: Bool {
+            assessedAssetCount == 0 && tierCounts.isEmpty && ungradedAssetCount == 0 && issueCount == 0
+        }
+    }
+
     struct Chip: Identifiable, Equatable {
         var decisionID: String
         var keyword: String
@@ -31,6 +50,7 @@ final class ReviewModel {
         var fileName: String
         var fileExtension: String
         var chips: [Chip]
+        var quality: AssetQuality? = nil
         var id: String { assetID }
     }
 
@@ -43,6 +63,8 @@ final class ReviewModel {
     private(set) var restoredFromRecovery = false
     private(set) var restoredRecoveryDirty = false
     private(set) var editError: String?
+    private(set) var qualityByAssetID: [String: AssetQuality] = [:]
+    private(set) var qualityDiagnostics: [String] = []
 
     /// Autosave policy (FR4-046a defaults): every 25 decisions or 5 minutes.
     private let autosaveDecisionLimit: Int
@@ -53,6 +75,7 @@ final class ReviewModel {
     private let now: () -> Date
     private var changesSinceAutosave = 0
     private var lastAutosaveAt: Date
+    private var qualityLoadToken = UUID()
 
     init(
         stateDirectory: URL = ReviewModel.defaultStateDirectory,
@@ -124,6 +147,19 @@ final class ReviewModel {
                 )
             ].chips.append(chip)
         }
+        for asset in session.sourceAssets {
+            guard let quality = qualityByAssetID[asset.assetID] else { continue }
+            if rows[asset.assetID] == nil {
+                rows[asset.assetID] = AssetRow(
+                    assetID: asset.assetID,
+                    sourcePath: asset.sourcePath,
+                    fileName: asset.fileName,
+                    fileExtension: asset.sourceType.rawValue.uppercased(),
+                    chips: []
+                )
+            }
+            rows[asset.assetID]?.quality = quality
+        }
         return rows.values.sorted { $0.fileName.lowercased() < $1.fileName.lowercased() }
     }
 
@@ -143,6 +179,30 @@ final class ReviewModel {
     var rejectedCount: Int { verdicts.values.count { $0 == .rejected } }
     var deferredCount: Int { verdicts.values.count { $0 == .deferred } }
     var canSaveSession: Bool { session != nil }
+    var qualitySummary: QualitySummary {
+        Self.qualitySummary(for: qualityByAssetID)
+    }
+
+    nonisolated static func qualitySummary(for presentation: [String: AssetQuality]) -> QualitySummary {
+        var summary = QualitySummary(
+            assessedAssetCount: 0,
+            tierCounts: [:],
+            ungradedAssetCount: 0,
+            issueCount: 0
+        )
+        for quality in presentation.values {
+            if !quality.records.isEmpty {
+                summary.assessedAssetCount += 1
+            }
+            if let tier = quality.tier {
+                summary.tierCounts[tier, default: 0] += 1
+            } else if quality.ungradedReason != nil {
+                summary.ungradedAssetCount += 1
+            }
+            summary.issueCount += quality.issueDiagnostics.count
+        }
+        return summary
+    }
 
     /// The exportable document: base session + review verdicts and edits.
     var reviewedSession: NormalizationSessionDocument? {
@@ -217,6 +277,142 @@ final class ReviewModel {
         restoredFromRecovery = false
         restoredRecoveryDirty = false
         editError = nil
+        qualityDiagnostics = []
+        qualityByAssetID = Self.qualityPresentation(
+            sourceAssets: sessionDocument.sourceAssets,
+            xmpWritePlans: sessionDocument.xmpWritePlans,
+            extractionResults: []
+        )
+        loadQualityAssessments(for: sessionDocument)
+    }
+
+    nonisolated static func qualityPresentation(
+        sourceAssets: [NormalizationSourceAsset],
+        xmpWritePlans: [NormalizedXMPWritePlan],
+        extractionResults: [QualityExtractionResult]
+    ) -> [String: AssetQuality] {
+        struct PlannedQuality {
+            var tier: QualityTier?
+            var explanations: [String]
+            var ungradedReason: String?
+        }
+
+        var extractionBySource: [String: QualityExtractionResult] = [:]
+        for result in extractionResults {
+            extractionBySource[qualitySourceKey(path: result.sourceImagePath, relativePath: "")] = result
+        }
+        var planBySource: [String: PlannedQuality] = [:]
+        for writePlan in xmpWritePlans {
+            let plan = writePlan.xmpChangePlan
+            let explanations = plan.qualityExplanation ?? []
+            let ungradedReason =
+                plan.qualityTier == nil
+                ? explanations.first { $0.hasPrefix("ungraded reason=") } : nil
+            guard plan.qualityTier != nil || ungradedReason != nil || !explanations.isEmpty else { continue }
+            let planned = PlannedQuality(
+                tier: plan.qualityTier,
+                explanations: explanations,
+                ungradedReason: ungradedReason
+            )
+            for member in plan.sourceMembers {
+                planBySource[
+                    qualitySourceKey(path: member.sourcePath, relativePath: member.sourceRelativePath)
+                ] = planned
+            }
+        }
+
+        var presentation: [String: AssetQuality] = [:]
+        for asset in sourceAssets {
+            let key = qualitySourceKey(path: asset.sourcePath, relativePath: asset.sourceRelativePath)
+            let extraction = extractionBySource[key]
+            let planned = planBySource[key]
+            let records = extraction?.records ?? []
+            let issues = extraction?.issues.map(qualityIssueDiagnostic) ?? []
+            guard !records.isEmpty || !issues.isEmpty || planned != nil else { continue }
+            presentation[asset.assetID] = AssetQuality(
+                records: records,
+                issueDiagnostics: issues,
+                tier: planned?.tier,
+                explanations: planned?.explanations ?? [],
+                ungradedReason: planned?.ungradedReason
+            )
+        }
+        return presentation
+    }
+
+    private nonisolated static func qualitySourceKey(path: String?, relativePath: String) -> String {
+        guard let path, !path.isEmpty else { return "relative:\(relativePath)" }
+        return URL(fileURLWithPath: path).standardizedFileURL.path
+    }
+
+    private nonisolated static func qualityIssueDiagnostic(_ issue: QualityExtractionIssue) -> String {
+        switch issue {
+        case .malformedBlock:
+            QualityExtractionIssueCode.malformedBlock.rawValue
+        case .unknownCriterion(let criterion):
+            "\(QualityExtractionIssueCode.unknownCriterion.rawValue): \(criterion)"
+        case .missingOverall:
+            QualityExtractionIssueCode.missingOverall.rawValue
+        case .invalidLevel(let field, let value):
+            "\(QualityExtractionIssueCode.invalidLevel.rawValue): \(field)=\(value)"
+        }
+    }
+
+    /// Re-resolve current contributor documents and extract assessments away from the UI actor.
+    private func loadQualityAssessments(for sessionDocument: NormalizationSessionDocument) {
+        let token = UUID()
+        qualityLoadToken = token
+        Task {
+            let loaded = await Task.detached(priority: .utility) {
+                Self.loadQualityExtraction(for: sessionDocument)
+            }.value
+            guard qualityLoadToken == token, session?.session.sessionID == sessionDocument.session.sessionID else {
+                return
+            }
+            qualityByAssetID = Self.qualityPresentation(
+                sourceAssets: sessionDocument.sourceAssets,
+                xmpWritePlans: sessionDocument.xmpWritePlans,
+                extractionResults: loaded.results
+            )
+            qualityDiagnostics = loaded.diagnostics
+        }
+    }
+
+    private nonisolated static func loadQualityExtraction(
+        for sessionDocument: NormalizationSessionDocument
+    ) -> (results: [QualityExtractionResult], diagnostics: [String]) {
+        let inputPaths: [String]
+        if sessionDocument.session.workflow == .fromJSON {
+            inputPaths = [sessionDocument.session.inputPath]
+        } else {
+            inputPaths = sessionDocument.sourceAISidecars.map(\.sidecarPath)
+        }
+        guard !inputPaths.isEmpty else { return ([], []) }
+
+        var inputsByPath: [String: ResolvedRawSidecarInput] = [:]
+        var diagnostics: [String] = []
+        for path in inputPaths {
+            do {
+                let batch = try NormalizationInputResolver().resolve(
+                    mode: .fromJSON(path: path),
+                    configuration: sessionDocument.resolvedConfiguration
+                )
+                for input in batch.rawSidecarInputs {
+                    inputsByPath[input.sidecarPath.standardizedFileURL.path] = input
+                }
+                diagnostics.append(contentsOf: batch.failures.map { "\($0.error.code.rawValue): \($0.error.message)" })
+            } catch {
+                let sidecarError = error as? SidecarError
+                diagnostics.append(
+                    "\(sidecarError?.code.rawValue ?? "read_failed"): "
+                        + (sidecarError?.message ?? error.localizedDescription)
+                )
+            }
+        }
+        let inputs = inputsByPath.values.sorted {
+            $0.sidecarPath.standardizedFileURL.path < $1.sidecarPath.standardizedFileURL.path
+        }
+        return (QualityAssessmentExtractor.extract(from: inputs), diagnostics)
     }
 
     /// FR4-059: user-initiated file operations surface failures instead of
@@ -268,6 +464,9 @@ final class ReviewModel {
         restoredFromRecovery = false
         restoredRecoveryDirty = false
         editError = nil
+        qualityLoadToken = UUID()
+        qualityByAssetID = [:]
+        qualityDiagnostics = []
     }
 
     // MARK: - Verdicts

@@ -10,6 +10,37 @@ import Observation
 @MainActor
 @Observable
 final class ExportModel {
+    struct QualityScalarPresentation: Identifiable, Equatable {
+        var field: String
+        var plannedValue: String
+        var plannedExistingValue: String?
+        var action: PlannedScalarWrite.Action
+        var resultExistingValue: String?
+        var resultResultingValue: String?
+        var id: String { field }
+    }
+
+    struct QualityTargetPresentation: Equatable {
+        var tier: QualityTier?
+        var ungradedReason: String?
+        var explanations: [String]
+        var scalars: [QualityScalarPresentation]
+    }
+
+    struct QualityExportSummary: Equatable {
+        var gradedTargetCount: Int
+        var ungradedTargetCount: Int
+        var writtenScalarCount: Int
+        var skippedScalarCount: Int
+
+        var isEmpty: Bool {
+            gradedTargetCount == 0
+                && ungradedTargetCount == 0
+                && writtenScalarCount == 0
+                && skippedScalarCount == 0
+        }
+    }
+
     enum Phase: Equatable {
         case idle
         case planning
@@ -79,6 +110,88 @@ final class ExportModel {
         QualityGradingConfigurationOverrides(
             enabled: applyQualityGradingEnabled,
             conflictPolicy: applyQualityConflictPolicy
+        )
+    }
+
+    /// A display-only projection of Core's retained grading decisions. The app never recalculates actions or tiers.
+    nonisolated static func qualityPresentation(for plan: XMPChangePlan) -> QualityTargetPresentation? {
+        qualityPresentation(plan: plan, writeResult: nil)
+    }
+
+    nonisolated static func qualityPresentation(
+        for target: XMPExportTargetReport
+    ) -> QualityTargetPresentation? {
+        qualityPresentation(plan: target.plan, writeResult: target.writeResult)
+    }
+
+    /// Counts completed scalar actions from retained target reports rather than progress-log artifacts.
+    nonisolated static func qualitySummary(for report: XMPExportReport) -> QualityExportSummary {
+        var summary = QualityExportSummary(
+            gradedTargetCount: 0,
+            ungradedTargetCount: 0,
+            writtenScalarCount: 0,
+            skippedScalarCount: 0
+        )
+        for target in report.targetReports {
+            guard let presentation = qualityPresentation(for: target) else { continue }
+            if presentation.tier != nil {
+                summary.gradedTargetCount += 1
+            } else if presentation.ungradedReason != nil {
+                summary.ungradedTargetCount += 1
+            }
+            guard target.writeResult != nil else { continue }
+            switch target.status {
+            case .failed, .interrupted, .dryRun:
+                continue
+            case .written, .created, .unchanged:
+                break
+            }
+            for scalar in presentation.scalars {
+                if scalar.action == .skipExisting {
+                    summary.skippedScalarCount += 1
+                } else {
+                    summary.writtenScalarCount += 1
+                }
+            }
+        }
+        return summary
+    }
+
+    private nonisolated static func qualityPresentation(
+        plan: XMPChangePlan,
+        writeResult: XMPWriteResult?
+    ) -> QualityTargetPresentation? {
+        let scalarSources: [(PlannedScalarWrite?, String?, String?)] = [
+            (plan.ratingWrite, writeResult?.existingRating, writeResult?.resultingRating),
+            (plan.labelWrite, writeResult?.existingLabel, writeResult?.resultingLabel),
+            (plan.urgencyWrite, writeResult?.existingUrgency, writeResult?.resultingUrgency),
+            (plan.pickWrite, writeResult?.existingPick, writeResult?.resultingPick),
+            (plan.goodWrite, writeResult?.existingGood, writeResult?.resultingGood),
+        ]
+        let scalars = scalarSources.compactMap { write, resultExisting, resultResulting in
+            write.map {
+                QualityScalarPresentation(
+                    field: $0.field,
+                    plannedValue: $0.plannedValue,
+                    plannedExistingValue: $0.existingValue,
+                    action: $0.action,
+                    resultExistingValue: resultExisting,
+                    resultResultingValue: resultResulting
+                )
+            }
+        }
+        let explanations = plan.qualityExplanation ?? []
+        let ungradedReason =
+            plan.qualityTier == nil
+            ? explanations.first { $0.hasPrefix("ungraded reason=") } : nil
+        guard plan.qualityTier != nil || ungradedReason != nil || !explanations.isEmpty || !scalars.isEmpty else {
+            return nil
+        }
+        return QualityTargetPresentation(
+            tier: plan.qualityTier,
+            ungradedReason: ungradedReason,
+            explanations: explanations,
+            scalars: scalars
         )
     }
 
