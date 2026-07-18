@@ -167,7 +167,9 @@ first pass), **Analyze & write XMP** (export accepted keywords straight to `.xmp
 Lightroom Classic and Capture One), or **Analyze, Normalize, and Write XMP** (the full
 pipeline — reconcile keywords batch-wide under your vocabulary and consensus rules,
 then write normalized XMP). A previously saved normalization session can also be
-applied from here.
+applied from here. The **Assess image quality** switch below the action cards is
+experimental and run-scoped; it stores the model's structured assessment in the
+raw sidecar without writing XMP by itself.
 
 <p align="center"><img src="DocImages/Step02.png" alt="Step 2, What to do: three action cards — Analyze only, Analyze and write XMP, Analyze Normalize and Write XMP" width="820"></p>
 
@@ -176,7 +178,12 @@ applied from here.
 Confirm the run: **render mode** (Whole Image / Subject Only / Both) and the **vision
 model**, which shows a live connectivity indicator and acts as a per-run override that
 does not change your saved default. An **Advanced flags** disclosure covers GPS
-context, existing-sidecar handling, and concurrency.
+context, existing-sidecar handling, and concurrency. For **Analyze & write XMP** and
+**Normalize**, the experimental **Quality grading** group becomes available when
+assessment is enabled in Step 2. It controls grading for this run, offers opt-in star
+ratings, and lets you preserve, refresh, or overwrite existing culling metadata. The
+Apply Prior Session path has its own grading switch and always re-grades from the
+current contributor sidecars, never from the saved session preview.
 
 <p align="center"><img src="DocImages/Step03.png" alt="Step 3, Options: render mode selector, vision model with a ready indicator, and an Advanced flags disclosure" width="820"></p>
 
@@ -193,7 +200,11 @@ photos stay done, so starting again resumes where you left off.
 Approve, reject, edit, or defer each candidate keyword — per image or in bulk — with
 confidence bands and provenance visible. **Save session only** preserves your review
 for later; **Write XMP** shows the change plan first and can optionally clean up
-intermediate files after a successful write.
+intermediate files after a successful write. When assessments exist, each photo also
+shows read-only per-role quality levels, confidence, strengths/concerns, and any Core
+diagnostics. Derived tier chips and counts come from the Core plan; the change plan
+and completed export report disclose every rating/label/urgency/pick-good action and its
+before/after value.
 
 <p align="center"><img src="DocImages/Step05.png" alt="Step 5, Review: per-image cards of approved keyword chips with high and medium confidence badges" width="820"></p>
 
@@ -209,7 +220,9 @@ intermediate files after a successful write.
 - **Settings** persist to the shared `config.json` (so the CLI sees the same
   defaults), let you pick the vision model and endpoint, tune model timeout and
   retry limits, show a connectivity indicator, and choose Light / Dark / Auto
-  themes with copper, brass, or patina accents.
+  themes with copper, brass, or patina accents. The experimental **Quality grading
+  defaults** subsection persists the five metadata-channel defaults and minimum
+  confidence; tier maps remain config-file-only.
 - **Studio shell** (nonlinear, sidebar navigation) is planned for a later release;
   its toggle is visible but disabled ("coming soon") during the beta.
 
