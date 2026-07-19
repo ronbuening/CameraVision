@@ -1,0 +1,256 @@
+{
+  "created_at" : "2026-07-19T22:13:31Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/7730172d8129fd3270ce2c5022f9cbd6bfb6af294982a4534e278793af44a861-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 2048,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "a8594237ef57071c7becf1d81efe1eae277cc9d61ff8c7d115012cf29063aace",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "7730172d8129fd3270ce2c5022f9cbd6bfb6af294982a4534e278793af44a861"
+      },
+      "width" : 1365
+    }
+  ],
+  "errors" : [
+    {
+      "code" : "E_SUBJECT_ISOLATION_NO_FOREGROUND",
+      "message" : "Apple Vision did not find a foreground subject.",
+      "recoverable" : true,
+      "stage" : "isolate"
+    }
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 14629,
+      "error" : null,
+      "input_derivative_sha256" : "a8594237ef57071c7becf1d81efe1eae277cc9d61ff8c7d115012cf29063aace",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "perspective view of interior structure and repetitive cell-like units",
+            "term" : "architecture"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "view from within a large building looking up at ceiling and side walls",
+            "term" : "interior"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "indoor room"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "multiple levels of narrow, barred or slatted compartments arranged in rows along a central corridor",
+            "term" : "rows of cell-like structures"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "receding perspective of long corridors and tiered platforms",
+            "term" : "multi-level interior structure"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "repetitive vertical bars, slatted doors, narrow compartments, multi-story layout, perspective view",
+            "term" : "repetition"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "narrow cells arranged in tiers within a large building",
+            "term" : "prison"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "slatted wooden or metal doors, vertical bars, tiered levels",
+            "term" : "bars"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "skylights in the ceiling providing light from above",
+            "term" : "skylight"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "long, narrow corridor with many levels",
+            "term" : "perspective"
+          }
+        ],
+        "quality_assessment" : {
+          "composition" : "strong",
+          "concerns" : [
+
+          ],
+          "confidence" : "high",
+          "exposure_and_tone" : "acceptable",
+          "focus" : "unrated",
+          "lighting_and_color" : "acceptable",
+          "moment_or_expression" : "unrated",
+          "overall_effectiveness" : "strong",
+          "strengths" : [
+            "strong use of leading lines and perspective",
+            "rhythmic repetition of architectural elements"
+          ],
+          "subject_background_relationship" : "unrated",
+          "technical_cleanliness" : "acceptable"
+        },
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "interior scene"
+          }
+        ],
+        "secondary_subjects" : [
+
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A low-angle perspective shot looking up through the multi-level, cell-like corridors of a large interior structure with skylights.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "8c55abe1e19c1eaf8a134b3a538d1f300c8c464971b815b476407858e4e57630",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.6.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"perspective view of interior structure and repetitive cell-like units\",\n      \"term\": \"architecture\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"view from within a large building looking up at ceiling and side walls\",\n      \"term\": \"interior\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"indoor room\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"multiple levels of narrow, barred or slatted compartments arranged in rows along a central corridor\",\n      \"term\": \"rows of cell-like structures\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"receding perspective of long corridors and tiered platforms\",\n      \"term\": \"multi-level interior structure\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"repetitive vertical bars, slatted doors, narrow compartments, multi-story layout, perspective view\",\n      \"term\": \"repetition\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"narrow cells arranged in tiers within a large building\",\n      \"term\": \"prison\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"slatted wooden or metal doors, vertical bars, tiered levels\",\n      \"term\": \"bars\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"skylights in the ceiling providing light from above\",\n      \"term\": \"skylight\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"long, narrow corridor with many levels\",\n      \"term\": \"perspective\"\n    }\n  ],\n  \"quality_assessment\": {\n    \"composition\": \"strong\",\n    \"concerns\": [],\n    \"confidence\": \"high\",\n    \"exposure_and_tone\": \"acceptable\",\n    \"focus\": \"unrated\",\n    \"lighting_and_color\": \"acceptable\",\n    \"moment_or_expression\": \"unrated\",\n    \"overall_effectiveness\": \"strong\",\n    \"strengths\": [\n      \"strong use of leading lines and perspective\",\n      \"rhythmic repetition of architectural elements\"\n    ],\n    \"subject_background_relationship\": \"unrated\",\n    \"technical_cleanliness\": \"acceptable\"\n  },\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"interior scene\"\n    }\n  ],\n  \"secondary_subjects\": [],\n  \"species\": [],\n  \"summary\": \"A low-angle perspective shot looking up through the multi-level, cell-like corridors of a large interior structure with skylights.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.6.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 703,
+        "eval_duration_ns" : 11075839000,
+        "load_duration_ns" : 264226000,
+        "prompt_eval_count" : 1529,
+        "prompt_eval_duration_ns" : 3084203000,
+        "total_duration_ns" : 14591672667
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "skip",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run2",
+    "profile" : "gemma4-26b-default",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging_with_quality"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "54670586117_6c570c92c0_o.jpg",
+    "file_size" : 19753798,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "7730172d8129fd3270ce2c5022f9cbd6bfb6af294982a4534e278793af44a861"
+    },
+    "modified_at" : "2026-06-11T16:49:02Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/54670586117_6c570c92c0_o.jpg",
+    "relative_path" : "54670586117_6c570c92c0_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 2048,
+      "width" : 1365
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 0,
+    "full_resolution" : {
+      "height" : 6000,
+      "width" : 4000
+    },
+    "instance_count" : 0,
+    "instances" : [
+
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2.93040293040293,
+      "y" : 2.9296875
+    },
+    "selected_instance_indices" : [
+
+    ],
+    "status" : "no_foreground",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 14631,
+    "pipeline_elapsed_ms" : 277832,
+    "render_ms" : 100,
+    "subject_isolation_ms" : 40,
+    "write_ms" : 3
+  }
+}

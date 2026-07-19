@@ -1,0 +1,267 @@
+{
+  "created_at" : "2026-07-19T22:11:10Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/62b06833b36a79d7d2d83b1d306c4ad6ba26d1dbe820767d1dc958f91de575ff-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1617,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "7b230473983bb60325908b5d2d902adf91eab44c6ce23c6126a055e8fa7f50bf",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "62b06833b36a79d7d2d83b1d306c4ad6ba26d1dbe820767d1dc958f91de575ff"
+      },
+      "width" : 2048
+    }
+  ],
+  "errors" : [
+    {
+      "code" : "E_SUBJECT_ISOLATION_NO_FOREGROUND",
+      "message" : "Apple Vision did not find a foreground subject.",
+      "recoverable" : true,
+      "stage" : "isolate"
+    }
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 15403,
+      "error" : null,
+      "input_derivative_sha256" : "7b230473983bb60325908b5d2d902adf91eab44c6ce23c6126a055e8fa7f50bf",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "swimming"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "underwater view of coral and fish with sunlight rays",
+            "term" : "underwater"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "natural marine environment",
+            "term" : "wildlife"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "open water"
+          },
+          {
+            "confidence" : "high",
+            "term" : "coral reef"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "large coral formations in the foreground and midground",
+            "term" : "coral"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "small dark fish swimming in the water column",
+            "term" : "fish"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "underwater scene with sunlight rays and coral reef",
+            "term" : "sunlight rays"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "marine life in blue water",
+            "term" : "marine life"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "textured coral structures",
+            "term" : "coral reef"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "blue water environment",
+            "term" : "ocean"
+          }
+        ],
+        "quality_assessment" : {
+          "composition" : "acceptable",
+          "concerns" : [
+
+          ],
+          "confidence" : "medium",
+          "exposure_and_tone" : "acceptable",
+          "focus" : "unrated",
+          "lighting_and_color" : "strong",
+          "moment_or_expression" : "unrated",
+          "overall_effectiveness" : "acceptable",
+          "strengths" : [
+            "dramatic sunlight rays through water surface",
+            "compositional use of coral structure"
+          ],
+          "subject_background_relationship" : "strong",
+          "technical_cleanliness" : "unrated"
+        },
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor wildlife scene"
+          }
+        ],
+        "secondary_subjects" : [
+
+        ],
+        "species" : [
+          {
+            "confidence" : "low",
+            "evidence" : "small dark fish silhouette",
+            "term" : "fish"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "branching and mounded coral structures",
+            "term" : "coral"
+          }
+        ],
+        "summary" : "An underwater view showing sunlight rays penetrating the water surface above a textured coral reef with small fish swimming by.",
+        "uncertainty_notes" : "The specific species of fish and coral cannot be determined due to distance, silhouette, and lighting conditions."
+      },
+      "prompt_sha256" : "8c55abe1e19c1eaf8a134b3a538d1f300c8c464971b815b476407858e4e57630",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.6.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"swimming\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"underwater view of coral and fish with sunlight rays\",\n      \"term\": \"underwater\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"natural marine environment\",\n      \"term\": \"wildlife\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"open water\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"term\": \"coral reef\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large coral formations in the foreground and midground\",\n      \"term\": \"coral\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"small dark fish swimming in the water column\",\n      \"term\": \"fish\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"underwater scene with sunlight rays and coral reef\",\n      \"term\": \"sunlight rays\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"marine life in blue water\",\n      \"term\": \"marine life\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"textured coral structures\",\n      \"term\": \"coral reef\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"blue water environment\",\n      \"term\": \"ocean\"\n    }\n  ],\n  \"quality_assessment\": {\n    \"composition\": \"acceptable\",\n    \"concerns\": [],\n    \"confidence\": \"medium\",\n    \"exposure_and_tone\": \"acceptable\",\n    \"focus\": \"unrated\",\n    \"lighting_and_color\": \"strong\",\n    \"moment_or_expression\": \"unrated\",\n    \"overall_effectiveness\": \"acceptable\",\n    \"strengths\": [\n      \"dramatic sunlight rays through water surface\",\n      \"compositional use of coral structure\"\n    ],\n    \"subject_background_relationship\": \"strong\",\n    \"technical_cleanliness\": \"unrated\"\n  },\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor wildlife scene\"\n    }\n  ],\n  \"secondary_subjects\": [],\n  \"species\": [\n    {\n      \"confidence\": \"low\",\n      \"evidence\": \"small dark fish silhouette\",\n      \"term\": \"fish\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"branching and mounded coral structures\",\n      \"term\": \"coral\"\n    }\n  ],\n  \"summary\": \"An underwater view showing sunlight rays penetrating the water surface above a textured coral reef with small fish swimming by.\",\n  \"uncertainty_notes\": \"The specific species of fish and coral cannot be determined due to distance, silhouette, and lighting conditions.\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.6.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 750,
+        "eval_duration_ns" : 11886708000,
+        "load_duration_ns" : 294303083,
+        "prompt_eval_count" : 1521,
+        "prompt_eval_duration_ns" : 3059909000,
+        "total_duration_ns" : 15371344500
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "skip",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run2",
+    "profile" : "gemma4-26b-default",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging_with_quality"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "51241305764_07b62f6bc5_o.jpg",
+    "file_size" : 1179439,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "62b06833b36a79d7d2d83b1d306c4ad6ba26d1dbe820767d1dc958f91de575ff"
+    },
+    "modified_at" : "2026-06-11T16:39:18Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/51241305764_07b62f6bc5_o.jpg",
+    "relative_path" : "51241305764_07b62f6bc5_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1617,
+      "width" : 2048
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 0,
+    "full_resolution" : {
+      "height" : 2370,
+      "width" : 3000
+    },
+    "instance_count" : 0,
+    "instances" : [
+
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 1.46484375,
+      "y" : 1.4656771799628943
+    },
+    "selected_instance_indices" : [
+
+    ],
+    "status" : "no_foreground",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 15405,
+    "pipeline_elapsed_ms" : 136942,
+    "render_ms" : 25,
+    "subject_isolation_ms" : 36,
+    "write_ms" : 2
+  }
+}
