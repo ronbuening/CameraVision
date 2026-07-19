@@ -79,6 +79,23 @@ final class SettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testQualityScanModeWriteThroughAndResolves() throws {
+        let model = makeModel()
+        XCTAssertEqual(model.qualityScanMode, .combined, "built-in default")
+
+        model.setQualityScanMode(.sequential)
+
+        XCTAssertEqual(model.qualityScanMode, .sequential)
+        let resolved = try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath)
+        XCTAssertEqual(resolved.qualityScanMode, .sequential)
+        let object = try readConfigObject()
+        XCTAssertEqual(object["quality_scan_mode"] as? String, "sequential")
+
+        model.setQualityScanMode(.combined)
+        XCTAssertEqual(model.qualityScanMode, .combined)
+    }
+
+    @MainActor
     func testHandEditedKeysSurviveSettingsChanges() throws {
         try Data(#"{"stage_concurrency": 3, "custom_note": "mine"}"#.utf8)
             .write(to: URL(fileURLWithPath: configPath))

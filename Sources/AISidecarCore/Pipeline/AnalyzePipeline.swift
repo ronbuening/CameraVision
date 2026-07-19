@@ -81,6 +81,15 @@ public struct AnalyzePipeline {
         writesBatchArtifacts: Bool = true,
         progressHandler: (@Sendable (ProgressRecord) -> Void)? = nil
     ) async throws -> AnalyzeResult {
+        if configuration.taskProfile == .taggingWithQuality, configuration.qualityScanMode == .sequential {
+            return try await runSequentialScanAndAssess(
+                inputPath: inputPath,
+                configuration: configuration,
+                interruptionMonitor: interruptionMonitor,
+                writesBatchArtifacts: writesBatchArtifacts,
+                progressHandler: progressHandler
+            )
+        }
         let runStartedAt = now()
         let profile = try ModelInputProfileRegistry.resolve(name: configuration.profile)
         let lifecycleCache = cache(for: configuration)
@@ -229,6 +238,53 @@ public struct AnalyzePipeline {
             summaryPath: summaryPath,
             summary: summary,
             interrupted: interrupted
+        )
+    }
+
+    /// Sequential quality mode: a tagging pass, then a dedicated quality pass.
+    ///
+    /// The tagging pass writes `.ai.json` exactly as a tagging-only run would;
+    /// the quality pass writes `.quality.ai.json` siblings that the sidecar
+    /// input resolver pairs at read time. Cache lifecycle options keep their
+    /// whole-run meaning: clear-on-start applies before the first pass and
+    /// clear-after-success after the second, so the quality pass reuses the
+    /// tagging pass's rendered derivatives instead of re-rendering them.
+    private func runSequentialScanAndAssess(
+        inputPath: String,
+        configuration: ResolvedRunConfiguration,
+        interruptionMonitor: InterruptionMonitor?,
+        writesBatchArtifacts: Bool,
+        progressHandler: (@Sendable (ProgressRecord) -> Void)?
+    ) async throws -> AnalyzeResult {
+        var taggingConfiguration = configuration.with(taskProfile: .tagging)
+        taggingConfiguration.clearDerivativeCacheAfterSuccess = false
+        let tagging = try await run(
+            inputPath: inputPath,
+            configuration: taggingConfiguration,
+            interruptionMonitor: interruptionMonitor,
+            writesBatchArtifacts: writesBatchArtifacts,
+            progressHandler: progressHandler
+        )
+        if tagging.interrupted {
+            return tagging
+        }
+
+        var qualityConfiguration = configuration.with(taskProfile: .qualityOnly)
+        qualityConfiguration.clearDerivativeCacheOnStart = false
+        let quality = try await run(
+            inputPath: inputPath,
+            configuration: qualityConfiguration,
+            interruptionMonitor: interruptionMonitor,
+            writesBatchArtifacts: writesBatchArtifacts,
+            progressHandler: progressHandler
+        )
+        return AnalyzeResult(
+            scanResult: tagging.scanResult,
+            records: tagging.records + quality.records,
+            progressLogPath: tagging.progressLogPath,
+            summaryPath: tagging.summaryPath,
+            summary: tagging.summary,
+            interrupted: quality.interrupted
         )
     }
 

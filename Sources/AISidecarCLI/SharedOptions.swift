@@ -88,6 +88,12 @@ extension GPSContextMode: ExpressibleByArgument {
     }
 }
 
+extension QualityScanMode: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
 extension NormalizationMode: ExpressibleByArgument {
     public init?(argument: String) {
         self.init(rawValue: argument)

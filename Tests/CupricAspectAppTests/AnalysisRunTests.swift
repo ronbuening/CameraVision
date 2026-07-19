@@ -264,27 +264,14 @@ final class AnalysisRunTests: XCTestCase {
     }
 
     func testOutcomeReductionCountsStatusesAndAggregatesErrorCodes() {
-        func record(_ status: ProgressStatus, codes: [SidecarErrorCode] = []) -> ProgressRecord {
-            ProgressRecord(
-                timestamp: Date(timeIntervalSince1970: 0),
-                sourcePath: "/x/a.jpg",
-                relativePath: "a.jpg",
-                sidecarPath: nil,
-                status: status,
-                errors: codes.map {
-                    SidecarError(code: $0, stage: .scan, message: "m", recoverable: true)
-                },
-                durationMs: 0
-            )
-        }
-
         let outcome = AnalysisRunModel.outcome(
             from: [
-                record(.written), record(.written),
-                record(.skippedExisting),
-                record(.failed, codes: [.unsupportedFormat]),
-                record(.failed, codes: [.unsupportedFormat]),
-                record(.failed, codes: [.validationFailed]),
+                outcomeRecord(.written, source: "/x/a.jpg"),
+                outcomeRecord(.written, source: "/x/b.jpg"),
+                outcomeRecord(.skippedExisting, source: "/x/c.jpg"),
+                outcomeRecord(.failed, source: "/x/d.jpg", codes: [.unsupportedFormat]),
+                outcomeRecord(.failed, source: "/x/e.jpg", codes: [.unsupportedFormat]),
+                outcomeRecord(.failed, source: "/x/f.jpg", codes: [.validationFailed]),
             ],
             interrupted: true
         )
@@ -294,6 +281,67 @@ final class AnalysisRunTests: XCTestCase {
         XCTAssertEqual(outcome.failed, 3)
         XCTAssertTrue(outcome.interrupted)
         XCTAssertEqual(outcome.errorSummaries, ["E_UNSUPPORTED_FORMAT × 2", "E_VALIDATION_FAILED × 1"])
+    }
+
+    func testOutcomeGroupsSequentialPassRecordsPerImage() {
+        // A sequential quality run emits two records per image (tagging pass,
+        // then quality pass). The summary counts images: a failure in either
+        // pass dominates, written dominates skipped, all-skipped stays skipped.
+        let outcome = AnalysisRunModel.outcome(
+            from: [
+                outcomeRecord(.written, source: "/x/a.jpg"),
+                outcomeRecord(.written, source: "/x/a.jpg"),
+                outcomeRecord(.skippedExisting, source: "/x/b.jpg"),
+                outcomeRecord(.written, source: "/x/b.jpg"),
+                outcomeRecord(.written, source: "/x/c.jpg"),
+                outcomeRecord(.failed, source: "/x/c.jpg", codes: [.validationFailed]),
+                outcomeRecord(.skippedExisting, source: "/x/d.jpg"),
+                outcomeRecord(.skippedExisting, source: "/x/d.jpg"),
+            ],
+            interrupted: false
+        )
+
+        XCTAssertEqual(outcome.written, 2, "a fully written image and a resumed skip+write image")
+        XCTAssertEqual(outcome.skipped, 1)
+        XCTAssertEqual(outcome.failed, 1)
+        XCTAssertEqual(outcome.errorSummaries, ["E_VALIDATION_FAILED × 1"])
+    }
+
+    func testOutcomeKeepsRecordsWithoutSourcePathsSeparate() {
+        var scanFailure = outcomeRecord(.failed, source: "/x/a.jpg", codes: [.unsupportedFormat])
+        scanFailure.sourcePath = nil
+        var anotherScanFailure = outcomeRecord(.failed, source: "/x/b.jpg", codes: [.unsupportedFormat])
+        anotherScanFailure.sourcePath = nil
+
+        let outcome = AnalysisRunModel.outcome(from: [scanFailure, anotherScanFailure], interrupted: false)
+
+        XCTAssertEqual(outcome.failed, 2, "records with no source identity never collapse into one")
+    }
+
+    @MainActor
+    func testPassCountDoublesOnlyForSequentialAssessment() {
+        XCTAssertEqual(AnalysisRunModel.passCount(assessQuality: false, qualityScanMode: .combined), 1)
+        XCTAssertEqual(AnalysisRunModel.passCount(assessQuality: false, qualityScanMode: .sequential), 1)
+        XCTAssertEqual(AnalysisRunModel.passCount(assessQuality: true, qualityScanMode: .combined), 1)
+        XCTAssertEqual(AnalysisRunModel.passCount(assessQuality: true, qualityScanMode: .sequential), 2)
+    }
+
+    private func outcomeRecord(
+        _ status: ProgressStatus,
+        source: String,
+        codes: [SidecarErrorCode] = []
+    ) -> ProgressRecord {
+        ProgressRecord(
+            timestamp: Date(timeIntervalSince1970: 0),
+            sourcePath: source,
+            relativePath: String(source.split(separator: "/").last ?? ""),
+            sidecarPath: nil,
+            status: status,
+            errors: codes.map {
+                SidecarError(code: $0, stage: .scan, message: "m", recoverable: true)
+            },
+            durationMs: 0
+        )
     }
 
     private func missingConfigPath() -> String {

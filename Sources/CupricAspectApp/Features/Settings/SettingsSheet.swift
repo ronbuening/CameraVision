@@ -317,6 +317,20 @@ struct SettingsSheet: View {
                     )
                 }
                 Divider().overlay(theme.border)
+                settingRow(
+                    "Quality scan",
+                    caption: Step3OptionsView.qualityScanFootnote
+                ) {
+                    CVSegmentedControl(
+                        options: QualityScanMode.allCases,
+                        selection: Binding(
+                            get: { settings.qualityScanMode },
+                            set: { settings.setQualityScanMode($0) }
+                        ),
+                        label: { $0.wizardLabel }
+                    )
+                }
+                Divider().overlay(theme.border)
                 qualityGradingDefaults
                 Divider().overlay(theme.border)
                 settingRow(

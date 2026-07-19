@@ -154,7 +154,11 @@ public struct AnalyzeAndXMPPipeline {
             }
         }
 
-        return RawJSONSidecarInputBatch(inputs: inputs, failures: failures)
+        // Sequential quality runs emit one record per pass; pair each
+        // .quality.ai.json document with its tagging primary the same way the
+        // disk-scan resolver does, so grading sees the quality data.
+        let grouped = RawJSONSidecarInputResolver(fileManager: fileManager).groupedSidecarInputs(inputs)
+        return RawJSONSidecarInputBatch(inputs: grouped, failures: failures)
     }
 
     private func rawInputFailure(from record: ProgressRecord) -> RawJSONSidecarInputFailure {
@@ -184,12 +188,17 @@ public struct AnalyzeAndXMPPipeline {
             recursive: configuration.recursive,
             identityPolicy: configuration.sourceIdentityPolicy
         )
-        return Set(
-            SidecarNaming.plan(for: scan.images, outputDir: configuration.outputDir)
+        var planned = SidecarNaming.plan(for: scan.images, outputDir: configuration.outputDir)
+            .entries
+            .map(\.sidecarPath)
+        if configuration.taskProfile == .taggingWithQuality, configuration.qualityScanMode == .sequential {
+            // The sequential quality pass writes .quality.ai.json siblings;
+            // preexisting ones must survive the temporary-sidecar cleanup too.
+            planned += SidecarNaming.plan(for: scan.images, outputDir: configuration.outputDir, kind: .quality)
                 .entries
                 .map(\.sidecarPath)
-                .filter { fileManager.fileExists(atPath: $0) }
-        )
+        }
+        return Set(planned.filter { fileManager.fileExists(atPath: $0) })
     }
 
     private func removeNewRawSidecars(from analyzeResult: AnalyzeResult, preexistingRawSidecars: Set<String>) {

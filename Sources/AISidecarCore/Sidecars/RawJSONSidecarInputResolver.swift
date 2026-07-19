@@ -439,7 +439,11 @@ public struct RawJSONSidecarInputResolver {
             .standardizedFileURL
     }
 
-    private func groupedSidecarInputs(_ inputs: [ResolvedRawSidecarInput]) -> [ResolvedRawSidecarInput] {
+    /// Fold `.quality.ai.json` inputs into their tagging siblings.
+    ///
+    /// Internal so the analyze-and-* pipelines can apply the same pairing to
+    /// records produced by an in-process sequential quality run.
+    func groupedSidecarInputs(_ inputs: [ResolvedRawSidecarInput]) -> [ResolvedRawSidecarInput] {
         let grouped = Dictionary(grouping: inputs) { sidecarPairingKey(for: $0.sidecarPath) }
         return grouped.values.compactMap { group in
             // Existing Phase 2 consumers keep the tagging document as their

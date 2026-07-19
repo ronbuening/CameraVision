@@ -6,6 +6,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var existing: ExistingPolicy?
     public var recursive: Bool?
     public var qualityAssessment: Bool?
+    public var qualityScanMode: QualityScanMode?
     public var outputDir: String?
     public var model: String?
     public var modelEndpoint: String?
@@ -82,6 +83,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case existing
         case recursive
         case qualityAssessment = "quality_assessment"
+        case qualityScanMode = "quality_scan_mode"
         case outputDir = "output_dir"
         case model
         case modelEndpoint = "model_endpoint"
@@ -154,6 +156,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         existing: ExistingPolicy? = nil,
         recursive: Bool? = nil,
         qualityAssessment: Bool? = nil,
+        qualityScanMode: QualityScanMode? = nil,
         outputDir: String? = nil,
         model: String? = nil,
         modelEndpoint: String? = nil,
@@ -224,6 +227,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.existing = existing
         self.recursive = recursive
         self.qualityAssessment = qualityAssessment
+        self.qualityScanMode = qualityScanMode
         self.outputDir = outputDir
         self.model = model
         self.modelEndpoint = modelEndpoint
@@ -314,6 +318,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.existing = try container.decodeIfPresent(ExistingPolicy.self, forKey: .existing)
         self.recursive = try container.decodeIfPresent(Bool.self, forKey: .recursive)
         self.qualityAssessment = try container.decodeIfPresent(Bool.self, forKey: .qualityAssessment)
+        self.qualityScanMode = try container.decodeIfPresent(QualityScanMode.self, forKey: .qualityScanMode)
         self.outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
         self.modelEndpoint = try container.decodeIfPresent(String.self, forKey: .modelEndpoint)
@@ -448,6 +453,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(existing, forKey: .existing)
         try container.encodeIfPresent(recursive, forKey: .recursive)
         try container.encodeIfPresent(qualityAssessment, forKey: .qualityAssessment)
+        try container.encodeIfPresent(qualityScanMode, forKey: .qualityScanMode)
         try container.encodeIfPresent(outputDir, forKey: .outputDir)
         try container.encodeIfPresent(model, forKey: .model)
         try container.encodeIfPresent(modelEndpoint, forKey: .modelEndpoint)

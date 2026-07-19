@@ -33,6 +33,12 @@ struct WriteXMPCommand: AsyncParsableCommand {
     @Flag(help: "Also produce a perceptual quality assessment per image in analyze-and-write mode.")
     var assessQuality = false
 
+    @Option(
+        help:
+            "With --assess-quality: 'combined' assesses in the tagging model call; 'sequential' runs a dedicated second pass that writes .quality.ai.json sidecars and keeps tagging output identical to a run without assessment."
+    )
+    var qualityScanMode: QualityScanMode?
+
     @Option(help: "Redirect outputs; mirrors the relative scan tree.")
     var outputDir: String?
 
@@ -260,6 +266,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             existing: existing,
             recursive: recursive ? true : nil,
             qualityAssessment: assessQuality ? true : nil,
+            qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,

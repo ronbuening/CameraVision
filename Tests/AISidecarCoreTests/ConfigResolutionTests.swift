@@ -186,6 +186,84 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(enabledByEnvironment.taskProfile, .taggingWithQuality)
     }
 
+    func testQualityScanModeDefaultsToCombined() throws {
+        let resolved = try ConfigurationResolver.resolve(
+            environment: [:],
+            defaultConfigPath: missingConfigPath()
+        )
+        XCTAssertEqual(resolved.qualityScanMode, .combined)
+    }
+
+    func testQualityScanModePrecedenceChain() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "quality_scan_mode": "sequential"
+            }
+            """
+        )
+
+        let fileResolved = try ConfigurationResolver.resolve(
+            environment: [:],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(fileResolved.qualityScanMode, .sequential)
+
+        let environmentResolved = try ConfigurationResolver.resolve(
+            environment: ["AISIDECAR_QUALITY_SCAN_MODE": "combined"],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(environmentResolved.qualityScanMode, .combined)
+
+        let cliResolved = try ConfigurationResolver.resolve(
+            cli: RunConfigurationOverrides(qualityScanMode: .sequential),
+            environment: ["AISIDECAR_QUALITY_SCAN_MODE": "combined"],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(cliResolved.qualityScanMode, .sequential)
+    }
+
+    func testQualityScanModeRejectsUnknownValues() throws {
+        XCTAssertThrowsError(
+            try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_QUALITY_SCAN_MODE": "twice"],
+                defaultConfigPath: missingConfigPath()
+            )
+        )
+        let configPath = try writeConfig(
+            """
+            {
+              "quality_scan_mode": "twice"
+            }
+            """
+        )
+        XCTAssertThrowsError(
+            try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath)
+        )
+    }
+
+    func testQualityScanModeUsesStableProvenanceJSONKey() throws {
+        var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.qualityScanMode = .sequential
+
+        let data = try JSONEncoder().encode(configuration)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(object["quality_scan_mode"] as? String, "sequential")
+        XCTAssertNil(object["qualityScanMode"])
+        XCTAssertEqual(try JSONDecoder().decode(ResolvedRunConfiguration.self, from: data), configuration)
+    }
+
+    func testResolvedConfigurationDecodesWhenQualityScanModeKeyIsMissing() throws {
+        let data = try JSONEncoder().encode(ResolvedRunConfiguration.builtInDefaults)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "quality_scan_mode")
+        let stripped = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(ResolvedRunConfiguration.self, from: stripped)
+        XCTAssertEqual(decoded.qualityScanMode, .combined)
+    }
+
     func testTaskProfileUsesStableProvenanceJSONKey() throws {
         var configuration = ResolvedRunConfiguration.builtInDefaults
         configuration.taskProfile = .taggingWithQuality

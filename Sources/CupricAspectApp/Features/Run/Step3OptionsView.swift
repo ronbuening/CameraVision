@@ -69,6 +69,12 @@ struct Step3OptionsView: View {
     /// Mirrors the CLI docs' rationale for the opt-in rating channel.
     nonisolated static let ratingOptInRationale = "stars stay yours unless you opt in"
 
+    /// Trade-off wording for the quality scan mode, shared with the Settings
+    /// sheet caption so the two surfaces cannot drift.
+    nonisolated static let qualityScanFootnote =
+        "Quality scan (when Step 2 assesses quality): Normal assesses in the same model call; "
+        + "High quality runs a second pass per image — slower, but keywords stay identical to a run without assessment."
+
     nonisolated static func qualityGradingAvailability(
         action: WizardAction,
         assessQuality: Bool
@@ -350,7 +356,9 @@ struct Step3OptionsView: View {
                     Text("Advanced flags")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(theme.text)
-                    Text("gps · existing .ai.json · existing xmp · concurrency · image size · context window")
+                    Text(
+                        "gps · existing .ai.json · existing xmp · concurrency · image size · context window · quality scan"
+                    )
                         .font(.system(size: 11))
                         .foregroundStyle(theme.textFaint)
                     Spacer()
@@ -412,6 +420,17 @@ struct Step3OptionsView: View {
                             contextWindowMenu
                         }
                     }
+                    GridRow {
+                        advancedGroup("QUALITY SCAN") {
+                            CVSegmentedControl(
+                                options: QualityScanMode.allCases,
+                                selection: $options.qualityScanMode,
+                                label: { $0.wizardLabel }
+                            )
+                            .disabled(!options.assessQuality)
+                            .opacity(options.assessQuality ? 1 : 0.5)
+                        }
+                    }
                 }
                 .padding(EdgeInsets(top: 14, leading: 17, bottom: 18, trailing: 17))
                 VStack(alignment: .leading, spacing: 4) {
@@ -423,6 +442,7 @@ struct Step3OptionsView: View {
                     Text(
                         "Context window: Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
                     )
+                    Text(Self.qualityScanFootnote)
                 }
                 .font(.system(size: 11))
                 .foregroundStyle(theme.textFaint)
@@ -546,6 +566,17 @@ extension ScalarConflictPolicy {
         case .preserve: "Preserve — never replace existing values"
         case .refresh: "Refresh — replace only values this app wrote before"
         case .overwrite: "Overwrite — always replace"
+        }
+    }
+}
+
+/// One picker-label wording for the quality scan mode, shared by the Step 3
+/// advanced card and the Settings sheet and pinned by tests.
+extension QualityScanMode {
+    var wizardLabel: String {
+        switch self {
+        case .combined: "Normal"
+        case .sequential: "High quality"
         }
     }
 }

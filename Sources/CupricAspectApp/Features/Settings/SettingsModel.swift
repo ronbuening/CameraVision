@@ -35,6 +35,7 @@ final class SettingsModel {
     private(set) var existing: ExistingPolicy = .skip
     private(set) var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults
         .xmpConflictPolicy
+    private(set) var qualityScanMode = ResolvedRunConfiguration.builtInDefaults.qualityScanMode
     private(set) var qualityMinimumConfidence = QualityGradingPolicy.builtInDefaults.minimumConfidence
     private(set) var qualityWriteRating = QualityGradingPolicy.builtInDefaults.writeRating
     private(set) var qualityWriteLabel = QualityGradingPolicy.builtInDefaults.writeLabel
@@ -84,6 +85,7 @@ final class SettingsModel {
             gps = resolved.gpsContext
             existing = resolved.existing
             xmpConflictPolicy = resolvedApply.xmpConflictPolicy
+            qualityScanMode = resolved.qualityScanMode
             let qualityPolicy = resolvedApply.qualityGrading.policy
             qualityMinimumConfidence = qualityPolicy.minimumConfidence
             qualityWriteRating = qualityPolicy.writeRating
@@ -121,6 +123,7 @@ final class SettingsModel {
     func setGPS(_ newGPS: GPSContextMode) { write("gps_context", .string(newGPS.rawValue)) }
     func setExisting(_ newExisting: ExistingPolicy) { write("existing", .string(newExisting.rawValue)) }
     func setXMPConflictPolicy(_ policy: XMPConflictPolicy) { write("xmp_conflict_policy", .string(policy.rawValue)) }
+    func setQualityScanMode(_ mode: QualityScanMode) { write("quality_scan_mode", .string(mode.rawValue)) }
     func setQualityMinimumConfidence(_ confidence: QualityAssessmentRecord.Confidence) {
         write("xmp_quality_min_confidence", .string(confidence.rawValue))
     }

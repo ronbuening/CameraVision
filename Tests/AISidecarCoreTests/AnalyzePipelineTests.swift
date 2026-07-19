@@ -147,6 +147,89 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(sidecar.runConfiguration.taskProfile, .taggingWithQuality)
     }
 
+    func testSequentialQualityScanWritesPairedSidecarsWithStableTaggingContract() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("A.JPG", in: root)
+
+        let runner = RecordingVisionModelRunner()
+        let result = try await pipeline(runner: runner).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path,
+                taskProfile: .taggingWithQuality,
+                qualityScanMode: .sequential
+            )
+        )
+
+        // Pass 1 uses the plain tagging contract — not the 1.6.0 combined
+        // prompt — so tagging output cannot drift when assessment is enabled.
+        let calls = await runner.capturedCalls()
+        XCTAssertEqual(
+            calls.map(\.promptVersion),
+            ["aisidecar.prompt.whole_image/1.5.0", "aisidecar.prompt.whole_image_quality/1.0.0"]
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written, .written])
+        XCTAssertEqual(
+            result.records.map { $0.sidecarPath.map { URL(fileURLWithPath: $0).lastPathComponent } },
+            ["A.JPG.ai.json", "A.JPG.quality.ai.json"]
+        )
+        XCTAssertFalse(result.interrupted)
+
+        let tagging = try decodeSidecar(output.appendingPathComponent("A.JPG.ai.json"))
+        XCTAssertEqual(tagging.runConfiguration.taskProfile, .tagging)
+        XCTAssertEqual(tagging.runConfiguration.qualityScanMode, .sequential)
+
+        let quality = try decodeSidecar(output.appendingPathComponent("A.JPG.quality.ai.json"))
+        XCTAssertEqual(quality.runConfiguration.taskProfile, .qualityOnly)
+        XCTAssertEqual(quality.runConfiguration.qualityScanMode, .sequential)
+    }
+
+    func testSequentialQualityScanResumesMissingQualityPassWithExistingSkip() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("A.JPG", in: root)
+        let configuration = config(
+            recursive: false,
+            outputDir: output.path,
+            existing: .skip,
+            mode: .whole,
+            cacheDir: output.appendingPathComponent("cache").path,
+            taskProfile: .taggingWithQuality,
+            qualityScanMode: .sequential
+        )
+
+        _ = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: image.path,
+            configuration: configuration
+        )
+        try FileManager.default.removeItem(at: output.appendingPathComponent("A.JPG.quality.ai.json"))
+
+        let resumeRunner = RecordingVisionModelRunner()
+        let resumed = try await pipeline(runner: resumeRunner).run(
+            inputPath: image.path,
+            configuration: configuration
+        )
+
+        // The tagging pass skips its existing sidecar; only the missing
+        // quality sidecar costs another model call.
+        XCTAssertEqual(resumed.records.map(\.status), [.skippedExisting, .written])
+        let resumeCalls = await resumeRunner.capturedCalls()
+        XCTAssertEqual(resumeCalls.map(\.promptVersion), ["aisidecar.prompt.whole_image_quality/1.0.0"])
+    }
+
     func testContextWindowZeroSendsNoNumCtxAndPositivePinsIt() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -815,13 +898,15 @@ final class AnalyzePipelineTests: XCTestCase {
         clearDerivativeCacheOnStart: Bool = false,
         clearDerivativeCacheAfterSuccess: Bool = false,
         modelContextWindow: Int = ResolvedRunConfiguration.builtInDefaults.modelContextWindow,
-        taskProfile: ModelTaskProfile = .tagging
+        taskProfile: ModelTaskProfile = .tagging,
+        qualityScanMode: QualityScanMode = .combined
     ) -> ResolvedRunConfiguration {
         ResolvedRunConfiguration(
             mode: mode,
             existing: existing,
             recursive: recursive,
             taskProfile: taskProfile,
+            qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: ResolvedRunConfiguration.builtInDefaults.model,
             modelEndpoint: ResolvedRunConfiguration.builtInDefaults.modelEndpoint,

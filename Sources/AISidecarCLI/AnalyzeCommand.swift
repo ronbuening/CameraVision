@@ -21,6 +21,12 @@ struct AnalyzeCommand: AsyncParsableCommand {
     )
     var assessQuality = false
 
+    @Option(
+        help:
+            "With --assess-quality: 'combined' assesses in the tagging model call; 'sequential' runs a dedicated second pass that writes .quality.ai.json sidecars and keeps tagging output identical to a run without assessment."
+    )
+    var qualityScanMode: QualityScanMode?
+
     @Option(help: "Export rendered model-input images into this folder and write a manifest.")
     var exportModelInputs: String?
 
@@ -30,6 +36,7 @@ struct AnalyzeCommand: AsyncParsableCommand {
     mutating func run() async throws {
         var overrides = shared.overrides
         overrides.qualityAssessment = assessQuality ? true : nil
+        overrides.qualityScanMode = qualityScanMode
         let resolved = try ConfigurationResolver.resolve(cli: overrides)
 
         if dryScan {
