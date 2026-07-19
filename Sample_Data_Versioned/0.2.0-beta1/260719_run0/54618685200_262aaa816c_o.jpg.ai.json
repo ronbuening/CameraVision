@@ -1,0 +1,249 @@
+{
+  "created_at" : "2026-07-19T20:11:47Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/1b705051c0c8fe03cd6fb0717bc43290b492667de86f2471052427eb36abf620-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1365,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "4f75bb8c6ab620731fc292396499d8387cf41bc7a4cd530a570d37f9095f01bb",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "1b705051c0c8fe03cd6fb0717bc43290b492667de86f2471052427eb36abf620"
+      },
+      "width" : 2047
+    }
+  ],
+  "errors" : [
+    {
+      "code" : "E_SUBJECT_ISOLATION_NO_FOREGROUND",
+      "message" : "Apple Vision did not find a foreground subject.",
+      "recoverable" : true,
+      "stage" : "isolate"
+    }
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 14879,
+      "error" : null,
+      "input_derivative_sha256" : "4f75bb8c6ab620731fc292396499d8387cf41bc7a4cd530a570d37f9095f01bb",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "hanging fish"
+          },
+          {
+            "confidence" : "medium",
+            "term" : "holding knife"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "man in apron with fish and tools in an outdoor setting",
+            "term" : "candid_people"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "outdoor scene showing a man working at a dock or market area",
+            "term" : "street_documentary"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor pier or dockside"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "man wearing a blue shirt, green apron, and white cap holding a knife",
+            "term" : "man in work clothes"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "several whole fish hanging from hooks on chains",
+            "term" : "hanging fish"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "man in apron, hanging fish, outdoor market, fishing gear, knife, blue sign, american flag",
+            "term" : "fisherman"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "whole fish, seafood, fresh catch",
+            "term" : "seafood"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "man working with fish outdoors",
+            "term" : "fishing industry"
+          }
+        ],
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor street scene"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "blue wooden sign with white text",
+            "term" : "signage"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "american flag in background",
+            "term" : "flag"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "wooden structures and buildings in the background",
+            "term" : "buildings"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A man in a green apron and white cap stands outdoors, holding a knife while several whole fish hang from chains beneath a blue sign.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "603d96141dd9ac54b0b49024b93e76ba931921086e73bc0e7e57467363f57300",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"hanging fish\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"term\": \"holding knife\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"man in apron with fish and tools in an outdoor setting\",\n      \"term\": \"candid_people\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"outdoor scene showing a man working at a dock or market area\",\n      \"term\": \"street_documentary\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor pier or dockside\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"man wearing a blue shirt, green apron, and white cap holding a knife\",\n      \"term\": \"man in work clothes\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"several whole fish hanging from hooks on chains\",\n      \"term\": \"hanging fish\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"man in apron, hanging fish, outdoor market, fishing gear, knife, blue sign, american flag\",\n      \"term\": \"fisherman\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"whole fish, seafood, fresh catch\",\n      \"term\": \"seafood\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"man working with fish outdoors\",\n      \"term\": \"fishing industry\"\n    }\n  ],\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor street scene\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"blue wooden sign with white text\",\n      \"term\": \"signage\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"american flag in background\",\n      \"term\": \"flag\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"wooden structures and buildings in the background\",\n      \"term\": \"buildings\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"A man in a green apron and white cap stands outdoors, holding a knife while several whole fish hang from chains beneath a blue sign.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 665,
+        "eval_duration_ns" : 10958635000,
+        "load_duration_ns" : 266953750,
+        "prompt_eval_count" : 1141,
+        "prompt_eval_duration_ns" : 3473365000,
+        "total_duration_ns" : 14847273125
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "skip",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run0",
+    "profile" : "gemma4-26b-default",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "54618685200_262aaa816c_o.jpg",
+    "file_size" : 15186117,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "1b705051c0c8fe03cd6fb0717bc43290b492667de86f2471052427eb36abf620"
+    },
+    "modified_at" : "2026-06-11T16:50:01Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/54618685200_262aaa816c_o.jpg",
+    "relative_path" : "54618685200_262aaa816c_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1365,
+      "width" : 2047
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 0,
+    "full_resolution" : {
+      "height" : 4071,
+      "width" : 6106
+    },
+    "instance_count" : 0,
+    "instances" : [
+
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2.9829018075232048,
+      "y" : 2.9824175824175825
+    },
+    "selected_instance_indices" : [
+
+    ],
+    "status" : "no_foreground",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 14881,
+    "pipeline_elapsed_ms" : 192392,
+    "render_ms" : 80,
+    "subject_isolation_ms" : 59,
+    "write_ms" : 1
+  }
+}
