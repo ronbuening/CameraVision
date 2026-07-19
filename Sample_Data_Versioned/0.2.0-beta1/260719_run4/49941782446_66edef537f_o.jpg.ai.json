@@ -1,0 +1,409 @@
+{
+  "created_at" : "2026-07-19T22:25:52Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/f73a7a8bf49a16494e5848410f462a9d5dff480a5f9d215f004728d49ad2a0d9-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1365,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "25c5b71f84b9ff9d98909deb9bea3140053908dc7bbf97934962ab78a845d45a",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "f73a7a8bf49a16494e5848410f462a9d5dff480a5f9d215f004728d49ad2a0d9"
+      },
+      "width" : 2048
+    },
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/f73a7a8bf49a16494e5848410f462a9d5dff480a5f9d215f004728d49ad2a0d9-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 705,
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "role" : "subject_isolated",
+      "sha256" : "0b81a4ae3aa9b8b60f1e9719bfdf55e848aeca217ba08ae8ddc85a7e40b71a8b",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "f73a7a8bf49a16494e5848410f462a9d5dff480a5f9d215f004728d49ad2a0d9"
+      },
+      "width" : 984
+    }
+  ],
+  "errors" : [
+
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 20720,
+      "error" : null,
+      "input_derivative_sha256" : "25c5b71f84b9ff9d98909deb9bea3140053908dc7bbf97934962ab78a845d45a",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "breaching"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "whale jumping out of water in a natural setting",
+            "term" : "wildlife"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "ocean and coastline background",
+            "term" : "seascape"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "open water"
+          },
+          {
+            "confidence" : "high",
+            "term" : "coastline"
+          },
+          {
+            "confidence" : "medium",
+            "term" : "forest"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "large whale breaching the water surface with visible ventral pleats and long pectoral fins",
+            "term" : "humpback whale"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "whale jumping out of ocean",
+            "term" : "breaching"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "large dark whale with white markings on underside",
+            "term" : "marine mammal"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "water splashing around the animal",
+            "term" : "splash"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "blue ocean water",
+            "term" : "ocean"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "steep forested mountains in background",
+            "term" : "mountains"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "coniferous trees covering the hills",
+            "term" : "evergreen forest"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "snow on mountain peaks",
+            "term" : "snow-capped mountains"
+          }
+        ],
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor wildlife scene"
+          }
+        ],
+        "secondary_subjects" : [
+
+        ],
+        "species" : [
+          {
+            "confidence" : "high",
+            "evidence" : "large whale with characteristic long pectoral fins and ventral pleats",
+            "term" : "humpback whale"
+          }
+        ],
+        "summary" : "A humpback whale breaches out of the blue ocean water against a backdrop of forested mountains and snow-capped peaks.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "603d96141dd9ac54b0b49024b93e76ba931921086e73bc0e7e57467363f57300",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"breaching\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"whale jumping out of water in a natural setting\",\n      \"term\": \"wildlife\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"ocean and coastline background\",\n      \"term\": \"seascape\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"open water\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"term\": \"coastline\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"term\": \"forest\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large whale breaching the water surface with visible ventral pleats and long pectoral fins\",\n      \"term\": \"humpback whale\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"whale jumping out of ocean\",\n      \"term\": \"breaching\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large dark whale with white markings on underside\",\n      \"term\": \"marine mammal\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"water splashing around the animal\",\n      \"term\": \"splash\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"blue ocean water\",\n      \"term\": \"ocean\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"steep forested mountains in background\",\n      \"term\": \"mountains\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"coniferous trees covering the hills\",\n      \"term\": \"evergreen forest\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"snow on mountain peaks\",\n      \"term\": \"snow-capped mountains\"\n    }\n  ],\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor wildlife scene\"\n    }\n  ],\n  \"secondary_subjects\": [],\n  \"species\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large whale with characteristic long pectoral fins and ventral pleats\",\n      \"term\": \"humpback whale\"\n    }\n  ],\n  \"summary\": \"A humpback whale breaches out of the blue ocean water against a backdrop of forested mountains and snow-capped peaks.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 695,
+        "eval_duration_ns" : 10852490000,
+        "load_duration_ns" : 247888667,
+        "prompt_eval_count" : 1141,
+        "prompt_eval_duration_ns" : 785805000,
+        "total_duration_ns" : 20684239000
+      },
+      "runtime_version" : "0.32.0"
+    },
+    {
+      "duration_ms" : 18840,
+      "error" : null,
+      "input_derivative_sha256" : "0b81a4ae3aa9b8b60f1e9719bfdf55e848aeca217ba08ae8ddc85a7e40b71a8b",
+      "input_role" : "subject_isolated",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "swimming"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "isolated marine mammal subject",
+            "term" : "wildlife"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "subject is a large aquatic animal",
+            "term" : "underwater"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "large dark marine mammal with ventral pleats and long pectoral fins",
+            "term" : "whale"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "dark skin, longitudinal grooves on underside, large pectoral fins, dorsal fin area visible",
+            "term" : "black body"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "longitudinal grooves on ventral side",
+            "term" : "ventral pleats"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "elongated pectoral fins",
+            "term" : "pectoral fins"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "large size, streamlined body shape",
+            "term" : "marine mammal"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "long, narrow fins on the sides of the body",
+            "term" : "pectoral fin"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "grooved underside of the throat and belly",
+            "term" : "ventral pleats"
+          }
+        ],
+        "species" : [
+          {
+            "confidence" : "medium",
+            "evidence" : "long pectoral fins, ventral pleats, dark coloration",
+            "term" : "fin whale"
+          },
+          {
+            "confidence" : "low",
+            "evidence" : "large size and body shape characteristic of rorquals",
+            "term" : "blue whale"
+          }
+        ],
+        "summary" : "A dark-colored whale with prominent ventral pleats and long pectoral fins, isolated against a neutral gray background.",
+        "uncertainty_notes" : "The specific species is difficult to confirm due to the lack of scale and context; however, the presence of ventral pleats identifies it as a rorqual whale. The elongated pectoral fins are highly characteristic of a fin whale."
+      },
+      "prompt_sha256" : "be7bedb9dac5c795c03b49d8f16368080d5d2ab44226d76bcf4314b5fbf17640",
+      "prompt_version" : "aisidecar.prompt.subject_isolated/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"swimming\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"isolated marine mammal subject\",\n      \"term\": \"wildlife\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"subject is a large aquatic animal\",\n      \"term\": \"underwater\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large dark marine mammal with ventral pleats and long pectoral fins\",\n      \"term\": \"whale\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"dark skin, longitudinal grooves on underside, large pectoral fins, dorsal fin area visible\",\n      \"term\": \"black body\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"longitudinal grooves on ventral side\",\n      \"term\": \"ventral pleats\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"elongated pectoral fins\",\n      \"term\": \"pectoral fins\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"large size, streamlined body shape\",\n      \"term\": \"marine mammal\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"long, narrow fins on the sides of the body\",\n      \"term\": \"pectoral fin\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"grooved underside of the throat and belly\",\n      \"term\": \"ventral pleats\"\n    }\n  ],\n  \"species\": [\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"long pectoral fins, ventral pleats, dark coloration\",\n      \"term\": \"fin whale\"\n    },\n    {\n      \"confidence\": \"low\",\n      \"evidence\": \"large size and body shape characteristic of rorquals\",\n      \"term\": \"blue whale\"\n    }\n  ],\n  \"summary\": \"A dark-colored whale with prominent ventral pleats and long pectoral fins, isolated against a neutral gray background.\",\n  \"uncertainty_notes\": \"The specific species is difficult to confirm due to the lack of scale and context; however, the presence of ventral pleats identifies it as a rorqual whale. The elongated pectoral fins are highly characteristic of a fin whale.\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:subject-isolated:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 607,
+        "eval_duration_ns" : 9360074000,
+        "load_duration_ns" : 259476209,
+        "prompt_eval_count" : 1200,
+        "prompt_eval_duration_ns" : 786685000,
+        "total_duration_ns" : 18831467584
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "overwrite",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run4",
+    "profile" : "gemma4-26b-default",
+    "quality_scan_mode" : "sequential",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "49941782446_66edef537f_o.jpg",
+    "file_size" : 951658,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "f73a7a8bf49a16494e5848410f462a9d5dff480a5f9d215f004728d49ad2a0d9"
+    },
+    "modified_at" : "2026-06-11T16:51:36Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/49941782446_66edef537f_o.jpg",
+    "relative_path" : "49941782446_66edef537f_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1365,
+      "width" : 2048
+    },
+    "crop_bounding_box" : {
+      "height" : 705,
+      "width" : 984,
+      "x" : 502,
+      "y" : 11
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 68,
+    "final_dimensions" : {
+      "height" : 705,
+      "width" : 984
+    },
+    "full_resolution" : {
+      "height" : 1365,
+      "width" : 2048
+    },
+    "instance_count" : 1,
+    "instances" : [
+      {
+        "area_pixels" : 168541,
+        "index" : 1,
+        "normalized_bounding_box" : {
+          "height" : 0.41684981684981687,
+          "width" : 0.4140625,
+          "x" : 0.2783203125,
+          "y" : 0.05787545787545788
+        },
+        "normalized_centroid" : {
+          "x" : 0.46783644522373263,
+          "y" : 0.29080997519478363
+        }
+      }
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 1,
+      "y" : 1
+    },
+    "selected_bounding_box" : {
+      "height" : 0.41684981684981687,
+      "width" : 0.4140625,
+      "x" : 0.2783203125,
+      "y" : 0.05787545787545788
+    },
+    "selected_instance_indices" : [
+      1
+    ],
+    "selected_to_union_area_ratio" : 1,
+    "status" : "success",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 39565,
+    "pipeline_elapsed_ms" : 39742,
+    "render_ms" : 16,
+    "subject_isolation_ms" : 140,
+    "write_ms" : 5
+  }
+}
