@@ -43,11 +43,25 @@ enum WizardAction: String, CaseIterable, Sendable {
         case .apply: "Applying session…"
         }
     }
+
+    static func qualityAssessmentSubtitle(for action: WizardAction?) -> String {
+        switch action {
+        case .analyze:
+            "Verdicts are saved in the .ai.json sidecars; nothing touches XMP."
+        case .write:
+            "Verdicts are saved in the .ai.json sidecars. Enable Quality grading in Options to also write culling metadata."
+        case .normalize:
+            "Verdicts are saved in the .ai.json sidecars. Enable Quality grading in Options to write culling metadata after normalization."
+        case .apply, nil:
+            "Ask the model to judge focus, exposure, composition, and more. The verdicts are saved in the sidecars for later; on XMP paths, enable Quality grading in Options to also write culling metadata — quality keywords, color labels, and Lightroom pick/reject flags."
+        }
+    }
 }
 
 /// Wizard Step 2 — "What should CupricAspect do?" (design doc §6 Step 2).
 struct Step2ActionView: View {
     @Binding var selection: WizardAction?
+    @Binding var assessQuality: Bool
     var onApplySession: () -> Void
     @Environment(\.cvTheme) private var theme
 
@@ -69,6 +83,9 @@ struct Step2ActionView: View {
             }
             .padding(.top, 22)
 
+            qualityAssessmentCard
+                .padding(.top, 14)
+
             HStack(spacing: 4) {
                 Spacer()
                 Text("Already have a saved plan?")
@@ -83,6 +100,36 @@ struct Step2ActionView: View {
             .padding(.top, 16)
         }
         .padding(EdgeInsets(top: 26, leading: 34, bottom: 40, trailing: 34))
+    }
+
+    private var qualityAssessmentCard: some View {
+        Toggle(isOn: $assessQuality) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text("Assess image quality")
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundStyle(theme.text)
+                    Text("EXPERIMENTAL")
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .foregroundStyle(theme.accent.accent)
+                        .padding(.vertical, 2)
+                        .padding(.horizontal, 6)
+                        .background(theme.accent.soft)
+                        .clipShape(Capsule())
+                }
+                Text(WizardAction.qualityAssessmentSubtitle(for: selection))
+                    .font(.system(size: 11.5))
+                    .lineSpacing(2)
+                    .foregroundStyle(theme.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .toggleStyle(.switch)
+        .tint(theme.accent.accent)
+        .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+        .background(theme.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 11))
+        .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(theme.border))
     }
 
     private func actionCard(_ action: WizardAction, icon: some View) -> some View {

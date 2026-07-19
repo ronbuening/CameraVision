@@ -69,12 +69,12 @@ Presentation and state orchestration only (invariant 13); all processing stays i
 | `DesignSystem/` | Design tokens (doc 07 §3), aperture component (§5) | `Theme`, `ApertureView` |
 | `Shells/` | Wizard chrome (step rail, footer nav); Studio chrome is M9 | `WizardShellView`, `StudioShellView` |
 | `Features/Import/` | Folder import, sidecar-derived asset queue, grid/list | `FolderImportModel`, `AssetQueue`, `AssetGridView`, `Step1PhotosView` |
-| `Features/Run/` | Analysis job engine, options, run views, runtime guidance | `AnalysisRunModel`, `RuntimeGuidanceModel`, `WizardAction`, Steps 2–5 views |
+| `Features/Run/` | Analysis job engine, run-scoped options (including assessment/grading), run views, runtime guidance | `AnalysisRunModel`, `AnalysisOptions`, `Step2ActionView`, `Step3OptionsView`, `RuntimeGuidanceModel` |
 | `Features/Preview/` | Thumbnails, asset preview with subject derivative | `ThumbnailStore`, `AssetPreviewDetails`, `AssetPreviewSheet` |
-| `Features/Review/` | Candidate review, verdicts/edits, autosave/recovery | `ReviewModel`, `Step5ReviewView` |
+| `Features/Review/` | Candidate review, verdicts/edits, autosave/recovery, Core-extracted read-only quality presentation | `ReviewModel`, `Step5ReviewView`, `QualityAssessmentExtractor` (Core input) |
 | `Features/Normalize/` | Normalization Inspector, session context panel | `NormalizationModel`, `NormalizationInspectorView`, `SessionContextPanel` |
-| `Features/Export/` | Change-plan-fronted writes, export reports | `ExportModel`, `ChangePlanSheet`, `Step3ApplyView` |
-| `Features/Settings/` | Settings sheet, config.json write-through, model picker | `SettingsModel`, `SettingsSheet` |
+| `Features/Export/` | Change-plan-fronted writes, apply-only grading controls, scalar plan/result presentation | `ExportModel`, `ChangePlanSheet`, `ExportReportView`, `Step3ApplyView` |
+| `Features/Settings/` | Settings sheet, shared config.json write-through, model picker, quality channel/confidence defaults | `SettingsModel`, `SettingsSheet` |
 | `Support/` | File logging (5 MB cap + rotation), state-dir housekeeping, hidden `CUPRIC_*` feature-flag gates | `FileLogSink` (`GUILog.swift`), `StateHousekeeping`, `FeatureFlags` |
 
 GUI model tests live in `Tests/CupricAspectAppTests` (offline, deterministic — same rules as Core tests).

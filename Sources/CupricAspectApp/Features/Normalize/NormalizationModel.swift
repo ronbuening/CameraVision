@@ -53,9 +53,17 @@ final class NormalizationModel {
     var stageFilter: NormalizationDecisionStage?
 
     private let stateDirectory: URL
+    private let environment: [String: String]
+    private let defaultConfigPath: String?
 
-    init(stateDirectory: URL = ReviewModel.defaultStateDirectory) {
+    init(
+        stateDirectory: URL = ReviewModel.defaultStateDirectory,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaultConfigPath: String? = nil
+    ) {
         self.stateDirectory = stateDirectory
+        self.environment = environment
+        self.defaultConfigPath = defaultConfigPath
     }
 
     // MARK: - Derived
@@ -94,17 +102,25 @@ final class NormalizationModel {
 
     // MARK: - Run (model-free; FR4-054)
 
-    func run(jsonRoot: String, sourceRoot: String) {
+    func run(
+        jsonRoot: String,
+        sourceRoot: String,
+        qualityGrading: QualityGradingConfigurationOverrides
+    ) {
         guard phase != .running else { return }
         phase = .running
         let artifactDir =
             stateDirectory
             .appendingPathComponent("normalize-artifacts", isDirectory: true)
             .appendingPathComponent(UUID().uuidString).path
-        let configuration = buildConfiguration(sourceRoot: sourceRoot, outputDir: artifactDir)
 
         Task {
             do {
+                let configuration = try buildConfiguration(
+                    sourceRoot: sourceRoot,
+                    outputDir: artifactDir,
+                    qualityGrading: qualityGrading
+                )
                 let result = try await Task.detached(priority: .userInitiated) {
                     try NormalizePipeline().runSessionOnly(
                         mode: .fromJSON(path: jsonRoot),
@@ -124,27 +140,30 @@ final class NormalizationModel {
         phase = .ready
     }
 
-    func buildConfiguration(sourceRoot: String, outputDir: String) -> ResolvedNormalizationConfiguration {
-        var configuration = ResolvedNormalizationConfiguration.builtInDefaults
-        configuration.recursive = true
-        configuration.sourceRoot = sourceRoot
-        configuration.outputDir = outputDir
-        if let vocabularyPath {
-            configuration.vocabularyPath = vocabularyPath
-            // An explicit vocabulary file requires controlled-vocabulary mode
-            // (the resolver rejects the pair otherwise, and the pipeline's
-            // observed-tags loader ignores `vocabularyPath` entirely) — mirror
-            // the resolver's inference here since the GUI bypasses it.
-            configuration.vocabularyMode = .controlledVocabulary
-        }
-        configuration.sessionSubject = subject.isEmpty ? nil : subject
-        configuration.sessionHabitat = habitat.isEmpty ? nil : habitat
-        configuration.sessionEvent = event.isEmpty ? nil : event
-        configuration.allowSessionSubjectPropagation = allowSubjectPropagation
-        configuration.allowSessionHabitatPropagation = allowHabitatPropagation
-        configuration.allowSessionEventPropagation = allowEventPropagation
-        configuration.unknownSessionContextPolicy = unknownPolicy
-        return configuration
+    func buildConfiguration(
+        sourceRoot: String,
+        outputDir: String,
+        qualityGrading: QualityGradingConfigurationOverrides
+    ) throws -> ResolvedNormalizationConfiguration {
+        try ConfigurationResolver.resolveNormalization(
+            cli: NormalizationConfigurationOverrides(
+                recursive: true,
+                outputDir: outputDir,
+                sourceRoot: sourceRoot,
+                vocabularyPath: vocabularyPath,
+                vocabularyMode: vocabularyPath == nil ? nil : .controlledVocabulary,
+                sessionSubject: subject.isEmpty ? nil : subject,
+                sessionHabitat: habitat.isEmpty ? nil : habitat,
+                sessionEvent: event.isEmpty ? nil : event,
+                unknownSessionContextPolicy: unknownPolicy,
+                allowSessionSubjectPropagation: allowSubjectPropagation,
+                allowSessionHabitatPropagation: allowHabitatPropagation,
+                allowSessionEventPropagation: allowEventPropagation,
+                qualityGrading: qualityGrading
+            ),
+            environment: environment,
+            defaultConfigPath: defaultConfigPath
+        )
     }
 
     func reset() {

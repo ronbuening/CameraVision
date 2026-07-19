@@ -18,6 +18,10 @@ final class AnalysisOptions {
     var advancedOpen = false
     var modelOverride: String?
     var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    var assessQuality = false
+    var qualityGradingEnabled = false
+    var qualityWriteRating = QualityGradingPolicy.builtInDefaults.writeRating
+    var qualityConflictPolicy = ResolvedQualityGradingConfiguration.builtInDefaults.conflictPolicy
     /// Rendering profile name controlling the image size sent to the model.
     var profile: String = ModelInputProfile.defaultProfile.name
     /// Ollama num_ctx token window requested per model call.
@@ -57,11 +61,15 @@ final class AnalysisOptions {
         concurrency = min(8, max(1, resolved.stageConcurrency))
         profile = resolved.profile
         contextWindow = resolved.modelContextWindow
+        assessQuality = resolved.taskProfile == .taggingWithQuality
         if let exportDefaults = try? ConfigurationResolver.resolveApplySession(
             environment: environment,
             defaultConfigPath: defaultConfigPath
         ) {
             xmpConflictPolicy = exportDefaults.xmpConflictPolicy
+            qualityGradingEnabled = exportDefaults.qualityGrading.enabled
+            qualityWriteRating = exportDefaults.qualityGrading.policy.writeRating
+            qualityConflictPolicy = exportDefaults.qualityGrading.conflictPolicy
         }
     }
 
@@ -78,6 +86,7 @@ final class AnalysisOptions {
                 mode: mode,
                 existing: existing,
                 recursive: recursive,
+                qualityAssessment: assessQuality,
                 outputDir: outputDir,
                 model: modelOverride,
                 profile: profile,
@@ -88,6 +97,21 @@ final class AnalysisOptions {
             environment: environment,
             defaultConfigPath: defaultConfigPath
         )
+    }
+
+    func qualityGradingOverrides(enabled: Bool? = nil) -> QualityGradingConfigurationOverrides {
+        QualityGradingConfigurationOverrides(
+            enabled: enabled ?? qualityGradingEnabled,
+            conflictPolicy: qualityConflictPolicy,
+            writeRating: qualityWriteRating
+        )
+    }
+
+    func qualityGradingOverrides(controlsEnabled: Bool) -> QualityGradingConfigurationOverrides {
+        guard controlsEnabled else {
+            return QualityGradingConfigurationOverrides(enabled: false)
+        }
+        return qualityGradingOverrides()
     }
 }
 

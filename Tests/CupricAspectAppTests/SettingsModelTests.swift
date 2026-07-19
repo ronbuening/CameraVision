@@ -160,6 +160,73 @@ final class SettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testQualityDefaultsWriteThroughAndResolveForExport() throws {
+        let model = makeModel()
+
+        model.setQualityMinimumConfidence(.high)
+        model.setQualityWriteRating(true)
+        model.setQualityWriteLabel(false)
+        model.setQualityWriteUrgency(false)
+        model.setQualityWriteFlag(false)
+        model.setQualityWriteKeywords(false)
+
+        let object = try readConfigObject()
+        XCTAssertEqual(object["xmp_quality_min_confidence"] as? String, "high")
+        XCTAssertEqual(object["xmp_quality_write_rating"] as? Bool, true)
+        XCTAssertEqual(object["xmp_quality_write_label"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_write_urgency"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_write_flag"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_write_keywords"] as? Bool, false)
+
+        let policy = try ConfigurationResolver.resolveApplySession(
+            environment: [:],
+            defaultConfigPath: configPath
+        ).qualityGrading.policy
+        XCTAssertEqual(policy.minimumConfidence, .high)
+        XCTAssertTrue(policy.writeRating)
+        XCTAssertFalse(policy.writeLabel)
+        XCTAssertFalse(policy.writeUrgency)
+        XCTAssertFalse(policy.writeFlag)
+        XCTAssertFalse(policy.writeKeywords)
+    }
+
+    @MainActor
+    func testQualityDefaultsSeedFromEffectiveEnvironmentPrecedence() {
+        let model = SettingsModel(
+            configPath: configPath,
+            environment: [
+                "AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE": "low",
+                "AISIDECAR_XMP_QUALITY_WRITE_LABEL": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_URGENCY": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_FLAG": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_RATING": "true",
+            ]
+        )
+
+        XCTAssertEqual(model.qualityMinimumConfidence, .low)
+        XCTAssertFalse(model.qualityWriteLabel)
+        XCTAssertFalse(model.qualityWriteUrgency)
+        XCTAssertFalse(model.qualityWriteFlag)
+        XCTAssertFalse(model.qualityWriteKeywords)
+        XCTAssertTrue(model.qualityWriteRating)
+    }
+
+    @MainActor
+    func testUntouchedQualityDefaultsDoNotCreateOrExpandConfig() throws {
+        let model = makeModel()
+
+        XCTAssertNil(model.loadError)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: configPath))
+
+        model.setQualityWriteRating(true)
+
+        let object = try readConfigObject()
+        XCTAssertEqual(object["xmp_quality_write_rating"] as? Bool, true)
+        XCTAssertEqual(object.count, 1, "untouched quality defaults stay absent")
+    }
+
+    @MainActor
     func testInvalidEndpointIsRejectedWithoutWriting() {
         let model = makeModel()
         model.endpointDraft = "not a url"

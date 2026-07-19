@@ -95,7 +95,8 @@ struct WizardShellView: View {
                     if let source = importModel.sourceFolder {
                         normalizationModel.run(
                             jsonRoot: importModel.outputFolder?.path ?? source.path,
-                            sourceRoot: source.path
+                            sourceRoot: source.path,
+                            qualityGrading: effectiveQualityGradingOverrides
                         )
                     }
                 } else {
@@ -103,7 +104,8 @@ struct WizardShellView: View {
                     if let source = importModel.sourceFolder {
                         reviewModel.buildSession(
                             jsonRoot: importModel.outputFolder?.path ?? source.path,
-                            sourceRoot: source.path
+                            sourceRoot: source.path,
+                            qualityGrading: effectiveQualityGradingOverrides
                         )
                     }
                 }
@@ -264,6 +266,10 @@ struct WizardShellView: View {
         case 2:
             Step2ActionView(
                 selection: $selectedAction,
+                assessQuality: Binding(
+                    get: { options.assessQuality },
+                    set: { options.assessQuality = $0 }
+                ),
                 onApplySession: {
                     selectedAction = .apply
                     step = 3
@@ -280,7 +286,18 @@ struct WizardShellView: View {
                     failureBanner(message)
                 }
                 if selectedAction == .apply {
-                    Step3ApplyView(session: $applySession, sessionPath: $applySessionPath)
+                    Step3ApplyView(
+                        session: $applySession,
+                        sessionPath: $applySessionPath,
+                        qualityGradingEnabled: Binding(
+                            get: { exportModel.applyQualityGradingEnabled },
+                            set: { exportModel.applyQualityGradingEnabled = $0 }
+                        ),
+                        qualityConflictPolicy: Binding(
+                            get: { exportModel.applyQualityConflictPolicy },
+                            set: { exportModel.applyQualityConflictPolicy = $0 }
+                        )
+                    )
                 } else {
                     Step3OptionsView(
                         action: selectedAction ?? .analyze,
@@ -354,8 +371,18 @@ struct WizardShellView: View {
             sourceRoot: source.path,
             outputDir: importModel.outputFolder?.path,
             recursive: importModel.recursive,
-            xmpConflictPolicy: options.xmpConflictPolicy
+            xmpConflictPolicy: options.xmpConflictPolicy,
+            qualityGrading: selectedAction == .apply
+                ? exportModel.applyQualityGradingOverrides : effectiveQualityGradingOverrides
         )
+    }
+
+    private var effectiveQualityGradingOverrides: QualityGradingConfigurationOverrides {
+        let availability = Step3OptionsView.qualityGradingAvailability(
+            action: selectedAction ?? .analyze,
+            assessQuality: options.assessQuality
+        )
+        return options.qualityGradingOverrides(controlsEnabled: availability.controlsEnabled)
     }
 
     private var missingExportSessionMessage: String {

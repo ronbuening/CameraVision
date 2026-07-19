@@ -204,6 +204,19 @@ final class XMPChangePlanTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(XMPWriteResult.self, from: encoder.encode(result)), result)
     }
 
+    func testUngradedReasonExplanationExposesOnlyTierlessPrefixedEntries() {
+        XCTAssertEqual(XMPChangePlan.ungradedReasonPrefix, "ungraded reason=")
+
+        var plan = minimalTargetPlan(status: .planned, failures: [])
+        XCTAssertNil(plan.ungradedReasonExplanation)
+
+        plan.qualityExplanation = ["counts strong=0 problem=0", "ungraded reason=no_records"]
+        XCTAssertEqual(plan.ungradedReasonExplanation, "ungraded reason=no_records")
+
+        plan.qualityTier = .good
+        XCTAssertNil(plan.ungradedReasonExplanation)
+    }
+
     private func minimalTargetPlan(status: XMPTargetPlanStatus, failures: [SidecarError]) -> XMPChangePlan {
         XMPChangePlan(
             status: status,

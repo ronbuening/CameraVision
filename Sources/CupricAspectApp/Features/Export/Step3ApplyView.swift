@@ -8,6 +8,8 @@ import SwiftUI
 struct Step3ApplyView: View {
     @Binding var session: NormalizationSessionDocument?
     @Binding var sessionPath: String?
+    @Binding var qualityGradingEnabled: Bool
+    @Binding var qualityConflictPolicy: ScalarConflictPolicy
 
     @Environment(\.cvTheme) private var theme
     @State private var loadError: String?
@@ -63,6 +65,9 @@ struct Step3ApplyView: View {
             .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(theme.border))
             .padding(.top, 22)
 
+            qualityGradingCard
+                .padding(.top, 14)
+
             Text(
                 "The write is fronted by a dry-run change plan; sources are verified against the identities recorded in the session."
             )
@@ -71,6 +76,49 @@ struct Step3ApplyView: View {
             .padding(.top, 12)
         }
         .padding(EdgeInsets(top: 26, leading: 34, bottom: 40, trailing: 34))
+    }
+
+    private var qualityGradingCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text("QUALITY")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .kerning(0.6)
+                    .foregroundStyle(theme.textFaint)
+                Text("EXPERIMENTAL")
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .foregroundStyle(theme.accent.accent)
+                    .padding(.vertical, 2)
+                    .padding(.horizontal, 6)
+                    .background(theme.accent.soft)
+                    .clipShape(Capsule())
+            }
+            Toggle("Quality grading", isOn: $qualityGradingEnabled)
+                .toggleStyle(.switch)
+                .tint(theme.accent.accent)
+            Text("Grades are derived from the sidecars as they are now, not from the saved session.")
+                .font(.system(size: 11))
+                .foregroundStyle(theme.textFaint)
+            Divider().overlay(theme.border)
+            HStack(spacing: 12) {
+                Text("Existing culling metadata")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(theme.text)
+                Spacer()
+                Picker("", selection: $qualityConflictPolicy) {
+                    Text(ScalarConflictPolicy.preserve.wizardLabel).tag(ScalarConflictPolicy.preserve)
+                    Text(ScalarConflictPolicy.refresh.wizardLabel).tag(ScalarConflictPolicy.refresh)
+                    Text(ScalarConflictPolicy.overwrite.wizardLabel).tag(ScalarConflictPolicy.overwrite)
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+            }
+        }
+        .padding(EdgeInsets(top: 15, leading: 16, bottom: 15, trailing: 16))
+        .background(theme.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 11))
+        .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(theme.border))
     }
 
     private func stat(_ text: String) -> some View {

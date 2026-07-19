@@ -132,6 +132,137 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testReviewBuilderUsesResolverAndMapsOnlyGUIQualityFields() throws {
+        let configURL = root.appendingPathComponent("review-config.json")
+        try Data(
+            """
+            {
+              "xmp_quality_write_label": false,
+              "xmp_quality_write_keywords": false,
+              "xmp_quality_min_confidence": "high"
+            }
+            """.utf8
+        ).write(to: configURL)
+        let model = ReviewModel(
+            stateDirectory: root.appendingPathComponent("state"),
+            environment: [:],
+            defaultConfigPath: configURL.path
+        )
+        let overrides = QualityGradingConfigurationOverrides(
+            enabled: true,
+            conflictPolicy: .refresh,
+            writeRating: true
+        )
+
+        let configuration = try model.buildConfiguration(
+            sourceRoot: "/src",
+            outputDir: "/out",
+            qualityGrading: overrides
+        )
+
+        XCTAssertEqual(configuration.vocabularyMode, .observedTags)
+        XCTAssertEqual(configuration.normalizationMode, .singleImage)
+        XCTAssertTrue(configuration.qualityGrading.enabled)
+        XCTAssertEqual(configuration.qualityGrading.conflictPolicy, .refresh)
+        XCTAssertTrue(configuration.qualityGrading.policy.writeRating)
+        XCTAssertFalse(configuration.qualityGrading.policy.writeLabel)
+        XCTAssertFalse(configuration.qualityGrading.policy.writeKeywords)
+        XCTAssertEqual(configuration.qualityGrading.policy.minimumConfidence, .high)
+    }
+
+    @MainActor
+    func testAbsentQualityConfigurationMatchesPinnedReviewBuilderIdentity() throws {
+        let model = ReviewModel(
+            stateDirectory: root.appendingPathComponent("state"),
+            environment: [:],
+            defaultConfigPath: root.appendingPathComponent("missing/config.json").path
+        )
+
+        let configuration = try model.buildConfiguration(
+            sourceRoot: "/src",
+            outputDir: "/out",
+            qualityGrading: QualityGradingConfigurationOverrides()
+        )
+        var expected = ResolvedNormalizationConfiguration.builtInDefaults
+        expected.recursive = true
+        expected.outputDir = "/out"
+        expected.sourceRoot = "/src"
+        expected.vocabularyMode = .observedTags
+        expected.normalizationMode = .singleImage
+
+        XCTAssertEqual(configuration, expected)
+    }
+
+    func testLoadQualityExtractionReadsCurrentSidecarPairWithoutIdentityGate() throws {
+        let session = try makeBaseSession(terms: ["bird"])
+        let assetID = try XCTUnwrap(session.sourceAssets.first?.assetID)
+        XCTAssertFalse(session.sourceAISidecars.isEmpty)
+        let jsonRoot = root.appendingPathComponent("json")
+
+        // QN6 alignment: a quality sibling added after the session was created
+        // and a source image modified since analysis must both be reflected,
+        // because apply-time grading consumes exactly this current-pair state.
+        let tagging = try RawJSONSidecarReader().read(from: jsonRoot.appendingPathComponent("A.JPG.ai.json"))
+        let quality = RawJSONSidecar(
+            source: tagging.sidecar.source,
+            runConfiguration: ResolvedRunConfiguration.builtInDefaults.with(taskProfile: .qualityOnly),
+            modelRuns: [
+                ModelRunRecord(
+                    inputRole: .wholeImage,
+                    model: "test:model",
+                    modelDigest: "sha256:test",
+                    runtime: "test",
+                    runtimeVersion: "1.0",
+                    promptVersion: "prompt/quality",
+                    promptSHA256: String(repeating: "a", count: 64),
+                    responseSchemaVersion: "schema/quality",
+                    requestOptions: .default,
+                    inputDerivativeSHA256: String(repeating: "b", count: 64),
+                    rawResponseText: "{}",
+                    parsedResponseJSON: .object([
+                        "quality_assessment": .object([
+                            "focus": .string("problem"),
+                            "overall_effectiveness": .string("problem"),
+                            "strengths": .array([]),
+                            "concerns": .array([.string("focus misses the subject")]),
+                            "confidence": .string("high"),
+                        ])
+                    ]),
+                    jsonValid: true,
+                    durationMs: 1,
+                    error: nil
+                )
+            ],
+            createdAt: Date(timeIntervalSince1970: 1_700_000_001)
+        )
+        try RawJSONSidecarDocument(sidecar: quality).encodedData()
+            .write(to: jsonRoot.appendingPathComponent("A.JPG.quality.ai.json"))
+        try Data("modified after analysis".utf8).write(to: root.appendingPathComponent("source/A.JPG"))
+
+        let loaded = ReviewModel.loadQualityExtraction(for: session)
+
+        XCTAssertEqual(loaded.diagnostics, [])
+        XCTAssertEqual(loaded.resultsByAssetID[assetID]?.records.map(\.role), [.wholeImage])
+        XCTAssertEqual(loaded.resultsByAssetID[assetID]?.records.first?.overall, .problem)
+        XCTAssertEqual(
+            loaded.resultsByAssetID[assetID]?.records.first?.concerns,
+            ["focus misses the subject"]
+        )
+    }
+
+    func testLoadQualityExtractionSurfacesUnreadableSidecarAsDiagnostic() throws {
+        var session = try makeBaseSession(terms: ["bird"])
+        let missing = root.appendingPathComponent("json/Gone.JPG.ai.json").path
+        session.sourceAISidecars[0].sidecarPath = missing
+
+        let loaded = ReviewModel.loadQualityExtraction(for: session)
+
+        XCTAssertTrue(loaded.resultsByAssetID.isEmpty)
+        XCTAssertEqual(loaded.diagnostics.count, 1)
+        XCTAssertTrue(loaded.diagnostics[0].hasPrefix(SidecarErrorCode.validationFailed.rawValue))
+    }
+
+    @MainActor
     func testAssetRowsDoesNotTrapOnDuplicateAssetIDInInMemorySession() throws {
         let model = makeModel()
         var session = try makeBaseSession(terms: ["bird"])
