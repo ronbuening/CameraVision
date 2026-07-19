@@ -60,7 +60,9 @@ The `analyze`, `assess-quality`, `write-xmp`, and `normalize` help must also lis
 and `--model-retry-limit`; `write-xmp` and `normalize` accept them only in their analyze modes.
 `--assess-quality` must appear in `analyze`, `write-xmp`, and `normalize` help but **not** in `assess-quality` or
 `apply-session` help. The quality-only command forces its profile, normalize accepts the switch only in analyze mode,
-and apply-session makes no model calls. The 13 entries composed by `QualityGradingOptions` — `--quality-grading`, five
+and apply-session makes no model calls. `--quality-scan-mode` follows the same distribution as `--assess-quality`
+(present on `analyze`, `write-xmp`, and `normalize`; absent from `assess-quality` and `apply-session`) with one
+shared description naming the `combined`/`sequential` values. The 13 entries composed by `QualityGradingOptions` — `--quality-grading`, five
 positive/negative channel pairs, `--quality-conflicts`, and `--quality-min-confidence` — must appear exactly once with
 identical descriptions in `write-xmp`, `normalize`, and `apply-session` help.
 

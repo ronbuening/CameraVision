@@ -196,8 +196,11 @@ current contributor sidecars, never from the saved session preview.
 ### 4. Working
 
 Progress runs locally with a live count, elapsed time, and per-image rate; the copper
-aperture "breathes" while the job runs. You can **Cancel** at any point — analyzed
-photos stay done, so starting again resumes where you left off.
+aperture "breathes" while the job runs. A High-quality scan counts each image twice —
+once for the tagging pass and once for the quality pass. You can **Cancel** at any
+point — analyzed photos stay done, so starting again resumes where you left off (for
+a High-quality scan, a photo whose tagging sidecar already exists costs only the
+missing quality pass).
 
 <p align="center"><img src="DocImages/Step04.png" alt="Step 4, Working: the animated copper aperture above a progress bar showing 8 of 22 images processed" width="820"></p>
 

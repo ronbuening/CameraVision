@@ -76,6 +76,46 @@ input context, and writes `.quality.ai.json` sidecars. Folder runs use
 `quality-progress-*` and `quality-summary-*` artifacts. Tagging sidecars for the
 same source are separate and are never treated as existing quality output.
 
+### Quality scan mode (combined vs sequential)
+
+`quality_scan_mode` (`combined` | `sequential`; `--quality-scan-mode` on
+`analyze`, analyze-and-write `write-xmp`, and analyze-mode `normalize`;
+`AISIDECAR_QUALITY_SCAN_MODE`; default `combined`) chooses how an
+assessment-enabled run executes. `combined` keeps the single
+`tagging_with_quality` v1.6.0 call. `sequential` makes `AnalyzePipeline`
+orchestrate two passes over the same input: first the plain v1.5.0 tagging
+contract to `.ai.json`, then the quality-only v1.0.0 contract to
+`.quality.ai.json` — so tagging output is byte-identical to a run without
+assessment (invariant 22) at the cost of a second model call per image
+(~1.8× model wall clock on the reference set; output tokens grow only ~5%).
+Mechanics worth knowing:
+
+- The mode is resolved through the normal precedence chain and is meaningful
+  only when the resolved profile is `tagging_with_quality`; a `tagging` or
+  `quality_only` run ignores it.
+- Each pass evaluates `--existing` per file kind, so an interrupted or partial
+  sequential run resumes cheaply under `skip` (an existing tagging sidecar
+  skips pass 1; only the missing quality sidecar costs a model call).
+- Cache lifecycle keeps whole-run semantics: `clear_derivative_cache_on_start`
+  applies before pass 1 only, `clear_derivative_cache_after_success` after
+  pass 2 only, so the quality pass reuses pass-1 derivatives.
+- Pass 2 is skipped when pass 1 was interrupted; batch runs write both
+  `batch-*` (pass 1) and `quality-*` (pass 2) progress/summary artifacts.
+- The in-process analyze-and-write/normalize compositions group each
+  `.quality.ai.json` record with its tagging primary via
+  `RawJSONSidecarInputResolver.groupedSidecarInputs`, so grading reads
+  sequential output exactly as it reads combined output, and the
+  `writeAIJSON: false` temporary-sidecar cleanup protects preexisting quality
+  siblings.
+- Sidecar provenance records `quality_scan_mode` only when `sequential`
+  (each pass's file also records its actual per-pass `task_profile`:
+  `tagging` and `quality_only`).
+- GUI: the Step 3 Advanced flags card exposes the per-run control
+  ("Quality scan: Normal / High quality", enabled with Step 2 assessment);
+  the Settings sheet persists the default through `ConfigFileEditor`. Run
+  progress counts one record per pass per image, and the Step 5 outcome
+  groups per-pass records by source so it reports images, not sidecar files.
+
 ### Quality-grading XMP export and normalization surface
 
 Quality assessment and XMP grading are deliberately separate switches. `--assess-quality` asks the model to store
