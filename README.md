@@ -178,7 +178,11 @@ raw sidecar without writing XMP by itself.
 Confirm the run: **render mode** (Whole Image / Subject Only / Both) and the **vision
 model**, which shows a live connectivity indicator and acts as a per-run override that
 does not change your saved default. An **Advanced flags** disclosure covers GPS
-context, existing-sidecar handling, and concurrency. For **Analyze & write XMP** and
+context, existing-sidecar handling, concurrency, model image size and context
+window, and — when Step 2 assesses quality — the **Quality scan** mode: **Normal**
+assesses in the same model call, while **High quality** runs a second dedicated
+pass per image, slower but keeping keywords identical to a run without
+assessment. For **Analyze & write XMP** and
 **Normalize**, the experimental **Quality grading** group becomes available when
 assessment is enabled in Step 2. It controls grading for this run, offers opt-in star
 ratings, and lets you preserve, refresh, or overwrite existing culling metadata. While
@@ -222,7 +226,8 @@ before/after value.
 - **Settings** persist to the shared `config.json` (so the CLI sees the same
   defaults), let you pick the vision model and endpoint, tune model timeout and
   retry limits, show a connectivity indicator, and choose Light / Dark / Auto
-  themes with copper, brass, or patina accents. The experimental **Quality grading
+  themes with copper, brass, or patina accents. A **Quality scan** row saves the
+  default scan mode (`quality_scan_mode`); the experimental **Quality grading
   defaults** subsection persists the five metadata-channel defaults and minimum
   confidence; tier maps remain config-file-only.
 - **Config defaults now reach wizard runs.** Normalize runs and the write path's
@@ -373,6 +378,22 @@ swift run aisidecar analyze /path/to/photos --assess-quality --output-dir /tmp/a
 swift run aisidecar assess-quality /path/to/photos --output-dir /tmp/ai
 ```
 
+**Scan mode.** `--quality-scan-mode combined|sequential` (config
+`quality_scan_mode`, GUI **Quality scan: Normal / High quality**) chooses how
+the assessment runs when it is enabled. `combined` (the default) folds the
+assessment into the tagging model call — one call per image, but the extra
+prompt content can shift which tags the model emits compared to a run without
+assessment. `sequential` runs the plain tagging pass first and then a dedicated
+quality pass that writes a `.quality.ai.json` sidecar beside the tagging
+`.ai.json`, so tagging output stays identical whether or not assessment is
+enabled, at the cost of a second model call per image. Grading reads both
+layouts the same way; downstream tooling pairs the two sidecars automatically.
+
+```bash
+swift run aisidecar analyze /path/to/photos --assess-quality \
+  --quality-scan-mode sequential --output-dir /tmp/ai
+```
+
 **Grade.** `--quality-grading` deterministically derives a quality tier
 (reject / below-average / neutral / good / excellent) from stored assessments
 and writes culling metadata your editor understands:
@@ -447,6 +468,7 @@ Frequently used knobs:
 - `--stage-concurrency 1` / `"stage_concurrency"` — lower memory pressure by preparing renders serially.
 - `--gps-context off|coarse|exact` / `"gps_context"` — prompt-only GPS context. Coordinates and GPS-derived location metadata are never exported as keywords.
 - `--existing skip|overwrite|fail` / `"existing"` — how raw `.ai.json` collisions are handled.
+- `--quality-scan-mode combined|sequential` / `"quality_scan_mode"` — with `--assess-quality`: assess in the tagging call, or as a dedicated second pass that keeps tagging output identical to a run without assessment.
 - `--pair-scope union|raw-only|jpeg-only` / `"pair_scope"` — RAW/JPEG same-base-name grouping.
 - `--normalization-mode off|single-image|batch-conservative` / `"normalization_mode"` — `off` is the Phase 2 baseline: no vocabulary mapping, affinity, batch propagation, or session-context application.
 
@@ -457,6 +479,7 @@ Frequently used knobs:
 | File / location | What it is |
 |---|---|
 | `<image>.<ext>.ai.json` | Raw AI sidecar: source identity, model provenance, prompts, candidates, run records, plus an `xmp_export` stamp after a successful export. |
+| `<image>.<ext>.quality.ai.json` | Quality-only raw sidecar from `assess-quality` or a sequential quality scan; paired with the tagging sidecar automatically. |
 | `<image>.xmp` | Metadata sidecar written by the owned XMP engine. |
 | `*-progress-*.jsonl` | Progress log for folder/batch operations. |
 | `*-report-*.json` | Machine-readable run report. |

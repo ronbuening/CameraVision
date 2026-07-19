@@ -29,6 +29,15 @@
   // including analyze-mode write-xmp and normalize runs.
   "quality_assessment": false,
 
+  // How quality assessment runs when quality_assessment is enabled.
+  // "combined" folds the assessment into the tagging model call (one call
+  // per input; the extra prompt content can shift which tags the model
+  // emits). "sequential" runs a dedicated second quality pass that writes
+  // .quality.ai.json sidecars beside the tagging .ai.json, so tagging output
+  // stays identical to a run without assessment at the cost of a second
+  // model call per image.
+  "quality_scan_mode": "combined",
+
   // Redirect generated outputs while preserving the source-relative tree.
   // Use null to write beside source inputs where the command supports that.
   "output_dir": null,
