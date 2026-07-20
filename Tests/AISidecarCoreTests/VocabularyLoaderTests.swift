@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class VocabularyLoaderTests: XCTestCase {
@@ -38,7 +39,8 @@ final class VocabularyLoaderTests: XCTestCase {
 
     func testSchemaValidationFailureIsVocabularyInvalid() {
         assertVocabularyInvalid {
-            _ = try VocabularyLoader.load(data: Data(#"{ "schema_version": "wrong", "entries": [] }"#.utf8), sourcePath: "memory://bad.json")
+            _ = try VocabularyLoader.load(
+                data: Data(#"{ "schema_version": "wrong", "entries": [] }"#.utf8), sourcePath: "memory://bad.json")
         }
     }
 

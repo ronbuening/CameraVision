@@ -1,0 +1,228 @@
+{
+  "created_at" : "2026-07-19T19:55:43Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/a4dc722196dff7c1e960ed88f19ffee665c5127c97dc259ec2cb4d12b8ac3f03-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 2047,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "8f1799ac12cd1c51912eafe1a5ecb5f37945b7c2db50d8472d95cc5c01456f4a",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "a4dc722196dff7c1e960ed88f19ffee665c5127c97dc259ec2cb4d12b8ac3f03"
+      },
+      "width" : 1365
+    }
+  ],
+  "errors" : [
+    {
+      "code" : "E_SUBJECT_ISOLATION_NO_FOREGROUND",
+      "message" : "Apple Vision did not find a foreground subject.",
+      "recoverable" : true,
+      "stage" : "isolate"
+    }
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 12451,
+      "error" : null,
+      "input_derivative_sha256" : "8f1799ac12cd1c51912eafe1a5ecb5f37945b7c2db50d8472d95cc5c01456f4a",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "ornate chandelier against a patterned ceiling",
+            "term" : "architecture"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "looking up at an interior light fixture",
+            "term" : "interior"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "indoor room"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "ornate circular chandelier with multiple light panels and gold-colored metalwork",
+            "term" : "chandelier"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "herringbone pattern on the ceiling tiles",
+            "term" : "herringbone pattern"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "gold-colored metal frame of the light fixture",
+            "term" : "gold-toned metalwork"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "circular arrangement of lights around a central hub",
+            "term" : "radial symmetry"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "tiled ceiling surface",
+            "term" : "ceiling tiles"
+          }
+        ],
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "interior scene"
+          }
+        ],
+        "secondary_subjects" : [
+
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A low-angle shot looking up at an ornate, circular gold-toned chandelier mounted on a herringbone-patterned tiled ceiling.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "603d96141dd9ac54b0b49024b93e76ba931921086e73bc0e7e57467363f57300",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"ornate chandelier against a patterned ceiling\",\n      \"term\": \"architecture\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"looking up at an interior light fixture\",\n      \"term\": \"interior\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"indoor room\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"ornate circular chandelier with multiple light panels and gold-colored metalwork\",\n      \"term\": \"chandelier\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"herringbone pattern on the ceiling tiles\",\n      \"term\": \"herringbone pattern\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"gold-colored metal frame of the light fixture\",\n      \"term\": \"gold-toned metalwork\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"circular arrangement of lights around a central hub\",\n      \"term\": \"radial symmetry\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"tiled ceiling surface\",\n      \"term\": \"ceiling tiles\"\n    }\n  ],\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"interior scene\"\n    }\n  ],\n  \"secondary_subjects\": [],\n  \"species\": [],\n  \"summary\": \"A low-angle shot looking up at an ornate, circular gold-toned chandelier mounted on a herringbone-patterned tiled ceiling.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 451,
+        "eval_duration_ns" : 7996368000,
+        "load_duration_ns" : 565452875,
+        "prompt_eval_count" : 1141,
+        "prompt_eval_duration_ns" : 3530660000,
+        "total_duration_ns" : 12350626667
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "overwrite",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.1.0-beta3/260719_run0",
+    "profile" : "gemma4-26b-default",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "54624748858_66527fe6c2_o.jpg",
+    "file_size" : 14331512,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "a4dc722196dff7c1e960ed88f19ffee665c5127c97dc259ec2cb4d12b8ac3f03"
+    },
+    "modified_at" : "2026-06-11T16:49:06Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/54624748858_66527fe6c2_o.jpg",
+    "relative_path" : "54624748858_66527fe6c2_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 2047,
+      "width" : 1365
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 0,
+    "full_resolution" : {
+      "height" : 5702,
+      "width" : 3801
+    },
+    "instance_count" : 0,
+    "instances" : [
+
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2.7846153846153845,
+      "y" : 2.785539814362482
+    },
+    "selected_instance_indices" : [
+
+    ],
+    "status" : "no_foreground",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 12460,
+    "pipeline_elapsed_ms" : 272507,
+    "render_ms" : 163,
+    "subject_isolation_ms" : 59,
+    "write_ms" : 2
+  }
+}

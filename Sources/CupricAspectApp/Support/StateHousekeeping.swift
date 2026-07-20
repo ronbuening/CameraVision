@@ -28,14 +28,17 @@ enum StateHousekeeping {
         var removed = 0
         for name in artifactSubdirectories {
             let directory = stateDirectory.appendingPathComponent(name, isDirectory: true)
-            guard let entries = try? fileManager.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: [.contentModificationDateKey]
-            ) else {
+            guard
+                let entries = try? fileManager.contentsOfDirectory(
+                    at: directory,
+                    includingPropertiesForKeys: [.contentModificationDateKey]
+                )
+            else {
                 continue
             }
             for entry in entries {
-                let modified = (try? entry.resourceValues(forKeys: [.contentModificationDateKey]))?
+                let modified =
+                    (try? entry.resourceValues(forKeys: [.contentModificationDateKey]))?
                     .contentModificationDate ?? now
                 if now.timeIntervalSince(modified) > maxAge {
                     if (try? fileManager.removeItem(at: entry)) != nil {

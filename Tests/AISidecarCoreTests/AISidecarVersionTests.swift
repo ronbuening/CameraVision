@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 /// Packaging plan D5: one non-placeholder product version feeds every surface.

@@ -19,12 +19,16 @@ public struct NormalizedXMPChangePlanner {
         self.fileManager = fileManager
     }
 
-    /// Build normalized write plans without reading, writing, backing up, or validating XMP sidecars.
+    /// Build normalized write plans without writing, backing up, or validating XMP sidecars.
+    ///
+    /// When quality grading requires scalar conflict resolution, reads occur only through the
+    /// caller-supplied snapshot reader.
     public func plan(
         input: NormalizationResolvedInputBatch,
         decisions: [PerAssetNormalizationDecision],
         candidateSkips: [NormalizationCandidateSkip],
-        configuration: ResolvedNormalizationConfiguration
+        configuration: ResolvedNormalizationConfiguration,
+        snapshotReader: (@Sendable (String) throws -> XMPMetadataSnapshot)? = nil
     ) throws -> NormalizedXMPChangePlanResult {
         let assetsByID = try uniqueLookup(
             input.sourceAssets.map { ($0.assetID, $0) },
@@ -56,7 +60,8 @@ public struct NormalizedXMPChangePlanner {
                 sidecarsByAssetID: sidecarsByAssetID,
                 decisions: decisions,
                 candidateSkips: candidateSkips,
-                configuration: configuration
+                configuration: configuration,
+                snapshotReader: snapshotReader
             )
         }
         let changePlan = XMPChangePlanDocument(
@@ -92,7 +97,8 @@ public struct NormalizedXMPChangePlanner {
         sidecarsByAssetID: [String: NormalizationSourceAISidecarRecord],
         decisions: [PerAssetNormalizationDecision],
         candidateSkips: [NormalizationCandidateSkip],
-        configuration: ResolvedNormalizationConfiguration
+        configuration: ResolvedNormalizationConfiguration,
+        snapshotReader: (@Sendable (String) throws -> XMPMetadataSnapshot)?
     ) -> NormalizedXMPWritePlan {
         let memberIDs = Set(group.memberAssetIDs)
         let selectedIDs = Set(group.selectedAssetIDs)
@@ -145,6 +151,14 @@ public struct NormalizedXMPChangePlanner {
             bag: .hierarchical,
             writeEnabled: configuration.writeHierarchicalKeywords
         )
+        let gradingInputsByAssetID =
+            configuration.qualityGrading.enabled
+            ? selectedRawSidecarInputsByAssetID(
+                assetIDs: group.selectedAssetIDs,
+                rawSidecarInputs: input.rawSidecarInputs,
+                sidecarsByAssetID: sidecarsByAssetID
+            )
+            : [:]
         var failures = [SidecarError]()
         if let targetFailure {
             failures.append(targetFailure)
@@ -156,7 +170,7 @@ public struct NormalizedXMPChangePlanner {
             failures.append(emptySelectionError(group: group, pairScope: configuration.pairScope))
         }
 
-        let plan = XMPChangePlan(
+        var plan = XMPChangePlan(
             status: failures.isEmpty ? .planned : .failed,
             targetXMPPath: targetPath,
             targetRelativePath: group.targetRelativePath,
@@ -167,8 +181,10 @@ public struct NormalizedXMPChangePlanner {
                     selected: selectedIDs.contains($0),
                     asset: assetsByID[$0],
                     sidecar: sidecarsByAssetID[$0],
+                    rawSidecarInput: gradingInputsByAssetID[$0],
                     decisions: groupDecisions,
-                    pairScope: configuration.pairScope
+                    pairScope: configuration.pairScope,
+                    includesQualityProvenance: configuration.qualityGrading.enabled
                 )
             },
             flatKeywordsToAdd: flat.keywords,
@@ -187,6 +203,14 @@ public struct NormalizedXMPChangePlanner {
             ),
             validationPlan: .phase2Default,
             failures: failures
+        )
+        QualityGradingPlanApplier().apply(
+            to: &plan,
+            inputs: group.selectedAssetIDs.compactMap { gradingInputsByAssetID[$0] },
+            grading: configuration.qualityGrading,
+            writeFlatKeywords: configuration.writeFlatKeywords,
+            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
+            snapshotReader: snapshotReader
         )
         return NormalizedXMPWritePlan(
             xmpChangePlan: plan,
@@ -272,8 +296,10 @@ public struct NormalizedXMPChangePlanner {
         selected: Bool,
         asset: NormalizationSourceAsset?,
         sidecar: NormalizationSourceAISidecarRecord?,
+        rawSidecarInput: ResolvedRawSidecarInput?,
         decisions: [PerAssetNormalizationDecision],
-        pairScope: XMPPairScope
+        pairScope: XMPPairScope,
+        includesQualityProvenance: Bool
     ) -> SourceMemberPlan? {
         guard let asset else {
             return nil
@@ -300,8 +326,45 @@ public struct NormalizedXMPChangePlanner {
             flatKeywordContributionCount: assetDecisions.filter { $0.flatKeyword != nil && $0.exportFlatKeyword }.count,
             hierarchicalKeywordContributionCount: assetDecisions.filter {
                 $0.hierarchicalKeyword != nil && $0.exportHierarchicalKeyword
-            }.count
+            }.count,
+            qualitySidecarPath: selected && includesQualityProvenance
+                ? distinctQualitySidecarPath(for: rawSidecarInput)
+                : nil
         )
+    }
+
+    private func selectedRawSidecarInputsByAssetID(
+        assetIDs: [String],
+        rawSidecarInputs: [ResolvedRawSidecarInput],
+        sidecarsByAssetID: [String: NormalizationSourceAISidecarRecord]
+    ) -> [String: ResolvedRawSidecarInput] {
+        var inputsByPath: [String: ResolvedRawSidecarInput] = [:]
+        for input in rawSidecarInputs {
+            inputsByPath[input.sidecarPath.standardizedFileURL.path] = input
+            if let qualitySidecarPath = input.qualitySidecarPath?.standardizedFileURL.path {
+                inputsByPath[qualitySidecarPath] = input
+            }
+        }
+
+        var result: [String: ResolvedRawSidecarInput] = [:]
+        for assetID in assetIDs {
+            guard let sidecarPath = sidecarsByAssetID[assetID]?.sidecarPath else {
+                continue
+            }
+            let standardizedPath = URL(fileURLWithPath: sidecarPath).standardizedFileURL.path
+            result[assetID] = inputsByPath[standardizedPath]
+        }
+        return result
+    }
+
+    private func distinctQualitySidecarPath(for input: ResolvedRawSidecarInput?) -> String? {
+        guard let input,
+            let qualitySidecarPath = input.qualitySidecarPath?.standardizedFileURL.path,
+            qualitySidecarPath != input.sidecarPath.standardizedFileURL.path
+        else {
+            return nil
+        }
+        return qualitySidecarPath
     }
 
     private func targetInfos(

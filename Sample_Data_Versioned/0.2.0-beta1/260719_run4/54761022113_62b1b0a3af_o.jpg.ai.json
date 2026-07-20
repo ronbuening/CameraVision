@@ -1,0 +1,254 @@
+{
+  "created_at" : "2026-07-19T22:32:18Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/4c46817f67a116fa218fc15ce35cbf93d184efc5e5076521b1f99310e8f42b5a-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1365,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "7a686267a95ce40ba92d93cbd291f3be1304badfb533ad8da901f2c0f232f305",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "4c46817f67a116fa218fc15ce35cbf93d184efc5e5076521b1f99310e8f42b5a"
+      },
+      "width" : 2047
+    }
+  ],
+  "errors" : [
+    {
+      "code" : "E_SUBJECT_ISOLATION_NO_FOREGROUND",
+      "message" : "Apple Vision did not find a foreground subject.",
+      "recoverable" : true,
+      "stage" : "isolate"
+    }
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 16921,
+      "error" : null,
+      "input_derivative_sha256" : "7a686267a95ce40ba92d93cbd291f3be1304badfb533ad8da901f2c0f232f305",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "holding equipment"
+          },
+          {
+            "confidence" : "high",
+            "term" : "writing on clipboard"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "two people in uniform outdoors",
+            "term" : "candid_people"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "outdoor setting with natural light",
+            "term" : "travel"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "field"
+          },
+          {
+            "confidence" : "medium",
+            "term" : "woodland edge"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "man in grey uniform shirt and hat holding a clipboard",
+            "term" : "man in uniform"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "woman in grey uniform shirt and hat holding antenna equipment",
+            "term" : "woman in uniform"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "uniformed personnel, field research, outdoor work, scientific equipment, clipboard, antenna, hat, park ranger style",
+            "term" : "fieldwork"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "outdoor setting with trees and hills in background",
+            "term" : "nature"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "man wearing sunglasses on hat, woman smiling",
+            "term" : "researchers"
+          }
+        ],
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor field research scene"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "T-shaped antenna device held by woman",
+            "term" : "scientific equipment"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "blue clipboard and pen held by man",
+            "term" : "clipboard"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "green leafy trees in background",
+            "term" : "trees"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "Two uniformed individuals are conducting field research outdoors, one holding a T-shaped antenna and the other writing on a clipboard.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "603d96141dd9ac54b0b49024b93e76ba931921086e73bc0e7e57467363f57300",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"holding equipment\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"term\": \"writing on clipboard\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"two people in uniform outdoors\",\n      \"term\": \"candid_people\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"outdoor setting with natural light\",\n      \"term\": \"travel\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"field\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"term\": \"woodland edge\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"man in grey uniform shirt and hat holding a clipboard\",\n      \"term\": \"man in uniform\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"woman in grey uniform shirt and hat holding antenna equipment\",\n      \"term\": \"woman in uniform\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"uniformed personnel, field research, outdoor work, scientific equipment, clipboard, antenna, hat, park ranger style\",\n      \"term\": \"fieldwork\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"outdoor setting with trees and hills in background\",\n      \"term\": \"nature\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"man wearing sunglasses on hat, woman smiling\",\n      \"term\": \"researchers\"\n    }\n  ],\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor field research scene\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"T-shaped antenna device held by woman\",\n      \"term\": \"scientific equipment\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"blue clipboard and pen held by man\",\n      \"term\": \"clipboard\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"green leafy trees in background\",\n      \"term\": \"trees\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"Two uniformed individuals are conducting field research outdoors, one holding a T-shaped antenna and the other writing on a clipboard.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 673,
+        "eval_duration_ns" : 10560367000,
+        "load_duration_ns" : 251329208,
+        "prompt_eval_count" : 1141,
+        "prompt_eval_duration_ns" : 2737162000,
+        "total_duration_ns" : 16758180042
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "overwrite",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run4",
+    "profile" : "gemma4-26b-default",
+    "quality_scan_mode" : "sequential",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "54761022113_62b1b0a3af_o.jpg",
+    "file_size" : 14191394,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "4c46817f67a116fa218fc15ce35cbf93d184efc5e5076521b1f99310e8f42b5a"
+    },
+    "modified_at" : "2026-06-11T16:39:24Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/54761022113_62b1b0a3af_o.jpg",
+    "relative_path" : "54761022113_62b1b0a3af_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1365,
+      "width" : 2047
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 0,
+    "full_resolution" : {
+      "height" : 3920,
+      "width" : 5880
+    },
+    "instance_count" : 0,
+    "instances" : [
+
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2.8724963361016123,
+      "y" : 2.871794871794872
+    },
+    "selected_instance_indices" : [
+
+    ],
+    "status" : "no_foreground",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 16927,
+    "pipeline_elapsed_ms" : 425691,
+    "render_ms" : 165,
+    "subject_isolation_ms" : 42,
+    "write_ms" : 2
+  }
+}

@@ -14,10 +14,11 @@ public enum VocabularyTextFolder {
 
     /// Build the guarded fallback lookup key for model-style punctuation variants.
     static func separatorInsensitiveFold(_ value: String) -> String {
-        let scalars = Array(value
-            .precomposedStringWithCanonicalMapping
-            .folding(options: [.caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .unicodeScalars)
+        let scalars = Array(
+            value
+                .precomposedStringWithCanonicalMapping
+                .folding(options: [.caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+                .unicodeScalars)
         var tokens: [String] = []
         var current = String.UnicodeScalarView()
         var index = scalars.startIndex
@@ -38,8 +39,9 @@ public enum VocabularyTextFolder {
                 appendCurrentToken()
                 tokens.append("and")
             } else if isApostrophe(scalar),
-                      !current.isEmpty,
-                      isPossessiveMarker(after: index, in: scalars) {
+                !current.isEmpty,
+                isPossessiveMarker(after: index, in: scalars)
+            {
                 index = scalars.index(after: index)
                 appendCurrentToken()
             } else {
@@ -107,7 +109,8 @@ public enum VocabularyTextFolder {
             variants.append(String(base) + "fe")
         }
         if token.hasSuffix("ches") || token.hasSuffix("shes") || token.hasSuffix("xes")
-            || token.hasSuffix("zes") || token.hasSuffix("ses") {
+            || token.hasSuffix("zes") || token.hasSuffix("ses")
+        {
             variants.append(String(token.dropLast(2)))
         }
         if token.hasSuffix("s"), !token.hasSuffix("ss") {

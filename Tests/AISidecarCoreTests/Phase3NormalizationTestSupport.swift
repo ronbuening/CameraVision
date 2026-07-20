@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import AISidecarCore
 
 func phase3LoadedVocabulary(entries: [VocabularyEntry]? = nil) throws -> LoadedVocabulary {
@@ -175,7 +176,7 @@ func phase3VocabularyEntries() -> [VocabularyEntry] {
             directApplyPolicy: .userOnly,
             propagationScope: PropagationScope.none,
             specificity: .mid
-        )
+        ),
     ]
 }
 
@@ -193,9 +194,10 @@ func phase3Configuration(
 }
 
 func phase3InputBatch(_ relativePaths: [String]) -> NormalizationResolvedInputBatch {
-    phase3InputBatch(assets: relativePaths.enumerated().map { index, relativePath in
-        phase3Asset(index: index + 1, relativePath: relativePath)
-    })
+    phase3InputBatch(
+        assets: relativePaths.enumerated().map { index, relativePath in
+            phase3Asset(index: index + 1, relativePath: relativePath)
+        })
 }
 
 func phase3InputBatch(
@@ -204,9 +206,11 @@ func phase3InputBatch(
     workflow: NormalizationInputWorkflow = .fileList,
     inputBasePath: String = "/photos"
 ) -> NormalizationResolvedInputBatch {
-    let groups = suppliedGroups ?? assets.enumerated().map { index, asset in
-        phase3Group(index: index + 1, assets: [asset])
-    }
+    let groups =
+        suppliedGroups
+        ?? assets.enumerated().map { index, asset in
+            phase3Group(index: index + 1, assets: [asset])
+        }
     return NormalizationResolvedInputBatch(
         workflow: workflow,
         inputPath: "/photos/images.txt",

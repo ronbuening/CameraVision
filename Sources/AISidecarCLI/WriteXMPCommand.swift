@@ -1,6 +1,6 @@
-import Foundation
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
+import Foundation
 
 struct WriteXMPCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -29,6 +29,15 @@ struct WriteXMPCommand: AsyncParsableCommand {
 
     @Flag(help: "Recurse into subfolders.")
     var recursive = false
+
+    @Flag(help: "Also produce a perceptual quality assessment per image in analyze-and-write mode.")
+    var assessQuality = false
+
+    @Option(
+        help:
+            "With --assess-quality: 'combined' assesses in the tagging model call; 'sequential' runs a dedicated second pass that writes .quality.ai.json sidecars and keeps tagging output identical to a run without assessment."
+    )
+    var qualityScanMode: QualityScanMode?
 
     @Option(help: "Redirect outputs; mirrors the relative scan tree.")
     var outputDir: String?
@@ -105,6 +114,9 @@ struct WriteXMPCommand: AsyncParsableCommand {
     @Option(help: "Minimum candidate confidence to export: low, medium, or high.")
     var minConfidence: XMPMinimumConfidence?
 
+    @OptionGroup
+    var quality: QualityGradingOptions
+
     @Flag(help: "Allow specific tags such as scientific names, named places, named events, or named people.")
     var allowSpecificTags = false
 
@@ -155,7 +167,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             )
         case .analyzeAndWrite(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
-            let result = try await withBatchInterruptionExit {
+            let result = try await withAsyncBatchInterruptionExit {
                 try await AnalyzeAndXMPPipeline(logger: logger).run(
                     inputPath: inputPath,
                     runConfiguration: runConfiguration,
@@ -187,6 +199,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             sourceVerification: sourceVerification,
             mode: mode,
             existing: existing,
+            assessQuality: assessQuality,
             model: model,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
@@ -198,10 +211,23 @@ struct WriteXMPCommand: AsyncParsableCommand {
             stageConcurrency: stageConcurrency,
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext,
+            qualityGrading: quality.qualityGrading,
+            qualityConflicts: quality.qualityConflicts,
+            qualityMinConfidence: quality.qualityMinConfidence,
             writeFlatKeywords: writeFlatKeywords,
             noWriteFlatKeywords: noWriteFlatKeywords,
             writeHierarchicalKeywords: writeHierarchicalKeywords,
             noWriteHierarchicalKeywords: noWriteHierarchicalKeywords,
+            writeRating: quality.writeRating,
+            noWriteRating: quality.noWriteRating,
+            writeLabel: quality.writeLabel,
+            noWriteLabel: quality.noWriteLabel,
+            writeUrgency: quality.writeUrgency,
+            noWriteUrgency: quality.noWriteUrgency,
+            writeFlag: quality.writeFlag,
+            noWriteFlag: quality.noWriteFlag,
+            writeQualityKeywords: quality.writeQualityKeywords,
+            noWriteQualityKeywords: quality.noWriteQualityKeywords,
             backupSidecars: backupSidecars,
             noBackupSidecars: noBackupSidecars,
             writeAIJSON: writeAIJSON,
@@ -229,7 +255,8 @@ struct WriteXMPCommand: AsyncParsableCommand {
             minConfidence: minConfidence,
             allowSpecificTags: allowSpecificTags ? true : nil,
             pairScope: pairScope,
-            writeAIJSON: pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON)
+            writeAIJSON: pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON),
+            qualityGrading: quality.overrides
         )
     }
 
@@ -238,6 +265,8 @@ struct WriteXMPCommand: AsyncParsableCommand {
             mode: mode,
             existing: existing,
             recursive: recursive ? true : nil,
+            qualityAssessment: assessQuality ? true : nil,
+            qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,

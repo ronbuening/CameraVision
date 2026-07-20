@@ -1,5 +1,6 @@
 import AISidecarCore
 import XCTest
+
 @testable import CupricAspectApp
 
 /// B0-3 (FR4-058, AC4-034): the launch-time runtime check derives the three
@@ -15,14 +16,16 @@ final class RuntimeGuidanceModelTests: XCTestCase {
     }
 
     func testUnreachableEndpointYieldsUnreachableGuidance() async throws {
-        let model = RuntimeGuidanceModel(configPath: "/nonexistent/wi-test-config.json", listVisionTags: { _ in
-            throw SidecarError(
-                code: .modelEndpointUnreachable,
-                stage: .model,
-                message: "connection refused",
-                recoverable: true
-            )
-        })
+        let model = RuntimeGuidanceModel(
+            configPath: "/nonexistent/wi-test-config.json",
+            listVisionTags: { _ in
+                throw SidecarError(
+                    code: .modelEndpointUnreachable,
+                    stage: .model,
+                    message: "connection refused",
+                    recoverable: true
+                )
+            })
         model.check(environment: [:])
         try await waitForSettled(model)
         XCTAssertEqual(model.status, .unreachable(message: "connection refused"))
@@ -41,7 +44,8 @@ final class RuntimeGuidanceModelTests: XCTestCase {
     }
 
     func testInstalledVisionModelsNeedNoAttention() async throws {
-        let model = RuntimeGuidanceModel(configPath: "/nonexistent/wi-test-config.json", listVisionTags: { _ in ["gemma4:26b-a4b-it-qat"] })
+        let model = RuntimeGuidanceModel(
+            configPath: "/nonexistent/wi-test-config.json", listVisionTags: { _ in ["gemma4:26b-a4b-it-qat"] })
         model.check(environment: [:])
         try await waitForSettled(model)
         XCTAssertEqual(model.status, .ready(visionTagCount: 1))

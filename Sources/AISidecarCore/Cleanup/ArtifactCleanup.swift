@@ -3,8 +3,11 @@ import Foundation
 /// AISidecar-owned artifact categories that the cleanup command may remove.
 public enum CleanupArtifactKind: String, Codable, Sendable, Equatable, CaseIterable {
     case rawAISidecar = "raw_ai_sidecar"
+    case qualityAISidecar = "quality_ai_sidecar"
     case analyzeProgressLog = "analyze_progress_log"
     case analyzeBatchSummary = "analyze_batch_summary"
+    case qualityProgressLog = "quality_progress_log"
+    case qualityBatchSummary = "quality_batch_summary"
     case xmpExportProgressLog = "xmp_export_progress_log"
     case xmpExportReport = "xmp_export_report"
     case xmpExportSummary = "xmp_export_summary"
@@ -137,7 +140,8 @@ public struct ArtifactCleanup {
                     record.error = SidecarError(
                         code: .writeFailed,
                         stage: .write,
-                        message: "Unable to remove cleanup artifact \(candidate.url.path): \(error.localizedDescription)",
+                        message:
+                            "Unable to remove cleanup artifact \(candidate.url.path): \(error.localizedDescription)",
                         recoverable: true
                     )
                 }
@@ -162,7 +166,10 @@ public struct ArtifactCleanup {
             return .atomicWriterTemp
         }
         let lowercased = fileName.lowercased()
-        if lowercased.hasSuffix(".ai.json") {
+        if lowercased.hasSuffix(SidecarNaming.qualitySuffix) {
+            return .qualityAISidecar
+        }
+        if lowercased.hasSuffix(SidecarNaming.taggingSuffix) {
             return .rawAISidecar
         }
         if lowercased.hasPrefix(ArtifactNames.batchProgressPrefix), lowercased.hasSuffix(".jsonl") {
@@ -170,6 +177,12 @@ public struct ArtifactCleanup {
         }
         if lowercased.hasPrefix(ArtifactNames.batchSummaryPrefix), lowercased.hasSuffix(".json") {
             return .analyzeBatchSummary
+        }
+        if lowercased.hasPrefix(ArtifactNames.qualityProgressPrefix), lowercased.hasSuffix(".jsonl") {
+            return .qualityProgressLog
+        }
+        if lowercased.hasPrefix(ArtifactNames.qualitySummaryPrefix), lowercased.hasSuffix(".json") {
+            return .qualityBatchSummary
         }
         if lowercased.hasPrefix(ArtifactNames.xmpExportProgressPrefix), lowercased.hasSuffix(".jsonl") {
             return .xmpExportProgressLog
@@ -204,11 +217,13 @@ public struct ArtifactCleanup {
     private func cleanupCandidates(in root: URL, recursive: Bool) throws -> [CleanupCandidate] {
         let urls: [URL]
         if recursive {
-            guard let enumerator = fileManager.enumerator(
-                at: root,
-                includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-                options: [.skipsPackageDescendants]
-            ) else {
+            guard
+                let enumerator = fileManager.enumerator(
+                    at: root,
+                    includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                    options: [.skipsPackageDescendants]
+                )
+            else {
                 return []
             }
             var collected: [URL] = []
@@ -271,9 +286,9 @@ public struct ArtifactCleanup {
         }
         let components = fileName.split(separator: ".", omittingEmptySubsequences: false)
         guard components.count >= 4,
-              components.first?.isEmpty == true,
-              components.dropFirst().dropLast(2).contains(where: { !$0.isEmpty }),
-              components.last?.isEmpty == false
+            components.first?.isEmpty == true,
+            components.dropFirst().dropLast(2).contains(where: { !$0.isEmpty }),
+            components.last?.isEmpty == false
         else {
             return false
         }

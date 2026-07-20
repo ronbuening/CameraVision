@@ -34,7 +34,8 @@ public enum JSONCoding {
         if iso8601Dates {
             encoder.dateEncodingStrategy = .iso8601
         }
-        encoder.outputFormatting = pretty
+        encoder.outputFormatting =
+            pretty
             ? [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
             : [.sortedKeys, .withoutEscapingSlashes]
         return encoder

@@ -3,7 +3,8 @@ import Foundation
 /// Resolves run configuration according to the project-wide precedence rules.
 public enum ConfigurationResolver {
     /// Default persistent config path required by PW-006.
-    public static func defaultConfigPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
+    public static func defaultConfigPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String
+    {
         let home = environment["HOME"] ?? NSHomeDirectory()
         return "\(home)/Library/Application Support/aisidecar/config.json"
     }
@@ -18,7 +19,8 @@ public enum ConfigurationResolver {
         environment: [String: String],
         defaultConfigPath: String?
     ) -> (selected: String, explicit: Bool) {
-        let selected = cliConfigPath
+        let selected =
+            cliConfigPath
             ?? environment["AISIDECAR_CONFIG"]
             ?? defaultConfigPath
             ?? Self.defaultConfigPath(environment: environment)
@@ -251,8 +253,18 @@ public enum ConfigurationResolver {
     private static func environmentOverrides(from environment: [String: String]) throws -> RunConfigurationOverrides {
         RunConfigurationOverrides(
             mode: try enumValue(AnalysisMode.self, from: environment["AISIDECAR_MODE"], key: "AISIDECAR_MODE"),
-            existing: try enumValue(ExistingPolicy.self, from: environment["AISIDECAR_EXISTING"], key: "AISIDECAR_EXISTING"),
+            existing: try enumValue(
+                ExistingPolicy.self, from: environment["AISIDECAR_EXISTING"], key: "AISIDECAR_EXISTING"),
             recursive: try boolValue(from: environment["AISIDECAR_RECURSIVE"], key: "AISIDECAR_RECURSIVE"),
+            qualityAssessment: try boolValue(
+                from: environment["AISIDECAR_QUALITY_ASSESSMENT"],
+                key: "AISIDECAR_QUALITY_ASSESSMENT"
+            ),
+            qualityScanMode: try enumValue(
+                QualityScanMode.self,
+                from: environment["AISIDECAR_QUALITY_SCAN_MODE"],
+                key: "AISIDECAR_QUALITY_SCAN_MODE"
+            ),
             outputDir: environment["AISIDECAR_OUTPUT_DIR"],
             model: environment["AISIDECAR_MODEL"],
             modelEndpoint: environment["AISIDECAR_MODEL_ENDPOINT"],
@@ -266,8 +278,10 @@ public enum ConfigurationResolver {
                 key: "AISIDECAR_MODEL_RETRY_LIMIT"
             ),
             profile: environment["AISIDECAR_PROFILE"],
-            logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
-            logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
+            logLevel: try enumValue(
+                LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
+            logFormat: try enumValue(
+                LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
             dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
             debugDerivatives: try boolValue(
                 from: environment["AISIDECAR_DEBUG_DERIVATIVES"],
@@ -329,8 +343,10 @@ public enum ConfigurationResolver {
         XMPExportConfigurationOverrides(
             recursive: try boolValue(from: environment["AISIDECAR_RECURSIVE"], key: "AISIDECAR_RECURSIVE"),
             outputDir: environment["AISIDECAR_OUTPUT_DIR"],
-            logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
-            logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
+            logLevel: try enumValue(
+                LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
+            logFormat: try enumValue(
+                LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
             dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
             sourceRoot: environment["AISIDECAR_SOURCE_ROOT"],
             sourceVerification: try enumValue(
@@ -369,7 +385,61 @@ public enum ConfigurationResolver {
                 from: environment["AISIDECAR_PAIR_SCOPE"],
                 key: "AISIDECAR_PAIR_SCOPE"
             ),
-            writeAIJSON: try boolValue(from: environment["AISIDECAR_WRITE_AI_JSON"], key: "AISIDECAR_WRITE_AI_JSON")
+            writeAIJSON: try boolValue(
+                from: environment["AISIDECAR_WRITE_AI_JSON"],
+                key: "AISIDECAR_WRITE_AI_JSON"
+            ),
+            qualityGrading: try qualityGradingEnvironmentOverrides(from: environment)
+        )
+    }
+
+    private static func qualityGradingEnvironmentOverrides(
+        from environment: [String: String]
+    ) throws -> QualityGradingConfigurationOverrides {
+        QualityGradingConfigurationOverrides(
+            enabled: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_GRADING"],
+                key: "AISIDECAR_XMP_QUALITY_GRADING"
+            ),
+            conflictPolicy: try enumValue(
+                ScalarConflictPolicy.self,
+                from: environment["AISIDECAR_XMP_QUALITY_CONFLICTS"],
+                key: "AISIDECAR_XMP_QUALITY_CONFLICTS"
+            ),
+            minimumConfidence: try enumValue(
+                QualityAssessmentRecord.Confidence.self,
+                from: environment["AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE"],
+                key: "AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE"
+            ),
+            writeRating: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_WRITE_RATING"],
+                key: "AISIDECAR_XMP_QUALITY_WRITE_RATING"
+            ),
+            writeLabel: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_WRITE_LABEL"],
+                key: "AISIDECAR_XMP_QUALITY_WRITE_LABEL"
+            ),
+            writeUrgency: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_WRITE_URGENCY"],
+                key: "AISIDECAR_XMP_QUALITY_WRITE_URGENCY"
+            ),
+            writeFlag: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_WRITE_FLAG"],
+                key: "AISIDECAR_XMP_QUALITY_WRITE_FLAG"
+            ),
+            writeKeywords: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS"],
+                key: "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS"
+            ),
+            rejectAsMinusOne: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE"],
+                key: "AISIDECAR_XMP_QUALITY_REJECT_AS_MINUS_ONE"
+            ),
+            perCriterionProblemKeywords: try boolValue(
+                from: environment["AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS"],
+                key: "AISIDECAR_XMP_QUALITY_PER_CRITERION_PROBLEM_KEYWORDS"
+            ),
+            keywordRoot: environment["AISIDECAR_XMP_QUALITY_KEYWORD_ROOT"]
         )
     }
 
@@ -379,8 +449,10 @@ public enum ConfigurationResolver {
         NormalizationConfigurationOverrides(
             recursive: try boolValue(from: environment["AISIDECAR_RECURSIVE"], key: "AISIDECAR_RECURSIVE"),
             outputDir: environment["AISIDECAR_OUTPUT_DIR"],
-            logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
-            logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
+            logLevel: try enumValue(
+                LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
+            logFormat: try enumValue(
+                LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
             dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
             sourceRoot: environment["AISIDECAR_SOURCE_ROOT"],
             sourceVerification: try enumValue(
@@ -414,7 +486,8 @@ public enum ConfigurationResolver {
                 from: environment["AISIDECAR_ALLOW_SPECIFIC_TAGS"],
                 key: "AISIDECAR_ALLOW_SPECIFIC_TAGS"
             ),
-            pairScope: try enumValue(XMPPairScope.self, from: environment["AISIDECAR_PAIR_SCOPE"], key: "AISIDECAR_PAIR_SCOPE"),
+            pairScope: try enumValue(
+                XMPPairScope.self, from: environment["AISIDECAR_PAIR_SCOPE"], key: "AISIDECAR_PAIR_SCOPE"),
             writeAIJSON: try boolValue(from: environment["AISIDECAR_WRITE_AI_JSON"], key: "AISIDECAR_WRITE_AI_JSON"),
             vocabularyPath: environment["AISIDECAR_VOCABULARY"],
             vocabularyMode: try enumValue(
@@ -471,7 +544,8 @@ public enum ConfigurationResolver {
                 from: environment["AISIDECAR_AFFINITY_PRIVACY_MODE"],
                 key: "AISIDECAR_AFFINITY_PRIVACY_MODE"
             ),
-            writeReportPath: environment["AISIDECAR_WRITE_REPORT"]
+            writeReportPath: environment["AISIDECAR_WRITE_REPORT"],
+            qualityGrading: try qualityGradingEnvironmentOverrides(from: environment)
         )
     }
 
@@ -480,8 +554,10 @@ public enum ConfigurationResolver {
     ) throws -> ApplySessionConfigurationOverrides {
         ApplySessionConfigurationOverrides(
             outputDir: environment["AISIDECAR_OUTPUT_DIR"],
-            logLevel: try enumValue(LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
-            logFormat: try enumValue(LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
+            logLevel: try enumValue(
+                LogLevel.self, from: environment["AISIDECAR_LOG_LEVEL"], key: "AISIDECAR_LOG_LEVEL"),
+            logFormat: try enumValue(
+                LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
             dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
             sourceRoot: environment["AISIDECAR_SOURCE_ROOT"],
             sourceVerification: try enumValue(
@@ -497,7 +573,8 @@ public enum ConfigurationResolver {
                 XMPConflictPolicy.self,
                 from: environment["AISIDECAR_XMP_CONFLICT_POLICY"],
                 key: "AISIDECAR_XMP_CONFLICT_POLICY"
-            )
+            ),
+            qualityGrading: try qualityGradingEnvironmentOverrides(from: environment)
         )
     }
 
@@ -606,6 +683,8 @@ private struct ConfigurationBuilder {
     private var mode: AnalysisMode
     private var existing: ExistingPolicy
     private var recursive: Bool
+    private var qualityAssessment: Bool
+    private var qualityScanMode: QualityScanMode
     private var outputDir: String?
     private var model: String
     private var modelEndpoint: String
@@ -634,6 +713,8 @@ private struct ConfigurationBuilder {
         self.mode = defaults.mode
         self.existing = defaults.existing
         self.recursive = defaults.recursive
+        self.qualityAssessment = false
+        self.qualityScanMode = defaults.qualityScanMode
         self.outputDir = defaults.outputDir
         self.model = defaults.model
         self.modelEndpoint = defaults.modelEndpoint.absoluteString
@@ -663,6 +744,8 @@ private struct ConfigurationBuilder {
         merge(&mode, config.mode)
         merge(&existing, config.existing)
         merge(&recursive, config.recursive)
+        merge(&qualityAssessment, config.qualityAssessment)
+        merge(&qualityScanMode, config.qualityScanMode)
         merge(&outputDir, config.outputDir)
         merge(&model, config.model)
         merge(&modelEndpoint, config.modelEndpoint)
@@ -692,6 +775,8 @@ private struct ConfigurationBuilder {
         merge(&mode, overrides.mode)
         merge(&existing, overrides.existing)
         merge(&recursive, overrides.recursive)
+        merge(&qualityAssessment, overrides.qualityAssessment)
+        merge(&qualityScanMode, overrides.qualityScanMode)
         merge(&outputDir, overrides.outputDir)
         merge(&model, overrides.model)
         merge(&modelEndpoint, overrides.modelEndpoint)
@@ -719,9 +804,9 @@ private struct ConfigurationBuilder {
 
     func resolved() throws -> ResolvedRunConfiguration {
         guard let endpoint = URL(string: modelEndpoint),
-              let scheme = endpoint.scheme?.lowercased(),
-              ["http", "https"].contains(scheme),
-              endpoint.host != nil
+            let scheme = endpoint.scheme?.lowercased(),
+            ["http", "https"].contains(scheme),
+            endpoint.host != nil
         else {
             throw SidecarError.configInvalid("Invalid model endpoint URL: \(modelEndpoint)")
         }
@@ -742,10 +827,11 @@ private struct ConfigurationBuilder {
             throw SidecarError.configInvalid("subject_crop_margin_fraction must be greater than zero and at most one")
         }
         guard subjectMergeDominanceThreshold > 0,
-              subjectMergeDominanceThreshold <= 1,
-              subjectMergeDominanceThreshold.isFinite
+            subjectMergeDominanceThreshold <= 1,
+            subjectMergeDominanceThreshold.isFinite
         else {
-            throw SidecarError.configInvalid("subject_merge_dominance_threshold must be greater than zero and at most one")
+            throw SidecarError.configInvalid(
+                "subject_merge_dominance_threshold must be greater than zero and at most one")
         }
         guard stageConcurrency > 0 else {
             throw SidecarError.configInvalid("stage_concurrency must be greater than zero")
@@ -764,6 +850,8 @@ private struct ConfigurationBuilder {
             mode: mode,
             existing: existing,
             recursive: recursive,
+            taskProfile: qualityAssessment ? .taggingWithQuality : .tagging,
+            qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
             modelEndpoint: endpoint,
@@ -807,6 +895,7 @@ private struct XMPExportConfigurationBuilder {
     private var allowSpecificTags: Bool
     private var pairScope: XMPPairScope
     private var writeAIJSON: Bool
+    private var qualityGrading: QualityGradingConfigurationBuilder
 
     init(defaults: ResolvedXMPExportConfiguration) {
         self.recursive = defaults.recursive
@@ -824,6 +913,7 @@ private struct XMPExportConfigurationBuilder {
         self.allowSpecificTags = defaults.allowSpecificTags
         self.pairScope = defaults.pairScope
         self.writeAIJSON = defaults.writeAIJSON
+        self.qualityGrading = QualityGradingConfigurationBuilder(defaults: defaults.qualityGrading)
     }
 
     mutating func apply(config: AppConfig) {
@@ -842,6 +932,7 @@ private struct XMPExportConfigurationBuilder {
         merge(&allowSpecificTags, config.allowSpecificTags)
         merge(&pairScope, config.pairScope)
         merge(&writeAIJSON, config.writeAIJSON)
+        qualityGrading.apply(config: config)
     }
 
     mutating func apply(overrides: XMPExportConfigurationOverrides) {
@@ -860,6 +951,7 @@ private struct XMPExportConfigurationBuilder {
         merge(&allowSpecificTags, overrides.allowSpecificTags)
         merge(&pairScope, overrides.pairScope)
         merge(&writeAIJSON, overrides.writeAIJSON)
+        qualityGrading.apply(overrides: overrides.qualityGrading)
     }
 
     func resolved() throws -> ResolvedXMPExportConfiguration {
@@ -867,6 +959,7 @@ private struct XMPExportConfigurationBuilder {
             throw SidecarError.configInvalid("xmp_conflict_policy backup-and-merge requires backup_sidecars to be true")
         }
 
+        let resolvedQualityGrading = try qualityGrading.resolved()
         return ResolvedXMPExportConfiguration(
             recursive: recursive,
             outputDir: outputDir,
@@ -882,17 +975,79 @@ private struct XMPExportConfigurationBuilder {
             minConfidence: minConfidence,
             allowSpecificTags: allowSpecificTags,
             pairScope: pairScope,
-            writeAIJSON: writeAIJSON
+            writeAIJSON: writeAIJSON,
+            qualityGrading: resolvedQualityGrading
+        )
+    }
+}
+
+private struct QualityGradingConfigurationBuilder {
+    private var enabled: Bool
+    private var conflictPolicy: ScalarConflictPolicy
+    private var policy: QualityGradingPolicy
+
+    init(defaults: ResolvedQualityGradingConfiguration) {
+        self.enabled = defaults.enabled
+        self.conflictPolicy = defaults.conflictPolicy
+        self.policy = defaults.policy
+    }
+
+    mutating func apply(config: AppConfig) {
+        merge(&enabled, config.xmpQualityGrading)
+        merge(&conflictPolicy, config.xmpQualityConflicts)
+        merge(&policy.minimumConfidence, config.xmpQualityMinConfidence)
+        merge(&policy.writeRating, config.xmpQualityWriteRating)
+        merge(&policy.writeLabel, config.xmpQualityWriteLabel)
+        merge(&policy.writeUrgency, config.xmpQualityWriteUrgency)
+        merge(&policy.writeFlag, config.xmpQualityWriteFlag)
+        merge(&policy.writeKeywords, config.xmpQualityWriteKeywords)
+        merge(&policy.rejectAsMinusOne, config.xmpQualityRejectAsMinusOne)
+        merge(&policy.perCriterionProblemKeywords, config.xmpQualityPerCriterionProblemKeywords)
+        merge(&policy.keywordRoot, config.xmpQualityKeywordRoot)
+        merge(&policy.ratingMap, config.xmpQualityRatingMap)
+        merge(&policy.labelMap, config.xmpQualityLabelMap)
+        merge(&policy.urgencyMap, config.xmpQualityUrgencyMap)
+        merge(&policy.flagMap, config.xmpQualityFlagMap)
+    }
+
+    mutating func apply(overrides: QualityGradingConfigurationOverrides) {
+        merge(&enabled, overrides.enabled)
+        merge(&conflictPolicy, overrides.conflictPolicy)
+        merge(&policy.minimumConfidence, overrides.minimumConfidence)
+        merge(&policy.writeRating, overrides.writeRating)
+        merge(&policy.writeLabel, overrides.writeLabel)
+        merge(&policy.writeUrgency, overrides.writeUrgency)
+        merge(&policy.writeFlag, overrides.writeFlag)
+        merge(&policy.writeKeywords, overrides.writeKeywords)
+        merge(&policy.rejectAsMinusOne, overrides.rejectAsMinusOne)
+        merge(&policy.perCriterionProblemKeywords, overrides.perCriterionProblemKeywords)
+        merge(&policy.keywordRoot, overrides.keywordRoot)
+        merge(&policy.ratingMap, overrides.ratingMap)
+        merge(&policy.labelMap, overrides.labelMap)
+        merge(&policy.urgencyMap, overrides.urgencyMap)
+        merge(&policy.flagMap, overrides.flagMap)
+    }
+
+    func resolved() throws -> ResolvedQualityGradingConfiguration {
+        // Validate the complete policy even while grading is disabled so dormant
+        // configuration errors fail before any batch work begins.
+        try policy.validate()
+        return ResolvedQualityGradingConfiguration(
+            enabled: enabled,
+            conflictPolicy: conflictPolicy,
+            policy: policy
         )
     }
 }
 
 private struct NormalizationConfigurationBuilder {
     private var config: ResolvedNormalizationConfiguration
+    private var qualityGrading: QualityGradingConfigurationBuilder
     private var vocabularyModeWasSet = false
 
     init(defaults: ResolvedNormalizationConfiguration) {
         self.config = defaults
+        self.qualityGrading = QualityGradingConfigurationBuilder(defaults: defaults.qualityGrading)
     }
 
     mutating func apply(config fileConfig: AppConfig) {
@@ -931,6 +1086,7 @@ private struct NormalizationConfigurationBuilder {
         merge(&config.allowSessionEventPropagation, fileConfig.allowSessionEventPropagation)
         merge(&config.affinityPrivacyMode, fileConfig.affinityPrivacyMode)
         merge(&config.writeReportPath, fileConfig.writeReportPath)
+        qualityGrading.apply(config: fileConfig)
     }
 
     mutating func apply(overrides: NormalizationConfigurationOverrides) {
@@ -969,6 +1125,7 @@ private struct NormalizationConfigurationBuilder {
         merge(&config.allowSessionEventPropagation, overrides.allowSessionEventPropagation)
         merge(&config.affinityPrivacyMode, overrides.affinityPrivacyMode)
         merge(&config.writeReportPath, overrides.writeReportPath)
+        qualityGrading.apply(overrides: overrides.qualityGrading)
     }
 
     func resolved() throws -> ResolvedNormalizationConfiguration {
@@ -990,15 +1147,18 @@ private struct NormalizationConfigurationBuilder {
         if config.xmpConflictPolicy == .backupAndMerge, !config.backupSidecars {
             throw SidecarError.configInvalid("xmp_conflict_policy backup-and-merge requires backup_sidecars to be true")
         }
+        config.qualityGrading = try qualityGrading.resolved()
         return config
     }
 }
 
 private struct ApplySessionConfigurationBuilder {
     private var config: ResolvedApplySessionConfiguration
+    private var qualityGrading: QualityGradingConfigurationBuilder
 
     init(defaults: ResolvedApplySessionConfiguration) {
         self.config = defaults
+        self.qualityGrading = QualityGradingConfigurationBuilder(defaults: defaults.qualityGrading)
     }
 
     mutating func apply(config fileConfig: AppConfig) {
@@ -1010,6 +1170,7 @@ private struct ApplySessionConfigurationBuilder {
         merge(&config.sourceVerification, fileConfig.sourceVerification)
         merge(&config.backupSidecars, fileConfig.backupSidecars)
         merge(&config.xmpConflictPolicy, fileConfig.xmpConflictPolicy)
+        qualityGrading.apply(config: fileConfig)
     }
 
     mutating func apply(overrides: ApplySessionConfigurationOverrides) {
@@ -1022,24 +1183,29 @@ private struct ApplySessionConfigurationBuilder {
         merge(&config.backupSidecars, overrides.backupSidecars)
         merge(&config.xmpConflictPolicy, overrides.xmpConflictPolicy)
         merge(&config.allowStale, overrides.allowStale)
+        qualityGrading.apply(overrides: overrides.qualityGrading)
     }
 
     func resolved() throws -> ResolvedApplySessionConfiguration {
         if config.xmpConflictPolicy == .backupAndMerge, !config.backupSidecars {
             throw SidecarError.configInvalid("xmp_conflict_policy backup-and-merge requires backup_sidecars to be true")
         }
-        return config
+        var resolved = config
+        resolved.qualityGrading = try qualityGrading.resolved()
+        return resolved
     }
 }
 
-private extension RunConfigurationOverrides {
-    func withoutConfigPath() -> RunConfigurationOverrides {
+extension RunConfigurationOverrides {
+    fileprivate func withoutConfigPath() -> RunConfigurationOverrides {
         // The selected config path controls which file is read, but it is not a
         // persisted run value and should not participate in provenance.
         RunConfigurationOverrides(
             mode: mode,
             existing: existing,
             recursive: recursive,
+            qualityAssessment: qualityAssessment,
+            qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,
@@ -1067,8 +1233,8 @@ private extension RunConfigurationOverrides {
     }
 }
 
-private extension XMPExportConfigurationOverrides {
-    func withoutConfigPath() -> XMPExportConfigurationOverrides {
+extension XMPExportConfigurationOverrides {
+    fileprivate func withoutConfigPath() -> XMPExportConfigurationOverrides {
         // Match the Phase 1 resolver: the selected config path is read input,
         // not part of the resolved operational settings.
         XMPExportConfigurationOverrides(
@@ -1086,13 +1252,14 @@ private extension XMPExportConfigurationOverrides {
             minConfidence: minConfidence,
             allowSpecificTags: allowSpecificTags,
             pairScope: pairScope,
-            writeAIJSON: writeAIJSON
+            writeAIJSON: writeAIJSON,
+            qualityGrading: qualityGrading
         )
     }
 }
 
-private extension NormalizationConfigurationOverrides {
-    func withoutConfigPath() -> NormalizationConfigurationOverrides {
+extension NormalizationConfigurationOverrides {
+    fileprivate func withoutConfigPath() -> NormalizationConfigurationOverrides {
         NormalizationConfigurationOverrides(
             recursive: recursive,
             outputDir: outputDir,
@@ -1125,13 +1292,14 @@ private extension NormalizationConfigurationOverrides {
             allowSessionHabitatPropagation: allowSessionHabitatPropagation,
             allowSessionEventPropagation: allowSessionEventPropagation,
             affinityPrivacyMode: affinityPrivacyMode,
-            writeReportPath: writeReportPath
+            writeReportPath: writeReportPath,
+            qualityGrading: qualityGrading
         )
     }
 }
 
-private extension ApplySessionConfigurationOverrides {
-    func withoutConfigPath() -> ApplySessionConfigurationOverrides {
+extension ApplySessionConfigurationOverrides {
+    fileprivate func withoutConfigPath() -> ApplySessionConfigurationOverrides {
         ApplySessionConfigurationOverrides(
             outputDir: outputDir,
             logLevel: logLevel,
@@ -1141,7 +1309,8 @@ private extension ApplySessionConfigurationOverrides {
             sourceVerification: sourceVerification,
             backupSidecars: backupSidecars,
             xmpConflictPolicy: xmpConflictPolicy,
-            allowStale: allowStale
+            allowStale: allowStale,
+            qualityGrading: qualityGrading
         )
     }
 }

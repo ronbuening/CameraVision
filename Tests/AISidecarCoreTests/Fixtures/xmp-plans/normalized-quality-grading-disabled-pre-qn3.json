@@ -1,0 +1,99 @@
+{
+  "dry_run" : true,
+  "input_failures" : [
+
+  ],
+  "schema_version" : "ai-sidecar-xmp-change-plan/1.2",
+  "target_plans" : [
+    {
+      "backup_plan" : {
+        "backup_required_before_merge" : true,
+        "backup_sidecars" : true,
+        "conflict_policy" : "backup-and-merge"
+      },
+      "candidate_extraction_issues" : [
+
+      ],
+      "existing_policy" : "backup-and-merge",
+      "failures" : [
+
+      ],
+      "flat_keywords_to_add" : [
+        {
+          "candidates" : [
+            {
+              "confidence" : "high",
+              "evidence" : "fixture evidence",
+              "normalized_term" : "bird",
+              "provenance" : {
+                "input_role" : "whole_image",
+                "model_run_index" : 0,
+                "source_field" : "main_subjects",
+                "source_image" : "/photos/asset-000001.JPG",
+                "source_sidecar" : "/sidecars/asset-000001.ai.json"
+              },
+              "term" : "bird"
+            }
+          ],
+          "normalized_key" : "birds",
+          "term" : "Birds"
+        }
+      ],
+      "group_warnings" : [
+
+      ],
+      "hierarchical_keywords_to_add" : [
+        {
+          "candidates" : [
+            {
+              "confidence" : "high",
+              "evidence" : "fixture evidence",
+              "normalized_term" : "bird",
+              "provenance" : {
+                "input_role" : "whole_image",
+                "model_run_index" : 0,
+                "source_field" : "main_subjects",
+                "source_image" : "/photos/asset-000001.JPG",
+                "source_sidecar" : "/sidecars/asset-000001.ai.json"
+              },
+              "term" : "bird"
+            }
+          ],
+          "normalized_key" : "subject|wildlife|birds",
+          "term" : "Subject|Wildlife|Birds"
+        }
+      ],
+      "pair_scope" : "union",
+      "skipped_candidates" : [
+
+      ],
+      "source_members" : [
+        {
+          "flat_keyword_contribution_count" : 1,
+          "hierarchical_keyword_contribution_count" : 1,
+          "pair_kind" : "jpeg",
+          "selected" : true,
+          "source_file_name" : "Bird.JPG",
+          "source_identity_status" : "matched",
+          "source_path" : "/photos/Bird.JPG",
+          "source_relative_path" : "Bird.JPG",
+          "source_sidecar_path" : "/sidecars/Bird.JPG.ai.json",
+          "source_sidecar_relative_path" : "Bird.JPG.ai.json",
+          "source_type" : "jpg"
+        }
+      ],
+      "source_verification_warnings" : [
+
+      ],
+      "status" : "planned",
+      "target_relative_path" : "Bird.xmp",
+      "target_xmp_path" : "/tmp/normalized/Bird.xmp",
+      "validation_plan" : {
+        "validate_existing_keyword_preservation" : true,
+        "validate_keyword_additions" : true,
+        "validate_readable_xmp" : true,
+        "validate_unmanaged_content_preservation" : true
+      }
+    }
+  ]
+}

@@ -1,0 +1,392 @@
+{
+  "created_at" : "2026-07-19T22:31:01Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/54aafc4f994793359c4bf24335e5c955846582224eb6e7fd3f30c7547130a698-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1365,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "fd3fc7dc29668b835991584a0bdcb9eb0b1b6e75049bace47fda4087376a74ec",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "54aafc4f994793359c4bf24335e5c955846582224eb6e7fd3f30c7547130a698"
+      },
+      "width" : 2048
+    },
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/54aafc4f994793359c4bf24335e5c955846582224eb6e7fd3f30c7547130a698-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 2048,
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "role" : "subject_isolated",
+      "sha256" : "857eae7c91a8d788cbe14f33d0a480cae95e4b9b03e22b8c188afb2083c3dee4",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "54aafc4f994793359c4bf24335e5c955846582224eb6e7fd3f30c7547130a698"
+      },
+      "width" : 1279
+    }
+  ],
+  "errors" : [
+
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 16629,
+      "error" : null,
+      "input_derivative_sha256" : "fd3fc7dc29668b835991584a0bdcb9eb0b1b6e75049bace47fda4087376a74ec",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "standing"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "statue of liberty against a cloudy sky",
+            "term" : "architecture"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "monumental structure in an outdoor setting",
+            "term" : "travel"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "large green copper statue of a woman holding a torch and tablet",
+            "term" : "statue of liberty"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "green patina on statue, cloudy sky, monument, pedestal",
+            "term" : "monument"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "statue holding a torch and tablet",
+            "term" : "statue"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "overcast, grey sky",
+            "term" : "cloudy sky"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "greenish color of the statue",
+            "term" : "patina"
+          }
+        ],
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor scene"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "stone base of the statue",
+            "term" : "pedestal"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "dark, overcast sky",
+            "term" : "cloudy sky"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A low-angle shot of the Statue of Liberty standing against a dark, cloudy sky.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "603d96141dd9ac54b0b49024b93e76ba931921086e73bc0e7e57467363f57300",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"standing\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"statue of liberty against a cloudy sky\",\n      \"term\": \"architecture\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"monumental structure in an outdoor setting\",\n      \"term\": \"travel\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large green copper statue of a woman holding a torch and tablet\",\n      \"term\": \"statue of liberty\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"green patina on statue, cloudy sky, monument, pedestal\",\n      \"term\": \"monument\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"statue holding a torch and tablet\",\n      \"term\": \"statue\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"overcast, grey sky\",\n      \"term\": \"cloudy sky\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"greenish color of the statue\",\n      \"term\": \"patina\"\n    }\n  ],\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor scene\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"stone base of the statue\",\n      \"term\": \"pedestal\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"dark, overcast sky\",\n      \"term\": \"cloudy sky\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"A low-angle shot of the Statue of Liberty standing against a dark, cloudy sky.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 563,
+        "eval_duration_ns" : 8828218000,
+        "load_duration_ns" : 308822500,
+        "prompt_eval_count" : 1141,
+        "prompt_eval_duration_ns" : 2700545000,
+        "total_duration_ns" : 16590441708
+      },
+      "runtime_version" : "0.32.0"
+    },
+    {
+      "duration_ms" : 16252,
+      "error" : null,
+      "input_derivative_sha256" : "857eae7c91a8d788cbe14f33d0a480cae95e4b9b03e22b8c188afb2083c3dee4",
+      "input_role" : "subject_isolated",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "standing upright with arm raised holding a torch and another hand holding a book"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "monumental sculpture of a personified figure on a pedestal",
+            "term" : "architecture"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "sculpture of a female figure in classical drapery",
+            "term" : "fine_art_conceptual"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "large green copper-colored statue of a woman wearing a crown with spikes and flowing robes, standing on a stone pedestal",
+            "term" : "statue of liberty"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "green patina color",
+            "term" : "verdigris"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "crown with seven spikes",
+            "term" : "spiked crown"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "raised arm holding a torch with flame",
+            "term" : "torch"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "holding a tablet or book in the left hand",
+            "term" : "tablet"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "draped clothing with many folds",
+            "term" : "drapery"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "stone base with rectangular columns and tiered levels",
+            "term" : "pedestal"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "the stone structure supporting the statue",
+            "term" : "pedestal"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "object held in raised hand",
+            "term" : "torch"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A large, green-patinaed statue of a female figure wearing a spiked crown and flowing robes, standing on a tiered stone pedestal.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "be7bedb9dac5c795c03b49d8f16368080d5d2ab44226d76bcf4314b5fbf17640",
+      "prompt_version" : "aisidecar.prompt.subject_isolated/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"standing upright with arm raised holding a torch and another hand holding a book\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"monumental sculpture of a personified figure on a pedestal\",\n      \"term\": \"architecture\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"sculpture of a female figure in classical drapery\",\n      \"term\": \"fine_art_conceptual\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large green copper-colored statue of a woman wearing a crown with spikes and flowing robes, standing on a stone pedestal\",\n      \"term\": \"statue of liberty\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"green patina color\",\n      \"term\": \"verdigris\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"crown with seven spikes\",\n      \"term\": \"spiked crown\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"raised arm holding a torch with flame\",\n      \"term\": \"torch\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"holding a tablet or book in the left hand\",\n      \"term\": \"tablet\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"draped clothing with many folds\",\n      \"term\": \"drapery\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"stone base with rectangular columns and tiered levels\",\n      \"term\": \"pedestal\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"the stone structure supporting the statue\",\n      \"term\": \"pedestal\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"object held in raised hand\",\n      \"term\": \"torch\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"A large, green-patinaed statue of a female figure wearing a spiked crown and flowing robes, standing on a tiered stone pedestal.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:subject-isolated:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 582,
+        "eval_duration_ns" : 9150591000,
+        "load_duration_ns" : 238196208,
+        "prompt_eval_count" : 1207,
+        "prompt_eval_duration_ns" : 2671697000,
+        "total_duration_ns" : 16240562333
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "overwrite",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run4",
+    "profile" : "gemma4-26b-default",
+    "quality_scan_mode" : "sequential",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "54624726184_f7518c808e_o.jpg",
+    "file_size" : 16041534,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "54aafc4f994793359c4bf24335e5c955846582224eb6e7fd3f30c7547130a698"
+    },
+    "modified_at" : "2026-06-11T16:49:16Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/54624726184_f7518c808e_o.jpg",
+    "relative_path" : "54624726184_f7518c808e_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1365,
+      "width" : 2048
+    },
+    "crop_bounding_box" : {
+      "height" : 2410,
+      "width" : 1506,
+      "x" : 2348,
+      "y" : 0
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 179,
+    "final_dimensions" : {
+      "height" : 2048,
+      "width" : 1279
+    },
+    "full_resolution" : {
+      "height" : 4132,
+      "width" : 6198
+    },
+    "instance_count" : 1,
+    "instances" : [
+      {
+        "area_pixels" : 158125,
+        "index" : 1,
+        "normalized_bounding_box" : {
+          "height" : 0.5399267399267399,
+          "width" : 0.18505859375,
+          "x" : 0.40771484375,
+          "y" : 0
+        },
+        "normalized_centroid" : {
+          "x" : 0.4999148082386364,
+          "y" : 0.19972232521102087
+        }
+      }
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 3.0263671875,
+      "y" : 3.027106227106227
+    },
+    "selected_bounding_box" : {
+      "height" : 0.5399267399267399,
+      "width" : 0.18505859375,
+      "x" : 0.40771484375,
+      "y" : 0
+    },
+    "selected_instance_indices" : [
+      1
+    ],
+    "selected_to_union_area_ratio" : 1,
+    "status" : "success",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 32884,
+    "pipeline_elapsed_ms" : 348530,
+    "render_ms" : 100,
+    "subject_isolation_ms" : 122,
+    "write_ms" : 1
+  }
+}

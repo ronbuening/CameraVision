@@ -13,15 +13,18 @@ public struct InstanceSelectionPolicy: Sendable, Equatable {
             return nil
         }
 
-        let allBoundingBox = instances
+        let allBoundingBox =
+            instances
             .map(\.normalizedBoundingBox)
             .reduce(selected.normalizedBoundingBox) { $0.union($1) }
         let ratio = allBoundingBox.area > 0 ? selected.normalizedBoundingBox.area / allBoundingBox.area : 1
         let shouldMerge = instances.count > 1 && ratio >= mergeDominanceThreshold
-        let selectedIndices = shouldMerge
+        let selectedIndices =
+            shouldMerge
             ? instances.map(\.index).sorted()
             : [selected.index]
-        let subjectBoundingBox = instances
+        let subjectBoundingBox =
+            instances
             .filter { selectedIndices.contains($0.index) }
             .map(\.normalizedBoundingBox)
             .reduce(selected.normalizedBoundingBox) { $0.union($1) }

@@ -30,18 +30,22 @@ public struct AnalyzeAndXMPPipeline {
         preScanRawSidecars: (@Sendable (String, ResolvedRunConfiguration) throws -> Set<String>)? = nil
     ) {
         self.fileManager = fileManager
-        self.analyzePipeline = analyzePipeline ?? AnalyzePipeline(
-            fileManager: fileManager,
-            logger: logger,
-            maskProvider: maskProvider,
-            runner: runner,
-            now: now
-        )
-        self.exportPipeline = exportPipeline ?? XMPExportPipeline(
-            fileManager: fileManager,
-            logger: logger,
-            now: now
-        )
+        self.analyzePipeline =
+            analyzePipeline
+            ?? AnalyzePipeline(
+                fileManager: fileManager,
+                logger: logger,
+                maskProvider: maskProvider,
+                runner: runner,
+                now: now
+            )
+        self.exportPipeline =
+            exportPipeline
+            ?? XMPExportPipeline(
+                fileManager: fileManager,
+                logger: logger,
+                now: now
+            )
         self.logger = logger
         self.preScanRawSidecars = preScanRawSidecars
     }
@@ -90,8 +94,9 @@ public struct AnalyzeAndXMPPipeline {
         )
 
         if shouldClearDerivativeCacheAfterOverallSuccess,
-           analyzeSucceeded(analyzeResult),
-           exportSucceeded(exportResult) {
+            analyzeSucceeded(analyzeResult),
+            exportSucceeded(exportResult)
+        {
             try DerivativeCache(
                 directoryPath: runConfiguration.derivativeCacheDir,
                 sizeCapBytes: runConfiguration.derivativeCacheSizeBytes,
@@ -149,7 +154,11 @@ public struct AnalyzeAndXMPPipeline {
             }
         }
 
-        return RawJSONSidecarInputBatch(inputs: inputs, failures: failures)
+        // Sequential quality runs emit one record per pass; pair each
+        // .quality.ai.json document with its tagging primary the same way the
+        // disk-scan resolver does, so grading sees the quality data.
+        let grouped = RawJSONSidecarInputResolver(fileManager: fileManager).groupedSidecarInputs(inputs)
+        return RawJSONSidecarInputBatch(inputs: grouped, failures: failures)
     }
 
     private func rawInputFailure(from record: ProgressRecord) -> RawJSONSidecarInputFailure {
@@ -157,12 +166,13 @@ public struct AnalyzeAndXMPPipeline {
         return RawJSONSidecarInputFailure(
             sidecarPath: URL(fileURLWithPath: path).standardizedFileURL,
             relativePath: record.relativePath,
-            error: record.errors.first ?? SidecarError(
-                code: .validationFailed,
-                stage: .write,
-                message: "Analyze did not produce a successful raw sidecar for XMP export.",
-                recoverable: true
-            )
+            error: record.errors.first
+                ?? SidecarError(
+                    code: .validationFailed,
+                    stage: .write,
+                    message: "Analyze did not produce a successful raw sidecar for XMP export.",
+                    recoverable: true
+                )
         )
     }
 
@@ -178,12 +188,17 @@ public struct AnalyzeAndXMPPipeline {
             recursive: configuration.recursive,
             identityPolicy: configuration.sourceIdentityPolicy
         )
-        return Set(
-            SidecarNaming.plan(for: scan.images, outputDir: configuration.outputDir)
+        var planned = SidecarNaming.plan(for: scan.images, outputDir: configuration.outputDir)
+            .entries
+            .map(\.sidecarPath)
+        if configuration.taskProfile == .taggingWithQuality, configuration.qualityScanMode == .sequential {
+            // The sequential quality pass writes .quality.ai.json siblings;
+            // preexisting ones must survive the temporary-sidecar cleanup too.
+            planned += SidecarNaming.plan(for: scan.images, outputDir: configuration.outputDir, kind: .quality)
                 .entries
                 .map(\.sidecarPath)
-                .filter { fileManager.fileExists(atPath: $0) }
-        )
+        }
+        return Set(planned.filter { fileManager.fileExists(atPath: $0) })
     }
 
     private func removeNewRawSidecars(from analyzeResult: AnalyzeResult, preexistingRawSidecars: Set<String>) {
@@ -200,18 +215,21 @@ public struct AnalyzeAndXMPPipeline {
     }
 
     private func logCleanupWarning(_ message: String, error: Error) {
-        let sidecarError = error as? SidecarError ?? SidecarError(
-            code: .writeFailed,
-            stage: .write,
-            message: "\(message) \(error.localizedDescription)",
-            recoverable: true
-        )
-        try? logger.log(LogRecord(
-            level: .warn,
-            event: "pipeline.raw_sidecar_cleanup_warning",
-            message: message,
-            errors: [sidecarError]
-        ))
+        let sidecarError =
+            error as? SidecarError
+            ?? SidecarError(
+                code: .writeFailed,
+                stage: .write,
+                message: "\(message) \(error.localizedDescription)",
+                recoverable: true
+            )
+        try? logger.log(
+            LogRecord(
+                level: .warn,
+                event: "pipeline.raw_sidecar_cleanup_warning",
+                message: message,
+                errors: [sidecarError]
+            ))
     }
 
     private func analyzeSucceeded(_ result: AnalyzeResult) -> Bool {

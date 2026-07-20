@@ -1,0 +1,264 @@
+{
+  "created_at" : "2026-07-19T22:14:43Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/04b2dc19b219bfa9039c597d31dbac728beee10a6be18da8174ca29483e25eaf-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1365,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "c15e344cf51c4c17a37258a9cc3a950b99d38a812a499e3a1464d059385bf20f",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "04b2dc19b219bfa9039c597d31dbac728beee10a6be18da8174ca29483e25eaf"
+      },
+      "width" : 2047
+    }
+  ],
+  "errors" : [
+    {
+      "code" : "E_SUBJECT_ISOLATION_NO_FOREGROUND",
+      "message" : "Apple Vision did not find a foreground subject.",
+      "recoverable" : true,
+      "stage" : "isolate"
+    }
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 14853,
+      "error" : null,
+      "input_derivative_sha256" : "c15e344cf51c4c17a37258a9cc3a950b99d38a812a499e3a1464d059385bf20f",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "vibrant sunset colors and mountain silhouette",
+            "term" : "landscape"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "medium",
+            "term" : "mountainous terrain"
+          },
+          {
+            "confidence" : "high",
+            "term" : "outdoor"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "silhouette of mountain range against a bright sky",
+            "term" : "mountain silhouette"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "bright yellow and orange sky with clouds",
+            "term" : "sunset sky"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "vibrant orange, yellow, and pink colors in the sky and mountains",
+            "term" : "sunset"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "silhouette of mountain peaks",
+            "term" : "mountains"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "clouds catching the light of the sun",
+            "term" : "clouds"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "dark shapes in foreground suggesting trees or bushes",
+            "term" : "silhouette"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "intense orange and yellow hues",
+            "term" : "vibrant colors"
+          }
+        ],
+        "quality_assessment" : {
+          "composition" : "acceptable",
+          "concerns" : [
+            "heavy silhouette in foreground obscures detail"
+          ],
+          "confidence" : "medium",
+          "exposure_and_tone" : "strong",
+          "focus" : "unrated",
+          "lighting_and_color" : "strong",
+          "moment_or_expression" : "unrated",
+          "overall_effectiveness" : "acceptable",
+          "strengths" : [
+            "dramatic color palette",
+            "striking silhouette"
+          ],
+          "subject_background_relationship" : "unrated",
+          "technical_cleanliness" : "strong"
+        },
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor landscape scene"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "medium",
+            "evidence" : "dark, indistinct shapes in the foreground",
+            "term" : "trees"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "wispy cloud formations",
+            "term" : "clouds"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A dramatic landscape photograph featuring a vibrant orange and yellow sunset over a dark mountain silhouette.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "8c55abe1e19c1eaf8a134b3a538d1f300c8c464971b815b476407858e4e57630",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.6.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"vibrant sunset colors and mountain silhouette\",\n      \"term\": \"landscape\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"medium\",\n      \"term\": \"mountainous terrain\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"silhouette of mountain range against a bright sky\",\n      \"term\": \"mountain silhouette\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"bright yellow and orange sky with clouds\",\n      \"term\": \"sunset sky\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"vibrant orange, yellow, and pink colors in the sky and mountains\",\n      \"term\": \"sunset\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"silhouette of mountain peaks\",\n      \"term\": \"mountains\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"clouds catching the light of the sun\",\n      \"term\": \"clouds\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"dark shapes in foreground suggesting trees or bushes\",\n      \"term\": \"silhouette\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"intense orange and yellow hues\",\n      \"term\": \"vibrant colors\"\n    }\n  ],\n  \"quality_assessment\": {\n    \"composition\": \"acceptable\",\n    \"concerns\": [\n      \"heavy silhouette in foreground obscures detail\"\n    ],\n    \"confidence\": \"medium\",\n    \"exposure_and_tone\": \"strong\",\n    \"focus\": \"unrated\",\n    \"lighting_and_color\": \"strong\",\n    \"moment_or_expression\": \"unrated\",\n    \"overall_effectiveness\": \"acceptable\",\n    \"strengths\": [\n      \"dramatic color palette\",\n      \"striking silhouette\"\n    ],\n    \"subject_background_relationship\": \"unrated\",\n    \"technical_cleanliness\": \"strong\"\n  },\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor landscape scene\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"dark, indistinct shapes in the foreground\",\n      \"term\": \"trees\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"wispy cloud formations\",\n      \"term\": \"clouds\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"A dramatic landscape photograph featuring a vibrant orange and yellow sunset over a dark mountain silhouette.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.6.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 716,
+        "eval_duration_ns" : 11274065000,
+        "load_duration_ns" : 302810250,
+        "prompt_eval_count" : 1529,
+        "prompt_eval_duration_ns" : 3058225000,
+        "total_duration_ns" : 14826163875
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "skip",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run2",
+    "profile" : "gemma4-26b-default",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging_with_quality"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "55194302181_d8918091ca_o.jpg",
+    "file_size" : 10213562,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "04b2dc19b219bfa9039c597d31dbac728beee10a6be18da8174ca29483e25eaf"
+    },
+    "modified_at" : "2026-06-11T16:42:58Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/55194302181_d8918091ca_o.jpg",
+    "relative_path" : "55194302181_d8918091ca_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1365,
+      "width" : 2047
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 0,
+    "full_resolution" : {
+      "height" : 3614,
+      "width" : 5421
+    },
+    "instance_count" : 0,
+    "instances" : [
+
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2.648265754763068,
+      "y" : 2.6476190476190475
+    },
+    "selected_instance_indices" : [
+
+    ],
+    "status" : "no_foreground",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 14856,
+    "pipeline_elapsed_ms" : 350529,
+    "render_ms" : 68,
+    "subject_isolation_ms" : 46,
+    "write_ms" : 2
+  }
+}

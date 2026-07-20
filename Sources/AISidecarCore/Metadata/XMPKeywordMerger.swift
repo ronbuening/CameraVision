@@ -11,17 +11,6 @@ struct XMPKeywordMergeOutcome: Equatable {
 struct XMPKeywordMerger {
     private let reader = XMPKeywordReader()
 
-    func preview(plan: XMPChangePlan, snapshot: XMPMetadataSnapshot) -> XMPKeywordMergeOutcome {
-        let flat = merge(existing: snapshot.flatKeywords, planned: plan.flatKeywordsToAdd)
-        let hierarchical = merge(existing: snapshot.hierarchicalKeywords, planned: plan.hierarchicalKeywordsToAdd)
-        return XMPKeywordMergeOutcome(
-            addedFlatKeywords: flat.added,
-            addedHierarchicalKeywords: hierarchical.added,
-            resultingFlatKeywords: flat.resulting,
-            resultingHierarchicalKeywords: hierarchical.resulting
-        )
-    }
-
     func merge(plan: XMPChangePlan, into parsed: XMPParsedDocument) throws -> XMPKeywordMergeOutcome {
         let flat = merge(
             field: .flat,
@@ -62,12 +51,9 @@ struct XMPKeywordMerger {
         return mergeResult
     }
 
-    private func merge(existing: [String], planned: [PlannedKeyword]) -> (added: [String], resulting: [String]) {
-        merge(existing: existing, plannedTerms: planned.map(\.term))
-    }
-
     private func merge(existing: [String], plannedTerms: [String]) -> (added: [String], resulting: [String]) {
-        var seen = Set(existing.map { KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)) })
+        var seen = Set(
+            existing.map { KeywordTextNormalizer.deduplicationKey(for: KeywordTextNormalizer.normalize($0)) })
         var added: [String] = []
         var resulting = existing
 
@@ -90,17 +76,19 @@ struct XMPKeywordMerger {
             return bag
         }
 
-        let property = reader.keywordProperty(field: field, in: description) ?? {
-            let property = XMLElement(name: field.qualifiedPropertyName)
-            switch field {
-            case .flat:
-                XMPXML.addNamespace(prefix: "dc", uri: XMPNamespace.dc, to: property)
-            case .hierarchical:
-                XMPXML.addNamespace(prefix: "lr", uri: XMPNamespace.lr, to: property)
-            }
-            description.addChild(property)
-            return property
-        }()
+        let property =
+            reader.keywordProperty(field: field, in: description)
+            ?? {
+                let property = XMLElement(name: field.qualifiedPropertyName)
+                switch field {
+                case .flat:
+                    XMPXML.addNamespace(prefix: "dc", uri: XMPNamespace.dc, to: property)
+                case .hierarchical:
+                    XMPXML.addNamespace(prefix: "lr", uri: XMPNamespace.lr, to: property)
+                }
+                description.addChild(property)
+                return property
+            }()
 
         let bag = XMLElement(name: "rdf:Bag")
         XMPXML.addNamespace(prefix: "rdf", uri: XMPNamespace.rdf, to: bag)

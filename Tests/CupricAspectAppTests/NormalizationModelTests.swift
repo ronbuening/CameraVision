@@ -3,6 +3,7 @@ import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 import XCTest
+
 @testable import CupricAspectApp
 
 /// M6: session-context → configuration mapping, the model-free run feeding
@@ -10,6 +11,8 @@ import XCTest
 /// write path (FR4-052–054, AC4-029/030 groundwork).
 final class NormalizationModelTests: XCTestCase {
     private var root: URL!
+    /// The builder entry points require callers to state quality grading explicitly.
+    private let noQualityGrading = QualityGradingConfigurationOverrides()
 
     override func setUpWithError() throws {
         root = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -63,9 +66,10 @@ final class NormalizationModelTests: XCTestCase {
             inputDerivativeSHA256: String(repeating: "b", count: 64),
             rawResponseText: "{}",
             parsedResponseJSON: .object([
-                "proposed_keywords": .array(terms.map { term in
-                    .object(["term": .string(term), "confidence": .string("high"), "evidence": .string("visible")])
-                })
+                "proposed_keywords": .array(
+                    terms.map { term in
+                        .object(["term": .string(term), "confidence": .string("high"), "evidence": .string("visible")])
+                    })
             ]),
             jsonValid: true,
             durationMs: 1,
@@ -97,7 +101,7 @@ final class NormalizationModelTests: XCTestCase {
     // MARK: - Tests
 
     @MainActor
-    func testContextFieldsLandInConfiguration() {
+    func testContextFieldsLandInConfiguration() throws {
         let model = NormalizationModel(stateDirectory: root)
         model.subject = "Leopard"
         model.habitat = "Savanna"
@@ -105,7 +109,11 @@ final class NormalizationModelTests: XCTestCase {
         model.unknownPolicy = .writeUnnormalized
         model.vocabularyPath = "/tmp/vocab.json"
 
-        let configuration = model.buildConfiguration(sourceRoot: "/src", outputDir: "/out")
+        let configuration = try model.buildConfiguration(
+            sourceRoot: "/src",
+            outputDir: "/out",
+            qualityGrading: noQualityGrading
+        )
         XCTAssertEqual(configuration.sessionSubject, "Leopard")
         XCTAssertEqual(configuration.sessionHabitat, "Savanna")
         XCTAssertNil(configuration.sessionEvent, "empty fields map to nil, not empty strings")
@@ -123,12 +131,72 @@ final class NormalizationModelTests: XCTestCase {
     /// The vocabulary-UI-hidden default (and any run without a chosen file):
     /// built-in defaults all the way — observed-tags catalog, reject policy.
     @MainActor
-    func testNoVocabularyFileKeepsBuiltInDefaults() {
-        let model = NormalizationModel(stateDirectory: root)
-        let configuration = model.buildConfiguration(sourceRoot: "/src", outputDir: "/out")
+    func testNoVocabularyFileKeepsBuiltInDefaults() throws {
+        let model = NormalizationModel(stateDirectory: root, environment: [:], defaultConfigPath: missingConfigPath())
+        let configuration = try model.buildConfiguration(
+            sourceRoot: "/src",
+            outputDir: "/out",
+            qualityGrading: noQualityGrading
+        )
         XCTAssertNil(configuration.vocabularyPath)
         XCTAssertEqual(configuration.vocabularyMode, .observedTags)
         XCTAssertEqual(configuration.unknownSessionContextPolicy, .reject)
+    }
+
+    @MainActor
+    func testQualityOverridesPreserveResolverOwnedChannelsAndMaps() throws {
+        let configPath = try writeConfig(
+            """
+            {
+              "xmp_quality_grading": false,
+              "xmp_quality_write_rating": false,
+              "xmp_quality_write_label": false,
+              "xmp_quality_write_keywords": false,
+              "xmp_quality_keyword_root": "Configured Quality"
+            }
+            """
+        )
+        let model = NormalizationModel(
+            stateDirectory: root,
+            environment: ["AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE": "low"],
+            defaultConfigPath: configPath
+        )
+        let overrides = QualityGradingConfigurationOverrides(
+            enabled: true,
+            conflictPolicy: .overwrite,
+            writeRating: true
+        )
+
+        let configuration = try model.buildConfiguration(
+            sourceRoot: "/src",
+            outputDir: "/out",
+            qualityGrading: overrides
+        )
+
+        XCTAssertTrue(configuration.qualityGrading.enabled)
+        XCTAssertEqual(configuration.qualityGrading.conflictPolicy, .overwrite)
+        XCTAssertTrue(configuration.qualityGrading.policy.writeRating)
+        XCTAssertFalse(configuration.qualityGrading.policy.writeLabel)
+        XCTAssertFalse(configuration.qualityGrading.policy.writeKeywords)
+        XCTAssertEqual(configuration.qualityGrading.policy.keywordRoot, "Configured Quality")
+        XCTAssertEqual(configuration.qualityGrading.policy.minimumConfidence, .low)
+    }
+
+    @MainActor
+    func testAbsentQualityConfigurationMatchesFormerBuiltInBuilder() throws {
+        let model = NormalizationModel(stateDirectory: root, environment: [:], defaultConfigPath: missingConfigPath())
+
+        let configuration = try model.buildConfiguration(
+            sourceRoot: "/src",
+            outputDir: "/out",
+            qualityGrading: noQualityGrading
+        )
+        var expected = ResolvedNormalizationConfiguration.builtInDefaults
+        expected.recursive = true
+        expected.sourceRoot = "/src"
+        expected.outputDir = "/out"
+
+        XCTAssertEqual(configuration, expected)
     }
 
     @MainActor
@@ -136,7 +204,7 @@ final class NormalizationModelTests: XCTestCase {
         let (jsonRoot, sourceRoot) = try writeFixture(terms: ["bird", "tree"])
         let model = NormalizationModel(stateDirectory: root.appendingPathComponent("state"))
 
-        model.run(jsonRoot: jsonRoot, sourceRoot: sourceRoot)
+        model.run(jsonRoot: jsonRoot, sourceRoot: sourceRoot, qualityGrading: noQualityGrading)
         try await waitUntil("normalization run") { model.phase == .ready }
 
         XCTAssertFalse(model.summaries.isEmpty)
@@ -162,7 +230,7 @@ final class NormalizationModelTests: XCTestCase {
         let missingJSONRoot = root.appendingPathComponent("missing-json").path
         let model = NormalizationModel(stateDirectory: root.appendingPathComponent("state"))
 
-        model.run(jsonRoot: missingJSONRoot, sourceRoot: sourceRoot)
+        model.run(jsonRoot: missingJSONRoot, sourceRoot: sourceRoot, qualityGrading: noQualityGrading)
         try await waitUntil("normalization failure") {
             if case .failed = model.phase { return true }
             return false
@@ -183,7 +251,7 @@ final class NormalizationModelTests: XCTestCase {
         let (jsonRoot, sourceRoot) = try writeFixture(terms: ["bird"])
         let model = NormalizationModel(stateDirectory: root.appendingPathComponent("state"))
 
-        model.run(jsonRoot: jsonRoot, sourceRoot: sourceRoot)
+        model.run(jsonRoot: jsonRoot, sourceRoot: sourceRoot, qualityGrading: noQualityGrading)
         try await waitUntil("normalization run") { model.phase == .ready }
         XCTAssertFalse(model.vocabularyIsStale, "no explicit vocabulary file — never stale")
 
@@ -207,12 +275,22 @@ final class NormalizationModelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
 
         let (jsonRoot, sourceRoot) = try writeFixture(terms: ["bird"])
-        model.run(jsonRoot: jsonRoot, sourceRoot: sourceRoot)
+        model.run(jsonRoot: jsonRoot, sourceRoot: sourceRoot, qualityGrading: noQualityGrading)
         try await waitUntil("normalization run") { model.phase == .ready }
         XCTAssertTrue(model.canSaveSession)
 
         model.reset()
         XCTAssertFalse(model.canSaveSession)
+    }
+
+    private func missingConfigPath() -> String {
+        root.appendingPathComponent("missing-config.json").path
+    }
+
+    private func writeConfig(_ contents: String) throws -> String {
+        let file = root.appendingPathComponent("config.json")
+        try Data(contents.utf8).write(to: file)
+        return file.path
     }
 
 }

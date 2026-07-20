@@ -30,29 +30,39 @@ public struct AssetAffinityInputExtractor {
         let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any]
         let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
         if stringValue(exif?[kCGImagePropertyExifDateTimeOriginal]) != nil
-            || stringValue(tiff?[kCGImagePropertyTIFFDateTime]) != nil {
+            || stringValue(tiff?[kCGImagePropertyTIFFDateTime]) != nil
+        {
             inputs.captureTimeStatus = .present
         }
         if properties[kCGImagePropertyGPSDictionary] is [CFString: Any],
-           GPSContextExtractor.context(for: source, mode: .coarse)?.gps != nil {
+            GPSContextExtractor.context(for: source, mode: .coarse)?.gps != nil
+        {
             inputs.gpsStatus = .present
         }
 
         let make = stringValue(tiff?[kCGImagePropertyTIFFMake])
         let model = stringValue(tiff?[kCGImagePropertyTIFFModel])
         inputs.cameraIdentityClass = normalizedClass([make, model].compactMap { $0 }.joined(separator: " "))
-        if let serial = stringValue(metadataValue(exif, named: [
-            "BodySerialNumber",
-            "SerialNumber",
-            "CameraSerialNumber"
-        ])) {
+        if let serial = stringValue(
+            metadataValue(
+                exif,
+                named: [
+                    "BodySerialNumber",
+                    "SerialNumber",
+                    "CameraSerialNumber",
+                ]))
+        {
             inputs.cameraSerialHash = AssetAffinityInputBuilder.stableSessionHash(serial)
         }
-        inputs.lensIdentityClass = normalizedClass(stringValue(metadataValue(exif, named: [
-            "LensModel",
-            "Lens",
-            "LensSpecification"
-        ])) ?? "")
+        inputs.lensIdentityClass = normalizedClass(
+            stringValue(
+                metadataValue(
+                    exif,
+                    named: [
+                        "LensModel",
+                        "Lens",
+                        "LensSpecification",
+                    ])) ?? "")
         return inputs
     }
 

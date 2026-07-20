@@ -234,7 +234,8 @@
     "source_identity_policy" : "sha256",
     "stage_concurrency" : 1,
     "subject_crop_margin_fraction" : 0.08,
-    "subject_merge_dominance_threshold" : 0.8
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging"
   },
   "schema_version" : "ai-sidecar-json/1.3",
   "source" : {

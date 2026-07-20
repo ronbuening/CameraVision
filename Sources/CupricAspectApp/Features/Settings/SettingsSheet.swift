@@ -100,9 +100,11 @@ struct SettingsSheet: View {
                     modelPicker
                 }
                 if settings.configuredModelUnavailable, !settings.visionTags.isEmpty {
-                    Text("The configured model isn't installed (or isn't vision-capable) at this endpoint — pick another or `ollama pull` it.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(theme.danger)
+                    Text(
+                        "The configured model isn't installed (or isn't vision-capable) at this endpoint — pick another or `ollama pull` it."
+                    )
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.danger)
                 }
                 emptyModelGuidance
                 Divider().overlay(theme.border)
@@ -267,9 +269,11 @@ struct SettingsSheet: View {
                         .foregroundStyle(theme.textDim)
                 }
                 if !settings.environmentOverrides.isEmpty {
-                    Text("Environment overrides active: \(settings.environmentOverrides.joined(separator: ", ")) — these take precedence over the file.")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(theme.accent.accent)
+                    Text(
+                        "Environment overrides active: \(settings.environmentOverrides.joined(separator: ", ")) — these take precedence over the file."
+                    )
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(theme.accent.accent)
                 }
                 Divider().overlay(theme.border)
                 settingRow("Default render mode") {
@@ -314,8 +318,25 @@ struct SettingsSheet: View {
                 }
                 Divider().overlay(theme.border)
                 settingRow(
+                    "Quality scan",
+                    caption: Step3OptionsView.qualityScanFootnote
+                ) {
+                    CVSegmentedControl(
+                        options: QualityScanMode.allCases,
+                        selection: Binding(
+                            get: { settings.qualityScanMode },
+                            set: { settings.setQualityScanMode($0) }
+                        ),
+                        label: { $0.wizardLabel }
+                    )
+                }
+                Divider().overlay(theme.border)
+                qualityGradingDefaults
+                Divider().overlay(theme.border)
+                settingRow(
                     "Model image size",
-                    caption: "Longest edge of the render sent to the model — smaller is faster, larger keeps fine detail."
+                    caption:
+                        "Longest edge of the render sent to the model — smaller is faster, larger keeps fine detail."
                 ) {
                     CVSegmentedControl(
                         options: ModelTuning.profileNamesBySize,
@@ -326,7 +347,8 @@ struct SettingsSheet: View {
                 Divider().overlay(theme.border)
                 settingRow(
                     "Model context window",
-                    caption: "Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
+                    caption:
+                        "Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
                 ) {
                     contextWindowMenu
                 }
@@ -411,6 +433,103 @@ struct SettingsSheet: View {
         }
     }
 
+    private var qualityGradingDefaults: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text("Quality grading defaults")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(theme.text)
+                Text("EXPERIMENTAL")
+                    .font(.system(size: 9, weight: .bold))
+                    .kerning(0.4)
+                    .foregroundStyle(theme.accent.accent)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(theme.accent.soft)
+                    .clipShape(Capsule())
+            }
+            Text("Default metadata channels and confidence threshold used when quality grading is enabled for a run.")
+                .font(.system(size: 11))
+                .foregroundStyle(theme.textFaint)
+
+            settingRow("Minimum confidence") {
+                CVSegmentedControl(
+                    options: [
+                        QualityAssessmentRecord.Confidence.low,
+                        .medium,
+                        .high,
+                    ],
+                    selection: Binding(
+                        get: { settings.qualityMinimumConfidence },
+                        set: { settings.setQualityMinimumConfidence($0) }
+                    ),
+                    label: { $0.rawValue.capitalized }
+                )
+            }
+
+            Text("Metadata channels")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(theme.textDim)
+            Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
+                GridRow {
+                    qualityChannelToggle(
+                        "Labels",
+                        value: Binding(
+                            get: { settings.qualityWriteLabel },
+                            set: { settings.setQualityWriteLabel($0) }
+                        )
+                    )
+                    qualityChannelToggle(
+                        "Urgency",
+                        value: Binding(
+                            get: { settings.qualityWriteUrgency },
+                            set: { settings.setQualityWriteUrgency($0) }
+                        )
+                    )
+                }
+                GridRow {
+                    qualityChannelToggle(
+                        "Pick flags",
+                        value: Binding(
+                            get: { settings.qualityWriteFlag },
+                            set: { settings.setQualityWriteFlag($0) }
+                        )
+                    )
+                    qualityChannelToggle(
+                        "Keywords",
+                        value: Binding(
+                            get: { settings.qualityWriteKeywords },
+                            set: { settings.setQualityWriteKeywords($0) }
+                        )
+                    )
+                }
+                GridRow {
+                    qualityChannelToggle(
+                        "Star ratings",
+                        value: Binding(
+                            get: { settings.qualityWriteRating },
+                            set: { settings.setQualityWriteRating($0) }
+                        )
+                    )
+                    Text("Opt in to keep your stars untouched by default.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(theme.textFaint)
+                }
+            }
+        }
+    }
+
+    private func qualityChannelToggle(
+        _ title: String,
+        value: Binding<Bool>
+    ) -> some View {
+        Toggle(title, isOn: value)
+            .toggleStyle(.checkbox)
+            .font(.system(size: 11.5, weight: .medium))
+            .foregroundStyle(theme.text)
+            .frame(minWidth: 150, alignment: .leading)
+    }
+
     private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("APPEARANCE")
@@ -454,7 +573,8 @@ struct SettingsSheet: View {
             card {
                 settingRow(
                     "Nonlinear UI",
-                    caption: FeatureFlags.studioUI ? "Switch between the Wizard and Studio layouts." : "Studio layout — coming soon."
+                    caption: FeatureFlags.studioUI
+                        ? "Switch between the Wizard and Studio layouts." : "Studio layout — coming soon."
                 ) {
                     Toggle("", isOn: FeatureFlags.studioUI ? $nonlinear : .constant(false))
                         .toggleStyle(.switch)
@@ -475,9 +595,11 @@ struct SettingsSheet: View {
                         Text("CupricAspect \(AppInfo.version)")
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundStyle(theme.text)
-                        Text("XMP engine \(OwnedXMPSidecarEngine.engineVersion) · recipe \(OwnedXMPSidecarEngine.writerRecipeVersion)")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(theme.textDim)
+                        Text(
+                            "XMP engine \(OwnedXMPSidecarEngine.engineVersion) · recipe \(OwnedXMPSidecarEngine.writerRecipeVersion)"
+                        )
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(theme.textDim)
                     }
                     Spacer()
                 }

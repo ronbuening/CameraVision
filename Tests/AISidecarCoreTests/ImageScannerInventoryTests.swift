@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 /// CORE-5: the discovery-only inventory must agree with the identity-computing

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import CupricAspectApp
 
 /// M1: the file→state derivation table from the plan, exercised against real
@@ -92,7 +93,8 @@ final class AssetQueueDerivationTests: XCTestCase {
         XCTAssertEqual(derive("sub/a.nef", outputDir: out), .analyzed)
 
         XCTAssertEqual(
-            AssetQueueDerivation.rawSidecarPath(sourcePath: "/x/sub/a.nef", relativePath: "sub/a.nef", outputDir: "/out"),
+            AssetQueueDerivation.rawSidecarPath(
+                sourcePath: "/x/sub/a.nef", relativePath: "sub/a.nef", outputDir: "/out"),
             "/out/sub/a.nef.ai.json"
         )
         XCTAssertEqual(
@@ -100,7 +102,8 @@ final class AssetQueueDerivationTests: XCTestCase {
             "/x/sub/a.xmp"
         )
         XCTAssertEqual(
-            AssetQueueDerivation.xmpTargetPath(sourcePath: "/x/sub/a.nef", relativePath: "sub/a.nef", outputDir: "/out"),
+            AssetQueueDerivation.xmpTargetPath(
+                sourcePath: "/x/sub/a.nef", relativePath: "sub/a.nef", outputDir: "/out"),
             "/out/sub/a.xmp"
         )
     }

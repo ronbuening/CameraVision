@@ -39,7 +39,8 @@ public struct RawJSONSidecarReader {
         do {
             json = try JSONDecoder().decode(JSONValue.self, from: data)
         } catch {
-            throw validationError("Malformed raw sidecar JSON at \(path): \(error.localizedDescription)", recoverable: true)
+            throw validationError(
+                "Malformed raw sidecar JSON at \(path): \(error.localizedDescription)", recoverable: true)
         }
 
         guard let object = json.objectValue else {

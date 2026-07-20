@@ -14,6 +14,13 @@ public enum XMPConflictPolicy: String, Codable, CaseIterable, Sendable {
     case backupAndMerge = "backup-and-merge"
 }
 
+/// Existing-value handling for quality grading's managed XMP scalars.
+public enum ScalarConflictPolicy: String, Codable, CaseIterable, Sendable {
+    case preserve
+    case refresh
+    case overwrite
+}
+
 /// Ordinal minimum confidence threshold for candidate keyword export.
 public enum XMPMinimumConfidence: String, Codable, CaseIterable, Comparable, Sendable {
     case low
@@ -40,6 +47,91 @@ public enum XMPPairScope: String, Codable, CaseIterable, Sendable {
     case jpegOnly = "jpeg-only"
 }
 
+/// Optional quality-grading values supplied at one configuration precedence layer.
+///
+/// Each field remains optional so an environment or CLI override for one knob does not
+/// reset config-file maps or other independently resolved policy values.
+public struct QualityGradingConfigurationOverrides: Sendable, Equatable {
+    public var enabled: Bool?
+    public var conflictPolicy: ScalarConflictPolicy?
+    public var minimumConfidence: QualityAssessmentRecord.Confidence?
+    public var writeRating: Bool?
+    public var writeLabel: Bool?
+    public var writeUrgency: Bool?
+    public var writeFlag: Bool?
+    public var writeKeywords: Bool?
+    public var rejectAsMinusOne: Bool?
+    public var perCriterionProblemKeywords: Bool?
+    public var keywordRoot: String?
+    public var ratingMap: [QualityTier: Int]?
+    public var labelMap: [QualityTier: String]?
+    public var urgencyMap: [QualityTier: Int]?
+    public var flagMap: [QualityTier: QualityPickFlag]?
+
+    public init(
+        enabled: Bool? = nil,
+        conflictPolicy: ScalarConflictPolicy? = nil,
+        minimumConfidence: QualityAssessmentRecord.Confidence? = nil,
+        writeRating: Bool? = nil,
+        writeLabel: Bool? = nil,
+        writeUrgency: Bool? = nil,
+        writeFlag: Bool? = nil,
+        writeKeywords: Bool? = nil,
+        rejectAsMinusOne: Bool? = nil,
+        perCriterionProblemKeywords: Bool? = nil,
+        keywordRoot: String? = nil,
+        ratingMap: [QualityTier: Int]? = nil,
+        labelMap: [QualityTier: String]? = nil,
+        urgencyMap: [QualityTier: Int]? = nil,
+        flagMap: [QualityTier: QualityPickFlag]? = nil
+    ) {
+        self.enabled = enabled
+        self.conflictPolicy = conflictPolicy
+        self.minimumConfidence = minimumConfidence
+        self.writeRating = writeRating
+        self.writeLabel = writeLabel
+        self.writeUrgency = writeUrgency
+        self.writeFlag = writeFlag
+        self.writeKeywords = writeKeywords
+        self.rejectAsMinusOne = rejectAsMinusOne
+        self.perCriterionProblemKeywords = perCriterionProblemKeywords
+        self.keywordRoot = keywordRoot
+        self.ratingMap = ratingMap
+        self.labelMap = labelMap
+        self.urgencyMap = urgencyMap
+        self.flagMap = flagMap
+    }
+}
+
+/// Fully resolved model-free grading settings used by the Phase 2 planner.
+public struct ResolvedQualityGradingConfiguration: Codable, Sendable, Equatable {
+    public var enabled: Bool
+    public var conflictPolicy: ScalarConflictPolicy
+    public var policy: QualityGradingPolicy
+
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case conflictPolicy = "conflict_policy"
+        case policy
+    }
+
+    public init(
+        enabled: Bool,
+        conflictPolicy: ScalarConflictPolicy,
+        policy: QualityGradingPolicy
+    ) {
+        self.enabled = enabled
+        self.conflictPolicy = conflictPolicy
+        self.policy = policy
+    }
+
+    public static let builtInDefaults = ResolvedQualityGradingConfiguration(
+        enabled: false,
+        conflictPolicy: .preserve,
+        policy: .builtInDefaults
+    )
+}
+
 /// Optional Phase 2 export values supplied before precedence is resolved.
 ///
 /// This is intentionally separate from `RunConfigurationOverrides` so Phase 2
@@ -61,6 +153,7 @@ public struct XMPExportConfigurationOverrides: Sendable, Equatable {
     public var allowSpecificTags: Bool?
     public var pairScope: XMPPairScope?
     public var writeAIJSON: Bool?
+    public var qualityGrading: QualityGradingConfigurationOverrides
 
     public init(
         recursive: Bool? = nil,
@@ -78,7 +171,8 @@ public struct XMPExportConfigurationOverrides: Sendable, Equatable {
         minConfidence: XMPMinimumConfidence? = nil,
         allowSpecificTags: Bool? = nil,
         pairScope: XMPPairScope? = nil,
-        writeAIJSON: Bool? = nil
+        writeAIJSON: Bool? = nil,
+        qualityGrading: QualityGradingConfigurationOverrides = QualityGradingConfigurationOverrides()
     ) {
         self.recursive = recursive
         self.outputDir = outputDir
@@ -96,6 +190,7 @@ public struct XMPExportConfigurationOverrides: Sendable, Equatable {
         self.allowSpecificTags = allowSpecificTags
         self.pairScope = pairScope
         self.writeAIJSON = writeAIJSON
+        self.qualityGrading = qualityGrading
     }
 }
 
@@ -118,6 +213,7 @@ public struct ResolvedXMPExportConfiguration: Codable, Sendable, Equatable {
     public var allowSpecificTags: Bool
     public var pairScope: XMPPairScope
     public var writeAIJSON: Bool
+    public var qualityGrading: ResolvedQualityGradingConfiguration
 
     enum CodingKeys: String, CodingKey {
         case recursive
@@ -135,6 +231,7 @@ public struct ResolvedXMPExportConfiguration: Codable, Sendable, Equatable {
         case allowSpecificTags = "allow_specific_tags"
         case pairScope = "pair_scope"
         case writeAIJSON = "write_ai_json"
+        case qualityGrading = "quality_grading"
     }
 
     public init(
@@ -152,7 +249,8 @@ public struct ResolvedXMPExportConfiguration: Codable, Sendable, Equatable {
         minConfidence: XMPMinimumConfidence,
         allowSpecificTags: Bool,
         pairScope: XMPPairScope,
-        writeAIJSON: Bool
+        writeAIJSON: Bool,
+        qualityGrading: ResolvedQualityGradingConfiguration = .builtInDefaults
     ) {
         self.recursive = recursive
         self.outputDir = outputDir
@@ -169,6 +267,49 @@ public struct ResolvedXMPExportConfiguration: Codable, Sendable, Equatable {
         self.allowSpecificTags = allowSpecificTags
         self.pairScope = pairScope
         self.writeAIJSON = writeAIJSON
+        self.qualityGrading = qualityGrading
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        recursive = try container.decode(Bool.self, forKey: .recursive)
+        outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
+        logLevel = try container.decode(LogLevel.self, forKey: .logLevel)
+        logFormat = try container.decode(LogFormat.self, forKey: .logFormat)
+        dryRun = try container.decode(Bool.self, forKey: .dryRun)
+        sourceRoot = try container.decodeIfPresent(String.self, forKey: .sourceRoot)
+        sourceVerification = try container.decode(XMPSourceVerificationPolicy.self, forKey: .sourceVerification)
+        writeFlatKeywords = try container.decode(Bool.self, forKey: .writeFlatKeywords)
+        writeHierarchicalKeywords = try container.decode(Bool.self, forKey: .writeHierarchicalKeywords)
+        backupSidecars = try container.decode(Bool.self, forKey: .backupSidecars)
+        xmpConflictPolicy = try container.decode(XMPConflictPolicy.self, forKey: .xmpConflictPolicy)
+        minConfidence = try container.decode(XMPMinimumConfidence.self, forKey: .minConfidence)
+        allowSpecificTags = try container.decode(Bool.self, forKey: .allowSpecificTags)
+        pairScope = try container.decode(XMPPairScope.self, forKey: .pairScope)
+        writeAIJSON = try container.decode(Bool.self, forKey: .writeAIJSON)
+        qualityGrading =
+            try container.decodeIfPresent(ResolvedQualityGradingConfiguration.self, forKey: .qualityGrading)
+            ?? .builtInDefaults
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(recursive, forKey: .recursive)
+        try container.encodeIfPresent(outputDir, forKey: .outputDir)
+        try container.encode(logLevel, forKey: .logLevel)
+        try container.encode(logFormat, forKey: .logFormat)
+        try container.encode(dryRun, forKey: .dryRun)
+        try container.encodeIfPresent(sourceRoot, forKey: .sourceRoot)
+        try container.encode(sourceVerification, forKey: .sourceVerification)
+        try container.encode(writeFlatKeywords, forKey: .writeFlatKeywords)
+        try container.encode(writeHierarchicalKeywords, forKey: .writeHierarchicalKeywords)
+        try container.encode(backupSidecars, forKey: .backupSidecars)
+        try container.encode(xmpConflictPolicy, forKey: .xmpConflictPolicy)
+        try container.encode(minConfidence, forKey: .minConfidence)
+        try container.encode(allowSpecificTags, forKey: .allowSpecificTags)
+        try container.encode(pairScope, forKey: .pairScope)
+        try container.encode(writeAIJSON, forKey: .writeAIJSON)
+        try container.encode(qualityGrading, forKey: .qualityGrading)
     }
 
     public static let builtInDefaults = ResolvedXMPExportConfiguration(
@@ -186,7 +327,8 @@ public struct ResolvedXMPExportConfiguration: Codable, Sendable, Equatable {
         minConfidence: .medium,
         allowSpecificTags: false,
         pairScope: .union,
-        writeAIJSON: true
+        writeAIJSON: true,
+        qualityGrading: .builtInDefaults
     )
 }
 
@@ -207,6 +349,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
     public var sourceVerification: XMPSourceVerificationPolicy?
     public var mode: AnalysisMode?
     public var existing: ExistingPolicy?
+    public var assessQuality: Bool
     public var model: String?
     public var modelEndpoint: String?
     public var modelTimeoutSeconds: Double?
@@ -218,10 +361,23 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
     public var stageConcurrency: Int?
     public var modelResponseRepairAttempts: Int?
     public var gpsContext: GPSContextMode?
+    public var qualityGrading: Bool
+    public var qualityConflicts: ScalarConflictPolicy?
+    public var qualityMinConfidence: XMPMinimumConfidence?
     public var writeFlatKeywords: Bool
     public var noWriteFlatKeywords: Bool
     public var writeHierarchicalKeywords: Bool
     public var noWriteHierarchicalKeywords: Bool
+    public var writeRating: Bool
+    public var noWriteRating: Bool
+    public var writeLabel: Bool
+    public var noWriteLabel: Bool
+    public var writeUrgency: Bool
+    public var noWriteUrgency: Bool
+    public var writeFlag: Bool
+    public var noWriteFlag: Bool
+    public var writeQualityKeywords: Bool
+    public var noWriteQualityKeywords: Bool
     public var backupSidecars: Bool
     public var noBackupSidecars: Bool
     public var writeAIJSON: Bool
@@ -234,6 +390,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         sourceVerification: XMPSourceVerificationPolicy? = nil,
         mode: AnalysisMode? = nil,
         existing: ExistingPolicy? = nil,
+        assessQuality: Bool = false,
         model: String? = nil,
         modelEndpoint: String? = nil,
         modelTimeoutSeconds: Double? = nil,
@@ -245,10 +402,23 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         stageConcurrency: Int? = nil,
         modelResponseRepairAttempts: Int? = nil,
         gpsContext: GPSContextMode? = nil,
+        qualityGrading: Bool = false,
+        qualityConflicts: ScalarConflictPolicy? = nil,
+        qualityMinConfidence: XMPMinimumConfidence? = nil,
         writeFlatKeywords: Bool = false,
         noWriteFlatKeywords: Bool = false,
         writeHierarchicalKeywords: Bool = false,
         noWriteHierarchicalKeywords: Bool = false,
+        writeRating: Bool = false,
+        noWriteRating: Bool = false,
+        writeLabel: Bool = false,
+        noWriteLabel: Bool = false,
+        writeUrgency: Bool = false,
+        noWriteUrgency: Bool = false,
+        writeFlag: Bool = false,
+        noWriteFlag: Bool = false,
+        writeQualityKeywords: Bool = false,
+        noWriteQualityKeywords: Bool = false,
         backupSidecars: Bool = false,
         noBackupSidecars: Bool = false,
         writeAIJSON: Bool = false,
@@ -260,6 +430,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         self.sourceVerification = sourceVerification
         self.mode = mode
         self.existing = existing
+        self.assessQuality = assessQuality
         self.model = model
         self.modelEndpoint = modelEndpoint
         self.modelTimeoutSeconds = modelTimeoutSeconds
@@ -271,10 +442,23 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         self.stageConcurrency = stageConcurrency
         self.modelResponseRepairAttempts = modelResponseRepairAttempts
         self.gpsContext = gpsContext
+        self.qualityGrading = qualityGrading
+        self.qualityConflicts = qualityConflicts
+        self.qualityMinConfidence = qualityMinConfidence
         self.writeFlatKeywords = writeFlatKeywords
         self.noWriteFlatKeywords = noWriteFlatKeywords
         self.writeHierarchicalKeywords = writeHierarchicalKeywords
         self.noWriteHierarchicalKeywords = noWriteHierarchicalKeywords
+        self.writeRating = writeRating
+        self.noWriteRating = noWriteRating
+        self.writeLabel = writeLabel
+        self.noWriteLabel = noWriteLabel
+        self.writeUrgency = writeUrgency
+        self.noWriteUrgency = noWriteUrgency
+        self.writeFlag = writeFlag
+        self.noWriteFlag = noWriteFlag
+        self.writeQualityKeywords = writeQualityKeywords
+        self.noWriteQualityKeywords = noWriteQualityKeywords
         self.backupSidecars = backupSidecars
         self.noBackupSidecars = noBackupSidecars
         self.writeAIJSON = writeAIJSON
@@ -290,10 +474,10 @@ public enum XMPExportInvocationValidator {
         let inputPath = InvocationRules.normalizedPath(request.inputPath)
         let fromJSONPath = InvocationRules.normalizedPath(request.fromJSONPath)
         switch (inputPath, fromJSONPath) {
-        case let (.some(inputPath), .none):
+        case (.some(let inputPath), .none):
             try validateAnalyzeAndWriteOnlyOptions(request)
             return .analyzeAndWrite(inputPath: inputPath)
-        case let (.none, .some(fromJSONPath)):
+        case (.none, .some(let fromJSONPath)):
             try validateFromJSONOnlyOptions(request)
             return .fromJSON(path: fromJSONPath)
         case (.some, .some):
@@ -311,6 +495,23 @@ public enum XMPExportInvocationValidator {
             "write-hierarchical-keywords",
             enabled: request.writeHierarchicalKeywords,
             disabled: request.noWriteHierarchicalKeywords
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-rating", enabled: request.writeRating, disabled: request.noWriteRating
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-label", enabled: request.writeLabel, disabled: request.noWriteLabel
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-urgency", enabled: request.writeUrgency, disabled: request.noWriteUrgency
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-flag", enabled: request.writeFlag, disabled: request.noWriteFlag
+        )
+        try InvocationRules.rejectConflictingFlag(
+            "write-quality-keywords",
+            enabled: request.writeQualityKeywords,
+            disabled: request.noWriteQualityKeywords
         )
         try InvocationRules.rejectConflictingFlag(
             "backup-sidecars", enabled: request.backupSidecars, disabled: request.noBackupSidecars
@@ -333,6 +534,7 @@ public enum XMPExportInvocationValidator {
         try InvocationRules.rejectFromJSONIncompatible([
             ("mode", request.mode != nil),
             ("existing", request.existing != nil),
+            ("assess-quality", request.assessQuality),
             ("model", request.model != nil),
             ("model-endpoint", request.modelEndpoint != nil),
             ("model-timeout", request.modelTimeoutSeconds != nil),
@@ -343,7 +545,7 @@ public enum XMPExportInvocationValidator {
             ("clear-derivative-cache-after-success", request.clearDerivativeCacheAfterSuccess),
             ("stage-concurrency", request.stageConcurrency != nil),
             ("model-response-repair-attempts", request.modelResponseRepairAttempts != nil),
-            ("gps-context", request.gpsContext != nil)
+            ("gps-context", request.gpsContext != nil),
         ])
         if request.writeAIJSON || request.noWriteAIJSON {
             throw SidecarError.configInvalid("--write-ai-json is valid only with analyze-and-write mode.")

@@ -81,6 +81,15 @@ public struct AnalyzePipeline {
         writesBatchArtifacts: Bool = true,
         progressHandler: (@Sendable (ProgressRecord) -> Void)? = nil
     ) async throws -> AnalyzeResult {
+        if configuration.taskProfile == .taggingWithQuality, configuration.qualityScanMode == .sequential {
+            return try await runSequentialScanAndAssess(
+                inputPath: inputPath,
+                configuration: configuration,
+                interruptionMonitor: interruptionMonitor,
+                writesBatchArtifacts: writesBatchArtifacts,
+                progressHandler: progressHandler
+            )
+        }
         let runStartedAt = now()
         let profile = try ModelInputProfileRegistry.resolve(name: configuration.profile)
         let lifecycleCache = cache(for: configuration)
@@ -93,7 +102,13 @@ public struct AnalyzePipeline {
             recursive: configuration.recursive,
             identityPolicy: configuration.sourceIdentityPolicy
         )
-        let plan = SidecarNaming.plan(for: scanResult.images, outputDir: configuration.outputDir)
+        let isQualityOnly = configuration.taskProfile == .qualityOnly
+        let sidecarKind: RawSidecarKind = isQualityOnly ? .quality : .tagging
+        let plan = SidecarNaming.plan(
+            for: scanResult.images,
+            outputDir: configuration.outputDir,
+            kind: sidecarKind
+        )
         let actions = entryActions(for: plan.entries, configuration: configuration)
         let pendingWork = actions.indices.compactMap { index -> PendingWork? in
             guard case .pending = actions[index] else {
@@ -111,11 +126,11 @@ public struct AnalyzePipeline {
         let reportDirectory = reportDirectoryPath(scanRoot: scanResult.scanRoot, outputDir: configuration.outputDir)
         let progressPath =
             isBatch && !configuration.dryRun && writesBatchArtifacts
-            ? "\(reportDirectory)/\(ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
+            ? "\(reportDirectory)/\(isQualityOnly ? ArtifactNames.qualityProgressPrefix : ArtifactNames.batchProgressPrefix)\(timestamp).jsonl"
             : nil
         let summaryPath =
             isBatch && !configuration.dryRun && writesBatchArtifacts
-            ? "\(reportDirectory)/\(ArtifactNames.batchSummaryPrefix)\(timestamp).json"
+            ? "\(reportDirectory)/\(isQualityOnly ? ArtifactNames.qualitySummaryPrefix : ArtifactNames.batchSummaryPrefix)\(timestamp).json"
             : nil
         let progressLog = try progressPath.map { try ProgressLog(path: $0, fileManager: fileManager) }
         defer {
@@ -223,6 +238,53 @@ public struct AnalyzePipeline {
             summaryPath: summaryPath,
             summary: summary,
             interrupted: interrupted
+        )
+    }
+
+    /// Sequential quality mode: a tagging pass, then a dedicated quality pass.
+    ///
+    /// The tagging pass writes `.ai.json` exactly as a tagging-only run would;
+    /// the quality pass writes `.quality.ai.json` siblings that the sidecar
+    /// input resolver pairs at read time. Cache lifecycle options keep their
+    /// whole-run meaning: clear-on-start applies before the first pass and
+    /// clear-after-success after the second, so the quality pass reuses the
+    /// tagging pass's rendered derivatives instead of re-rendering them.
+    private func runSequentialScanAndAssess(
+        inputPath: String,
+        configuration: ResolvedRunConfiguration,
+        interruptionMonitor: InterruptionMonitor?,
+        writesBatchArtifacts: Bool,
+        progressHandler: (@Sendable (ProgressRecord) -> Void)?
+    ) async throws -> AnalyzeResult {
+        var taggingConfiguration = configuration.with(taskProfile: .tagging)
+        taggingConfiguration.clearDerivativeCacheAfterSuccess = false
+        let tagging = try await run(
+            inputPath: inputPath,
+            configuration: taggingConfiguration,
+            interruptionMonitor: interruptionMonitor,
+            writesBatchArtifacts: writesBatchArtifacts,
+            progressHandler: progressHandler
+        )
+        if tagging.interrupted {
+            return tagging
+        }
+
+        var qualityConfiguration = configuration.with(taskProfile: .qualityOnly)
+        qualityConfiguration.clearDerivativeCacheOnStart = false
+        let quality = try await run(
+            inputPath: inputPath,
+            configuration: qualityConfiguration,
+            interruptionMonitor: interruptionMonitor,
+            writesBatchArtifacts: writesBatchArtifacts,
+            progressHandler: progressHandler
+        )
+        return AnalyzeResult(
+            scanResult: tagging.scanResult,
+            records: tagging.records + quality.records,
+            progressLogPath: tagging.progressLogPath,
+            summaryPath: tagging.summaryPath,
+            summary: tagging.summary,
+            interrupted: quality.interrupted
         )
     }
 
@@ -567,10 +629,12 @@ public struct AnalyzePipeline {
             return .prepared(
                 PreparedRenderedAnalysis(
                     derivatives: derivatives,
-                    modelInputContext: GPSContextExtractor.context(
-                        for: entry.source,
-                        mode: configuration.gpsContext
-                    ),
+                    modelInputContext: configuration.taskProfile == .qualityOnly
+                        ? nil
+                        : GPSContextExtractor.context(
+                            for: entry.source,
+                            mode: configuration.gpsContext
+                        ),
                     subjectIsolation: subjectIsolation,
                     errors: errors,
                     renderMs: renderMs,
@@ -783,8 +847,9 @@ public struct AnalyzePipeline {
         options.contextWindow = configuration.modelContextWindow > 0 ? configuration.modelContextWindow : nil
         options.maxResponseTokens = configuration.modelMaxResponseTokens
         do {
-            let prompt = try PromptRegistry.prompt(for: role, context: modelInputContext)
-            let schema = try ResponseSchemas.schema(for: role)
+            let prompt = try PromptRegistry.prompt(
+                for: role, task: configuration.taskProfile, context: modelInputContext)
+            let schema = try ResponseSchemas.schema(for: role, task: configuration.taskProfile)
             let runner = self.runner
             let task = Task {
                 await runner.analyze(

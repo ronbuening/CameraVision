@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class ArtifactCleanupTests: XCTestCase {
@@ -8,8 +9,11 @@ final class ArtifactCleanupTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let removable = [
             "Bird.JPG.ai.json",
+            "Bird.JPG.quality.ai.json",
             "batch-progress-2026-06-16T120000Z.jsonl",
             "batch-summary-2026-06-16T120000Z.json",
+            "quality-progress-2026-06-16T120000Z.jsonl",
+            "quality-summary-2026-06-16T120000Z.json",
             "xmp-export-progress-2026-06-16T120000Z.jsonl",
             "xmp-export-report-2026-06-16T120000Z.json",
             "xmp-export-summary-2026-06-16T120000Z.md",
@@ -18,20 +22,23 @@ final class ArtifactCleanupTests: XCTestCase {
             "normalization-summary-2026-06-16T120000Z.md",
             "normalization-apply-progress-2026-06-16T120000Z.jsonl",
             "normalization-apply-report-2026-06-16T120000Z.json",
-            "normalization-apply-summary-2026-06-16T120000Z.md"
+            "normalization-apply-summary-2026-06-16T120000Z.md",
         ]
         let protected = [
             "Bird.JPG",
             "Bird.xmp",
+            "Bird.xmp.bak-2026-06-16T120000Z-a3f2",
             "Bird.JPG.aisidecar.whole_image.jpg",
             "derivative-cache-index.json",
             "\(String(repeating: "a", count: 64))-render-v2-gemma4-26b-default-whole_image.jpg",
             "model-input-export-2026-06-16T120000Z.json",
             "normalization-session-2026-06-16T120000Z.json",
             "notes.json",
-            ".Hidden.JPG.ai.json"
+            ".Hidden.JPG.ai.json",
         ]
-        try (removable + protected).forEach { try write("artifact", named: $0, in: root) }
+        for name in removable + protected {
+            try write("artifact", named: name, in: root)
+        }
 
         let report = try ArtifactCleanup().run(rootPath: root.path, recursive: false, dryRun: true)
 
@@ -44,6 +51,24 @@ final class ArtifactCleanupTests: XCTestCase {
         XCTAssertEqual(report.failedCount, 0)
         XCTAssertEqual(Set(report.artifacts.map(\.relativePath)), Set(removable))
         XCTAssertTrue(report.artifacts.allSatisfy { !$0.removed && $0.error == nil })
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: report.artifacts.map { ($0.relativePath, $0.kind) })[
+                "Bird.JPG.quality.ai.json"
+            ],
+            .qualityAISidecar
+        )
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: report.artifacts.map { ($0.relativePath, $0.kind) })[
+                "quality-progress-2026-06-16T120000Z.jsonl"
+            ],
+            .qualityProgressLog
+        )
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: report.artifacts.map { ($0.relativePath, $0.kind) })[
+                "quality-summary-2026-06-16T120000Z.json"
+            ],
+            .qualityBatchSummary
+        )
         for name in removable + protected {
             XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(name).path), name)
         }
@@ -82,7 +107,9 @@ final class ArtifactCleanupTests: XCTestCase {
         let protected = [".DS_Store", ".Hidden.JPG.ai.json", ".notes.not-a-uuid.tmp"]
         try write("old", named: oldTemp, in: root)
         try write("fresh", named: freshTemp, in: root)
-        try protected.forEach { try write("protected", named: $0, in: root) }
+        for name in protected {
+            try write("protected", named: name, in: root)
+        }
         try FileManager.default.setAttributes(
             [.modificationDate: now.addingTimeInterval(-172_800)],
             ofItemAtPath: root.appendingPathComponent(oldTemp).path

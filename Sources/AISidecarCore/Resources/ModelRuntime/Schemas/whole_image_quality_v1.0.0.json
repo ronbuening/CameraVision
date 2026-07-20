@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:aisidecar:response:whole-image-quality:1.0.0",
+  "title": "AISidecar Whole Image Quality-Only Model Response 1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "quality_assessment"
+  ],
+  "properties": {
+    "quality_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Whole-image perceptual quality assessment. Keep separate from tags and proposed keywords.",
+      "required": [
+        "focus",
+        "composition",
+        "exposure_and_tone",
+        "lighting_and_color",
+        "subject_background_relationship",
+        "moment_or_expression",
+        "technical_cleanliness",
+        "overall_effectiveness",
+        "strengths",
+        "concerns",
+        "confidence"
+      ],
+      "properties": {
+        "focus": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Whether the intended subject or important detail is appropriately sharp. Do not penalize effective intentional motion blur."
+        },
+        "composition": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Framing, balance, visual hierarchy, edge control, and distracting mergers."
+        },
+        "exposure_and_tone": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Whether important highlights, shadows, and midtones are suitably rendered."
+        },
+        "lighting_and_color": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Effectiveness and coherence of light direction, contrast, white balance, and color."
+        },
+        "subject_background_relationship": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Subject separation, depth-of-field use, background contribution, and distractions. Use unrated when no distinct subject exists."
+        },
+        "moment_or_expression": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Effectiveness of visible gesture, expression, behavior, or timing. Use unrated when not relevant."
+        },
+        "technical_cleanliness": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Obvious visible noise, halos, banding, compression, oversmoothing, masking, or other processing artifacts."
+        },
+        "overall_effectiveness": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Overall photographic effectiveness relative to the visible subject, genre, and apparent intent; do not calculate an average."
+        },
+        "strengths": {
+          "type": "array",
+          "maxItems": 2,
+          "description": "Up to two concise visible strengths. Use an empty array when none are clear.",
+          "items": {
+            "$ref": "#/$defs/quality_note"
+          }
+        },
+        "concerns": {
+          "type": "array",
+          "maxItems": 2,
+          "description": "Up to two concise visible weaknesses. Use an empty array when none are clear.",
+          "items": {
+            "$ref": "#/$defs/quality_note"
+          }
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence",
+          "description": "Confidence in the quality assessment as a whole."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "description": "Ordinal confidence band. Numeric confidence is intentionally not used."
+    },
+    "quality_level": {
+      "type": "string",
+      "enum": [
+        "problem",
+        "acceptable",
+        "strong",
+        "unrated"
+      ],
+      "description": "Use problem for a visible weakness, acceptable for adequate execution, strong when the criterion materially supports the photograph, and unrated when the criterion is not relevant or cannot be judged reliably."
+    },
+    "quality_note": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[^\\r\\n\\t]+$",
+      "description": "One concise visible observation, not a reasoning trace or edit instruction."
+    }
+  }
+}

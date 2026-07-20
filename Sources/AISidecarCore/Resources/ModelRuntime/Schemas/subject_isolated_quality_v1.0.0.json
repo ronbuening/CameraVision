@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:aisidecar:response:subject-isolated-quality:1.0.0",
+  "title": "AISidecar Subject Isolated Quality-Only Model Response 1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "quality_assessment"
+  ],
+  "properties": {
+    "quality_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Perceptual quality assessment of the isolated subject only. Keep separate from tags and proposed keywords.",
+      "required": [
+        "focus",
+        "exposure_and_tone",
+        "lighting_and_color",
+        "detail_and_texture",
+        "pose_expression_or_moment",
+        "technical_cleanliness",
+        "overall_subject_quality",
+        "strengths",
+        "concerns",
+        "confidence"
+      ],
+      "properties": {
+        "focus": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Sharpness of the subject's important features. Do not judge original frame placement."
+        },
+        "exposure_and_tone": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Whether subject detail is retained in highlights, shadows, and midtones."
+        },
+        "lighting_and_color": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Whether light and color render the subject clearly and coherently."
+        },
+        "detail_and_texture": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Natural preservation of important texture and fine detail without smearing or excessive sharpening."
+        },
+        "pose_expression_or_moment": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Effectiveness of visible pose, expression, gesture, or behavior. Use unrated when not relevant."
+        },
+        "technical_cleanliness": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Obvious visible noise, halos, compression, oversmoothing, or processing artifacts on the subject. Ignore isolation-edge artifacts unless they obscure detail."
+        },
+        "overall_subject_quality": {
+          "$ref": "#/$defs/quality_level",
+          "description": "Overall quality of the isolated subject only; do not assess composition, background, or scene context."
+        },
+        "strengths": {
+          "type": "array",
+          "maxItems": 2,
+          "description": "Up to two concise visible subject strengths. Use an empty array when none are clear.",
+          "items": {
+            "$ref": "#/$defs/quality_note"
+          }
+        },
+        "concerns": {
+          "type": "array",
+          "maxItems": 2,
+          "description": "Up to two concise visible subject weaknesses. Use an empty array when none are clear.",
+          "items": {
+            "$ref": "#/$defs/quality_note"
+          }
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence",
+          "description": "Confidence in the subject-quality assessment as a whole."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "description": "Ordinal confidence band. Numeric confidence is intentionally not used."
+    },
+    "quality_level": {
+      "type": "string",
+      "enum": [
+        "problem",
+        "acceptable",
+        "strong",
+        "unrated"
+      ],
+      "description": "Use problem for a visible weakness, acceptable for adequate execution, strong when the criterion materially supports the photograph, and unrated when the criterion is not relevant or cannot be judged reliably."
+    },
+    "quality_note": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[^\\r\\n\\t]+$",
+      "description": "One concise visible observation, not a reasoning trace or edit instruction."
+    }
+  }
+}

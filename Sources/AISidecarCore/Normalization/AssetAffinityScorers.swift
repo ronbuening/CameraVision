@@ -32,7 +32,8 @@ public enum GPSAffinityScorer {
         let lat2 = latitudeB * .pi / 180
         let deltaLat = (latitudeB - latitudeA) * .pi / 180
         let deltaLon = (longitudeB - longitudeA) * .pi / 180
-        let a = sin(deltaLat / 2) * sin(deltaLat / 2)
+        let a =
+            sin(deltaLat / 2) * sin(deltaLat / 2)
             + cos(lat1) * cos(lat2) * sin(deltaLon / 2) * sin(deltaLon / 2)
         return radius * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
@@ -46,8 +47,9 @@ public enum FilenameSequenceAffinityScorer {
         profile: AssetAffinityProfile
     ) -> (score: Double?, basis: String?) {
         if lhs.relativeDirectory == rhs.relativeDirectory,
-           let lhsSequence = lhs.parsedSequenceNumber,
-           let rhsSequence = rhs.parsedSequenceNumber {
+            let lhsSequence = lhs.parsedSequenceNumber,
+            let rhsSequence = rhs.parsedSequenceNumber
+        {
             let gap = Double(abs(lhsSequence - rhsSequence))
             return (
                 AffinityDecay.score(value: gap, halfLife: profile.filenameHalfGap, cutoff: profile.filenameCutoff),

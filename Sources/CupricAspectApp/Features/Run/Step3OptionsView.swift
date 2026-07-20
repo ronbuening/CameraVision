@@ -4,6 +4,11 @@ import SwiftUI
 /// Wizard Step 3 — "Review & options" (design doc §6 Step 3). RAW+JPEG pair
 /// scope is export-only and arrives with M7's export options.
 struct Step3OptionsView: View {
+    struct QualityGradingAvailability: Equatable {
+        var isVisible: Bool
+        var controlsEnabled: Bool
+    }
+
     let action: WizardAction
     @Bindable var options: AnalysisOptions
     @Bindable var runModel: AnalysisRunModel
@@ -34,6 +39,11 @@ struct Step3OptionsView: View {
             }
             .padding(.top, 14)
 
+            if Self.qualityGradingAvailability(action: action, assessQuality: options.assessQuality).isVisible {
+                qualityGradingCard
+                    .padding(.top, 14)
+            }
+
             advancedCard
                 .padding(.top, 14)
 
@@ -47,6 +57,33 @@ struct Step3OptionsView: View {
             options.loadResolvedDefaults()
             refreshVisionTags()
             runPreflight()
+        }
+    }
+
+    /// D-G3: the disabled state also pauses a config/environment grading
+    /// default — say so, or config owners see their default silently ignored.
+    nonisolated static let gradingRequiresAssessmentExplanation =
+        "Assess image quality in Step 2 before this Wizard run can grade. "
+        + "While assessment is off, grading stays off for this run — even when your configuration enables it by default."
+
+    /// Mirrors the CLI docs' rationale for the opt-in rating channel.
+    nonisolated static let ratingOptInRationale = "stars stay yours unless you opt in"
+
+    /// Trade-off wording for the quality scan mode, shared with the Settings
+    /// sheet caption so the two surfaces cannot drift.
+    nonisolated static let qualityScanFootnote =
+        "Quality scan (when Step 2 assesses quality): Normal assesses in the same model call; "
+        + "High quality runs a second pass per image — slower, but keywords stay identical to a run without assessment."
+
+    nonisolated static func qualityGradingAvailability(
+        action: WizardAction,
+        assessQuality: Bool
+    ) -> QualityGradingAvailability {
+        switch action {
+        case .write, .normalize:
+            QualityGradingAvailability(isVisible: true, controlsEnabled: assessQuality)
+        case .analyze, .apply:
+            QualityGradingAvailability(isVisible: false, controlsEnabled: false)
         }
     }
 
@@ -125,13 +162,66 @@ struct Step3OptionsView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
     }
 
+    private var qualityGradingCard: some View {
+        let availability = Self.qualityGradingAvailability(action: action, assessQuality: options.assessQuality)
+        return VStack(alignment: .leading, spacing: 12) {
+            sectionLabel("QUALITY")
+            if !availability.controlsEnabled {
+                Text(Self.gradingRequiresAssessmentExplanation)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(theme.accent.accent)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Quality grading", isOn: $options.qualityGradingEnabled)
+                    .toggleStyle(.switch)
+                    .tint(theme.accent.accent)
+
+                Divider().overlay(theme.border)
+
+                Toggle("Write star ratings", isOn: $options.qualityWriteRating)
+                    .toggleStyle(.checkbox)
+                Text(Self.ratingOptInRationale)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(theme.textFaint)
+
+                HStack(spacing: 12) {
+                    Text("Existing culling metadata")
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(theme.text)
+                    Spacer()
+                    qualityConflictPolicyPicker
+                }
+            }
+            .disabled(!availability.controlsEnabled)
+            .opacity(availability.controlsEnabled ? 1 : 0.5)
+        }
+        .padding(EdgeInsets(top: 15, leading: 17, bottom: 15, trailing: 17))
+        .background(theme.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
+    }
+
+    private var qualityConflictPolicyPicker: some View {
+        Picker("", selection: $options.qualityConflictPolicy) {
+            Text(ScalarConflictPolicy.preserve.wizardLabel).tag(ScalarConflictPolicy.preserve)
+            Text(ScalarConflictPolicy.refresh.wizardLabel).tag(ScalarConflictPolicy.refresh)
+            Text(ScalarConflictPolicy.overwrite.wizardLabel).tag(ScalarConflictPolicy.overwrite)
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .fixedSize()
+    }
+
     private var modelPicker: some View {
         HStack(spacing: 8) {
             Menu {
                 Button {
                     selectModelOverride(nil)
                 } label: {
-                    let label = options.resolvedModel.isEmpty ? "Use Settings default" : "Use Settings default: \(options.resolvedModel)"
+                    let label =
+                        options.resolvedModel.isEmpty
+                        ? "Use Settings default" : "Use Settings default: \(options.resolvedModel)"
                     if options.modelOverride == nil {
                         Label(label, systemImage: "checkmark")
                     } else {
@@ -266,7 +356,9 @@ struct Step3OptionsView: View {
                     Text("Advanced flags")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(theme.text)
-                    Text("gps · existing .ai.json · existing xmp · concurrency · image size · context window")
+                    Text(
+                        "gps · existing .ai.json · existing xmp · concurrency · image size · context window · quality scan"
+                    )
                         .font(.system(size: 11))
                         .foregroundStyle(theme.textFaint)
                     Spacer()
@@ -328,13 +420,29 @@ struct Step3OptionsView: View {
                             contextWindowMenu
                         }
                     }
+                    GridRow {
+                        advancedGroup("QUALITY SCAN") {
+                            CVSegmentedControl(
+                                options: QualityScanMode.allCases,
+                                selection: $options.qualityScanMode,
+                                label: { $0.wizardLabel }
+                            )
+                            .disabled(!options.assessQuality)
+                            .opacity(options.assessQuality ? 1 : 0.5)
+                        }
+                    }
                 }
                 .padding(EdgeInsets(top: 14, leading: 17, bottom: 18, trailing: 17))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Existing .ai.json: the tool's own analysis files, not your .xmp.")
                     Text("Merge keeps keywords already in your .xmp; Backup & Merge writes a .xmp.bak first.")
-                    Text("Image size: longest edge of the render sent to the model — smaller is faster, larger keeps fine detail.")
-                    Text("Context window: Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide.")
+                    Text(
+                        "Image size: longest edge of the render sent to the model — smaller is faster, larger keeps fine detail."
+                    )
+                    Text(
+                        "Context window: Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
+                    )
+                    Text(Self.qualityScanFootnote)
                 }
                 .font(.system(size: 11))
                 .foregroundStyle(theme.textFaint)
@@ -445,6 +553,30 @@ struct Step3OptionsView: View {
                     visionTagState = .failed(message: message)
                 }
             }
+        }
+    }
+}
+
+/// One picker-label wording for the scalar-conflict policy, shared by the
+/// Step 3 grading group and the apply-session card and pinned by tests so it
+/// cannot drift from the CLI docs' phrasing.
+extension ScalarConflictPolicy {
+    var wizardLabel: String {
+        switch self {
+        case .preserve: "Preserve — never replace existing values"
+        case .refresh: "Refresh — replace only values this app wrote before"
+        case .overwrite: "Overwrite — always replace"
+        }
+    }
+}
+
+/// One picker-label wording for the quality scan mode, shared by the Step 3
+/// advanced card and the Settings sheet and pinned by tests.
+extension QualityScanMode {
+    var wizardLabel: String {
+        switch self {
+        case .combined: "Normal"
+        case .sequential: "High quality"
         }
     }
 }

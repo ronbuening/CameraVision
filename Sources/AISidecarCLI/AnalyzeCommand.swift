@@ -1,6 +1,6 @@
-import Foundation
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
+import Foundation
 
 struct AnalyzeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -15,6 +15,18 @@ struct AnalyzeCommand: AsyncParsableCommand {
     @Flag(help: "Print the scan result with identities and relative paths, then exit.")
     var dryScan = false
 
+    @Flag(
+        help:
+            "Also produce a perceptual quality assessment per image (adds the quality_assessment block to raw sidecars)."
+    )
+    var assessQuality = false
+
+    @Option(
+        help:
+            "With --assess-quality: 'combined' assesses in the tagging model call; 'sequential' runs a dedicated second pass that writes .quality.ai.json sidecars and keeps tagging output identical to a run without assessment."
+    )
+    var qualityScanMode: QualityScanMode?
+
     @Option(help: "Export rendered model-input images into this folder and write a manifest.")
     var exportModelInputs: String?
 
@@ -22,7 +34,10 @@ struct AnalyzeCommand: AsyncParsableCommand {
     var shared: SharedOptions
 
     mutating func run() async throws {
-        let resolved = try ConfigurationResolver.resolve(cli: shared.overrides)
+        var overrides = shared.overrides
+        overrides.qualityAssessment = assessQuality ? true : nil
+        overrides.qualityScanMode = qualityScanMode
+        let resolved = try ConfigurationResolver.resolve(cli: overrides)
 
         if dryScan {
             let cache = DerivativeCache(
@@ -56,7 +71,7 @@ struct AnalyzeCommand: AsyncParsableCommand {
         if let exportModelInputs {
             try ModelInputExportPipeline.validate(configuration: resolved)
             let pipeline = ModelInputExportPipeline(logger: logger)
-            let result = try await withBatchInterruptionExit {
+            let result = try await withAsyncBatchInterruptionExit {
                 try await pipeline.run(
                     inputPath: inputPath,
                     exportDirectoryPath: exportModelInputs,
@@ -72,7 +87,7 @@ struct AnalyzeCommand: AsyncParsableCommand {
         }
 
         let pipeline = AnalyzePipeline(logger: logger, runner: OllamaVisionRunner())
-        let result = try await withBatchInterruptionExit {
+        let result = try await withAsyncBatchInterruptionExit {
             try await pipeline.run(
                 inputPath: inputPath,
                 configuration: resolved,

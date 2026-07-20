@@ -19,7 +19,7 @@ let package = Package(
         .executable(
             name: "CupricAspect",
             targets: ["CupricAspectApp"]
-        )
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0")
@@ -38,7 +38,7 @@ let package = Package(
             name: "AISidecarCLI",
             dependencies: [
                 "AISidecarCore",
-                .product(name: "ArgumentParser", package: "swift-argument-parser")
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")
@@ -73,7 +73,7 @@ let package = Package(
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency")
             ]
-        )
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

@@ -1,0 +1,384 @@
+{
+  "created_at" : "2026-07-19T22:32:01Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/b73561db94e5be6b06a5700cdaa77ca9e36c32946ce212d7ac710af0dc74aa8c-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1365,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "36168f2e3f2b89b159a1b0ae551323a9ecf3767d81ddbf447d3c0cfcff39f638",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "b73561db94e5be6b06a5700cdaa77ca9e36c32946ce212d7ac710af0dc74aa8c"
+      },
+      "width" : 2048
+    },
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/b73561db94e5be6b06a5700cdaa77ca9e36c32946ce212d7ac710af0dc74aa8c-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1113,
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "role" : "subject_isolated",
+      "sha256" : "e910699dce8c36bd76b4ce66331b059e3fc8ffdbbb2fb43a28d9f3e8f2c4f1ef",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "b73561db94e5be6b06a5700cdaa77ca9e36c32946ce212d7ac710af0dc74aa8c"
+      },
+      "width" : 2048
+    }
+  ],
+  "errors" : [
+
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 16328,
+      "error" : null,
+      "input_derivative_sha256" : "36168f2e3f2b89b159a1b0ae551323a9ecf3767d81ddbf447d3c0cfcff39f638",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "large suspension bridge structure and coastline",
+            "term" : "architecture"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "bridge over water with hills in background",
+            "term" : "landscape"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "open water and coastline"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "large orange suspension bridge with two tall towers and cables",
+            "term" : "suspension bridge"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "orange suspension bridge, large steel structure, vertical towers, hanging cables, roadway, water, coastline, hills, overcast sky, fog, clouds",
+            "term" : "suspension bridge"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "large orange steel structure",
+            "term" : "bridge architecture"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "gray, cloudy sky",
+            "term" : "overcast sky"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "calm water surface",
+            "term" : "water"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "hilly terrain along the coast",
+            "term" : "coastline"
+          }
+        ],
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor landscape"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "landmass with vegetation and rocky shore below the bridge tower",
+            "term" : "coastline"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "distant landmass visible through fog",
+            "term" : "distant hills"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A large orange suspension bridge spans across a body of water under an overcast, foggy sky.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "603d96141dd9ac54b0b49024b93e76ba931921086e73bc0e7e57467363f57300",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large suspension bridge structure and coastline\",\n      \"term\": \"architecture\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"bridge over water with hills in background\",\n      \"term\": \"landscape\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"open water and coastline\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large orange suspension bridge with two tall towers and cables\",\n      \"term\": \"suspension bridge\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"orange suspension bridge, large steel structure, vertical towers, hanging cables, roadway, water, coastline, hills, overcast sky, fog, clouds\",\n      \"term\": \"suspension bridge\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large orange steel structure\",\n      \"term\": \"bridge architecture\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"gray, cloudy sky\",\n      \"term\": \"overcast sky\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"calm water surface\",\n      \"term\": \"water\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"hilly terrain along the coast\",\n      \"term\": \"coastline\"\n    }\n  ],\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor landscape\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"landmass with vegetation and rocky shore below the bridge tower\",\n      \"term\": \"coastline\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"distant landmass visible through fog\",\n      \"term\": \"distant hills\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"A large orange suspension bridge spans across a body of water under an overcast, foggy sky.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 562,
+        "eval_duration_ns" : 8855332000,
+        "load_duration_ns" : 262429834,
+        "prompt_eval_count" : 1141,
+        "prompt_eval_duration_ns" : 2732827000,
+        "total_duration_ns" : 16302632792
+      },
+      "runtime_version" : "0.32.0"
+    },
+    {
+      "duration_ms" : 14772,
+      "error" : null,
+      "input_derivative_sha256" : "e910699dce8c36bd76b4ce66331b059e3fc8ffdbbb2fb43a28d9f3e8f2c4f1ef",
+      "input_role" : "subject_isolated",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "spanning a gap"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "structural design of a large bridge",
+            "term" : "architecture"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "large suspension bridge with two tall towers and thick cables",
+            "term" : "suspension bridge"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "reddish-orange color of the structure",
+            "term" : "red bridge"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "vertical suspension cables",
+            "term" : "suspension cables"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "tall vertical support towers",
+            "term" : "bridge tower"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "horizontal roadway structure",
+            "term" : "roadway"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "distinctive orange-red color and design characteristic of the Golden Gate Bridge",
+            "term" : "Golden Gate Bridge style"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "vertical cables hanging from main suspension lines",
+            "term" : "suspension cables"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "structural truss under the roadway",
+            "term" : "truss structure"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A large, reddish-orange suspension bridge with two prominent towers and a long span of vertical cables.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "be7bedb9dac5c795c03b49d8f16368080d5d2ab44226d76bcf4314b5fbf17640",
+      "prompt_version" : "aisidecar.prompt.subject_isolated/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"spanning a gap\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"structural design of a large bridge\",\n      \"term\": \"architecture\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large suspension bridge with two tall towers and thick cables\",\n      \"term\": \"suspension bridge\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"reddish-orange color of the structure\",\n      \"term\": \"red bridge\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"vertical suspension cables\",\n      \"term\": \"suspension cables\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"tall vertical support towers\",\n      \"term\": \"bridge tower\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"horizontal roadway structure\",\n      \"term\": \"roadway\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"distinctive orange-red color and design characteristic of the Golden Gate Bridge\",\n      \"term\": \"Golden Gate Bridge style\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"vertical cables hanging from main suspension lines\",\n      \"term\": \"suspension cables\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"structural truss under the roadway\",\n      \"term\": \"truss structure\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"A large, reddish-orange suspension bridge with two prominent towers and a long span of vertical cables.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:subject-isolated:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 468,
+        "eval_duration_ns" : 7328143000,
+        "load_duration_ns" : 306503250,
+        "prompt_eval_count" : 1198,
+        "prompt_eval_duration_ns" : 2770459000,
+        "total_duration_ns" : 14749595458
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "overwrite",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run4",
+    "profile" : "gemma4-26b-default",
+    "quality_scan_mode" : "sequential",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "54671748425_ec70168972_o.jpg",
+    "file_size" : 12027019,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "b73561db94e5be6b06a5700cdaa77ca9e36c32946ce212d7ac710af0dc74aa8c"
+    },
+    "modified_at" : "2026-06-11T16:48:57Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/54671748425_ec70168972_o.jpg",
+    "relative_path" : "54671748425_ec70168972_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1365,
+      "width" : 2048
+    },
+    "crop_bounding_box" : {
+      "height" : 3090,
+      "width" : 5682,
+      "x" : 0,
+      "y" : 63
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 444,
+    "final_dimensions" : {
+      "height" : 1113,
+      "width" : 2048
+    },
+    "full_resolution" : {
+      "height" : 3788,
+      "width" : 5682
+    },
+    "instance_count" : 1,
+    "instances" : [
+      {
+        "area_pixels" : 583863,
+        "index" : 1,
+        "normalized_bounding_box" : {
+          "height" : 0.580952380952381,
+          "width" : 0.97509765625,
+          "x" : 0.02490234375,
+          "y" : 0.13406593406593406
+        },
+        "normalized_centroid" : {
+          "x" : 0.598164247304296,
+          "y" : 0.41502613209623246
+        }
+      }
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2.7744140625,
+      "y" : 2.775091575091575
+    },
+    "selected_bounding_box" : {
+      "height" : 0.580952380952381,
+      "width" : 0.97509765625,
+      "x" : 0.02490234375,
+      "y" : 0.13406593406593406
+    },
+    "selected_instance_indices" : [
+      1
+    ],
+    "selected_to_union_area_ratio" : 1,
+    "status" : "success",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 31106,
+    "pipeline_elapsed_ms" : 408744,
+    "render_ms" : 109,
+    "subject_isolation_ms" : 56,
+    "write_ms" : 4
+  }
+}

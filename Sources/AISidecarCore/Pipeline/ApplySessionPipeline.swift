@@ -29,6 +29,8 @@ public struct ApplySessionPipeline {
     private let sessionReader: NormalizationSessionReader
     private let reportWriter: NormalizationReportWriter
     private let summaryWriter: NormalizationSummaryWriter
+    private let snapshotReader: @Sendable (String) throws -> XMPMetadataSnapshot
+    private let currentSidecarPairResolver: (String) -> RawJSONSidecarInputBatch
     private let xmpPipeline: XMPExportPipeline
     private let afterSourceResolution: @Sendable () -> Void
 
@@ -41,6 +43,8 @@ public struct ApplySessionPipeline {
         sessionReader: NormalizationSessionReader? = nil,
         reportWriter: NormalizationReportWriter = NormalizationReportWriter(),
         summaryWriter: NormalizationSummaryWriter = NormalizationSummaryWriter(),
+        snapshotReader: (@Sendable (String) throws -> XMPMetadataSnapshot)? = nil,
+        currentSidecarPairResolver: ((String) -> RawJSONSidecarInputBatch)? = nil,
         xmpPipeline: XMPExportPipeline? = nil,
         afterSourceResolution: @escaping @Sendable () -> Void = {}
     ) {
@@ -48,6 +52,18 @@ public struct ApplySessionPipeline {
         self.sessionReader = sessionReader ?? NormalizationSessionReader(fileManager: fileManager)
         self.reportWriter = reportWriter
         self.summaryWriter = summaryWriter
+        if let snapshotReader {
+            self.snapshotReader = snapshotReader
+        } else {
+            let metadataEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
+            self.snapshotReader = { try metadataEngine.readSnapshot(at: $0) }
+        }
+        if let currentSidecarPairResolver {
+            self.currentSidecarPairResolver = currentSidecarPairResolver
+        } else {
+            let resolver = RawJSONSidecarInputResolver(fileManager: fileManager)
+            self.currentSidecarPairResolver = { resolver.resolveCurrentSidecarPair(at: $0) }
+        }
         self.xmpPipeline = xmpPipeline ?? XMPExportPipeline(fileManager: fileManager)
         self.afterSourceResolution = afterSourceResolution
     }
@@ -68,12 +84,20 @@ public struct ApplySessionPipeline {
             timestamp: timestamp
         )
 
-        let sourceResolution = resolveSources(
+        var sourceResolution = resolveSources(
             in: session,
             sessionPath: absoluteSessionPath,
             configuration: configuration
         )
         afterSourceResolution()
+        let currentSidecars = resolveCurrentSidecars(
+            in: session,
+            sourceResolution: sourceResolution,
+            configuration: configuration
+        )
+        for (assetID, warnings) in currentSidecars.warningsByAssetID {
+            sourceResolution.warningsByAssetID[assetID, default: []].append(contentsOf: warnings)
+        }
         let planningConfiguration = normalizedPlanningConfiguration(
             session: session,
             applyConfiguration: configuration
@@ -83,8 +107,9 @@ public struct ApplySessionPipeline {
             inputPath: absoluteSessionPath,
             inputBasePath: URL(fileURLWithPath: absoluteSessionPath).deletingLastPathComponent().path,
             scanRoot: session.session.scanRoot,
+            rawSidecarInputs: currentSidecars.inputs,
             sourceAssets: sourceResolution.assets,
-            sourceAISidecars: session.sourceAISidecars,
+            sourceAISidecars: currentSidecars.sourceAISidecars,
             sameBaseNameGroups: session.sameBaseNameGroups,
             warnings: sourceResolution.allWarnings,
             failures: []
@@ -93,7 +118,8 @@ public struct ApplySessionPipeline {
             input: input,
             decisions: session.perAssetDecisions,
             candidateSkips: session.candidateSkips,
-            configuration: planningConfiguration
+            configuration: planningConfiguration,
+            snapshotReader: configuration.qualityGrading.enabled ? snapshotReader : nil
         )
         let preparedWritePlans = try annotateWritePlans(
             normalizedPlans.writePlans,
@@ -243,6 +269,88 @@ public struct ApplySessionPipeline {
         )
     }
 
+    private func resolveCurrentSidecars(
+        in session: NormalizationSessionDocument,
+        sourceResolution: ApplySessionSourceResolution,
+        configuration: ResolvedApplySessionConfiguration
+    ) -> ApplySessionCurrentSidecarResolution {
+        guard configuration.qualityGrading.enabled else {
+            return ApplySessionCurrentSidecarResolution(
+                inputs: [],
+                sourceAISidecars: session.sourceAISidecars,
+                warningsByAssetID: [:]
+            )
+        }
+
+        var matchedIdentityByAssetID: [String: SourceIdentity] = [:]
+        for asset in sourceResolution.assets where asset.sourceIdentityStatus == .matched {
+            matchedIdentityByAssetID[asset.assetID] = asset.sourceIdentity
+        }
+        var inputsByPath: [String: ResolvedRawSidecarInput] = [:]
+        var sourceAISidecars = session.sourceAISidecars
+        var warningsByAssetID: [String: [SidecarError]] = [:]
+        let indexedRecords = session.sourceAISidecars.enumerated().sorted {
+            $0.element.sidecarPath < $1.element.sidecarPath
+        }
+        for (index, record) in indexedRecords {
+            let batch = currentSidecarPairResolver(record.sidecarPath)
+            for var input in batch.inputs {
+                if let matchedIdentity = matchedIdentityByAssetID[record.sourceAssetID] {
+                    guard input.document.sidecar.source.identity == matchedIdentity else {
+                        warningsByAssetID[record.sourceAssetID, default: []].append(
+                            currentSidecarIdentityWarning(
+                                sidecarPath: input.sidecarPath.path,
+                                assetID: record.sourceAssetID
+                            )
+                        )
+                        continue
+                    }
+                    if let qualityDocument = input.qualityDocument,
+                        qualityDocument.sidecar.source.identity != matchedIdentity
+                    {
+                        let qualityPath = input.qualitySidecarPath?.path ?? input.sidecarPath.path
+                        warningsByAssetID[record.sourceAssetID, default: []].append(
+                            currentSidecarIdentityWarning(
+                                sidecarPath: qualityPath,
+                                assetID: record.sourceAssetID
+                            )
+                        )
+                        input.qualitySidecarPath = nil
+                        input.qualityDocument = nil
+                    }
+                }
+                inputsByPath[input.sidecarPath.standardizedFileURL.path] = input
+                sourceAISidecars[index].sidecarPath = input.sidecarPath.standardizedFileURL.path
+                sourceAISidecars[index].relativePath = currentSidecarRelativePath(
+                    storedRelativePath: record.relativePath,
+                    storedSidecarPath: record.sidecarPath,
+                    currentSidecarPath: input.sidecarPath.path,
+                    fallback: input.relativePath
+                )
+                sourceAISidecars[index].schemaVersion = input.document.sidecar.schemaVersion
+                for warning in input.warnings {
+                    warningsByAssetID[record.sourceAssetID, default: []].append(warning)
+                }
+            }
+            for failure in batch.failures {
+                warningsByAssetID[record.sourceAssetID, default: []].append(
+                    currentSidecarWarning(
+                        sidecarPath: failure.sidecarPath.path,
+                        assetID: record.sourceAssetID,
+                        error: failure.error
+                    )
+                )
+            }
+        }
+        return ApplySessionCurrentSidecarResolution(
+            inputs: inputsByPath.values.sorted {
+                $0.sidecarPath.standardizedFileURL.path < $1.sidecarPath.standardizedFileURL.path
+            },
+            sourceAISidecars: sourceAISidecars,
+            warningsByAssetID: warningsByAssetID
+        )
+    }
+
     private func annotateWritePlans(
         _ writePlans: [NormalizedXMPWritePlan],
         storedWritePlans: [NormalizedXMPWritePlan],
@@ -281,7 +389,8 @@ public struct ApplySessionPipeline {
                 }
             }
             if let storedPath = storedByTarget[plan.targetRelativePath]?.xmpChangePlan.targetXMPPath,
-               storedPath != plan.targetXMPPath {
+                storedPath != plan.targetXMPPath
+            {
                 plan.groupWarnings.append(recomputedTargetWarning(from: storedPath, to: plan.targetXMPPath))
             }
             updated.xmpChangePlan = plan
@@ -392,6 +501,13 @@ public struct ApplySessionPipeline {
                     plannedHierarchicalKeywords: target.writeResult?.addedHierarchicalKeywords
                         ?? target.preview?.hierarchicalKeywordsToAdd
                         ?? target.plan.hierarchicalKeywordsToAdd.map(\.term),
+                    ratingWrite: target.plan.ratingWrite,
+                    labelWrite: target.plan.labelWrite,
+                    urgencyWrite: target.plan.urgencyWrite,
+                    pickWrite: target.plan.pickWrite,
+                    goodWrite: target.plan.goodWrite,
+                    qualityTier: target.plan.qualityTier,
+                    qualityExplanation: target.plan.qualityExplanation,
                     errors: target.errors
                 )
             )
@@ -426,6 +542,7 @@ public struct ApplySessionPipeline {
         configuration.sourceVerification = applyConfiguration.sourceVerification
         configuration.backupSidecars = applyConfiguration.backupSidecars
         configuration.xmpConflictPolicy = applyConfiguration.xmpConflictPolicy
+        configuration.qualityGrading = applyConfiguration.qualityGrading
         configuration.sessionOnly = false
         return configuration
     }
@@ -449,7 +566,8 @@ public struct ApplySessionPipeline {
             minConfidence: session.resolvedConfiguration.minConfidence,
             allowSpecificTags: session.resolvedConfiguration.allowSpecificTags,
             pairScope: session.resolvedConfiguration.pairScope,
-            writeAIJSON: false
+            writeAIJSON: false,
+            qualityGrading: applyConfiguration.qualityGrading
         )
     }
 
@@ -498,7 +616,8 @@ public struct ApplySessionPipeline {
         SidecarError(
             code: .sourceMissing,
             stage: .scan,
-            message: "Unable to resolve source image for apply-session asset \(asset.assetID): \(asset.sourceRelativePath)",
+            message:
+                "Unable to resolve source image for apply-session asset \(asset.assetID): \(asset.sourceRelativePath)",
             recoverable: true
         )
     }
@@ -524,6 +643,52 @@ public struct ApplySessionPipeline {
             message: "--allow-stale permitted apply-session write for asset \(asset.assetID) at \(sourcePath).",
             recoverable: true
         )
+    }
+
+    private func currentSidecarWarning(
+        sidecarPath: String,
+        assetID: String,
+        error: SidecarError
+    ) -> SidecarError {
+        SidecarError(
+            code: error.code,
+            stage: .normalize,
+            message: "Unable to re-read current quality contributor for asset \(assetID) at \(sidecarPath): "
+                + error.message,
+            recoverable: true
+        )
+    }
+
+    private func currentSidecarIdentityWarning(
+        sidecarPath: String,
+        assetID: String
+    ) -> SidecarError {
+        SidecarError(
+            code: .sourceIdentityMismatch,
+            stage: .normalize,
+            message: "Current quality contributor does not match apply-session asset \(assetID): \(sidecarPath)",
+            recoverable: true
+        )
+    }
+
+    private func currentSidecarRelativePath(
+        storedRelativePath: String?,
+        storedSidecarPath: String,
+        currentSidecarPath: String,
+        fallback: String?
+    ) -> String? {
+        guard let storedRelativePath else {
+            return fallback
+        }
+        guard
+            URL(fileURLWithPath: storedSidecarPath).standardizedFileURL.path
+                != URL(fileURLWithPath: currentSidecarPath).standardizedFileURL.path
+        else {
+            return storedRelativePath
+        }
+        let parent = (storedRelativePath as NSString).deletingLastPathComponent
+        let currentName = URL(fileURLWithPath: currentSidecarPath).lastPathComponent
+        return parent.isEmpty ? currentName : (parent as NSString).appendingPathComponent(currentName)
     }
 
     private func recomputedTargetWarning(from storedPath: String, to currentPath: String) -> SidecarError {
@@ -567,4 +732,10 @@ private struct ApplySessionSourceResolution {
     var allWarnings: [SidecarError] {
         warningsByAssetID.keys.sorted().flatMap { warningsByAssetID[$0, default: []] }
     }
+}
+
+private struct ApplySessionCurrentSidecarResolution {
+    var inputs: [ResolvedRawSidecarInput]
+    var sourceAISidecars: [NormalizationSourceAISidecarRecord]
+    var warningsByAssetID: [String: [SidecarError]]
 }

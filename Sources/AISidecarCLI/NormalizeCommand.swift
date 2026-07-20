@@ -1,6 +1,6 @@
-import Foundation
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
+import Foundation
 
 struct NormalizeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -26,6 +26,18 @@ struct NormalizeCommand: AsyncParsableCommand {
 
     @Option(help: "Analysis mode for analyze-and-normalize: whole, subject, or both.")
     var mode: AnalysisMode?
+
+    @Flag(
+        help:
+            "Also produce a perceptual quality assessment per image (adds the quality_assessment block to raw sidecars)."
+    )
+    var assessQuality = false
+
+    @Option(
+        help:
+            "With --assess-quality: 'combined' assesses in the tagging model call; 'sequential' runs a dedicated second pass that writes .quality.ai.json sidecars and keeps tagging output identical to a run without assessment."
+    )
+    var qualityScanMode: QualityScanMode?
 
     @Option(help: "Policy for raw .ai.json outputs in analyze-and-normalize: skip, overwrite, or fail.")
     var existing: ExistingPolicy?
@@ -108,6 +120,9 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Option(help: "Minimum candidate confidence to normalize: low, medium, or high.")
     var minConfidence: XMPMinimumConfidence?
 
+    @OptionGroup
+    var quality: QualityGradingOptions
+
     @Flag(help: "Allow fallback specific tags when normalization policy permits fallback.")
     var allowSpecificTags = false
 
@@ -117,10 +132,15 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Flag(name: .customLong("write-ai-json"), help: "Preserve raw .ai.json sidecars in analyze-and-normalize mode.")
     var writeAIJSON = false
 
-    @Flag(name: .customLong("no-write-ai-json"), help: "Do not write raw .ai.json sidecars in analyze-and-normalize mode.")
+    @Flag(
+        name: .customLong("no-write-ai-json"), help: "Do not write raw .ai.json sidecars in analyze-and-normalize mode."
+    )
     var noWriteAIJSON = false
 
-    @Option(help: "Controlled vocabulary JSON file. Supplying this without --vocabulary-mode selects controlled-vocabulary mode.")
+    @Option(
+        help:
+            "Controlled vocabulary JSON file. Supplying this without --vocabulary-mode selects controlled-vocabulary mode."
+    )
     var vocabulary: String?
 
     @Option(help: "Vocabulary source: observed-tags or controlled-vocabulary.")
@@ -222,7 +242,7 @@ struct NormalizeCommand: AsyncParsableCommand {
         case .analyze(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
-            let result = try await withBatchInterruptionExit {
+            let result = try await withAsyncBatchInterruptionExit {
                 try await AnalyzeAndNormalizePipeline(logger: logger).run(
                     inputPath: inputPath,
                     runConfiguration: runConfiguration,
@@ -260,6 +280,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             sourceRoot: sourceRoot,
             sourceVerification: sourceVerification,
             mode: mode,
+            assessQuality: assessQuality,
             existing: existing,
             model: model,
             modelEndpoint: modelEndpoint,
@@ -278,6 +299,19 @@ struct NormalizeCommand: AsyncParsableCommand {
             noWriteHierarchicalKeywords: noWriteHierarchicalKeywords,
             backupSidecars: backupSidecars,
             noBackupSidecars: noBackupSidecars,
+            qualityGrading: quality.qualityGrading,
+            qualityConflicts: quality.qualityConflicts,
+            qualityMinConfidence: quality.qualityMinConfidence,
+            writeRating: quality.writeRating,
+            noWriteRating: quality.noWriteRating,
+            writeLabel: quality.writeLabel,
+            noWriteLabel: quality.noWriteLabel,
+            writeUrgency: quality.writeUrgency,
+            noWriteUrgency: quality.noWriteUrgency,
+            writeFlag: quality.writeFlag,
+            noWriteFlag: quality.noWriteFlag,
+            writeQualityKeywords: quality.writeQualityKeywords,
+            noWriteQualityKeywords: quality.noWriteQualityKeywords,
             writeAIJSON: writeAIJSON,
             noWriteAIJSON: noWriteAIJSON
         )
@@ -319,7 +353,8 @@ struct NormalizeCommand: AsyncParsableCommand {
             allowSessionSubjectPropagation: allowSessionSubjectPropagation ? true : nil,
             allowSessionHabitatPropagation: allowSessionHabitatPropagation ? true : nil,
             allowSessionEventPropagation: allowSessionEventPropagation ? true : nil,
-            writeReportPath: writeReport
+            writeReportPath: writeReport,
+            qualityGrading: quality.overrides
         )
     }
 
@@ -328,6 +363,8 @@ struct NormalizeCommand: AsyncParsableCommand {
             mode: mode,
             existing: existing,
             recursive: recursive ? true : nil,
+            qualityAssessment: assessQuality ? true : nil,
+            qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
             modelEndpoint: modelEndpoint,

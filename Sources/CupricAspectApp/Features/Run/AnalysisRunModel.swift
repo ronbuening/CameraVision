@@ -18,6 +18,11 @@ final class AnalysisOptions {
     var advancedOpen = false
     var modelOverride: String?
     var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    var assessQuality = false
+    var qualityScanMode: QualityScanMode = ResolvedRunConfiguration.builtInDefaults.qualityScanMode
+    var qualityGradingEnabled = false
+    var qualityWriteRating = QualityGradingPolicy.builtInDefaults.writeRating
+    var qualityConflictPolicy = ResolvedQualityGradingConfiguration.builtInDefaults.conflictPolicy
     /// Rendering profile name controlling the image size sent to the model.
     var profile: String = ModelInputProfile.defaultProfile.name
     /// Ollama num_ctx token window requested per model call.
@@ -41,10 +46,12 @@ final class AnalysisOptions {
     }
 
     func loadResolvedDefaults() {
-        guard let resolved = try? ConfigurationResolver.resolve(
-            environment: environment,
-            defaultConfigPath: defaultConfigPath
-        ) else { return }
+        guard
+            let resolved = try? ConfigurationResolver.resolve(
+                environment: environment,
+                defaultConfigPath: defaultConfigPath
+            )
+        else { return }
         resolvedModel = resolved.model
         resolvedEndpoint = resolved.modelEndpoint.absoluteString
         guard !defaultsLoaded else { return }
@@ -55,11 +62,16 @@ final class AnalysisOptions {
         concurrency = min(8, max(1, resolved.stageConcurrency))
         profile = resolved.profile
         contextWindow = resolved.modelContextWindow
+        assessQuality = resolved.taskProfile == .taggingWithQuality
+        qualityScanMode = resolved.qualityScanMode
         if let exportDefaults = try? ConfigurationResolver.resolveApplySession(
             environment: environment,
             defaultConfigPath: defaultConfigPath
         ) {
             xmpConflictPolicy = exportDefaults.xmpConflictPolicy
+            qualityGradingEnabled = exportDefaults.qualityGrading.enabled
+            qualityWriteRating = exportDefaults.qualityGrading.policy.writeRating
+            qualityConflictPolicy = exportDefaults.qualityGrading.conflictPolicy
         }
     }
 
@@ -76,6 +88,8 @@ final class AnalysisOptions {
                 mode: mode,
                 existing: existing,
                 recursive: recursive,
+                qualityAssessment: assessQuality,
+                qualityScanMode: qualityScanMode,
                 outputDir: outputDir,
                 model: modelOverride,
                 profile: profile,
@@ -86,6 +100,21 @@ final class AnalysisOptions {
             environment: environment,
             defaultConfigPath: defaultConfigPath
         )
+    }
+
+    func qualityGradingOverrides(enabled: Bool? = nil) -> QualityGradingConfigurationOverrides {
+        QualityGradingConfigurationOverrides(
+            enabled: enabled ?? qualityGradingEnabled,
+            conflictPolicy: qualityConflictPolicy,
+            writeRating: qualityWriteRating
+        )
+    }
+
+    func qualityGradingOverrides(controlsEnabled: Bool) -> QualityGradingConfigurationOverrides {
+        guard controlsEnabled else {
+            return QualityGradingConfigurationOverrides(enabled: false)
+        }
+        return qualityGradingOverrides()
     }
 }
 
@@ -189,7 +218,11 @@ final class AnalysisRunModel {
         phase = .running
         done = 0
         writtenCount = 0
-        total = expectedTotal
+        // A sequential quality run reports every image twice — once per pass —
+        // so the progress denominator has to cover both passes.
+        total =
+            expectedTotal
+            * Self.passCount(assessQuality: options.assessQuality, qualityScanMode: options.qualityScanMode)
         currentFile = ""
         startedAt = Date()
         lastCompletedAt = nil
@@ -269,27 +302,63 @@ final class AnalysisRunModel {
         }
     }
 
+    /// How many pipeline passes the configured options will run per image.
+    nonisolated static func passCount(assessQuality: Bool, qualityScanMode: QualityScanMode) -> Int {
+        assessQuality && qualityScanMode == .sequential ? 2 : 1
+    }
+
     /// Reduce a run's progress records to the Step 5 summary. Pure so tests
     /// can exercise it without a pipeline run.
+    ///
+    /// A sequential quality run emits one record per pass per image; records
+    /// are grouped by source so the summary counts images, with a failure in
+    /// either pass dominating and written dominating skipped.
     nonisolated static func outcome(from records: [ProgressRecord], interrupted: Bool) -> RunOutcome {
         var outcome = RunOutcome(interrupted: interrupted)
         var errorCounts: [String: Int] = [:]
+        var groupedStatus: [String: ProgressStatus] = [:]
+        var ungrouped: [ProgressStatus] = []
         for record in records {
-            switch record.status {
-            case .written: outcome.written += 1
-            case .skippedExisting: outcome.skipped += 1
-            case .failed:
-                outcome.failed += 1
+            if record.status == .failed {
                 for error in record.errors {
                     errorCounts[error.code.rawValue, default: 0] += 1
                 }
+            }
+            guard let sourcePath = record.sourcePath else {
+                ungrouped.append(record.status)
+                continue
+            }
+            if let existing = groupedStatus[sourcePath] {
+                groupedStatus[sourcePath] = mergedStatus(existing, record.status)
+            } else {
+                groupedStatus[sourcePath] = record.status
+            }
+        }
+        for status in Array(groupedStatus.values) + ungrouped {
+            switch status {
+            case .written: outcome.written += 1
+            case .skippedExisting: outcome.skipped += 1
+            case .failed: outcome.failed += 1
             case .dryRun: break
             }
         }
-        outcome.errorSummaries = errorCounts
+        outcome.errorSummaries =
+            errorCounts
             .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
             .map { "\($0.key) × \($0.value)" }
         return outcome
+    }
+
+    private nonisolated static func mergedStatus(_ lhs: ProgressStatus, _ rhs: ProgressStatus) -> ProgressStatus {
+        func rank(_ status: ProgressStatus) -> Int {
+            switch status {
+            case .failed: 3
+            case .written: 2
+            case .skippedExisting: 1
+            case .dryRun: 0
+            }
+        }
+        return rank(rhs) > rank(lhs) ? rhs : lhs
     }
 
     /// User-facing message for preflight/run failures; mirrors the README's
@@ -300,7 +369,8 @@ final class AnalysisRunModel {
         }
         switch sidecarError.code {
         case .modelEndpointUnreachable:
-            return "Ollama isn't reachable. If it's installed, open the Ollama app (or run `ollama serve`); if not, download it from \(RuntimeGuidanceModel.downloadURL). Then retry."
+            return
+                "Ollama isn't reachable. If it's installed, open the Ollama app (or run `ollama serve`); if not, download it from \(RuntimeGuidanceModel.downloadURL). Then retry."
         case .modelTagNotFound:
             return sidecarError.message + " Pull it with `ollama pull <tag>` or pick an installed vision model."
         default:

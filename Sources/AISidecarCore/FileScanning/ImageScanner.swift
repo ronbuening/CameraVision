@@ -52,7 +52,8 @@ public struct ImageScanner {
                         )
                     )
                 } catch {
-                    errors.append(metadataOrIdentityError(path: entry.path, relativePath: entry.relativePath, error: error))
+                    errors.append(
+                        metadataOrIdentityError(path: entry.path, relativePath: entry.relativePath, error: error))
                 }
             }
         }
@@ -131,24 +132,26 @@ public struct ImageScanner {
 
         if recursive {
             let enumerationErrors = SynchronousScanErrorAccumulator<ScanErrorRecord>()
-            guard let enumerator = fileManager.enumerator(
-                at: root,
-                includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-                options: [.skipsPackageDescendants],
-                errorHandler: { url, error in
-                    enumerationErrors.append(
-                        ScanErrorRecord(
-                            path: url.standardizedFileURL.path,
-                            relativePath: relativePath(for: url, root: root),
-                            error: validationError(
-                                "Unable to read directory during scan: \(url.path): \(error.localizedDescription)",
-                                recoverable: true
+            guard
+                let enumerator = fileManager.enumerator(
+                    at: root,
+                    includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                    options: [.skipsPackageDescendants],
+                    errorHandler: { url, error in
+                        enumerationErrors.append(
+                            ScanErrorRecord(
+                                path: url.standardizedFileURL.path,
+                                relativePath: relativePath(for: url, root: root),
+                                error: validationError(
+                                    "Unable to read directory during scan: \(url.path): \(error.localizedDescription)",
+                                    recoverable: true
+                                )
                             )
                         )
-                    )
-                    return true
-                }
-            ) else {
+                        return true
+                    }
+                )
+            else {
                 throw validationError("Unable to enumerate input folder: \(root.path)")
             }
 
@@ -203,7 +206,8 @@ public struct ImageScanner {
                 ScanErrorRecord(
                     path: candidate.path,
                     relativePath: relativePath(for: candidate, root: root),
-                    error: validationError("Symbolic link skipped during folder scan: \(candidate.path)", recoverable: true)
+                    error: validationError(
+                        "Symbolic link skipped during folder scan: \(candidate.path)", recoverable: true)
                 )
             )
             return true
@@ -270,7 +274,8 @@ public struct ImageScanner {
             error: SidecarError(
                 code: .validationFailed,
                 stage: .scan,
-                message: "Unable to read source image metadata or identity for \(relativePath): \(error.localizedDescription)",
+                message:
+                    "Unable to read source image metadata or identity for \(relativePath): \(error.localizedDescription)",
                 recoverable: true
             )
         )

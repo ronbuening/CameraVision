@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class RawJSONSidecarInputResolverTests: XCTestCase {
@@ -59,6 +60,112 @@ final class RawJSONSidecarInputResolverTests: XCTestCase {
         XCTAssertEqual(batch.inputs.first?.relativePath, "Bird.JPG.ai.json")
     }
 
+    func testBothSidecarsAreGroupedWithTaggingAsPrimary() throws {
+        let root = try temporaryDirectory()
+        let source = try writeSource("Bird.JPG", data: Data("source".utf8), in: root)
+        let sourceImage = try makeSourceImage(for: source)
+        let tagging = try writeSidecar(makeSidecar(source: sourceImage), named: "Bird.JPG.ai.json", in: root)
+        let quality = try writeSidecar(
+            makeSidecar(source: sourceImage, taskProfile: .qualityOnly),
+            named: "Bird.JPG.quality.ai.json",
+            in: root
+        )
+
+        let batch = try RawJSONSidecarInputResolver().resolve(
+            fromJSONPath: root.path,
+            configuration: configuration()
+        )
+
+        XCTAssertEqual(batch.inputs.count, 1)
+        XCTAssertEqual(batch.inputs.first?.sidecarPath, tagging)
+        XCTAssertEqual(batch.inputs.first?.document.sidecar.runConfiguration.taskProfile, .tagging)
+        XCTAssertEqual(batch.inputs.first?.qualitySidecarPath, quality)
+        XCTAssertEqual(batch.inputs.first?.qualityDocument?.sidecar.runConfiguration.taskProfile, .qualityOnly)
+    }
+
+    func testOnlyQualitySidecarRemainsAQualityInput() throws {
+        let root = try temporaryDirectory()
+        let source = try writeSource("Bird.JPG", data: Data("source".utf8), in: root)
+        let quality = try writeSidecar(
+            makeSidecar(source: try makeSourceImage(for: source), taskProfile: .qualityOnly),
+            named: "Bird.JPG.quality.ai.json",
+            in: root
+        )
+
+        let batch = try RawJSONSidecarInputResolver().resolve(
+            fromJSONPath: quality.path,
+            configuration: configuration()
+        )
+
+        XCTAssertEqual(batch.inputs.count, 1)
+        XCTAssertEqual(batch.inputs.first?.sidecarPath, quality)
+        XCTAssertEqual(batch.inputs.first?.qualitySidecarPath, quality)
+        XCTAssertEqual(batch.inputs.first?.document.sidecar.runConfiguration.taskProfile, .qualityOnly)
+        XCTAssertEqual(batch.inputs.first?.qualityDocument?.sidecar.runConfiguration.taskProfile, .qualityOnly)
+    }
+
+    func testOnlyTaggingSidecarHasNoQualitySibling() throws {
+        let root = try temporaryDirectory()
+        let source = try writeSource("Bird.JPG", data: Data("source".utf8), in: root)
+        let tagging = try writeSidecar(
+            makeSidecar(source: try makeSourceImage(for: source)),
+            named: "Bird.JPG.ai.json",
+            in: root
+        )
+
+        let batch = try RawJSONSidecarInputResolver().resolve(
+            fromJSONPath: tagging.path,
+            configuration: configuration()
+        )
+
+        XCTAssertEqual(batch.inputs.count, 1)
+        XCTAssertEqual(batch.inputs.first?.sidecarPath, tagging)
+        XCTAssertNil(batch.inputs.first?.qualitySidecarPath)
+        XCTAssertNil(batch.inputs.first?.qualityDocument)
+    }
+
+    func testQualitySuffixIsNotClassifiedAsTaggingWhenBothExist() throws {
+        let root = try temporaryDirectory()
+        let source = try writeSource("Bird.JPG", data: Data("source".utf8), in: root)
+        let sourceImage = try makeSourceImage(for: source)
+        let tagging = try writeSidecar(makeSidecar(source: sourceImage), named: "Bird.JPG.ai.json", in: root)
+        let quality = try writeSidecar(
+            makeSidecar(source: sourceImage, taskProfile: .qualityOnly),
+            named: "Bird.JPG.quality.ai.json",
+            in: root
+        )
+
+        let batch = try RawJSONSidecarInputResolver().resolve(
+            fromJSONPath: quality.path,
+            configuration: configuration()
+        )
+
+        XCTAssertEqual(batch.inputs.first?.sidecarPath, tagging)
+        XCTAssertEqual(batch.inputs.first?.qualitySidecarPath, quality)
+    }
+
+    func testCurrentPairResolutionKeepsReadableContributorWithoutRecheckingSourceIdentity() throws {
+        let root = try temporaryDirectory()
+        let source = try writeSource("Bird.JPG", data: Data("source".utf8), in: root)
+        let sourceImage = try makeSourceImage(for: source)
+        let tagging = try writeSidecar(makeSidecar(source: sourceImage), named: "Bird.JPG.ai.json", in: root)
+        let quality = try writeSidecar(
+            makeSidecar(source: sourceImage, taskProfile: .qualityOnly),
+            named: "Bird.JPG.quality.ai.json",
+            in: root
+        )
+        try FileManager.default.removeItem(at: source)
+        try Data("{".utf8).write(to: quality)
+
+        let batch = RawJSONSidecarInputResolver().resolveCurrentSidecarPair(at: tagging.path)
+
+        XCTAssertEqual(batch.inputs.map(\.sidecarPath), [tagging])
+        XCTAssertNil(batch.inputs.first?.sourcePath)
+        XCTAssertEqual(batch.inputs.first?.sourceIdentityStatus, .skipped)
+        XCTAssertEqual(batch.failures.map(\.sidecarPath), [quality])
+        XCTAssertEqual(batch.failures.map(\.error.code), [.validationFailed])
+    }
+
     func testDirectFromJSONRejectsNonSidecarFile() throws {
         let root = try temporaryDirectory()
         let file = try writeSource("Bird.JPG", data: Data("source".utf8), in: root)
@@ -74,8 +181,10 @@ final class RawJSONSidecarInputResolverTests: XCTestCase {
         _ = try writeSidecar(makeSidecar(source: try makeSourceImage(for: source)), named: "A.JPG.ai.json", in: root)
         _ = try writeSource("notes.txt", data: Data("notes".utf8), in: root)
         _ = try writeSource("A.xmp", data: Data("xmp".utf8), in: root)
-        _ = try writeSidecar(makeSidecar(source: try makeSourceImage(for: source)), named: ".Hidden.JPG.ai.json", in: root)
-        _ = try writeSidecar(makeSidecar(source: try makeSourceImage(for: source)), named: "nested/B.JPG.ai.json", in: root)
+        _ = try writeSidecar(
+            makeSidecar(source: try makeSourceImage(for: source)), named: ".Hidden.JPG.ai.json", in: root)
+        _ = try writeSidecar(
+            makeSidecar(source: try makeSourceImage(for: source)), named: "nested/B.JPG.ai.json", in: root)
 
         let batch = try RawJSONSidecarInputResolver().resolve(
             fromJSONPath: root.path,
@@ -271,7 +380,8 @@ final class RawJSONSidecarInputResolverTests: XCTestCase {
         let staleSource = try writeSource("Stale.JPG", data: Data("stale".utf8), in: root)
         let unsupportedSource = try writeSource("Unsupported.JPG", data: Data("unsupported".utf8), in: root)
 
-        _ = try writeSidecar(makeSidecar(source: try makeSourceImage(for: goodSource)), named: "Good.JPG.ai.json", in: root)
+        _ = try writeSidecar(
+            makeSidecar(source: try makeSourceImage(for: goodSource)), named: "Good.JPG.ai.json", in: root)
         _ = try writeSidecar(
             makeSidecar(source: try makeSourceImage(for: unsupportedSource), schemaVersion: "ai-sidecar-json/2.0"),
             named: "Unsupported.JPG.ai.json",
@@ -312,12 +422,13 @@ final class RawJSONSidecarInputResolverTests: XCTestCase {
 
     private func makeSidecar(
         source: SourceImage,
-        schemaVersion: String = "ai-sidecar-json/1.2"
+        schemaVersion: String = "ai-sidecar-json/1.2",
+        taskProfile: ModelTaskProfile = .tagging
     ) -> RawJSONSidecar {
         RawJSONSidecar(
             schemaVersion: schemaVersion,
             source: source,
-            runConfiguration: .builtInDefaults,
+            runConfiguration: ResolvedRunConfiguration.builtInDefaults.with(taskProfile: taskProfile),
             createdAt: Date(timeIntervalSince1970: 1_800_000_000)
         )
     }

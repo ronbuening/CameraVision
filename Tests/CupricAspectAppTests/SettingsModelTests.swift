@@ -1,5 +1,6 @@
 import AISidecarCore
 import XCTest
+
 @testable import CupricAspectApp
 
 /// Settings write-through (FR4-056, AC4-032): changes land in config.json,
@@ -78,6 +79,23 @@ final class SettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testQualityScanModeWriteThroughAndResolves() throws {
+        let model = makeModel()
+        XCTAssertEqual(model.qualityScanMode, .combined, "built-in default")
+
+        model.setQualityScanMode(.sequential)
+
+        XCTAssertEqual(model.qualityScanMode, .sequential)
+        let resolved = try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath)
+        XCTAssertEqual(resolved.qualityScanMode, .sequential)
+        let object = try readConfigObject()
+        XCTAssertEqual(object["quality_scan_mode"] as? String, "sequential")
+
+        model.setQualityScanMode(.combined)
+        XCTAssertEqual(model.qualityScanMode, .combined)
+    }
+
+    @MainActor
     func testHandEditedKeysSurviveSettingsChanges() throws {
         try Data(#"{"stage_concurrency": 3, "custom_note": "mine"}"#.utf8)
             .write(to: URL(fileURLWithPath: configPath))
@@ -125,11 +143,13 @@ final class SettingsModelTests: XCTestCase {
 
         model.setConcurrency(0)
         XCTAssertEqual(model.stageConcurrency, 1)
-        XCTAssertEqual(try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath).stageConcurrency, 1)
+        XCTAssertEqual(
+            try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath).stageConcurrency, 1)
 
         model.setConcurrency(99)
         XCTAssertEqual(model.stageConcurrency, 8)
-        XCTAssertEqual(try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath).stageConcurrency, 8)
+        XCTAssertEqual(
+            try ConfigurationResolver.resolve(environment: [:], defaultConfigPath: configPath).stageConcurrency, 8)
     }
 
     @MainActor
@@ -154,6 +174,73 @@ final class SettingsModelTests: XCTestCase {
         XCTAssertEqual(model.xmpConflictPolicy, .merge)
         let resolved = try ConfigurationResolver.resolveXMPExport(environment: [:], defaultConfigPath: configPath)
         XCTAssertEqual(resolved.xmpConflictPolicy, .merge)
+    }
+
+    @MainActor
+    func testQualityDefaultsWriteThroughAndResolveForExport() throws {
+        let model = makeModel()
+
+        model.setQualityMinimumConfidence(.high)
+        model.setQualityWriteRating(true)
+        model.setQualityWriteLabel(false)
+        model.setQualityWriteUrgency(false)
+        model.setQualityWriteFlag(false)
+        model.setQualityWriteKeywords(false)
+
+        let object = try readConfigObject()
+        XCTAssertEqual(object["xmp_quality_min_confidence"] as? String, "high")
+        XCTAssertEqual(object["xmp_quality_write_rating"] as? Bool, true)
+        XCTAssertEqual(object["xmp_quality_write_label"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_write_urgency"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_write_flag"] as? Bool, false)
+        XCTAssertEqual(object["xmp_quality_write_keywords"] as? Bool, false)
+
+        let policy = try ConfigurationResolver.resolveApplySession(
+            environment: [:],
+            defaultConfigPath: configPath
+        ).qualityGrading.policy
+        XCTAssertEqual(policy.minimumConfidence, .high)
+        XCTAssertTrue(policy.writeRating)
+        XCTAssertFalse(policy.writeLabel)
+        XCTAssertFalse(policy.writeUrgency)
+        XCTAssertFalse(policy.writeFlag)
+        XCTAssertFalse(policy.writeKeywords)
+    }
+
+    @MainActor
+    func testQualityDefaultsSeedFromEffectiveEnvironmentPrecedence() {
+        let model = SettingsModel(
+            configPath: configPath,
+            environment: [
+                "AISIDECAR_XMP_QUALITY_MIN_CONFIDENCE": "low",
+                "AISIDECAR_XMP_QUALITY_WRITE_LABEL": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_URGENCY": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_FLAG": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_KEYWORDS": "false",
+                "AISIDECAR_XMP_QUALITY_WRITE_RATING": "true",
+            ]
+        )
+
+        XCTAssertEqual(model.qualityMinimumConfidence, .low)
+        XCTAssertFalse(model.qualityWriteLabel)
+        XCTAssertFalse(model.qualityWriteUrgency)
+        XCTAssertFalse(model.qualityWriteFlag)
+        XCTAssertFalse(model.qualityWriteKeywords)
+        XCTAssertTrue(model.qualityWriteRating)
+    }
+
+    @MainActor
+    func testUntouchedQualityDefaultsDoNotCreateOrExpandConfig() throws {
+        let model = makeModel()
+
+        XCTAssertNil(model.loadError)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: configPath))
+
+        model.setQualityWriteRating(true)
+
+        let object = try readConfigObject()
+        XCTAssertEqual(object["xmp_quality_write_rating"] as? Bool, true)
+        XCTAssertEqual(object.count, 1, "untouched quality defaults stay absent")
     }
 
     @MainActor

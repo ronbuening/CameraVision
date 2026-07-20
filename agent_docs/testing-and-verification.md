@@ -43,6 +43,7 @@ coverage for legacy colon-bearing, suffix-free names. ISO-8601 provenance fields
 ```bash
 swift run aisidecar --help
 swift run aisidecar analyze --help
+swift run aisidecar assess-quality --help
 swift run aisidecar write-xmp --help
 swift run aisidecar normalize --help
 swift run aisidecar apply-session --help
@@ -52,11 +53,18 @@ swift run aisidecar purge --help
 swift run aisidecar cleanup --help
 ```
 
-The batch-command help for `analyze`, `write-xmp`, `normalize`, `apply-session`,
-and `cleanup` documents the stable process statuses: `0` for success, `1` for one
-or more item failures, and `130` for interruption.
-The `analyze`, `write-xmp`, and `normalize` help must also list `--model-timeout`
-and `--model-retry-limit`; the latter two commands accept them only in their analyze modes.
+The batch-command help for `analyze`, `assess-quality`, `write-xmp`, `normalize`,
+`apply-session`, and `cleanup` documents the stable process statuses: `0` for success, `1` for one or more item
+failures, and `130` for interruption.
+The `analyze`, `assess-quality`, `write-xmp`, and `normalize` help must also list `--model-timeout`
+and `--model-retry-limit`; `write-xmp` and `normalize` accept them only in their analyze modes.
+`--assess-quality` must appear in `analyze`, `write-xmp`, and `normalize` help but **not** in `assess-quality` or
+`apply-session` help. The quality-only command forces its profile, normalize accepts the switch only in analyze mode,
+and apply-session makes no model calls. `--quality-scan-mode` follows the same distribution as `--assess-quality`
+(present on `analyze`, `write-xmp`, and `normalize`; absent from `assess-quality` and `apply-session`) with one
+shared description naming the `combined`/`sequential` values. The 13 entries composed by `QualityGradingOptions` — `--quality-grading`, five
+positive/negative channel pairs, `--quality-conflicts`, and `--quality-min-confidence` — must appear exactly once with
+identical descriptions in `write-xmp`, `normalize`, and `apply-session` help.
 
 ## CLI Exit Status Checks
 
@@ -85,6 +93,41 @@ swift run aisidecar analyze <image-or-folder> --recursive --dry-scan
 swift run aisidecar cleanup <folder> --recursive --dry-run
 ```
 
+Replay a stored assessment into the quality-grading plan without a model call or XMP write:
+
+```bash
+swift run aisidecar write-xmp \
+  --from-json <json-file-or-folder> \
+  --recursive \
+  --source-root <image-root> \
+  --quality-grading \
+  --dry-run \
+  --output-dir <tmp-output>
+```
+
+The input may be a combined `.ai.json` sidecar containing `quality_assessment`, a standalone
+`.quality.ai.json`, or a folder containing same-image tagging and quality siblings; the resolver groups siblings
+automatically. `--dry-run` prints an `ai-sidecar-xmp-change-plan/1.2` document and does not create or modify XMP.
+`--output-dir` points the planned `target_xmp_path` values into the disposable staging tree. Inspect
+`quality_tier`, `quality_explanation`, any `rating_write` / `label_write` / `urgency_write` rows, and the flat or
+hierarchical quality-keyword additions. As with every XMP dry run, input or target-plan failures produce exit `1`.
+
+Exercise the normalized planner against the same stored assessment, still without a model call or XMP write:
+
+```bash
+swift run aisidecar normalize \
+  --from-json <combined-json-or-tag-and-quality-sibling-folder> \
+  --recursive \
+  --source-root <image-root> \
+  --quality-grading \
+  --dry-run \
+  --output-dir <tmp-output>
+```
+
+Inspect the printed `ai-sidecar-xmp-change-plan/1.2` document for normalized model keywords, verbatim quality-keyword
+additions, `quality_tier`, `quality_explanation`, and the configured scalar/flag rows. Existing `AI Quality` target
+keywords must remain present. The dry run may create normalization session/report artifacts, but never XMP.
+
 ## Manual End-to-End Smoke Checks (need Ollama + a vision model)
 
 Always use `--output-dir` pointing at a temp folder so artifacts stay out of real photo folders.
@@ -103,6 +146,8 @@ swift run aisidecar normalize --from-json <json-folder> --recursive --source-roo
 swift run aisidecar normalize --from-json <json-folder> --recursive --source-root <image-root> --output-dir <tmp-output>
 swift run aisidecar normalize --file-list <image-list.txt> --session-only --output-dir <tmp-output>
 swift run aisidecar normalize <image-or-folder> --mode both --output-dir <tmp-output>
+# Experimental one-command assessment + normalized grading preview
+swift run aisidecar normalize <image-or-folder> --mode both --assess-quality --quality-grading --dry-run --output-dir <tmp-output>
 ```
 
 ### Phase 4 GUI hardening (M8 / AC4-025)

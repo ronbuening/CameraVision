@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class ImageRendererTests: XCTestCase {
@@ -24,13 +25,16 @@ final class ImageRendererTests: XCTestCase {
         XCTAssertEqual(result.wholeImage.width, 400)
         XCTAssertEqual(result.wholeImage.height, 200)
         XCTAssertTrue(result.derivatives.allSatisfy { FileManager.default.fileExists(atPath: $0.cachePath) })
-        XCTAssertFalse(FileManager.default.fileExists(atPath: cache.artifactURL(
-            source: source,
-            recipeVersion: RenderRecipe(profile: .defaultProfile).version,
-            role: .fullResolution,
-            format: .tiff
-        ).path))
-        XCTAssertTrue(try XCTUnwrap(imageProfileName(at: URL(fileURLWithPath: result.wholeImage.cachePath))).contains("sRGB"))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: cache.artifactURL(
+                    source: source,
+                    recipeVersion: RenderRecipe(profile: .defaultProfile).version,
+                    role: .fullResolution,
+                    format: .tiff
+                ).path))
+        XCTAssertTrue(
+            try XCTUnwrap(imageProfileName(at: URL(fileURLWithPath: result.wholeImage.cachePath))).contains("sRGB"))
     }
 
     func testImageIOFormatsRenderOffline() throws {
@@ -38,7 +42,9 @@ final class ImageRendererTests: XCTestCase {
             let root = try temporaryDirectory()
             addTeardownBlock { try? FileManager.default.removeItem(at: root) }
             let image = try writeTestImage(fileName, width: 48, height: 24, in: root)
-            let renderer = ImageRenderer(cache: DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 10_000_000))
+            let renderer = ImageRenderer(
+                cache: DerivativeCache(
+                    directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 10_000_000))
 
             let result = try renderer.renderWholeImage(
                 source: try sourceImage(for: image),
@@ -56,8 +62,11 @@ final class ImageRendererTests: XCTestCase {
         for orientation in 1...8 {
             let root = try temporaryDirectory()
             addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-            let image = try writeTestImage("Bird-\(orientation).JPG", width: 40, height: 20, orientation: orientation, in: root)
-            let renderer = ImageRenderer(cache: DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 10_000_000))
+            let image = try writeTestImage(
+                "Bird-\(orientation).JPG", width: 40, height: 20, orientation: orientation, in: root)
+            let renderer = ImageRenderer(
+                cache: DerivativeCache(
+                    directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 10_000_000))
 
             let result = try renderer.renderWholeImage(
                 source: try sourceImage(for: image),
@@ -82,7 +91,8 @@ final class ImageRendererTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let image = try writeTestImage("Bird.JPG", width: 64, height: 32, in: root)
         let source = try sourceImage(for: image)
-        let renderer = ImageRenderer(cache: DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 10_000_000))
+        let renderer = ImageRenderer(
+            cache: DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 10_000_000))
 
         let first = try renderer.renderWholeImage(source: source, profile: .defaultProfile, debugDerivatives: false)
         try FileManager.default.removeItem(at: image)
@@ -96,7 +106,8 @@ final class ImageRendererTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let image = root.appendingPathComponent("Broken.JPG")
         try Data("not an image".utf8).write(to: image)
-        let renderer = ImageRenderer(cache: DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 10_000_000))
+        let renderer = ImageRenderer(
+            cache: DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 10_000_000))
 
         XCTAssertThrowsError(
             try renderer.renderWholeImage(

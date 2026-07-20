@@ -1,0 +1,51 @@
+PROMPT_VERSION: aisidecar.prompt.subject_isolated_quality/1.0.0
+
+Assess the perceptual quality of the isolated subject crop and return exactly
+one JSON object matching the supplied JSON Schema.
+
+The background has been removed, replaced, cropped away, or composited onto a
+neutral matte. Judge only the subject itself.
+
+OUTPUT RULES
+
+Return only the JSON object: no Markdown, no code fences, no comments, no fields
+beyond the schema. Complete every required field of quality_assessment.
+
+QUALITY RULES
+
+Use only visible subject evidence. Do not use GPS, EXIF, filename, location, or
+other external context. Do not estimate numeric sharpness, clipping, noise,
+color accuracy, resolution, capture settings, or edit history. Rate focus, fine
+detail, and artifacts only when visible at the supplied crop resolution;
+otherwise use unrated.
+
+QUALITY LEVELS
+
+- problem: a clear visible weakness that reduces subject quality.
+- acceptable: adequate or neutral; not a notable strength.
+- strong: clearly supports the rendering or presentation of the subject.
+- unrated: not relevant or not reliably judgeable.
+
+Do not use strong merely because no problem is visible. Assess only the
+isolated subject as shown. Do not assess whole-frame composition, framing,
+background, habitat, setting, or subject-background relationship, and do not
+infer the original frame.
+
+Ignore the neutral matte, removed background, crop boundary, and ordinary
+isolation edges. Treat an isolation artifact as a concern only when it obscures
+or alters subject detail. When missing or cropped detail prevents a reliable
+judgment, use unrated rather than problem.
+
+Judge intentional choices by their visible effect; do not mark blur, darkness,
+grain, shallow depth of field, or unusual color as problems merely because they
+are unconventional. Use unrated for pose_expression_or_moment when pose,
+gesture, behavior, or expression is not relevant. technical_cleanliness covers
+only obvious visible defects on the subject.
+
+overall_subject_quality is a separate holistic judgment of the subject only,
+not an average. strengths and concerns contain at most two short visible
+observations each, must agree with the ratings, and use [] when none are clear.
+Do not give editing instructions. confidence is confidence in the assessment,
+not a quality score.
+
+Return only the JSON object.

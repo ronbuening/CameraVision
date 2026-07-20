@@ -33,7 +33,15 @@ final class SettingsModel {
     private(set) var mode: AnalysisMode = .both
     private(set) var gps: GPSContextMode = .coarse
     private(set) var existing: ExistingPolicy = .skip
-    private(set) var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
+    private(set) var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults
+        .xmpConflictPolicy
+    private(set) var qualityScanMode = ResolvedRunConfiguration.builtInDefaults.qualityScanMode
+    private(set) var qualityMinimumConfidence = QualityGradingPolicy.builtInDefaults.minimumConfidence
+    private(set) var qualityWriteRating = QualityGradingPolicy.builtInDefaults.writeRating
+    private(set) var qualityWriteLabel = QualityGradingPolicy.builtInDefaults.writeLabel
+    private(set) var qualityWriteUrgency = QualityGradingPolicy.builtInDefaults.writeUrgency
+    private(set) var qualityWriteFlag = QualityGradingPolicy.builtInDefaults.writeFlag
+    private(set) var qualityWriteKeywords = QualityGradingPolicy.builtInDefaults.writeKeywords
     private(set) var stageConcurrency = min(8, max(1, ResolvedRunConfiguration.defaultStageConcurrency()))
     private(set) var profile = ModelInputProfile.defaultProfile.name
     private(set) var modelContextWindow = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
@@ -77,6 +85,14 @@ final class SettingsModel {
             gps = resolved.gpsContext
             existing = resolved.existing
             xmpConflictPolicy = resolvedApply.xmpConflictPolicy
+            qualityScanMode = resolved.qualityScanMode
+            let qualityPolicy = resolvedApply.qualityGrading.policy
+            qualityMinimumConfidence = qualityPolicy.minimumConfidence
+            qualityWriteRating = qualityPolicy.writeRating
+            qualityWriteLabel = qualityPolicy.writeLabel
+            qualityWriteUrgency = qualityPolicy.writeUrgency
+            qualityWriteFlag = qualityPolicy.writeFlag
+            qualityWriteKeywords = qualityPolicy.writeKeywords
             stageConcurrency = min(8, max(1, resolved.stageConcurrency))
             profile = resolved.profile
             modelContextWindow = resolved.modelContextWindow
@@ -107,6 +123,15 @@ final class SettingsModel {
     func setGPS(_ newGPS: GPSContextMode) { write("gps_context", .string(newGPS.rawValue)) }
     func setExisting(_ newExisting: ExistingPolicy) { write("existing", .string(newExisting.rawValue)) }
     func setXMPConflictPolicy(_ policy: XMPConflictPolicy) { write("xmp_conflict_policy", .string(policy.rawValue)) }
+    func setQualityScanMode(_ mode: QualityScanMode) { write("quality_scan_mode", .string(mode.rawValue)) }
+    func setQualityMinimumConfidence(_ confidence: QualityAssessmentRecord.Confidence) {
+        write("xmp_quality_min_confidence", .string(confidence.rawValue))
+    }
+    func setQualityWriteRating(_ enabled: Bool) { write("xmp_quality_write_rating", .bool(enabled)) }
+    func setQualityWriteLabel(_ enabled: Bool) { write("xmp_quality_write_label", .bool(enabled)) }
+    func setQualityWriteUrgency(_ enabled: Bool) { write("xmp_quality_write_urgency", .bool(enabled)) }
+    func setQualityWriteFlag(_ enabled: Bool) { write("xmp_quality_write_flag", .bool(enabled)) }
+    func setQualityWriteKeywords(_ enabled: Bool) { write("xmp_quality_write_keywords", .bool(enabled)) }
     func setConcurrency(_ value: Int) { write("stage_concurrency", .number(Double(min(8, max(1, value))))) }
     func setProfile(_ name: String) { write("profile", .string(name)) }
     func setModelContextWindow(_ tokens: Int) { write("model_context_window", .number(Double(tokens))) }

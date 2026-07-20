@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class DirectApplyPolicyTests: XCTestCase {
@@ -44,7 +45,7 @@ final class DirectApplyPolicyTests: XCTestCase {
                 flatKeyword: "Great Egret",
                 namespace: .speciesTaxonomy,
                 parentPath: "Species / Taxonomy|Birds"
-            )
+            ),
         ])
         let vocabulary = try VocabularyLoader.load(data: data, sourcePath: "memory://defaults.json")
 
@@ -61,37 +62,38 @@ final class DirectApplyPolicyTests: XCTestCase {
     }
 
     func testModelEvidenceObeysUserOnlyAndAllowSpecificTagsCannotOverrideVocabularyPolicy() throws {
-        let vocabulary = try VocabularyLoader.load(data: vocabularyData(entries: [
-            VocabularyEntry(
-                canonicalPath: "Subject",
-                flatKeyword: "Subject",
-                namespace: .subject,
-                parentPath: nil,
-                requiresReview: false,
-                autoApplyAllowed: false,
-                directApplyPolicy: .withhold,
-                propagationScope: PropagationScope.none,
-                specificity: .broad
-            ),
-            VocabularyEntry(
-                canonicalPath: "Subject|User Only",
-                flatKeyword: "User Only",
-                namespace: .subject,
-                parentPath: "Subject",
-                synonyms: ["user-only"],
-                requiresReview: false,
-                directApplyPolicy: .userOnly
-            ),
-            VocabularyEntry(
-                canonicalPath: "Subject|Review Specific",
-                flatKeyword: "Review Specific",
-                namespace: .subject,
-                parentPath: "Subject",
-                synonyms: ["review-specific"],
-                requiresReview: true,
-                directApplyPolicy: .withhold
-            )
-        ]), sourcePath: "memory://direct-apply-policy.json")
+        let vocabulary = try VocabularyLoader.load(
+            data: vocabularyData(entries: [
+                VocabularyEntry(
+                    canonicalPath: "Subject",
+                    flatKeyword: "Subject",
+                    namespace: .subject,
+                    parentPath: nil,
+                    requiresReview: false,
+                    autoApplyAllowed: false,
+                    directApplyPolicy: .withhold,
+                    propagationScope: PropagationScope.none,
+                    specificity: .broad
+                ),
+                VocabularyEntry(
+                    canonicalPath: "Subject|User Only",
+                    flatKeyword: "User Only",
+                    namespace: .subject,
+                    parentPath: "Subject",
+                    synonyms: ["user-only"],
+                    requiresReview: false,
+                    directApplyPolicy: .userOnly
+                ),
+                VocabularyEntry(
+                    canonicalPath: "Subject|Review Specific",
+                    flatKeyword: "Review Specific",
+                    namespace: .subject,
+                    parentPath: "Subject",
+                    synonyms: ["review-specific"],
+                    requiresReview: true,
+                    directApplyPolicy: .withhold
+                ),
+            ]), sourcePath: "memory://direct-apply-policy.json")
         var configuration = phase3Configuration(normalizationMode: .singleImage)
         configuration.allowSpecificTags = true
 
@@ -101,21 +103,25 @@ final class DirectApplyPolicyTests: XCTestCase {
             configuration: configuration
         )
 
-        let userOnly: PerAssetNormalizationDecision = try XCTUnwrap(result.perAssetDecisions.first {
-            $0.canonicalPath == "Subject|User Only"
-        })
+        let userOnly: PerAssetNormalizationDecision = try XCTUnwrap(
+            result.perAssetDecisions.first {
+                $0.canonicalPath == "Subject|User Only"
+            })
         XCTAssertEqual(userOnly.status, NormalizationDecisionStatus.withheld)
         XCTAssertEqual(userOnly.directApplyPolicy, DirectApplyPolicy.userOnly)
         XCTAssertEqual(userOnly.skipReasons, [NormalizationCandidateSkipReason.directApplyWithheld])
 
-        let review: PerAssetNormalizationDecision = try XCTUnwrap(result.perAssetDecisions.first {
-            $0.canonicalPath == "Subject|Review Specific"
-        })
+        let review: PerAssetNormalizationDecision = try XCTUnwrap(
+            result.perAssetDecisions.first {
+                $0.canonicalPath == "Subject|Review Specific"
+            })
         XCTAssertEqual(review.status, NormalizationDecisionStatus.withheld)
-        XCTAssertEqual(review.skipReasons, [
-            NormalizationCandidateSkipReason.directApplyWithheld,
-            NormalizationCandidateSkipReason.requiresReview
-        ])
+        XCTAssertEqual(
+            review.skipReasons,
+            [
+                NormalizationCandidateSkipReason.directApplyWithheld,
+                NormalizationCandidateSkipReason.requiresReview,
+            ])
         XCTAssertNil(review.flatKeyword)
         XCTAssertNil(review.hierarchicalKeyword)
     }

@@ -1,0 +1,457 @@
+{
+  "created_at" : "2026-07-19T22:10:54Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/58a70a034bf6febff656323433a12364ce04f2d290994d1a5a0b7654f52f792a-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 801,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "463b72403ba0a0dfd889d003e2c517fd1ac971b6b66f9c9c670776e3a9550f32",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "58a70a034bf6febff656323433a12364ce04f2d290994d1a5a0b7654f52f792a"
+      },
+      "width" : 1200
+    },
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/58a70a034bf6febff656323433a12364ce04f2d290994d1a5a0b7654f52f792a-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 126,
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "role" : "subject_isolated",
+      "sha256" : "eb4f94c595c024a0dfda34ffc0bfdd2a71d9e90086119ba8d0960d65a038ac56",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "58a70a034bf6febff656323433a12364ce04f2d290994d1a5a0b7654f52f792a"
+      },
+      "width" : 183
+    }
+  ],
+  "errors" : [
+
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 16674,
+      "error" : null,
+      "input_derivative_sha256" : "463b72403ba0a0dfd889d003e2c517fd1ac971b6b66f9c9c670776e3a9550f32",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "swimming"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "underwater scene with coral and fish",
+            "term" : "underwater"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "diverse marine life in natural habitat",
+            "term" : "wildlife"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "open water"
+          },
+          {
+            "confidence" : "high",
+            "term" : "coral reef"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "various colorful coral formations in foreground and midground",
+            "term" : "coral reef"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "striped fish with orange patches",
+            "term" : "butterflyfish"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "underwater environment",
+            "term" : "marine life"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "various coral shapes and colors",
+            "term" : "coral"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "fish swimming among corals",
+            "term" : "tropical fish"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "blue water background",
+            "term" : "ocean"
+          }
+        ],
+        "quality_assessment" : {
+          "composition" : "acceptable",
+          "concerns" : [
+
+          ],
+          "confidence" : "medium",
+          "exposure_and_tone" : "strong",
+          "focus" : "unrated",
+          "lighting_and_color" : "strong",
+          "moment_or_expression" : "unrated",
+          "overall_effectiveness" : "strong",
+          "strengths" : [
+            "vibrant colors of the coral and fish",
+            "clear visibility through water column"
+          ],
+          "subject_background_relationship" : "acceptable",
+          "technical_cleanliness" : "unrated"
+        },
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor wildlife scene"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "medium",
+            "evidence" : "dark colored fish swimming in midground and background",
+            "term" : "surgeonfish"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "small yellow fish",
+            "term" : "yellow fish"
+          }
+        ],
+        "species" : [
+          {
+            "confidence" : "medium",
+            "evidence" : "white body with black stripes and orange tail/fin area",
+            "term" : "butterflyfish"
+          },
+          {
+            "confidence" : "low",
+            "evidence" : "dark, disc-shaped fish",
+            "term" : "surgeonfish"
+          }
+        ],
+        "summary" : "An underwater view of a vibrant coral reef teeming with various tropical fish swimming through diverse coral formations.",
+        "uncertainty_notes" : "Specific species identification for the dark fish and small yellow fish is limited by distance and resolution; they are identified by general appearance."
+      },
+      "prompt_sha256" : "8c55abe1e19c1eaf8a134b3a538d1f300c8c464971b815b476407858e4e57630",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.6.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"swimming\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"underwater scene with coral and fish\",\n      \"term\": \"underwater\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"diverse marine life in natural habitat\",\n      \"term\": \"wildlife\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"open water\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"term\": \"coral reef\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"various colorful coral formations in foreground and midground\",\n      \"term\": \"coral reef\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"striped fish with orange patches\",\n      \"term\": \"butterflyfish\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"underwater environment\",\n      \"term\": \"marine life\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"various coral shapes and colors\",\n      \"term\": \"coral\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"fish swimming among corals\",\n      \"term\": \"tropical fish\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"blue water background\",\n      \"term\": \"ocean\"\n    }\n  ],\n  \"quality_assessment\": {\n    \"composition\": \"acceptable\",\n    \"concerns\": [],\n    \"confidence\": \"medium\",\n    \"exposure_and_tone\": \"strong\",\n    \"focus\": \"unrated\",\n    \"lighting_and_color\": \"strong\",\n    \"moment_or_expression\": \"unrated\",\n    \"overall_effectiveness\": \"strong\",\n    \"strengths\": [\n      \"vibrant colors of the coral and fish\",\n      \"clear visibility through water column\"\n    ],\n    \"subject_background_relationship\": \"acceptable\",\n    \"technical_cleanliness\": \"unrated\"\n  },\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor wildlife scene\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"dark colored fish swimming in midground and background\",\n      \"term\": \"surgeonfish\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"small yellow fish\",\n      \"term\": \"yellow fish\"\n    }\n  ],\n  \"species\": [\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"white body with black stripes and orange tail/fin area\",\n      \"term\": \"butterflyfish\"\n    },\n    {\n      \"confidence\": \"low\",\n      \"evidence\": \"dark, disc-shaped fish\",\n      \"term\": \"surgeonfish\"\n    }\n  ],\n  \"summary\": \"An underwater view of a vibrant coral reef teeming with various tropical fish swimming through diverse coral formations.\",\n  \"uncertainty_notes\": \"Specific species identification for the dark fish and small yellow fish is limited by distance and resolution; they are identified by general appearance.\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.6.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 829,
+        "eval_duration_ns" : 13131498000,
+        "load_duration_ns" : 249843417,
+        "prompt_eval_count" : 1529,
+        "prompt_eval_duration_ns" : 3123346000,
+        "total_duration_ns" : 16643640500
+      },
+      "runtime_version" : "0.32.0"
+    },
+    {
+      "duration_ms" : 11948,
+      "error" : null,
+      "input_derivative_sha256" : "eb4f94c595c024a0dfda34ffc0bfdd2a71d9e90086119ba8d0960d65a038ac56",
+      "input_role" : "subject_isolated",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "swimming"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "isolated marine animal",
+            "term" : "wildlife"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "subject is a fish",
+            "term" : "underwater"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "oval body with vertical stripes and yellow tail",
+            "term" : "butterflyfish"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "vertical black and white stripes on head/body",
+            "term" : "striped pattern"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "yellow caudal fin",
+            "term" : "yellow tail"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "black eye patch area",
+            "term" : "eye stripe"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "compressed body shape",
+            "term" : "deep-bodied fish"
+          }
+        ],
+        "quality_assessment" : {
+          "concerns" : [
+
+          ],
+          "confidence" : "medium",
+          "detail_and_texture" : "unrated",
+          "exposure_and_tone" : "acceptable",
+          "focus" : "strong",
+          "lighting_and_color" : "acceptable",
+          "overall_subject_quality" : "acceptable",
+          "pose_expression_or_moment" : "unrated",
+          "strengths" : [
+            "clear subject outline",
+            "distinct color patterns"
+          ],
+          "technical_cleanliness" : "acceptable"
+        },
+        "secondary_subjects" : [
+
+        ],
+        "species" : [
+          {
+            "confidence" : "medium",
+            "evidence" : "vertical black stripes on white/silver body, yellow tail, butterflyfish morphology",
+            "term" : "butterflyfish"
+          }
+        ],
+        "summary" : "A profile view of a striped butterflyfish with a prominent yellow tail and vertical dark markings.",
+        "uncertainty_notes" : "The specific species is difficult to confirm due to the lack of fine detail on the facial features, but it clearly belongs to the butterflyfish family."
+      },
+      "prompt_sha256" : "d3cdf9d740fb588343b0931e13e2dc847ee9e25cdfce67ca4e5e61f8903b9b3a",
+      "prompt_version" : "aisidecar.prompt.subject_isolated/1.6.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"swimming\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"isolated marine animal\",\n      \"term\": \"wildlife\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"subject is a fish\",\n      \"term\": \"underwater\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"oval body with vertical stripes and yellow tail\",\n      \"term\": \"butterflyfish\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"vertical black and white stripes on head/body\",\n      \"term\": \"striped pattern\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"yellow caudal fin\",\n      \"term\": \"yellow tail\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"black eye patch area\",\n      \"term\": \"eye stripe\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"compressed body shape\",\n      \"term\": \"deep-bodied fish\"\n    }\n  ],\n  \"quality_assessment\": {\n    \"concerns\": [],\n    \"confidence\": \"medium\",\n    \"detail_and_texture\": \"unrated\",\n    \"exposure_and_tone\": \"acceptable\",\n    \"focus\": \"strong\",\n    \"lighting_and_color\": \"acceptable\",\n    \"overall_subject_quality\": \"acceptable\",\n    \"pose_expression_or_moment\": \"unrated\",\n    \"strengths\": [\n      \"clear subject outline\",\n      \"distinct color patterns\"\n    ],\n    \"technical_cleanliness\": \"acceptable\"\n  },\n  \"secondary_subjects\": [],\n  \"species\": [\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"vertical black stripes on white/silver body, yellow tail, butterflyfish morphology\",\n      \"term\": \"butterflyfish\"\n    }\n  ],\n  \"summary\": \"A profile view of a striped butterflyfish with a prominent yellow tail and vertical dark markings.\",\n  \"uncertainty_notes\": \"The specific species is difficult to confirm due to the lack of fine detail on the facial features, but it clearly belongs to the butterflyfish family.\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:subject-isolated:1.6.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 583,
+        "eval_duration_ns" : 9316985000,
+        "load_duration_ns" : 224753834,
+        "prompt_eval_count" : 1438,
+        "prompt_eval_duration_ns" : 2337432000,
+        "total_duration_ns" : 11943455584
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "skip",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run2",
+    "profile" : "gemma4-26b-default",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging_with_quality"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "51240684498_dbd0401eda_o.jpg",
+    "file_size" : 1466639,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "58a70a034bf6febff656323433a12364ce04f2d290994d1a5a0b7654f52f792a"
+    },
+    "modified_at" : "2026-06-11T16:39:13Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/51240684498_dbd0401eda_o.jpg",
+    "relative_path" : "51240684498_dbd0401eda_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 801,
+      "width" : 1200
+    },
+    "crop_bounding_box" : {
+      "height" : 126,
+      "width" : 183,
+      "x" : 996,
+      "y" : 207
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 13,
+    "final_dimensions" : {
+      "height" : 126,
+      "width" : 183
+    },
+    "full_resolution" : {
+      "height" : 801,
+      "width" : 1200
+    },
+    "instance_count" : 3,
+    "instances" : [
+      {
+        "area_pixels" : 7341,
+        "index" : 1,
+        "normalized_bounding_box" : {
+          "height" : 0.12983770287141075,
+          "width" : 0.11,
+          "x" : 0.8316666666666667,
+          "y" : 0.7578027465667915
+        },
+        "normalized_centroid" : {
+          "x" : 0.8834942446533169,
+          "y" : 0.8134302391728362
+        }
+      },
+      {
+        "area_pixels" : 11705,
+        "index" : 2,
+        "normalized_bounding_box" : {
+          "height" : 0.12484394506866417,
+          "width" : 0.13083333333333333,
+          "x" : 0.8408333333333333,
+          "y" : 0.2746566791510612
+        },
+        "normalized_centroid" : {
+          "x" : 0.9064731952157198,
+          "y" : 0.33560510916245767
+        }
+      },
+      {
+        "area_pixels" : 10890,
+        "index" : 3,
+        "normalized_bounding_box" : {
+          "height" : 0.11485642946317104,
+          "width" : 0.13083333333333333,
+          "x" : 0.6866666666666666,
+          "y" : 0.09113607990012484
+        },
+        "normalized_centroid" : {
+          "x" : 0.7500972604836241,
+          "y" : 0.14681980398698138
+        }
+      }
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 1,
+      "y" : 1
+    },
+    "selected_bounding_box" : {
+      "height" : 0.12484394506866414,
+      "width" : 0.13083333333333336,
+      "x" : 0.8408333333333333,
+      "y" : 0.2746566791510612
+    },
+    "selected_instance_indices" : [
+      2
+    ],
+    "selected_to_union_area_ratio" : 0.07195365634567086,
+    "status" : "success",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 28627,
+    "pipeline_elapsed_ms" : 121531,
+    "render_ms" : 24,
+    "subject_isolation_ms" : 59,
+    "write_ms" : 3
+  }
+}

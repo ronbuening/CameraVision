@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class XMPNamingTests: XCTestCase {
@@ -11,7 +12,7 @@ final class XMPNamingTests: XCTestCase {
             ("Bird.TIF", .tif, "Bird.xmp"),
             ("Bird.HEIC", .heic, "Bird.xmp"),
             ("Bird.PNG", .png, "Bird.xmp"),
-            ("Bird.DNG", .dng, "Bird.xmp")
+            ("Bird.DNG", .dng, "Bird.xmp"),
         ]
 
         for (fileName, type, expected) in cases {
@@ -73,10 +74,11 @@ final class XMPNamingTests: XCTestCase {
     private func resolvedInput(source: SourceImage, sourcePath: URL?) throws -> ResolvedRawSidecarInput {
         ResolvedRawSidecarInput(
             sidecarPath: URL(fileURLWithPath: "/sidecars/\(source.fileName).ai.json"),
-            document: try RawJSONSidecarDocument(sidecar: RawJSONSidecar(
-                source: source,
-                runConfiguration: .builtInDefaults
-            )),
+            document: try RawJSONSidecarDocument(
+                sidecar: RawJSONSidecar(
+                    source: source,
+                    runConfiguration: .builtInDefaults
+                )),
             sourcePath: sourcePath,
             sourceIdentityStatus: .skipped,
             relativePath: "\(source.fileName).ai.json",

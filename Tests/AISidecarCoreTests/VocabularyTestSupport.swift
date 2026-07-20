@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 func vocabularyData(
@@ -49,7 +50,7 @@ func minimalVocabularyEntries() -> [VocabularyEntry] {
             parentPath: "Subject|Wildlife",
             synonyms: ["mammal"],
             mutuallyExclusiveGroup: "subject-kind"
-        )
+        ),
     ]
 }
 

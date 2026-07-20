@@ -1,0 +1,393 @@
+{
+  "created_at" : "2026-07-19T19:53:59Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/4f6871c22df0c4748620e7877f66ec9fedccc22f5a6cdc8027af6f90f74da75c-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1365,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "2c73f68530bbe683bc622c90b6a520dd788a9481310a3a990ffa4b70a9159f2a",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "4f6871c22df0c4748620e7877f66ec9fedccc22f5a6cdc8027af6f90f74da75c"
+      },
+      "width" : 2048
+    },
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/4f6871c22df0c4748620e7877f66ec9fedccc22f5a6cdc8027af6f90f74da75c-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1258,
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "role" : "subject_isolated",
+      "sha256" : "f81161bff0f67f6f7847aa76abbda900eb028a82163fc0847f4a68316a1cdbde",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "4f6871c22df0c4748620e7877f66ec9fedccc22f5a6cdc8027af6f90f74da75c"
+      },
+      "width" : 2048
+    }
+  ],
+  "errors" : [
+
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 14567,
+      "error" : null,
+      "input_derivative_sha256" : "2c73f68530bbe683bc622c90b6a520dd788a9481310a3a990ffa4b70a9159f2a",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "a boat on snow in a vast landscape",
+            "term" : "landscape"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "isolated object in an expansive environment",
+            "term" : "fine_art_conceptual"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "snow"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "a small, weathered boat on sled runners in the snow",
+            "term" : "boat"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "weathered wooden boat with a flag and sled runners",
+            "term" : "boat"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "yellow and red flag on a mast",
+            "term" : "flag"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "sled runners underneath the boat",
+            "term" : "sled"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "vast expanse of white snow under a grey sky",
+            "term" : "snow"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "isolated object in an empty landscape",
+            "term" : "isolation"
+          }
+        ],
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor scene"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "a small flag attached to the mast of the boat",
+            "term" : "flag"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "sled-like structures under the boat",
+            "term" : "sled runners"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A weathered wooden boat mounted on sled runners sits alone in a vast, snowy landscape under an overcast sky.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "603d96141dd9ac54b0b49024b93e76ba931921086e73bc0e7e57467363f57300",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"a boat on snow in a vast landscape\",\n      \"term\": \"landscape\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"isolated object in an expansive environment\",\n      \"term\": \"fine_art_conceptual\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"snow\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"a small, weathered boat on sled runners in the snow\",\n      \"term\": \"boat\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"weathered wooden boat with a flag and sled runners\",\n      \"term\": \"boat\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"yellow and red flag on a mast\",\n      \"term\": \"flag\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"sled runners underneath the boat\",\n      \"term\": \"sled\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"vast expanse of white snow under a grey sky\",\n      \"term\": \"snow\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"isolated object in an empty landscape\",\n      \"term\": \"isolation\"\n    }\n  ],\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor scene\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"a small flag attached to the mast of the boat\",\n      \"term\": \"flag\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"sled-like structures under the boat\",\n      \"term\": \"sled runners\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"A weathered wooden boat mounted on sled runners sits alone in a vast, snowy landscape under an overcast sky.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 561,
+        "eval_duration_ns" : 10591673000,
+        "load_duration_ns" : 490163042,
+        "prompt_eval_count" : 1141,
+        "prompt_eval_duration_ns" : 3197705000,
+        "total_duration_ns" : 14435271542
+      },
+      "runtime_version" : "0.32.0"
+    },
+    {
+      "duration_ms" : 14450,
+      "error" : null,
+      "input_derivative_sha256" : "f81161bff0f67f6f7847aa76abbda900eb028a82163fc0847f4a68316a1cdbde",
+      "input_role" : "subject_isolated",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "stationary"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "isolated object on neutral matte",
+            "term" : "still_life"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "museum-style presentation of an artifact",
+            "term" : "product"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "a small, weathered boat with a mast and rigging",
+            "term" : "small wooden boat"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "weathered texture on hull",
+            "term" : "weathered"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "vertical pole structure with rigging",
+            "term" : "mast"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "thin lines connecting mast to hull",
+            "term" : "rigging"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "light-colored, possibly canvas or wood material with dark staining",
+            "term" : "distressed texture"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "boat resting on a wooden frame/cradle",
+            "term" : "cradle"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "long, narrow shape of the vessel",
+            "term" : "narrow hull"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "wooden support structure underneath the boat",
+            "term" : "cradle"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "rope or cordage used for rigging",
+            "term" : "rigging lines"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A small, weathered, narrow boat with a mast and rigging, resting on a wooden cradle against a neutral gray background.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "be7bedb9dac5c795c03b49d8f16368080d5d2ab44226d76bcf4314b5fbf17640",
+      "prompt_version" : "aisidecar.prompt.subject_isolated/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"stationary\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"isolated object on neutral matte\",\n      \"term\": \"still_life\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"museum-style presentation of an artifact\",\n      \"term\": \"product\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"a small, weathered boat with a mast and rigging\",\n      \"term\": \"small wooden boat\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"weathered texture on hull\",\n      \"term\": \"weathered\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"vertical pole structure with rigging\",\n      \"term\": \"mast\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"thin lines connecting mast to hull\",\n      \"term\": \"rigging\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"light-colored, possibly canvas or wood material with dark staining\",\n      \"term\": \"distressed texture\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"boat resting on a wooden frame/cradle\",\n      \"term\": \"cradle\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"long, narrow shape of the vessel\",\n      \"term\": \"narrow hull\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"wooden support structure underneath the boat\",\n      \"term\": \"cradle\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"rope or cordage used for rigging\",\n      \"term\": \"rigging lines\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"A small, weathered, narrow boat with a mast and rigging, resting on a wooden cradle against a neutral gray background.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:subject-isolated:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 546,
+        "eval_duration_ns" : 10167210000,
+        "load_duration_ns" : 494476125,
+        "prompt_eval_count" : 1207,
+        "prompt_eval_duration_ns" : 3488155000,
+        "total_duration_ns" : 14410703125
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "overwrite",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.1.0-beta3/260719_run0",
+    "profile" : "gemma4-26b-default",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "54616538794_5b38d03b73_o.jpg",
+    "file_size" : 8094487,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "4f6871c22df0c4748620e7877f66ec9fedccc22f5a6cdc8027af6f90f74da75c"
+    },
+    "modified_at" : "2026-06-11T16:51:14Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/54616538794_5b38d03b73_o.jpg",
+    "relative_path" : "54616538794_5b38d03b73_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1365,
+      "width" : 2048
+    },
+    "crop_bounding_box" : {
+      "height" : 1990,
+      "width" : 3239,
+      "x" : 1824,
+      "y" : 386
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 224,
+    "final_dimensions" : {
+      "height" : 1258,
+      "width" : 2048
+    },
+    "full_resolution" : {
+      "height" : 3875,
+      "width" : 5812
+    },
+    "instance_count" : 1,
+    "instances" : [
+      {
+        "area_pixels" : 197447,
+        "index" : 1,
+        "normalized_bounding_box" : {
+          "height" : 0.3978021978021978,
+          "width" : 0.47998046875,
+          "x" : 0.3525390625,
+          "y" : 0.1575091575091575
+        },
+        "normalized_centroid" : {
+          "x" : 0.5985318298529954,
+          "y" : 0.2815418357457487
+        }
+      }
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2.837890625,
+      "y" : 2.838827838827839
+    },
+    "selected_bounding_box" : {
+      "height" : 0.39780219780219783,
+      "width" : 0.47998046875,
+      "x" : 0.3525390625,
+      "y" : 0.1575091575091575
+    },
+    "selected_instance_indices" : [
+      1
+    ],
+    "selected_to_union_area_ratio" : 0.9999999999999999,
+    "status" : "success",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 29024,
+    "pipeline_elapsed_ms" : 168190,
+    "render_ms" : 118,
+    "subject_isolation_ms" : 89,
+    "write_ms" : 3
+  }
+}

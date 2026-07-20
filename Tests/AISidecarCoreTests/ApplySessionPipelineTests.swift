@@ -1,8 +1,83 @@
+import CryptoKit
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class ApplySessionPipelineTests: XCTestCase {
+    func testDefaultOffApplyMatchesPreQN6ArtifactHashes() throws {
+        let fixture = try makeSessionFixture(dryRun: false)
+        let output = fixture.root.appendingPathComponent("apply-output")
+        let exportTimestamp = Date(timeIntervalSince1970: 1_800_000_450)
+        let result = try ApplySessionPipeline(
+            xmpPipeline: XMPExportPipeline(
+                logger: Logger(sink: { _ in }),
+                now: { exportTimestamp },
+                filenameSuffix: { "qn6-baseline" }
+            )
+        ).run(
+            sessionPath: fixture.sessionPath,
+            configuration: applyConfiguration(outputDir: output),
+            timestamp: Date(timeIntervalSince1970: 1_800_000_500)
+        )
+
+        let sessionName = URL(fileURLWithPath: fixture.sessionPath).deletingPathExtension().lastPathComponent
+        let sessionTokenPrefix = Timestamp.filenameSafe(Date(timeIntervalSince1970: 1_800_000_400)) + "-"
+        let sessionTokenRange = try XCTUnwrap(sessionName.range(of: sessionTokenPrefix))
+        let sessionToken = String(sessionName[sessionTokenRange.lowerBound...])
+        let reportName = URL(fileURLWithPath: result.report.artifacts.reportPath)
+            .deletingPathExtension()
+            .lastPathComponent
+        let applyTokenPrefix = "normalization-apply-report-"
+        let applyTokenRange = try XCTUnwrap(reportName.range(of: applyTokenPrefix))
+        let applyToken = String(reportName[applyTokenRange.upperBound...])
+        let artifacts = [
+            "progress": result.report.artifacts.progressPath,
+            "raw_sidecar": fixture.taggingSidecar.path,
+            "report": result.report.artifacts.reportPath,
+            "session": fixture.sessionPath,
+            "summary": result.report.artifacts.summaryPath,
+            "xmp": output.appendingPathComponent("Bird.xmp").path,
+        ]
+        var actual: [String: String] = [:]
+        for (key, path) in artifacts {
+            actual[key] = try sha256(
+                normalizedData(
+                    at: path,
+                    root: fixture.root,
+                    sessionToken: sessionToken,
+                    applyToken: applyToken
+                ))
+        }
+
+        XCTAssertEqual(actual, try applyBaselineHashes())
+    }
+
+    func testDefaultOffApplyDoesNotReadCurrentQualityInputsOrPlanningSnapshot() throws {
+        let fixture = try makeSessionFixture(dryRun: false)
+        let reads = ApplySessionPlanningReadCounter()
+        let pipeline = ApplySessionPipeline(
+            snapshotReader: { path in
+                reads.recordSnapshotRead()
+                return .empty(targetPath: path, exists: false)
+            },
+            currentSidecarPairResolver: { _ in
+                reads.recordSidecarRead()
+                return RawJSONSidecarInputBatch(inputs: [], failures: [])
+            },
+            xmpPipeline: XMPExportPipeline(logger: Logger(sink: { _ in }))
+        )
+
+        _ = try pipeline.run(
+            sessionPath: fixture.sessionPath,
+            configuration: applyConfiguration(outputDir: fixture.root.appendingPathComponent("default-off")),
+            timestamp: Date(timeIntervalSince1970: 1_800_000_501)
+        )
+
+        XCTAssertEqual(reads.sidecarReadCount, 0)
+        XCTAssertEqual(reads.snapshotReadCount, 0)
+    }
+
     func testApplySessionWritesStoredDecisionsAndMergesCurrentXMP() throws {
         let fixture = try makeSessionFixture(dryRun: false)
         let output = try temporaryDirectory()
@@ -116,11 +191,12 @@ final class ApplySessionPipelineTests: XCTestCase {
         XCTAssertEqual(result.exportReport?.inputFailures.map(\.error.code), [.interrupted])
         XCTAssertEqual(result.report.errors.map(\.code), [.interrupted])
         XCTAssertEqual(try Data(contentsOf: fixture.sourceURL), originalSourceData)
-        XCTAssertTrue(try decodeProgress(at: result.report.artifacts.progressPath).contains {
-            $0.stage == .xmpTarget
-                && $0.status == .failed
-                && $0.errors.map(\.code) == [.interrupted]
-        })
+        XCTAssertTrue(
+            try decodeProgress(at: result.report.artifacts.progressPath).contains {
+                $0.stage == .xmpTarget
+                    && $0.status == .failed
+                    && $0.errors.map(\.code) == [.interrupted]
+            })
     }
 
     func testApplySessionFailsClosedForMalformedCurrentXMP() throws {
@@ -279,8 +355,12 @@ final class ApplySessionPipelineTests: XCTestCase {
         let output = normalizationOutput ?? root.appendingPathComponent("normalization")
         let vocabularyPath = try writeVocabulary(in: root)
         let source = try writeTestImage("Bird.JPG", in: sourceRoot)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_700_000_100)],
+            ofItemAtPath: source.path
+        )
         let sourceImage = try scannedSourceImage(source, relativePath: "Bird.JPG")
-        try writeRawSidecar(
+        let taggingSidecar = try writeRawSidecar(
             source: sourceImage,
             named: "Bird.JPG.ai.json",
             in: jsonRoot,
@@ -298,7 +378,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         configuration.normalizationMode = .singleImage
         configuration.dryRun = dryRun
 
-        let result = dryRun
+        let result =
+            dryRun
             ? try NormalizePipeline().runDryRun(
                 mode: .fromJSON(path: jsonRoot.path),
                 configuration: configuration,
@@ -316,6 +397,7 @@ final class ApplySessionPipelineTests: XCTestCase {
             root: root,
             sourceRoot: sourceRoot,
             sourceURL: source,
+            taggingSidecar: taggingSidecar,
             sessionPath: try XCTUnwrap(result.session.artifacts.sessionPath)
         )
     }
@@ -344,19 +426,22 @@ final class ApplySessionPipelineTests: XCTestCase {
         named relativePath: String,
         in root: URL,
         modelRuns: [ModelRunRecord]
-    ) throws {
+    ) throws -> URL {
         let destination = root.appendingPathComponent(relativePath)
         try FileManager.default.createDirectory(
             at: destination.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
+        // Pinned fields keep the hashed fixture bytes machine-independent;
+        // see NormalizeQualityDefaultOffIdentityTests.fixtureRunConfiguration.
         let sidecar = RawJSONSidecar(
             source: source,
-            runConfiguration: .builtInDefaults,
+            runConfiguration: NormalizeQualityDefaultOffIdentityTests.fixtureRunConfiguration(),
             modelRuns: modelRuns,
             createdAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
         try RawJSONSidecarDocument(sidecar: sidecar).encodedData().write(to: destination)
+        return destination
     }
 
     private func writeVocabulary(in root: URL) throws -> String {
@@ -383,7 +468,7 @@ final class ApplySessionPipelineTests: XCTestCase {
                     .object([
                         "term": .string(term),
                         "confidence": .string("high"),
-                        "evidence": .string("visible bird")
+                        "evidence": .string("visible bird"),
                     ])
                 ])
             ]),
@@ -397,9 +482,47 @@ final class ApplySessionPipelineTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let text = try String(contentsOf: URL(fileURLWithPath: path), encoding: .utf8)
-        return try text
+        return
+            try text
             .split(separator: "\n")
             .map { try decoder.decode(NormalizationProgressRecord.self, from: Data($0.utf8)) }
+    }
+
+    private func normalizedData(
+        at path: String,
+        root: URL,
+        sessionToken: String,
+        applyToken: String
+    ) throws -> Data {
+        var text = String(decoding: try Data(contentsOf: URL(fileURLWithPath: path)), as: UTF8.self)
+        // Generated from QN5 commit fdf6cae before QN6 changed apply-session.
+        // Normalize only temporary paths and the planners' random filename tokens.
+        // raw_sidecar re-pinned 2026-07-19 after fixing the fixture's
+        // machine-specific run configuration (cache dir, concurrency); the
+        // pipeline-produced artifact hashes were unchanged by that fix.
+        text = text.replacingOccurrences(of: root.standardizedFileURL.path, with: "$ROOT")
+        text = text.replacingOccurrences(of: sessionToken, with: "$SESSION_TOKEN")
+        text = text.replacingOccurrences(of: applyToken, with: "$APPLY_TOKEN")
+        return Data(text.utf8)
+    }
+
+    private func applyBaselineHashes() throws -> [String: String] {
+        let url = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: "qn6-default-off-apply-artifact-sha256",
+                withExtension: "json",
+                subdirectory: "normalization"
+            )
+                ?? Bundle.module.url(
+                    forResource: "qn6-default-off-apply-artifact-sha256",
+                    withExtension: "json"
+                )
+        )
+        return try JSONDecoder().decode([String: String].self, from: Data(contentsOf: url))
+    }
+
+    private func sha256(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -407,7 +530,30 @@ private struct ApplySessionFixture {
     var root: URL
     var sourceRoot: URL
     var sourceURL: URL
+    var taggingSidecar: URL
     var sessionPath: String
+}
+
+private final class ApplySessionPlanningReadCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var sidecarReads = 0
+    private var snapshotReads = 0
+
+    var sidecarReadCount: Int {
+        lock.withLock { sidecarReads }
+    }
+
+    var snapshotReadCount: Int {
+        lock.withLock { snapshotReads }
+    }
+
+    func recordSidecarRead() {
+        lock.withLock { sidecarReads += 1 }
+    }
+
+    func recordSnapshotRead() {
+        lock.withLock { snapshotReads += 1 }
+    }
 }
 
 private struct ValidationFailingOwnedEngine: MetadataWriteEngine {
@@ -439,26 +585,26 @@ private struct ValidationFailingOwnedEngine: MetadataWriteEngine {
 }
 
 private let existingDevelopSettingsXMPForApplySession = """
-<?xml version="1.0" encoding="UTF-8"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-           xmlns:dc="http://purl.org/dc/elements/1.1/"
-           xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
-           xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
-    <rdf:Description rdf:about="">
-      <dc:subject>
-        <rdf:Bag>
-          <rdf:li>existing bird</rdf:li>
-        </rdf:Bag>
-      </dc:subject>
-      <lr:hierarchicalSubject>
-        <rdf:Bag>
-          <rdf:li>existing habitat</rdf:li>
-        </rdf:Bag>
-      </lr:hierarchicalSubject>
-      <crs:Exposure2012>+0.35</crs:Exposure2012>
-      <crs:Contrast2012>12</crs:Contrast2012>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="fixture">
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/"
+               xmlns:lr="http://ns.adobe.com/lightroom/1.0/"
+               xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
+        <rdf:Description rdf:about="">
+          <dc:subject>
+            <rdf:Bag>
+              <rdf:li>existing bird</rdf:li>
+            </rdf:Bag>
+          </dc:subject>
+          <lr:hierarchicalSubject>
+            <rdf:Bag>
+              <rdf:li>existing habitat</rdf:li>
+            </rdf:Bag>
+          </lr:hierarchicalSubject>
+          <crs:Exposure2012>+0.35</crs:Exposure2012>
+          <crs:Contrast2012>12</crs:Contrast2012>
+        </rdf:Description>
+      </rdf:RDF>
+    </x:xmpmeta>
+    """

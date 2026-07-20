@@ -33,11 +33,13 @@ public struct NormalizeAndWritePipeline {
     ) {
         self.fileManager = fileManager
         self.normalizePipeline = normalizePipeline
-        self.exportPipeline = exportPipeline ?? XMPExportPipeline(
-            fileManager: fileManager,
-            logger: logger,
-            now: now
-        )
+        self.exportPipeline =
+            exportPipeline
+            ?? XMPExportPipeline(
+                fileManager: fileManager,
+                logger: logger,
+                now: now
+            )
         self.executionRecorder = NormalizationXMPExecutionRecorder(fileManager: fileManager)
         self.afterNormalization = afterNormalization
     }
@@ -58,11 +60,13 @@ public struct NormalizeAndWritePipeline {
             configuration: configuration,
             interruptionMonitor: interruptionMonitor
         )
-        let changePlan = normalizeResult.changePlan ?? XMPChangePlanDocument(
-            dryRun: configuration.dryRun,
-            targetPlans: [],
-            inputFailures: []
-        )
+        let changePlan =
+            normalizeResult.changePlan
+            ?? XMPChangePlanDocument(
+                dryRun: configuration.dryRun,
+                targetPlans: [],
+                inputFailures: []
+            )
         afterNormalization()
         let exportResult = try exportPipeline.runChangePlan(
             changePlan,
@@ -110,7 +114,8 @@ public struct NormalizeAndWritePipeline {
             minConfidence: configuration.minConfidence,
             allowSpecificTags: configuration.allowSpecificTags,
             pairScope: configuration.pairScope,
-            writeAIJSON: configuration.writeAIJSON
+            writeAIJSON: configuration.writeAIJSON,
+            qualityGrading: configuration.qualityGrading
         )
     }
 
@@ -125,8 +130,8 @@ public struct NormalizeAndWritePipeline {
     }
 }
 
-private extension NormalizationInvocationMode {
-    var isExistingInputMode: Bool {
+extension NormalizationInvocationMode {
+    fileprivate var isExistingInputMode: Bool {
         switch self {
         case .fromJSON, .fileList:
             return true

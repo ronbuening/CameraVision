@@ -55,10 +55,12 @@ struct ChangePlanSheet: View {
                             .foregroundStyle(theme.text)
                     }
                     .toggleStyle(.checkbox)
-                    Text("Deletes the .ai.json sidecars and batch logs this run created. Your photos, .xmp files, and backups are untouched. You'll need to re-analyze to review these images again.")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(theme.textFaint)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        "Deletes the .ai.json sidecars and batch logs this run created. Your photos, .xmp files, and backups are untouched. You'll need to re-analyze to review these images again."
+                    )
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(theme.textFaint)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
                 Button("Cancel") {
@@ -130,12 +132,14 @@ struct ChangePlanSheet: View {
     }
 
     private var mergePolicyDetail: String {
-        let base = "Keywords already in a sidecar are kept, new keywords are added without duplicates, and other metadata (ratings, edits) is left untouched. A timestamped backup is written before any existing file is modified."
+        let base =
+            "Keywords already in a sidecar are kept, new keywords are added without duplicates, and other metadata (ratings, edits) is left untouched. A timestamped backup is written before any existing file is modified."
         let merges = export.mergeTargets.count
         guard merges > 0 else {
             return base + " This write creates only new sidecar files."
         }
-        return base + " This write merges into \(merges) existing sidecar\(merges == 1 ? "" : "s"), preserving \(export.preservedKeywordCount) existing keyword\(export.preservedKeywordCount == 1 ? "" : "s")."
+        return base
+            + " This write merges into \(merges) existing sidecar\(merges == 1 ? "" : "s"), preserving \(export.preservedKeywordCount) existing keyword\(export.preservedKeywordCount == 1 ? "" : "s")."
     }
 
     private func targetRow(_ plan: XMPChangePlan) -> some View {
@@ -169,6 +173,7 @@ struct ChangePlanSheet: View {
                     .foregroundStyle(theme.textFaint)
                     .lineLimit(2)
             }
+            qualityPlanRows(plan)
         }
         .padding(EdgeInsets(top: 10, leading: 13, bottom: 10, trailing: 13))
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -177,11 +182,63 @@ struct ChangePlanSheet: View {
         .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(theme.border))
     }
 
+    @ViewBuilder
+    private func qualityPlanRows(_ plan: XMPChangePlan) -> some View {
+        if let quality = ExportModel.qualityPresentation(for: plan) {
+            Divider().overlay(theme.border)
+            HStack(spacing: 7) {
+                if let tier = quality.tier {
+                    qualityBadge(tier.rawValue, color: QualityTierPalette.color(for: tier, theme: theme))
+                } else if quality.ungradedReason != nil {
+                    qualityBadge("ungraded", color: theme.accent.accent)
+                }
+                Text("quality grading")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(theme.textDim)
+                Spacer()
+            }
+            ForEach(quality.scalars) { scalar in
+                HStack(spacing: 8) {
+                    Text(scalar.field)
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(theme.text)
+                    Text("\(scalar.plannedExistingValue ?? "—") → \(scalar.plannedValue)")
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(theme.textDim)
+                    Spacer()
+                    scalarActionBadge(scalar.action)
+                }
+            }
+            ForEach(Array(quality.explanations.enumerated()), id: \.offset) { _, explanation in
+                Text(explanation)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(theme.textFaint)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    private func scalarActionBadge(_ action: PlannedScalarWrite.Action) -> some View {
+        let color = action == .skipExisting ? theme.accent.accent : theme.green
+        return qualityBadge(action.rawValue, color: color)
+    }
+
+    private func qualityBadge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+            .foregroundStyle(color)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 6)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
     /// Per-target disclosure of the merge outcome the dry-run previewed:
     /// existing sidecars show how many keywords the merge preserves.
     private func mergeBadge(_ preview: XMPWritePreview) -> some View {
         let existing = preview.existingFlatKeywords.count + preview.existingHierarchicalKeywords.count
-        let label = preview.wouldCreate
+        let label =
+            preview.wouldCreate
             ? "new file"
             : "merge · keeps \(existing) existing"
         return Text(label)
@@ -240,15 +297,21 @@ struct ChangePlanSheet: View {
                 .font(.system(size: 10, weight: .semibold))
                 .kerning(0.5)
                 .foregroundStyle(theme.textFaint)
-            Text("Lightroom Classic: select the already-imported photos and run Metadata → Read Metadata from Files to pick up sidecar changes. Hierarchical keywords use lr:HierarchicalSubject.")
-                .font(.system(size: 11))
-                .foregroundStyle(theme.textDim)
-            Text("Capture One: behavior follows Preferences → Metadata (Auto Sync Sidecar XMP: Load / Full Sync). Flat keywords use dc:subject; Lightroom-style hierarchy may not behave identically.")
-                .font(.system(size: 11))
-                .foregroundStyle(theme.textDim)
-            Text("Writes go through the owned XMP engine with deterministic backups, source-hash checks, and post-write validation — no external tools.")
-                .font(.system(size: 10.5))
-                .foregroundStyle(theme.textFaint)
+            Text(
+                "Lightroom Classic: select the already-imported photos and run Metadata → Read Metadata from Files to pick up sidecar changes. Hierarchical keywords use lr:HierarchicalSubject."
+            )
+            .font(.system(size: 11))
+            .foregroundStyle(theme.textDim)
+            Text(
+                "Capture One: behavior follows Preferences → Metadata (Auto Sync Sidecar XMP: Load / Full Sync). Flat keywords use dc:subject; Lightroom-style hierarchy may not behave identically."
+            )
+            .font(.system(size: 11))
+            .foregroundStyle(theme.textDim)
+            Text(
+                "Writes go through the owned XMP engine with deterministic backups, source-hash checks, and post-write validation — no external tools."
+            )
+            .font(.system(size: 10.5))
+            .foregroundStyle(theme.textFaint)
         }
         .padding(EdgeInsets(top: 10, leading: 13, bottom: 10, trailing: 13))
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -272,35 +335,48 @@ struct ExportReportView: View {
                 .font(.system(size: 10, weight: .semibold))
                 .kerning(0.5)
                 .foregroundStyle(theme.textFaint)
+            let qualitySummary = ExportModel.qualitySummary(for: report)
+            if !qualitySummary.isEmpty {
+                Text(
+                    "Quality: \(qualitySummary.gradedTargetCount) graded · \(qualitySummary.ungradedTargetCount) ungraded · \(qualitySummary.writtenScalarCount) scalars written · \(qualitySummary.skippedScalarCount) skipped by policy"
+                )
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(theme.textDim)
+            }
             ForEach(Array(report.targetReports.enumerated()), id: \.offset) { _, target in
-                HStack(spacing: 8) {
-                    Text(target.plan.targetRelativePath)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(theme.text)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    statusBadge(target.status)
-                    if target.backup != nil {
-                        Text("backup ✓")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(theme.green)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 8) {
+                        Text(target.plan.targetRelativePath)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(theme.text)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        statusBadge(target.status)
+                        if target.backup != nil {
+                            Text("backup ✓")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(theme.green)
+                        }
+                        if let validation = target.validation {
+                            Text(validation.valid ? "validated ✓" : "validation failed — restored")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(validation.valid ? theme.green : theme.danger)
+                        }
+                        if !target.errors.isEmpty {
+                            Text(target.errors.map(\.code.rawValue).joined(separator: ", "))
+                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(theme.danger)
+                        }
+                        Spacer()
                     }
-                    if let validation = target.validation {
-                        Text(validation.valid ? "validated ✓" : "validation failed — restored")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(validation.valid ? theme.green : theme.danger)
-                    }
-                    if !target.errors.isEmpty {
-                        Text(target.errors.map(\.code.rawValue).joined(separator: ", "))
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(theme.danger)
-                    }
-                    Spacer()
+                    qualityReportRows(target)
                 }
             }
-            Text("Engine \(report.engine.engineName) \(report.engine.engineVersion) · recipe \(report.engine.writerRecipeVersion)")
-                .font(.system(size: 10.5, design: .monospaced))
-                .foregroundStyle(theme.textFaint)
+            Text(
+                "Engine \(report.engine.engineName) \(report.engine.engineVersion) · recipe \(report.engine.writerRecipeVersion)"
+            )
+            .font(.system(size: 10.5, design: .monospaced))
+            .foregroundStyle(theme.textFaint)
             ForEach(report.applicationInstructions, id: \.self) { instruction in
                 Text(instruction)
                     .font(.system(size: 10.5))
@@ -314,12 +390,50 @@ struct ExportReportView: View {
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(theme.border))
     }
 
-    private func statusBadge(_ status: XMPExportTargetStatus) -> some View {
-        let color: Color = switch status {
-        case .written, .created: theme.green
-        case .unchanged, .dryRun: theme.textDim
-        case .failed, .interrupted: theme.danger
+    @ViewBuilder
+    private func qualityReportRows(_ target: XMPExportTargetReport) -> some View {
+        if let quality = ExportModel.qualityPresentation(for: target) {
+            HStack(spacing: 6) {
+                if let tier = quality.tier {
+                    reportQualityBadge(tier.rawValue, color: QualityTierPalette.color(for: tier, theme: theme))
+                } else if quality.ungradedReason != nil {
+                    reportQualityBadge("ungraded", color: theme.accent.accent)
+                }
+                Spacer()
+            }
+            ForEach(quality.scalars) { scalar in
+                Text(
+                    "\(scalar.field): \(scalar.resultExistingValue ?? "—") → \(scalar.resultResultingValue ?? "—") · \(scalar.action.rawValue)"
+                )
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(scalar.action == .skipExisting ? theme.accent.accent : theme.textDim)
+            }
+            ForEach(Array(quality.explanations.enumerated()), id: \.offset) { _, explanation in
+                Text(explanation)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(theme.textFaint)
+                    .textSelection(.enabled)
+            }
         }
+    }
+
+    private func reportQualityBadge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+            .foregroundStyle(color)
+            .padding(.vertical, 1.5)
+            .padding(.horizontal, 6)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
+    private func statusBadge(_ status: XMPExportTargetStatus) -> some View {
+        let color: Color =
+            switch status {
+            case .written, .created: theme.green
+            case .unchanged, .dryRun: theme.textDim
+            case .failed, .interrupted: theme.danger
+            }
         return Text(status.rawValue)
             .font(.system(size: 9.5, weight: .bold, design: .monospaced))
             .foregroundStyle(color)

@@ -16,7 +16,7 @@ public struct SubjectIsolationService {
         if let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) {
             self.context = CIContext(options: [
                 .workingColorSpace: colorSpace,
-                .outputColorSpace: colorSpace
+                .outputColorSpace: colorSpace,
             ])
         } else {
             self.context = CIContext()
@@ -45,9 +45,11 @@ public struct SubjectIsolationService {
         )
         let instances = foreground.instances.map(\.record).sorted { $0.index < $1.index }
 
-        guard let decision = InstanceSelectionPolicy(
-            mergeDominanceThreshold: configuration.subjectMergeDominanceThreshold
-        ).select(from: instances) else {
+        guard
+            let decision = InstanceSelectionPolicy(
+                mergeDominanceThreshold: configuration.subjectMergeDominanceThreshold
+            ).select(from: instances)
+        else {
             let error = SidecarError(
                 code: .subjectIsolationNoForeground,
                 stage: .isolate,
@@ -80,9 +82,10 @@ public struct SubjectIsolationService {
         }
 
         let selectedFullBox = decision.selectedBoundingBox.scaled(to: fullDimensions)
-        let marginPixels = Int(ceil(
-            Double(max(selectedFullBox.width, selectedFullBox.height)) * configuration.subjectCropMarginFraction
-        ))
+        let marginPixels = Int(
+            ceil(
+                Double(max(selectedFullBox.width, selectedFullBox.height)) * configuration.subjectCropMarginFraction
+            ))
         let cropBox = selectedFullBox.expanded(by: marginPixels, within: fullDimensions)
         let nativeDimensions = PixelDimensions(width: cropBox.width, height: cropBox.height)
         let finalDimensions = try profile.fittedDimensions(
@@ -199,7 +202,7 @@ public struct SubjectIsolationService {
             "subject-v3",
             "margin-\(stableDecimal(configuration.subjectCropMarginFraction))",
             "merge-\(stableDecimal(configuration.subjectMergeDominanceThreshold))",
-            "matte-\(matteRGB.map(String.init).joined(separator: "-"))"
+            "matte-\(matteRGB.map(String.init).joined(separator: "-"))",
         ].joined(separator: "-")
     }
 
@@ -227,7 +230,8 @@ public struct SubjectIsolationService {
         }
         let scaleX = Double(fullDimensions.width) / Double(analysisBounds.width)
         let scaleY = Double(fullDimensions.height) / Double(analysisBounds.height)
-        let fullMask = unionMask
+        let fullMask =
+            unionMask
             .transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
             .cropped(to: CGRect(x: 0, y: 0, width: fullDimensions.width, height: fullDimensions.height))
         let cropRect = cropBox.rect
@@ -245,7 +249,7 @@ public struct SubjectIsolationService {
             "CIBlendWithMask",
             parameters: [
                 kCIInputBackgroundImageKey: matte,
-                kCIInputMaskImageKey: croppedMask
+                kCIInputMaskImageKey: croppedMask,
             ]
         )
         return blended.transformed(by: CGAffineTransform(translationX: -cropRect.minX, y: -cropRect.minY))
@@ -264,12 +268,14 @@ public struct SubjectIsolationService {
         guard let cgImage = context.createCGImage(image, from: extent, format: .RGBA8, colorSpace: colorSpace) else {
             throw MaskGeometry.isolationFailed("Unable to create subject-isolated pixels for \(destination.path).")
         }
-        guard let imageDestination = CGImageDestinationCreateWithURL(
-            destination as CFURL,
-            UTType.jpeg.identifier as CFString,
-            1,
-            nil
-        ) else {
+        guard
+            let imageDestination = CGImageDestinationCreateWithURL(
+                destination as CFURL,
+                UTType.jpeg.identifier as CFString,
+                1,
+                nil
+            )
+        else {
             throw MaskGeometry.isolationFailed("Unable to create subject derivative destination \(destination.path).")
         }
         CGImageDestinationAddImage(

@@ -1,0 +1,76 @@
+PROMPT_VERSION: aisidecar.prompt.whole_image/1.6.0
+
+Analyze the complete photograph and return exactly one JSON object matching the supplied JSON Schema.
+
+OUTPUT RULES
+
+Return only the JSON object: no Markdown, no code fences, no comments, no fields beyond the schema.
+Include every required field in every response, including species.
+Use [] for any array field with nothing to report, except genre_or_photography_type, which needs at least one best-fit entry.
+Use "" for uncertainty_notes when there is nothing useful to note.
+Confidence is only high, medium, or low:
+- high: directly visible and unlikely to be wrong.
+- medium: plausible from visible evidence, but not fully certain.
+- low: weak visual support; include only when still useful for review.
+
+EVIDENCE RULES
+
+Base every term on visible image evidence, not on what is merely likely.
+Prefer a broader correct term over a narrower guess.
+Evidence strings are short visual descriptions, not reasoning.
+Good evidence: "yellow bill and white body", "long legs in shallow water".
+Bad evidence: "common in Florida", "probably because of the habitat".
+Do not propose camera, lens, editing, software, file-format, image-quality, or text-transcription terms.
+Use concise English terms suitable for later metadata normalization.
+
+GENRE RULES
+
+genre_or_photography_type: 1 to 4 entries, most likely first, chosen only from:
+architecture, landscape, seascape, cityscape, portrait_people, group_portrait, candid_people, street_documentary, wildlife, bird_photography, plant_botanical, macro_closeup, abstract, still_life, product, food, sports_action, event, travel, night, astrophotography, aerial, underwater, interior, fine_art_conceptual.
+Genre describes the photograph, not the subject: a flower can be the subject while macro_closeup or plant_botanical is the genre; a building can be the subject while architecture is the genre; a bird can be the subject while bird_photography is the genre.
+A texture, reflection, or color field may support abstract even when object identification is weak.
+
+SPECIES RULES
+
+species is always present.
+When no genre entry is wildlife, bird_photography, or plant_botanical, species must be [].
+Otherwise list biological identity candidates supported by visible field marks, using species-level common names when the visible evidence supports them.
+Broader taxa such as heron, egret, hawk, oak, or wildflower are correct when narrower identification is uncertain.
+Never derive a species from habitat, season, commonness, or likelihood; use [] when nothing is visually defensible.
+Keep exact species and taxonomy terms in species only, not in proposed_keywords; note weak or competing identifications in uncertainty_notes.
+
+FIELD GUIDE
+
+summary: one concise sentence with the main subject and most important context.
+main_subjects: the dominant visible subjects; specific terms when supported, broader terms when uncertain; describe people without identity claims.
+secondary_subjects: meaningful secondary subjects, objects, animals, plants, or structures; skip trivial background clutter.
+scene_context: the whole-frame situation, such as outdoor wildlife scene, studio portrait setup, street scene, interior scene, sporting event, or product-style image.
+habitat_or_setting: the visible environment, such as wetland, beach, forest, garden, urban street, indoor room, studio, open water, field, or snow; never infer geographic location, season, or climate beyond what is visible.
+behavior_or_action: visible behavior, pose, motion, or activity in plain terms such as flying, perched, walking, smiling, eating, swimming, or resting.
+proposed_keywords: concise metadata terms covering subjects, visible traits, behavior, setting, and genre; no exact species/taxonomy duplicates, no private identity or sensitive attributes, no text transcription, no location guesses.
+uncertainty_notes: brief notes on occlusion, ambiguity, or competing interpretations; "" when none.
+
+QUALITY ASSESSMENT
+
+The supplied schema includes quality_assessment. Complete every required field in that object as a separate evaluation of the complete photograph.
+
+Keep quality separate from tagging. The base prompt's ban on image-quality terms applies to genre_or_photography_type, species, main_subjects, secondary_subjects, scene_context, habitat_or_setting, behavior_or_action, proposed_keywords, and evidence strings. Put quality judgments only in quality_assessment.
+
+Use only visible image evidence for quality. Do not use GPS, EXIF, filename, location, species likelihood, or other external context. Do not estimate numeric sharpness, clipping, noise, color accuracy, resolution, capture settings, or edit history. Rate focus, fine detail, and artifacts only when visible at the supplied resolution; otherwise use unrated.
+
+QUALITY LEVELS
+
+- problem: a clear visible weakness that reduces effectiveness.
+- acceptable: adequate or neutral; not a notable strength.
+- strong: clearly contributes to the photograph.
+- unrated: not relevant or not reliably judgeable.
+
+Do not use strong merely because no problem is visible. Judge intentional choices by their visible effect. Do not mark blur, darkness, grain, shallow depth of field, or unusual color as problems merely because they are unconventional.
+
+Assess composition and subject-background relationship from the complete frame. Use unrated for subject_background_relationship when no distinct subject exists. Use unrated for moment_or_expression when timing, gesture, behavior, or expression is not relevant. technical_cleanliness covers only obvious visible artifacts.
+
+overall_effectiveness is a separate holistic judgment, not an average.
+strengths and concerns contain at most two short visible observations each, must agree with the ratings, and use [] when none are clear. Do not give editing instructions.
+confidence is confidence in the assessment, not a quality score.
+
+Return only the JSON object.

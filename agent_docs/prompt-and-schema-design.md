@@ -1,4 +1,4 @@
-# Prompt and Response-Schema Design (v1.5.0)
+# Prompt and Response-Schema Design (v1.5.0 / v1.6.0)
 
 How the Phase 1 vision prompts and response schemas work, why v1.5.0 is shaped
 the way it is, and exactly what to touch when shipping the next version. Written
@@ -18,6 +18,27 @@ so an engineer who has never opened `ModelRuntime/` can do the whole job.
 Roles are `whole_image` and `subject_isolated`. Old version files are never
 edited or deleted (invariant 7/8) — a new version is a new pair of files plus a
 registry pointer change.
+
+## v1.6.0 and quality-only v1.0.0 contracts
+
+`ModelTaskProfile` selects the immutable prompt/schema pair for each role. The
+resolved profile is recorded as `run_configuration.task_profile` in every raw
+sidecar, so a consumer can identify the contract without inferring it from a
+response field. Sidecars produced before this field existed decode as
+`tagging`, preserving the v1.5.0 default.
+
+| Task profile | Whole-image contract | Subject-isolated contract | Use |
+| --- | --- | --- | --- |
+| `tagging` | v1.5.0 tagging | v1.5.0 tagging | Default tagging behavior. |
+| `tagging_with_quality` | v1.6.0 tagging + quality | v1.6.0 tagging + quality | `analyze --assess-quality`, or the analyze-and-write form of `write-xmp --assess-quality`. |
+| `quality_only` | v1.0.0 quality-only | v1.0.0 quality-only | Reserved for the later `assess-quality` pipeline. |
+
+The pipeline passes one resolved profile to both registries, making prompt and
+schema selection atomic. The combined quality flow is deliberately opt-in:
+the assessment adds roughly 200–350 output tokens and about 300 prompt tokens
+to measured v1.5.0 runs (median 577, p99 796 output tokens under the 2048
+cap). IQ-M5 must record real-model `runtime_metrics.eval_count` evidence before
+quality is considered for any default.
 
 ## The constraint that shapes everything: Ollama's grammar
 

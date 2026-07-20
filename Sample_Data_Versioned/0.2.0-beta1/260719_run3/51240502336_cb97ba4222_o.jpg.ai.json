@@ -1,0 +1,382 @@
+{
+  "created_at" : "2026-07-19T22:23:55Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/f85434cb4befcfc7577cd342e1e11126b2a555bf1fcec0e1d01329c3cbd86df3-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1359,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "bd42e5c7cce2a324f7da7e80f85835e55c5020302e277ab72e5f48c3c6559920",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "f85434cb4befcfc7577cd342e1e11126b2a555bf1fcec0e1d01329c3cbd86df3"
+      },
+      "width" : 2048
+    },
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/f85434cb4befcfc7577cd342e1e11126b2a555bf1fcec0e1d01329c3cbd86df3-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1753,
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "role" : "subject_isolated",
+      "sha256" : "193559c5177d037764b6e6c70ff6410656026c6cc5851ef427b0f18edf4f7361",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "f85434cb4befcfc7577cd342e1e11126b2a555bf1fcec0e1d01329c3cbd86df3"
+      },
+      "width" : 2048
+    }
+  ],
+  "errors" : [
+
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 13201,
+      "error" : null,
+      "input_derivative_sha256" : "bd42e5c7cce2a324f7da7e80f85835e55c5020302e277ab72e5f48c3c6559920",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "walking"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "ocean waves, sand, and horizon line",
+            "term" : "seascape"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "natural landscape elements at sunset",
+            "term" : "landscape"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "beach"
+          },
+          {
+            "confidence" : "high",
+            "term" : "ocean"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "large dark rock in foreground with reflection in tide pool",
+            "term" : "large rock"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "rock formations rising from the ocean",
+            "term" : "sea stacks"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "sun low on horizon creating bright light and long shadows",
+            "term" : "sunset"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "wet sand reflecting the sky and rocks",
+            "term" : "reflection"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "water in a shallow depression on the sand",
+            "term" : "tide pool"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "silhouette of people walking on the beach",
+            "term" : "silhouettes"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "rippled texture in wet sand",
+            "term" : "sand ripples"
+          }
+        ],
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor landscape scene"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "medium",
+            "evidence" : "small figures in the distance on the beach",
+            "term" : "people"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "waves breaking on the shore",
+            "term" : "ocean waves"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A sunset seascape featuring large rock formations, a foreground tide pool reflecting a dark rock, and silhouettes of people walking along a sandy beach.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "603d96141dd9ac54b0b49024b93e76ba931921086e73bc0e7e57467363f57300",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"walking\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"ocean waves, sand, and horizon line\",\n      \"term\": \"seascape\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"natural landscape elements at sunset\",\n      \"term\": \"landscape\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"beach\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"term\": \"ocean\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"large dark rock in foreground with reflection in tide pool\",\n      \"term\": \"large rock\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"rock formations rising from the ocean\",\n      \"term\": \"sea stacks\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"sun low on horizon creating bright light and long shadows\",\n      \"term\": \"sunset\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"wet sand reflecting the sky and rocks\",\n      \"term\": \"reflection\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"water in a shallow depression on the sand\",\n      \"term\": \"tide pool\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"silhouette of people walking on the beach\",\n      \"term\": \"silhouettes\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"rippled texture in wet sand\",\n      \"term\": \"sand ripples\"\n    }\n  ],\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor landscape scene\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"small figures in the distance on the beach\",\n      \"term\": \"people\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"waves breaking on the shore\",\n      \"term\": \"ocean waves\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"A sunset seascape featuring large rock formations, a foreground tide pool reflecting a dark rock, and silhouettes of people walking along a sandy beach.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 670,
+        "eval_duration_ns" : 10322211000,
+        "load_duration_ns" : 238348458,
+        "prompt_eval_count" : 1141,
+        "prompt_eval_duration_ns" : 2469253000,
+        "total_duration_ns" : 13174255167
+      },
+      "runtime_version" : "0.32.0"
+    },
+    {
+      "duration_ms" : 8659,
+      "error" : null,
+      "input_derivative_sha256" : "193559c5177d037764b6e6c70ff6410656026c6cc5851ef427b0f18edf4f7361",
+      "input_role" : "subject_isolated",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "stationary"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "medium",
+            "evidence" : "dark, textured object with highlights on a matte background",
+            "term" : "still_life"
+          },
+          {
+            "confidence" : "low",
+            "evidence" : "irregular shape and texture",
+            "term" : "abstract"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "medium",
+            "evidence" : "dark, irregular, textured mass with orange highlights",
+            "term" : "rock or mineral specimen"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "irregular shape",
+            "term" : "irregular"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "orange highlights on dark surface",
+            "term" : "textured"
+          },
+          {
+            "confidence" : "low",
+            "evidence" : "dark, uneven surface",
+            "term" : "rugged"
+          }
+        ],
+        "secondary_subjects" : [
+
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A dark, irregularly shaped object with textured surfaces and orange highlights against a neutral matte background.",
+        "uncertainty_notes" : "The subject is heavily underexposed or silhouetted, making it difficult to distinguish between a rock, mineral, or an unidentifiable dark object."
+      },
+      "prompt_sha256" : "be7bedb9dac5c795c03b49d8f16368080d5d2ab44226d76bcf4314b5fbf17640",
+      "prompt_version" : "aisidecar.prompt.subject_isolated/1.5.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"stationary\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"dark, textured object with highlights on a matte background\",\n      \"term\": \"still_life\"\n    },\n    {\n      \"confidence\": \"low\",\n      \"evidence\": \"irregular shape and texture\",\n      \"term\": \"abstract\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"dark, irregular, textured mass with orange highlights\",\n      \"term\": \"rock or mineral specimen\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"irregular shape\",\n      \"term\": \"irregular\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"orange highlights on dark surface\",\n      \"term\": \"textured\"\n    },\n    {\n      \"confidence\": \"low\",\n      \"evidence\": \"dark, uneven surface\",\n      \"term\": \"rugged\"\n    }\n  ],\n  \"secondary_subjects\": [],\n  \"species\": [],\n  \"summary\": \"A dark, irregularly shaped object with textured surfaces and orange highlights against a neutral matte background.\",\n  \"uncertainty_notes\": \"The subject is heavily underexposed or silhouetted, making it difficult to distinguish between a rock, mineral, or an unidentifiable dark object.\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:subject-isolated:1.5.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 367,
+        "eval_duration_ns" : 5730157000,
+        "load_duration_ns" : 221755375,
+        "prompt_eval_count" : 1204,
+        "prompt_eval_duration_ns" : 2561890000,
+        "total_duration_ns" : 8648415250
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "skip",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run3",
+    "profile" : "gemma4-26b-default",
+    "quality_scan_mode" : "sequential",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "51240502336_cb97ba4222_o.jpg",
+    "file_size" : 2074591,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "f85434cb4befcfc7577cd342e1e11126b2a555bf1fcec0e1d01329c3cbd86df3"
+    },
+    "modified_at" : "2026-06-11T16:39:05Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/51240502336_cb97ba4222_o.jpg",
+    "relative_path" : "51240502336_cb97ba4222_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1359,
+      "width" : 2048
+    },
+    "crop_bounding_box" : {
+      "height" : 1927,
+      "width" : 2251,
+      "x" : 0,
+      "y" : 75
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 167,
+    "final_dimensions" : {
+      "height" : 1753,
+      "width" : 2048
+    },
+    "full_resolution" : {
+      "height" : 2719,
+      "width" : 4096
+    },
+    "instance_count" : 1,
+    "instances" : [
+      {
+        "area_pixels" : 529022,
+        "index" : 1,
+        "normalized_bounding_box" : {
+          "height" : 0.5857247976453275,
+          "width" : 0.5087890625,
+          "x" : 0,
+          "y" : 0.08903605592347315
+        },
+        "normalized_centroid" : {
+          "x" : 0.2539724393550741,
+          "y" : 0.3877172014771095
+        }
+      }
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2,
+      "y" : 2.000735835172921
+    },
+    "selected_bounding_box" : {
+      "height" : 0.5857247976453275,
+      "width" : 0.5087890625,
+      "x" : 0,
+      "y" : 0.08903605592347315
+    },
+    "selected_instance_indices" : [
+      1
+    ],
+    "selected_to_union_area_ratio" : 1,
+    "status" : "success",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 21864,
+    "pipeline_elapsed_ms" : 69626,
+    "render_ms" : 21,
+    "subject_isolation_ms" : 254,
+    "write_ms" : 3
+  }
+}

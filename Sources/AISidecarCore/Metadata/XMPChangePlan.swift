@@ -26,6 +26,7 @@ public struct SourceMemberPlan: Codable, Sendable, Equatable {
     public var skipReason: XMPSourceMemberSkipReason?
     public var flatKeywordContributionCount: Int
     public var hierarchicalKeywordContributionCount: Int
+    public var qualitySidecarPath: String?
 
     enum CodingKeys: String, CodingKey {
         case sourcePath = "source_path"
@@ -40,6 +41,7 @@ public struct SourceMemberPlan: Codable, Sendable, Equatable {
         case skipReason = "skip_reason"
         case flatKeywordContributionCount = "flat_keyword_contribution_count"
         case hierarchicalKeywordContributionCount = "hierarchical_keyword_contribution_count"
+        case qualitySidecarPath = "quality_sidecar_path"
     }
 
     public init(
@@ -54,7 +56,8 @@ public struct SourceMemberPlan: Codable, Sendable, Equatable {
         selected: Bool,
         skipReason: XMPSourceMemberSkipReason?,
         flatKeywordContributionCount: Int,
-        hierarchicalKeywordContributionCount: Int
+        hierarchicalKeywordContributionCount: Int,
+        qualitySidecarPath: String? = nil
     ) {
         self.sourcePath = sourcePath
         self.sourceRelativePath = sourceRelativePath
@@ -68,6 +71,7 @@ public struct SourceMemberPlan: Codable, Sendable, Equatable {
         self.skipReason = skipReason
         self.flatKeywordContributionCount = flatKeywordContributionCount
         self.hierarchicalKeywordContributionCount = hierarchicalKeywordContributionCount
+        self.qualitySidecarPath = qualitySidecarPath
     }
 }
 
@@ -143,6 +147,34 @@ public struct ValidationPlan: Codable, Sendable, Equatable {
     )
 }
 
+/// One planned write to a managed XMP scalar property.
+public struct PlannedScalarWrite: Codable, Sendable, Equatable {
+    public enum Action: String, Codable, Sendable, Equatable {
+        case write
+        case skipExisting = "skip_existing"
+        case overwrite
+    }
+
+    public let field: String
+    public let plannedValue: String
+    public let existingValue: String?
+    public let action: Action
+
+    enum CodingKeys: String, CodingKey {
+        case field
+        case plannedValue = "planned_value"
+        case existingValue = "existing_value"
+        case action
+    }
+
+    public init(field: String, plannedValue: String, existingValue: String?, action: Action) {
+        self.field = field
+        self.plannedValue = plannedValue
+        self.existingValue = existingValue
+        self.action = action
+    }
+}
+
 /// Planned changes for one target XMP sidecar.
 public struct XMPChangePlan: Codable, Sendable, Equatable {
     public var status: XMPTargetPlanStatus
@@ -161,6 +193,27 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
     public var validationPlan: ValidationPlan
     public var preview: XMPWritePreview?
     public var failures: [SidecarError]
+    public var ratingWrite: PlannedScalarWrite?
+    public var labelWrite: PlannedScalarWrite?
+    public var urgencyWrite: PlannedScalarWrite?
+    public var pickWrite: PlannedScalarWrite?
+    public var goodWrite: PlannedScalarWrite?
+    public var qualityExplanation: [String]?
+    public var qualityTier: QualityTier?
+
+    /// Prefix of the explanation entry recording why a plan stayed ungraded.
+    /// Consumers must match through this constant (or `ungradedReasonExplanation`)
+    /// rather than restating the literal.
+    public static let ungradedReasonPrefix = "ungraded reason="
+
+    /// The ungraded-reason explanation entry, present only when the plan
+    /// carries quality explanations without a derived tier.
+    public var ungradedReasonExplanation: String? {
+        guard qualityTier == nil else {
+            return nil
+        }
+        return qualityExplanation?.first { $0.hasPrefix(Self.ungradedReasonPrefix) }
+    }
 
     enum CodingKeys: String, CodingKey {
         case status
@@ -179,6 +232,13 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         case validationPlan = "validation_plan"
         case preview
         case failures
+        case ratingWrite = "rating_write"
+        case labelWrite = "label_write"
+        case urgencyWrite = "urgency_write"
+        case pickWrite = "pick_write"
+        case goodWrite = "good_write"
+        case qualityExplanation = "quality_explanation"
+        case qualityTier = "quality_tier"
     }
 
     public init(
@@ -197,7 +257,14 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         backupPlan: BackupPlan,
         validationPlan: ValidationPlan,
         preview: XMPWritePreview? = nil,
-        failures: [SidecarError]
+        failures: [SidecarError],
+        ratingWrite: PlannedScalarWrite? = nil,
+        labelWrite: PlannedScalarWrite? = nil,
+        urgencyWrite: PlannedScalarWrite? = nil,
+        pickWrite: PlannedScalarWrite? = nil,
+        goodWrite: PlannedScalarWrite? = nil,
+        qualityExplanation: [String]? = nil,
+        qualityTier: QualityTier? = nil
     ) {
         self.status = status
         self.targetXMPPath = targetXMPPath
@@ -215,6 +282,13 @@ public struct XMPChangePlan: Codable, Sendable, Equatable {
         self.validationPlan = validationPlan
         self.preview = preview
         self.failures = failures
+        self.ratingWrite = ratingWrite
+        self.labelWrite = labelWrite
+        self.urgencyWrite = urgencyWrite
+        self.pickWrite = pickWrite
+        self.goodWrite = goodWrite
+        self.qualityExplanation = qualityExplanation
+        self.qualityTier = qualityTier
     }
 }
 
@@ -289,7 +363,8 @@ public struct XMPChangePlanner {
     public func plan(
         inputBatch: RawJSONSidecarInputBatch,
         extractionResults: [CandidateExtractionResult],
-        configuration: ResolvedXMPExportConfiguration
+        configuration: ResolvedXMPExportConfiguration,
+        snapshotReader: (@Sendable (String) throws -> XMPMetadataSnapshot)? = nil
     ) -> XMPChangePlanDocument {
         var entries: [XMPNamingEntry] = []
         var inputFailures = inputBatch.failures.map { failure in
@@ -340,7 +415,8 @@ public struct XMPChangePlanner {
                         error: SidecarError(
                             code: .validationFailed,
                             stage: .write,
-                            message: "Unable to derive XMP plan for \(input.sidecarPath.path): \(error.localizedDescription)",
+                            message:
+                                "Unable to derive XMP plan for \(input.sidecarPath.path): \(error.localizedDescription)",
                             recoverable: true
                         )
                     )
@@ -355,21 +431,29 @@ public struct XMPChangePlanner {
         )
         return XMPChangePlanDocument(
             dryRun: configuration.dryRun,
-            targetPlans: groups.map { targetPlan(for: $0, configuration: configuration) },
+            targetPlans: groups.map {
+                targetPlan(
+                    for: $0,
+                    configuration: configuration,
+                    snapshotReader: snapshotReader
+                )
+            },
             inputFailures: inputFailures.sorted { comparePaths($0.sidecarPath, $1.sidecarPath) }
         )
     }
 
     private func targetPlan(
         for selectedGroup: SameBaseNameSelectedGroup,
-        configuration: ResolvedXMPExportConfiguration
+        configuration: ResolvedXMPExportConfiguration,
+        snapshotReader: (@Sendable (String) throws -> XMPMetadataSnapshot)?
     ) -> XMPChangePlan {
         let selectedSidecars = Set(selectedGroup.selectedMembers.map { $0.input.sidecarPath.standardizedFileURL.path })
         let sourceMembers = selectedGroup.group.members.map { member in
             sourceMemberPlan(
                 for: member,
                 selected: selectedSidecars.contains(member.input.sidecarPath.standardizedFileURL.path),
-                pairScope: configuration.pairScope
+                pairScope: configuration.pairScope,
+                includesQualityProvenance: configuration.qualityGrading.enabled
             )
         }
         let flatKeywords = plannedKeywords(from: selectedGroup.selectedMembers, keyPath: \.flatKeywords)
@@ -377,7 +461,7 @@ public struct XMPChangePlanner {
         let selectedResults = selectedGroup.selectedMembers.map(\.extractionResult)
         let sourceVerificationWarnings = selectedGroup.group.members.flatMap(\.input.warnings)
 
-        return XMPChangePlan(
+        var plan = XMPChangePlan(
             status: selectedGroup.failures.isEmpty ? .planned : .failed,
             targetXMPPath: selectedGroup.group.targetXMPPath,
             targetRelativePath: selectedGroup.group.targetRelativePath,
@@ -400,12 +484,23 @@ public struct XMPChangePlanner {
             validationPlan: .phase2Default,
             failures: selectedGroup.failures
         )
+
+        QualityGradingPlanApplier().apply(
+            to: &plan,
+            inputs: selectedGroup.selectedMembers.map(\.input),
+            grading: configuration.qualityGrading,
+            writeFlatKeywords: configuration.writeFlatKeywords,
+            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
+            snapshotReader: snapshotReader
+        )
+        return plan
     }
 
     private func sourceMemberPlan(
         for member: SameBaseNameGroupMember,
         selected: Bool,
-        pairScope: XMPPairScope
+        pairScope: XMPPairScope,
+        includesQualityProvenance: Bool
     ) -> SourceMemberPlan {
         let source = member.input.document.sidecar.source
         return SourceMemberPlan(
@@ -420,7 +515,10 @@ public struct XMPChangePlanner {
             selected: selected,
             skipReason: selected ? nil : skipReason(pairScope: pairScope),
             flatKeywordContributionCount: selected ? member.extractionResult.flatKeywords.count : 0,
-            hierarchicalKeywordContributionCount: selected ? member.extractionResult.hierarchicalKeywords.count : 0
+            hierarchicalKeywordContributionCount: selected ? member.extractionResult.hierarchicalKeywords.count : 0,
+            qualitySidecarPath: selected && includesQualityProvenance
+                ? distinctQualitySidecarPath(for: member.input)
+                : nil
         )
     }
 
@@ -433,6 +531,15 @@ public struct XMPChangePlanner {
         case .jpegOnly:
             return .pairScopeJPEGOnly
         }
+    }
+
+    private func distinctQualitySidecarPath(for input: ResolvedRawSidecarInput) -> String? {
+        guard let qualitySidecarPath = input.qualitySidecarPath?.standardizedFileURL.path,
+            qualitySidecarPath != input.sidecarPath.standardizedFileURL.path
+        else {
+            return nil
+        }
+        return qualitySidecarPath
     }
 
     private func plannedKeywords(

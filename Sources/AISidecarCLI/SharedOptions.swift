@@ -1,8 +1,9 @@
-import ArgumentParser
 import AISidecarCore
+import ArgumentParser
 
 enum BatchExitHelp {
-    static let discussion = "Batch exit statuses: 0 for success, 1 when one or more items fail, and 130 when interrupted."
+    static let discussion =
+        "Batch exit statuses: 0 for success, 1 when one or more items fail, and 130 when interrupted."
 }
 
 func enforceBatchExitPolicy(failureCount: Int, interrupted: Bool) throws {
@@ -19,7 +20,7 @@ func withBatchInterruptionExit<T>(_ operation: () throws -> T) throws -> T {
     }
 }
 
-func withBatchInterruptionExit<T>(_ operation: () async throws -> T) async throws -> T {
+func withAsyncBatchInterruptionExit<T>(_ operation: () async throws -> T) async throws -> T {
     do {
         return try await operation()
     } catch let error as SidecarError where error.code == .interrupted {
@@ -63,6 +64,12 @@ extension XMPConflictPolicy: ExpressibleByArgument {
     }
 }
 
+extension ScalarConflictPolicy: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
 extension XMPMinimumConfidence: ExpressibleByArgument {
     public init?(argument: String) {
         self.init(rawValue: argument)
@@ -76,6 +83,12 @@ extension XMPPairScope: ExpressibleByArgument {
 }
 
 extension GPSContextMode: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
+extension QualityScanMode: ExpressibleByArgument {
     public init?(argument: String) {
         self.init(rawValue: argument)
     }
@@ -169,6 +182,8 @@ struct SharedOptions: ParsableArguments {
     @Option(help: "EXIF GPS context for model prompts: off, coarse, or exact.")
     var gpsContext: GPSContextMode?
 
+    // `--assess-quality` is deliberately not shared: assess-quality forces the
+    // quality-only profile, so only analyze declares the flag and merges it in.
     var overrides: RunConfigurationOverrides {
         RunConfigurationOverrides(
             mode: mode,

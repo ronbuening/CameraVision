@@ -16,9 +16,11 @@ auditable results:
 | **CupricAspect** | A native macOS SwiftUI app with a guided, five-step workflow | Reviewing and correcting tags visually before you write anything |
 | **aisidecar** | A single command-line tool with subcommands | Scripting, batch runs, and automation |
 
-> **Status:** CupricAspect is in beta (`0.1.0-beta.1`). The `aisidecar` CLI is
-> feature-complete for its analyze → export → normalize workflows. Everything in
-> this README reflects the tools as they ship today.
+> **Status:** CameraVision is in beta (`0.2.0-beta.1`). The `aisidecar` CLI is
+> feature-complete for its analyze → export → normalize workflows, and `0.2.0`
+> adds an **experimental** AI quality assessment and grading pipeline (see
+> [Experimental: AI quality assessment & grading](#experimental-ai-quality-assessment--grading)).
+> Everything in this README reflects the tools as they ship today.
 
 ---
 
@@ -34,6 +36,10 @@ auditable results:
 - **Normalizes keywords across a batch.** Optionally reconciles a folder's keywords
   against a controlled vocabulary, propagating confident tags and explaining every
   decision.
+- **Grades image quality (experimental).** Optionally asks the model for a
+  structured perceptual quality assessment per image, then — only when you enable
+  grading — turns it into culling metadata your editor already understands:
+  quality keywords, Red/Green color labels, and Lightroom pick/reject flags.
 - **Replays decisions.** Saves a durable normalization session you can re-apply later
   without re-running the model.
 
@@ -161,7 +167,9 @@ first pass), **Analyze & write XMP** (export accepted keywords straight to `.xmp
 Lightroom Classic and Capture One), or **Analyze, Normalize, and Write XMP** (the full
 pipeline — reconcile keywords batch-wide under your vocabulary and consensus rules,
 then write normalized XMP). A previously saved normalization session can also be
-applied from here.
+applied from here. The **Assess image quality** switch below the action cards is
+experimental and run-scoped; it stores the model's structured assessment in the
+raw sidecar without writing XMP by itself.
 
 <p align="center"><img src="DocImages/Step02.png" alt="Step 2, What to do: three action cards — Analyze only, Analyze and write XMP, Analyze Normalize and Write XMP" width="820"></p>
 
@@ -170,15 +178,29 @@ applied from here.
 Confirm the run: **render mode** (Whole Image / Subject Only / Both) and the **vision
 model**, which shows a live connectivity indicator and acts as a per-run override that
 does not change your saved default. An **Advanced flags** disclosure covers GPS
-context, existing-sidecar handling, and concurrency.
+context, existing-sidecar handling, concurrency, model image size and context
+window, and — when Step 2 assesses quality — the **Quality scan** mode: **Normal**
+assesses in the same model call, while **High quality** runs a second dedicated
+pass per image, slower but keeping keywords identical to a run without
+assessment. For **Analyze & write XMP** and
+**Normalize**, the experimental **Quality grading** group becomes available when
+assessment is enabled in Step 2. It controls grading for this run, offers opt-in star
+ratings, and lets you preserve, refresh, or overwrite existing culling metadata. While
+assessment is off, grading stays off for that run even if `config.json` enables it by
+default — the wizard never grades a run it did not assess. The
+Apply Prior Session path has its own grading switch and always re-grades from the
+current contributor sidecars, never from the saved session preview.
 
 <p align="center"><img src="DocImages/Step03.png" alt="Step 3, Options: render mode selector, vision model with a ready indicator, and an Advanced flags disclosure" width="820"></p>
 
 ### 4. Working
 
 Progress runs locally with a live count, elapsed time, and per-image rate; the copper
-aperture "breathes" while the job runs. You can **Cancel** at any point — analyzed
-photos stay done, so starting again resumes where you left off.
+aperture "breathes" while the job runs. A High-quality scan counts each image twice —
+once for the tagging pass and once for the quality pass. You can **Cancel** at any
+point — analyzed photos stay done, so starting again resumes where you left off (for
+a High-quality scan, a photo whose tagging sidecar already exists costs only the
+missing quality pass).
 
 <p align="center"><img src="DocImages/Step04.png" alt="Step 4, Working: the animated copper aperture above a progress bar showing 8 of 22 images processed" width="820"></p>
 
@@ -187,7 +209,11 @@ photos stay done, so starting again resumes where you left off.
 Approve, reject, edit, or defer each candidate keyword — per image or in bulk — with
 confidence bands and provenance visible. **Save session only** preserves your review
 for later; **Write XMP** shows the change plan first and can optionally clean up
-intermediate files after a successful write.
+intermediate files after a successful write. When assessments exist, each photo also
+shows read-only per-role quality levels, confidence, strengths/concerns, and any Core
+diagnostics. Derived tier chips and counts come from the Core plan; the change plan
+and completed export report disclose every rating/label/urgency/pick-good action and its
+before/after value.
 
 <p align="center"><img src="DocImages/Step05.png" alt="Step 5, Review: per-image cards of approved keyword chips with high and medium confidence badges" width="820"></p>
 
@@ -203,7 +229,17 @@ intermediate files after a successful write.
 - **Settings** persist to the shared `config.json` (so the CLI sees the same
   defaults), let you pick the vision model and endpoint, tune model timeout and
   retry limits, show a connectivity indicator, and choose Light / Dark / Auto
-  themes with copper, brass, or patina accents.
+  themes with copper, brass, or patina accents. A **Quality scan** row saves the
+  default scan mode (`quality_scan_mode`); the experimental **Quality grading
+  defaults** subsection persists the five metadata-channel defaults and minimum
+  confidence; tier maps remain config-file-only.
+- **Config defaults now reach wizard runs.** Normalize runs and the write path's
+  review session resolve through the standard configuration chain, so `config.json`
+  and environment defaults (vocabulary mode/path, quality channels, and the rest)
+  apply to GUI runs exactly as they do to the CLI. Per-run wizard controls still
+  override them for that run. If your config sets `vocabulary_mode` to
+  `controlled_vocabulary`, make sure `vocabulary_path` is valid — GUI normalize
+  runs now honor it too.
 - **Studio shell** (nonlinear, sidebar navigation) is planned for a later release;
   its toggle is visible but disabled ("coming soon") during the beta.
 
@@ -220,6 +256,7 @@ product version.
 | Command | Purpose |
 |---|---|
 | `analyze` | Scan images, render model inputs, call Ollama, and write raw `.ai.json` sidecars. |
+| `assess-quality` | *(experimental)* Assess perceptual image quality and write quality-only `.quality.ai.json` sidecars. |
 | `write-xmp` | Export accepted candidates to XMP sidecars — or analyze-and-write in one command. |
 | `normalize` | Build normalized batch decisions, sessions, reports, dry-run plans, or normalized XMP writes. |
 | `apply-session` | Re-apply stored normalization decisions without rerunning analysis. |
@@ -311,6 +348,81 @@ swift run aisidecar analyze /path/to/photos --mode both \
   --export-model-inputs /tmp/aisidecar-model-inputs
 ```
 
+### Experimental: AI quality assessment & grading
+
+> **Experimental.** This feature is new in `0.2.0-beta.1`. The metadata it writes
+> follows what Lightroom Classic and Capture One themselves write, but round-trip
+> verification inside those apps is still in progress, and defaults may change
+> based on that evidence. Try it on a staging copy with `--output-dir` first.
+
+Assessment and grading are independent switches, both off by default. The
+preferred normalized batch path enables both in one command:
+
+```bash
+swift run aisidecar normalize /path/to/photos --recursive --mode both \
+  --assess-quality --quality-grading \
+  --output-dir /tmp/aisidecar-quality-normalized
+```
+
+That invocation writes combined tagging-and-quality `.ai.json` sidecars, runs
+vocabulary and consensus normalization only over tagging candidates, then adds
+the deterministic quality keywords and full grading output to the same XMP
+plan. Add `--dry-run` to write the auditable sidecars/session/report and preview
+the XMP plan without creating or modifying XMP.
+
+**Assess.** `--assess-quality` asks the model for structured focus,
+composition, exposure, lighting, overall-verdict, and confidence records. The
+assessment remains auditable in the raw sidecar. The same switch works on
+`analyze` when no normalization is wanted; `assess-quality` remains available
+for quality-only sidecars with no tagging:
+
+```bash
+swift run aisidecar analyze /path/to/photos --assess-quality --output-dir /tmp/ai
+swift run aisidecar assess-quality /path/to/photos --output-dir /tmp/ai
+```
+
+**Scan mode.** `--quality-scan-mode combined|sequential` (config
+`quality_scan_mode`, GUI **Quality scan: Normal / High quality**) chooses how
+the assessment runs when it is enabled. `combined` (the default) folds the
+assessment into the tagging model call — one call per image, but the extra
+prompt content can shift which tags the model emits compared to a run without
+assessment. `sequential` runs the plain tagging pass first and then a dedicated
+quality pass that writes a `.quality.ai.json` sidecar beside the tagging
+`.ai.json`, so tagging output stays identical whether or not assessment is
+enabled, at the cost of a second model call per image. Grading reads both
+layouts the same way; downstream tooling pairs the two sidecars automatically.
+
+```bash
+swift run aisidecar analyze /path/to/photos --assess-quality \
+  --quality-scan-mode sequential --output-dir /tmp/ai
+```
+
+**Grade.** `--quality-grading` deterministically derives a quality tier
+(reject / below-average / neutral / good / excellent) from stored assessments
+and writes culling metadata your editor understands:
+
+- **Quality keywords** — `AI Quality|<tier>` (all tiers)
+- **Color labels** — `Red` for reject, `Green` for excellent, with the matching
+  Capture One `photoshop:Urgency` companion values
+- **Lightroom pick flags** — reject-tier images flagged rejected, excellent-tier
+  images flagged picked (`xmpDM:pick`/`xmpDM:good`, exactly as Lightroom writes them)
+- **Star ratings** — off by default so your own star edits stay untouched;
+  opt in with `--write-rating` for a 1–5 tier mapping
+
+The grading surface is shared by `write-xmp`, `normalize`, and `apply-session`.
+For a saved normalization session, pass `--quality-grading` again when applying
+it: apply-session re-grades from the current raw sidecars and current XMP, never
+from a frozen preview in the session.
+
+Quality keywords bypass vocabulary mapping and consensus entirely: safe
+`AI Quality|<tier>` values are appended verbatim after normalized keyword lists
+are final, and existing `AI Quality` keywords in the target are preserved.
+Grading is conservative by default: assessments below `medium` confidence are
+reported as ungraded rather than guessed, existing metadata values are never
+overwritten (`--quality-conflicts preserve`), and every channel can be toggled
+individually (`--no-write-label`, `--no-write-flag`, …). Tier-to-value maps are
+configurable in the config file (`xmp_quality_*` keys).
+
 ---
 
 ## Configuration
@@ -359,6 +471,7 @@ Frequently used knobs:
 - `--stage-concurrency 1` / `"stage_concurrency"` — lower memory pressure by preparing renders serially.
 - `--gps-context off|coarse|exact` / `"gps_context"` — prompt-only GPS context. Coordinates and GPS-derived location metadata are never exported as keywords.
 - `--existing skip|overwrite|fail` / `"existing"` — how raw `.ai.json` collisions are handled.
+- `--quality-scan-mode combined|sequential` / `"quality_scan_mode"` — with `--assess-quality`: assess in the tagging call, or as a dedicated second pass that keeps tagging output identical to a run without assessment.
 - `--pair-scope union|raw-only|jpeg-only` / `"pair_scope"` — RAW/JPEG same-base-name grouping.
 - `--normalization-mode off|single-image|batch-conservative` / `"normalization_mode"` — `off` is the Phase 2 baseline: no vocabulary mapping, affinity, batch propagation, or session-context application.
 
@@ -369,6 +482,7 @@ Frequently used knobs:
 | File / location | What it is |
 |---|---|
 | `<image>.<ext>.ai.json` | Raw AI sidecar: source identity, model provenance, prompts, candidates, run records, plus an `xmp_export` stamp after a successful export. |
+| `<image>.<ext>.quality.ai.json` | Quality-only raw sidecar from `assess-quality` or a sequential quality scan; paired with the tagging sidecar automatically. |
 | `<image>.xmp` | Metadata sidecar written by the owned XMP engine. |
 | `*-progress-*.jsonl` | Progress log for folder/batch operations. |
 | `*-report-*.json` | Machine-readable run report. |

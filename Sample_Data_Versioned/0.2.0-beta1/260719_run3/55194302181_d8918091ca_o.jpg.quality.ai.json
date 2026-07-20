@@ -1,0 +1,183 @@
+{
+  "created_at" : "2026-07-19T22:34:40Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/04b2dc19b219bfa9039c597d31dbac728beee10a6be18da8174ca29483e25eaf-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1365,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "c15e344cf51c4c17a37258a9cc3a950b99d38a812a499e3a1464d059385bf20f",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "04b2dc19b219bfa9039c597d31dbac728beee10a6be18da8174ca29483e25eaf"
+      },
+      "width" : 2047
+    }
+  ],
+  "errors" : [
+    {
+      "code" : "E_SUBJECT_ISOLATION_NO_FOREGROUND",
+      "message" : "Apple Vision did not find a foreground subject.",
+      "recoverable" : true,
+      "stage" : "isolate"
+    }
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 7758,
+      "error" : null,
+      "input_derivative_sha256" : "c15e344cf51c4c17a37258a9cc3a950b99d38a812a499e3a1464d059385bf20f",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "quality_assessment" : {
+          "composition" : "acceptable",
+          "concerns" : [
+
+          ],
+          "confidence" : "high",
+          "exposure_and_tone" : "problem",
+          "focus" : "unrated",
+          "lighting_and_color" : "strong",
+          "moment_or_expression" : "unrated",
+          "overall_effectiveness" : "acceptable",
+          "strengths" : [
+            "vibrant color palette",
+            "dramatic silhouette"
+          ],
+          "subject_background_relationship" : "unrated",
+          "technical_cleanliness" : "acceptable"
+        }
+      },
+      "prompt_sha256" : "64810b8940e8884da3c443825ea4d45e6a5728ffaf7bb4cb31c1b682789d524c",
+      "prompt_version" : "aisidecar.prompt.whole_image_quality/1.0.0",
+      "raw_response_text" : "{\n  \"quality_assessment\": {\n    \"composition\": \"acceptable\",\n    \"concerns\": [],\n    \"confidence\": \"high\",\n    \"exposure_and_tone\": \"problem\",\n    \"focus\": \"unrated\",\n    \"lighting_and_color\": \"strong\",\n    \"moment_or_expression\": \"unrated\",\n    \"overall_effectiveness\": \"acceptable\",\n    \"strengths\": [\n      \"vibrant color palette\",\n      \"dramatic silhouette\"\n    ],\n    \"subject_background_relationship\": \"unrated\",\n    \"technical_cleanliness\": \"acceptable\"\n  }\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image-quality:1.0.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 145,
+        "eval_duration_ns" : 2426181000,
+        "load_duration_ns" : 268725042,
+        "prompt_eval_count" : 663,
+        "prompt_eval_duration_ns" : 2042789000,
+        "total_duration_ns" : 7745177250
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "skip",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run3",
+    "profile" : "gemma4-26b-default",
+    "quality_scan_mode" : "sequential",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "quality_only"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "55194302181_d8918091ca_o.jpg",
+    "file_size" : 10213562,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "04b2dc19b219bfa9039c597d31dbac728beee10a6be18da8174ca29483e25eaf"
+    },
+    "modified_at" : "2026-06-11T16:42:58Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/55194302181_d8918091ca_o.jpg",
+    "relative_path" : "55194302181_d8918091ca_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1365,
+      "width" : 2047
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 0,
+    "full_resolution" : {
+      "height" : 3614,
+      "width" : 5421
+    },
+    "instance_count" : 0,
+    "instances" : [
+
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2.648265754763068,
+      "y" : 2.6476190476190475
+    },
+    "selected_instance_indices" : [
+
+    ],
+    "status" : "no_foreground",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 7759,
+    "pipeline_elapsed_ms" : 277712,
+    "render_ms" : 65,
+    "subject_isolation_ms" : 68,
+    "write_ms" : 2
+  }
+}

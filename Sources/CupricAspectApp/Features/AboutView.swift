@@ -132,9 +132,12 @@ struct AboutView: View {
                     Text("Nonlinear UI")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(theme.text)
-                    Text(FeatureFlags.studioUI ? "Switch between the Wizard and Studio layouts." : "Studio layout — coming soon.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(theme.textFaint)
+                    Text(
+                        FeatureFlags.studioUI
+                            ? "Switch between the Wizard and Studio layouts." : "Studio layout — coming soon."
+                    )
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.textFaint)
                 }
                 Spacer()
                 // Studio ships in milestone M9 (FR4-040 v0.6 MVP scoping);

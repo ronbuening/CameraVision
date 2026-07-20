@@ -39,6 +39,13 @@ struct Step5ReviewView: View {
                     .padding(.top, 12)
             }
 
+            ForEach(Array(review.qualityDiagnostics.enumerated()), id: \.offset) { _, diagnostic in
+                Text("Quality diagnostic: \(diagnostic)")
+                    .font(.system(size: 11.5, design: .monospaced))
+                    .foregroundStyle(theme.accent.accent)
+                    .padding(.top, 8)
+            }
+
             if review.building {
                 HStack(spacing: 10) {
                     ApertureView(size: 28, running: true, spin: true)
@@ -57,10 +64,13 @@ struct Step5ReviewView: View {
             .padding(.top, 16)
         }
         .padding(EdgeInsets(top: 24, leading: 34, bottom: 40, trailing: 34))
-        .alert("Edit keyword", isPresented: Binding(
-            get: { editing != nil },
-            set: { if !$0 { editing = nil } }
-        )) {
+        .alert(
+            "Edit keyword",
+            isPresented: Binding(
+                get: { editing != nil },
+                set: { if !$0 { editing = nil } }
+            )
+        ) {
             TextField("Keyword", text: $editText)
             Button("Apply") {
                 if let chip = editing {
@@ -119,7 +129,20 @@ struct Step5ReviewView: View {
         if let runOutcome {
             parts.append("\(runOutcome.written + runOutcome.skipped) analyzed")
         }
-        parts.append("\(review.approvedCount) approved · \(review.rejectedCount) rejected · \(review.deferredCount) deferred")
+        parts.append(
+            "\(review.approvedCount) approved · \(review.rejectedCount) rejected · \(review.deferredCount) deferred")
+        let quality = review.qualitySummary
+        if !quality.isEmpty {
+            var qualityParts = ["\(quality.assessedAssetCount) assessed"]
+            qualityParts.append(
+                contentsOf: QualityTier.allCases.compactMap { tier in
+                    quality.tierCounts[tier].map { "\($0) \(tier.rawValue)" }
+                })
+            if quality.ungradedAssetCount > 0 {
+                qualityParts.append("\(quality.ungradedAssetCount) ungraded")
+            }
+            parts.append("quality: " + qualityParts.joined(separator: " · "))
+        }
         return parts.joined(separator: " · ")
     }
 
@@ -153,8 +176,10 @@ struct Step5ReviewView: View {
             Spacer()
             headerButton("Discard") { review.discardRecovery() }
             headerButton("Restore", filled: true) {
-                do { try review.restoreFromRecovery(); review.clearFileError() }
-                catch { review.reportFileError("Restore recovered review", error) }
+                do {
+                    try review.restoreFromRecovery()
+                    review.clearFileError()
+                } catch { review.reportFileError("Restore recovered review", error) }
             }
         }
         .padding(EdgeInsets(top: 12, leading: 15, bottom: 12, trailing: 15))
@@ -186,25 +211,37 @@ struct Step5ReviewView: View {
                         .padding(.horizontal, 6)
                         .background(theme.accent.soft)
                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                    if let tier = row.quality?.tier {
+                        qualityBadge(tier.rawValue, color: qualityTierColor(tier))
+                    } else if row.quality?.ungradedReason != nil {
+                        qualityBadge("ungraded", color: theme.accent.accent)
+                    }
                     Text("\(row.chips.count { $0.verdict == .approved }) of \(row.chips.count) approved")
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(theme.textFaint)
                     Spacer()
-                    Button("Accept all") {
-                        batchEditNotice = nil
-                        review.acceptAll(assetID: row.assetID)
-                    }
+                    if !row.chips.isEmpty {
+                        Button("Accept all") {
+                            batchEditNotice = nil
+                            review.acceptAll(assetID: row.assetID)
+                        }
                         .buttonStyle(.plain)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(theme.textDim)
                         .padding(.vertical, 4)
                         .padding(.horizontal, 10)
                         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(theme.borderStrong))
-                }
-                FlowLayout(spacing: 7) {
-                    ForEach(row.chips) { chip in
-                        chipView(chip)
                     }
+                }
+                if !row.chips.isEmpty {
+                    FlowLayout(spacing: 7) {
+                        ForEach(row.chips) { chip in
+                            chipView(chip)
+                        }
+                    }
+                }
+                if let quality = row.quality {
+                    qualityAssessmentPanel(quality)
                 }
             }
         }
@@ -215,12 +252,85 @@ struct Step5ReviewView: View {
         .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(theme.border))
     }
 
-    private func chipView(_ chip: ReviewModel.Chip) -> some View {
-        let (mark, fg, bg, border): (String, Color, Color, Color) = switch chip.verdict {
-        case .approved: ("✓", theme.green, theme.greenSoft, theme.green)
-        case .rejected: ("+", theme.textDim, theme.panel2, theme.borderStrong)
-        case .deferred: ("~", theme.accent.accent, theme.accent.soft, theme.accent.accent)
+    @ViewBuilder
+    private func qualityAssessmentPanel(_ quality: ReviewModel.AssetQuality) -> some View {
+        if !quality.records.isEmpty || !quality.issueDiagnostics.isEmpty || quality.ungradedReason != nil {
+            Divider().overlay(theme.border)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("QUALITY ASSESSMENT · READ ONLY")
+                    .font(.system(size: 10, weight: .semibold))
+                    .kerning(0.5)
+                    .foregroundStyle(theme.textFaint)
+                ForEach(Array(quality.records.enumerated()), id: \.offset) { _, record in
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(
+                            "\(record.role.rawValue) · overall \(record.overall.rawValue) · confidence \(record.confidence.rawValue)"
+                        )
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(theme.text)
+                        FlowLayout(spacing: 6) {
+                            ForEach(
+                                QualityAssessmentRecord.Criterion.allCases.filter { record.criteria[$0] != nil },
+                                id: \.rawValue
+                            ) { criterion in
+                                if let level = record.criteria[criterion] {
+                                    Text("\(criterion.rawValue): \(level.rawValue)")
+                                        .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(theme.textDim)
+                                        .padding(.vertical, 3)
+                                        .padding(.horizontal, 6)
+                                        .background(theme.panel2)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
+                        if !record.strengths.isEmpty {
+                            Text("strengths: " + record.strengths.joined(separator: " · "))
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(theme.green)
+                        }
+                        if !record.concerns.isEmpty {
+                            Text("concerns: " + record.concerns.joined(separator: " · "))
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(theme.accent.accent)
+                        }
+                    }
+                }
+                if let ungradedReason = quality.ungradedReason {
+                    Text(ungradedReason)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(theme.accent.accent)
+                }
+                ForEach(Array(quality.issueDiagnostics.enumerated()), id: \.offset) { _, diagnostic in
+                    Text("diagnostic: \(diagnostic)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(theme.accent.accent)
+                }
+            }
         }
+    }
+
+    private func qualityBadge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+            .foregroundStyle(color)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 6)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
+    private func qualityTierColor(_ tier: QualityTier) -> Color {
+        QualityTierPalette.color(for: tier, theme: theme)
+    }
+
+    private func chipView(_ chip: ReviewModel.Chip) -> some View {
+        let (mark, fg, bg, border): (String, Color, Color, Color) =
+            switch chip.verdict {
+            case .approved: ("✓", theme.green, theme.greenSoft, theme.green)
+            case .rejected: ("+", theme.textDim, theme.panel2, theme.borderStrong)
+            case .deferred: ("~", theme.accent.accent, theme.accent.soft, theme.accent.accent)
+            }
         return Button {
             batchEditNotice = nil
             review.toggle(chip.decisionID)
@@ -272,8 +382,10 @@ struct Step5ReviewView: View {
         panel.nameFieldStringValue = "review-session.json"
         panel.allowedContentTypes = [.json]
         if panel.runModal() == .OK, let url = panel.url {
-            do { try review.saveSession(to: url); review.clearFileError() }
-            catch { review.reportFileError("Save session", error) }
+            do {
+                try review.saveSession(to: url)
+                review.clearFileError()
+            } catch { review.reportFileError("Save session", error) }
         }
     }
 
@@ -282,8 +394,10 @@ struct Step5ReviewView: View {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
-            do { try review.importSession(from: url); review.clearFileError() }
-            catch { review.reportFileError("Import session", error) }
+            do {
+                try review.importSession(from: url)
+                review.clearFileError()
+            } catch { review.reportFileError("Import session", error) }
         }
     }
 }

@@ -1,5 +1,6 @@
 import CoreGraphics
 import XCTest
+
 @testable import AISidecarCore
 
 final class SubjectIsolationServiceTests: XCTestCase {
@@ -12,12 +13,13 @@ final class SubjectIsolationServiceTests: XCTestCase {
             .composited(over: background)
             .cropped(to: bounds)
 
-        let record = try XCTUnwrap(MaskGeometry.instanceRecord(
-            index: 1,
-            maskImage: bottomRowMask,
-            dimensions: dimensions,
-            context: CIContext()
-        ))
+        let record = try XCTUnwrap(
+            MaskGeometry.instanceRecord(
+                index: 1,
+                maskImage: bottomRowMask,
+                dimensions: dimensions,
+                context: CIContext()
+            ))
 
         XCTAssertEqual(record.normalizedBoundingBox.x, 0)
         XCTAssertEqual(record.normalizedBoundingBox.y, 0)
@@ -60,12 +62,14 @@ final class SubjectIsolationServiceTests: XCTestCase {
         XCTAssertGreaterThan(derivative.width, 20)
         XCTAssertEqual(derivative.role, .subjectIsolated)
         XCTAssertFalse(result.record.upscaled)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: cache.artifactURL(
-            source: source,
-            recipeVersion: prepared.recipeVersion,
-            role: .wholeImage,
-            format: profile.preferredWholeImageFormat
-        ).path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: cache.artifactURL(
+                    source: source,
+                    recipeVersion: prepared.recipeVersion,
+                    role: .wholeImage,
+                    format: profile.preferredWholeImageFormat
+                ).path))
     }
 
     func testMultiInstanceMergeRecordsSelectionAndBoxes() async throws {
@@ -80,7 +84,7 @@ final class SubjectIsolationServiceTests: XCTestCase {
             cache: cache,
             maskProvider: StaticForegroundMaskProvider([
                 StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 40, width: 200, height: 100)),
-                StaticMaskSpec(index: 2, rect: CGRect(x: 230, y: 85, width: 10, height: 10))
+                StaticMaskSpec(index: 2, rect: CGRect(x: 230, y: 85, width: 10, height: 10)),
             ])
         )
 

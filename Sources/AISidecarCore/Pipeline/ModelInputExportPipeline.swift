@@ -722,12 +722,6 @@ struct ModelInputExportPlannedOutput: Sendable, Equatable {
     var role: DerivativeRole
     var path: String
     var relativePath: String
-
-    init(role: DerivativeRole, path: String, relativePath: String) {
-        self.role = role
-        self.path = path
-        self.relativePath = relativePath
-    }
 }
 
 struct ModelInputExportPlanEntry: Sendable, Equatable {

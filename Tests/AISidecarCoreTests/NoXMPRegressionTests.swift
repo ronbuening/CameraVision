@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class NoXMPRegressionTests: XCTestCase {
@@ -25,16 +26,81 @@ final class NoXMPRegressionTests: XCTestCase {
         try assertNoXMPFiles(in: [root, output, cache])
     }
 
+    func testQualityEnabledAnalyzePipelineRemainsXMPSilent() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("AnalyzeQuality.JPG", width: 80, height: 60, in: root)
+        let cache = output.appendingPathComponent("cache")
+        let context = ModelRuntimeContext(
+            model: "test:model",
+            modelDigest: "sha256:test",
+            runtime: "test",
+            runtimeVersion: "1.0",
+            endpoint: URL(string: "http://localhost:11434")!,
+            installedVisionTags: ["test:model"]
+        )
+
+        _ = try await AnalyzePipeline(
+            logger: Logger(sink: { _ in }),
+            runner: RecordedFixtureRunner(fixture: RecordedModelFixture(context: context, records: [])),
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_010_050))
+        ).run(
+            inputPath: image.path,
+            configuration: config(
+                outputDir: output.path,
+                cacheDir: cache.path,
+                taskProfile: .taggingWithQuality
+            )
+        )
+
+        try assertNoXMPFiles(in: [root, output, cache])
+    }
+
+    func testQualityAssessPipelineRemainsXMPSilent() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("QualityOnly.JPG", width: 80, height: 60, in: root)
+        let cache = output.appendingPathComponent("cache")
+        let context = ModelRuntimeContext(
+            model: "test:model",
+            modelDigest: "sha256:test",
+            runtime: "test",
+            runtimeVersion: "1.0",
+            endpoint: URL(string: "http://localhost:11434")!,
+            installedVisionTags: ["test:model"]
+        )
+
+        _ = try await QualityAssessPipeline(
+            logger: Logger(sink: { _ in }),
+            runner: RecordedFixtureRunner(fixture: RecordedModelFixture(context: context, records: [])),
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_010_075))
+        ).run(
+            inputPath: image.path,
+            configuration: config(outputDir: output.path, cacheDir: cache.path)
+        )
+
+        try assertNoXMPFiles(in: [root, output, cache])
+    }
+
     func testBenchmarkSelfTestRemainsXMPSilent() throws {
         let root = try temporaryDirectory()
         addTeardownBlock {
             try? FileManager.default.removeItem(at: root)
         }
 
-        _ = try Milestone9BenchmarkRunner().run(options: BenchmarkOptions(
-            outputDir: root.path,
-            selfTest: true
-        ))
+        _ = try Milestone9BenchmarkRunner().run(
+            options: BenchmarkOptions(
+                outputDir: root.path,
+                selfTest: true
+            ))
 
         try assertNoXMPFiles(in: [root])
     }
@@ -111,12 +177,14 @@ final class NoXMPRegressionTests: XCTestCase {
     private func config(
         outputDir: String?,
         cacheDir: String,
-        mode: AnalysisMode = .whole
+        mode: AnalysisMode = .whole,
+        taskProfile: ModelTaskProfile = .tagging
     ) -> ResolvedRunConfiguration {
         ResolvedRunConfiguration(
             mode: mode,
             existing: .overwrite,
             recursive: false,
+            taskProfile: taskProfile,
             outputDir: outputDir,
             model: ResolvedRunConfiguration.builtInDefaults.model,
             modelEndpoint: ResolvedRunConfiguration.builtInDefaults.modelEndpoint,

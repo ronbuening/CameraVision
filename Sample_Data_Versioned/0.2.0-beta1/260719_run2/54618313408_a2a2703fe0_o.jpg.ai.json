@@ -1,0 +1,411 @@
+{
+  "created_at" : "2026-07-19T22:12:20Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/0e5cf0dc7bfab3a54b84866180e4ebdb1156825fa094f4fd4c00c8f941c7cf8d-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1365,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "25b9780511fee41a504222bf594e0aa907630d07d95d52ff490c71b3530f5f49",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "0e5cf0dc7bfab3a54b84866180e4ebdb1156825fa094f4fd4c00c8f941c7cf8d"
+      },
+      "width" : 2048
+    },
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/0e5cf0dc7bfab3a54b84866180e4ebdb1156825fa094f4fd4c00c8f941c7cf8d-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1477,
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "role" : "subject_isolated",
+      "sha256" : "3846d1c49e779f98a9533a83bbed3dba8eb68e6b4dc94bf8647defebf9605602",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "0e5cf0dc7bfab3a54b84866180e4ebdb1156825fa094f4fd4c00c8f941c7cf8d"
+      },
+      "width" : 1852
+    }
+  ],
+  "errors" : [
+
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 15022,
+      "error" : null,
+      "input_derivative_sha256" : "25b9780511fee41a504222bf594e0aa907630d07d95d52ff490c71b3530f5f49",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "waving"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "high",
+            "evidence" : "flag in foreground with mountains in background",
+            "term" : "landscape"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "scenic view of snow-capped peaks and forest",
+            "term" : "travel"
+          }
+        ],
+        "habitat_or_setting" : [
+          {
+            "confidence" : "high",
+            "term" : "snowy mountains"
+          },
+          {
+            "confidence" : "high",
+            "term" : "forest"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "blue flag with yellow stars hanging from a pole",
+            "term" : "flag"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "blue flag with five yellow stars in a constellation pattern",
+            "term" : "alaska flag"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "snow-covered mountain peaks",
+            "term" : "mountains"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "coniferous trees on a slope",
+            "term" : "forest"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "cloudy sky above mountains",
+            "term" : "sky"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "flag attached to a white pole with ropes",
+            "term" : "flagpole"
+          }
+        ],
+        "quality_assessment" : {
+          "composition" : "acceptable",
+          "concerns" : [
+
+          ],
+          "confidence" : "medium",
+          "exposure_and_tone" : "acceptable",
+          "focus" : "strong",
+          "lighting_and_color" : "acceptable",
+          "moment_or_expression" : "unrated",
+          "overall_effectiveness" : "acceptable",
+          "strengths" : [
+            "clear subject in foreground",
+            "scenic background"
+          ],
+          "subject_background_relationship" : "strong",
+          "technical_cleanliness" : "strong"
+        },
+        "scene_context" : [
+          {
+            "confidence" : "high",
+            "term" : "outdoor scene"
+          }
+        ],
+        "secondary_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "snow-covered mountain range in the background",
+            "term" : "mountains"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "dark green trees on a hillside",
+            "term" : "forest"
+          }
+        ],
+        "species" : [
+
+        ],
+        "summary" : "A blue flag with yellow stars waves in the foreground against a backdrop of snow-capped mountains and evergreen forests.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "8c55abe1e19c1eaf8a134b3a538d1f300c8c464971b815b476407858e4e57630",
+      "prompt_version" : "aisidecar.prompt.whole_image/1.6.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"waving\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"flag in foreground with mountains in background\",\n      \"term\": \"landscape\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"scenic view of snow-capped peaks and forest\",\n      \"term\": \"travel\"\n    }\n  ],\n  \"habitat_or_setting\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"snowy mountains\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"term\": \"forest\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"blue flag with yellow stars hanging from a pole\",\n      \"term\": \"flag\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"blue flag with five yellow stars in a constellation pattern\",\n      \"term\": \"alaska flag\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"snow-covered mountain peaks\",\n      \"term\": \"mountains\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"coniferous trees on a slope\",\n      \"term\": \"forest\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"cloudy sky above mountains\",\n      \"term\": \"sky\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"flag attached to a white pole with ropes\",\n      \"term\": \"flagpole\"\n    }\n  ],\n  \"quality_assessment\": {\n    \"composition\": \"acceptable\",\n    \"concerns\": [],\n    \"confidence\": \"medium\",\n    \"exposure_and_tone\": \"acceptable\",\n    \"focus\": \"strong\",\n    \"lighting_and_color\": \"acceptable\",\n    \"moment_or_expression\": \"unrated\",\n    \"overall_effectiveness\": \"acceptable\",\n    \"strengths\": [\n      \"clear subject in foreground\",\n      \"scenic background\"\n    ],\n    \"subject_background_relationship\": \"strong\",\n    \"technical_cleanliness\": \"strong\"\n  },\n  \"scene_context\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"outdoor scene\"\n    }\n  ],\n  \"secondary_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"snow-covered mountain range in the background\",\n      \"term\": \"mountains\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"dark green trees on a hillside\",\n      \"term\": \"forest\"\n    }\n  ],\n  \"species\": [],\n  \"summary\": \"A blue flag with yellow stars waves in the foreground against a backdrop of snow-capped mountains and evergreen forests.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image:1.6.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 734,
+        "eval_duration_ns" : 11572757000,
+        "load_duration_ns" : 245419584,
+        "prompt_eval_count" : 1529,
+        "prompt_eval_duration_ns" : 3094630000,
+        "total_duration_ns" : 15009086917
+      },
+      "runtime_version" : "0.32.0"
+    },
+    {
+      "duration_ms" : 11569,
+      "error" : null,
+      "input_derivative_sha256" : "3846d1c49e779f98a9533a83bbed3dba8eb68e6b4dc94bf8647defebf9605602",
+      "input_role" : "subject_isolated",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "behavior_or_action" : [
+          {
+            "confidence" : "high",
+            "term" : "waving"
+          }
+        ],
+        "genre_or_photography_type" : [
+          {
+            "confidence" : "medium",
+            "evidence" : "isolated object on neutral matte",
+            "term" : "still_life"
+          },
+          {
+            "confidence" : "low",
+            "evidence" : "subject is a flag",
+            "term" : "fine_art_conceptual"
+          }
+        ],
+        "main_subjects" : [
+          {
+            "confidence" : "high",
+            "evidence" : "blue field with yellow stars",
+            "term" : "flag"
+          }
+        ],
+        "proposed_keywords" : [
+          {
+            "confidence" : "high",
+            "evidence" : "blue fabric, five-pointed stars, gold color",
+            "term" : "blue flag"
+          },
+          {
+            "confidence" : "high",
+            "evidence" : "yellow star pattern on blue field",
+            "term" : "star pattern"
+          },
+          {
+            "confidence" : "medium",
+            "evidence" : "fabric texture and folds",
+            "term" : "textile"
+          }
+        ],
+        "quality_assessment" : {
+          "concerns" : [
+            "rough, torn edges on the right side of the flag"
+          ],
+          "confidence" : "high",
+          "detail_and_texture" : "strong",
+          "exposure_and_tone" : "acceptable",
+          "focus" : "unrated",
+          "lighting_and_color" : "strong",
+          "overall_subject_quality" : "acceptable",
+          "pose_expression_or_moment" : "unrated",
+          "strengths" : [
+            "clear color contrast",
+            "visible fabric folds"
+          ],
+          "technical_cleanliness" : "problem"
+        },
+        "secondary_subjects" : [
+
+        ],
+        "species" : [
+
+        ],
+        "summary" : "An isolated, waving blue flag featuring several yellow five-pointed stars of varying sizes.",
+        "uncertainty_notes" : ""
+      },
+      "prompt_sha256" : "d3cdf9d740fb588343b0931e13e2dc847ee9e25cdfce67ca4e5e61f8903b9b3a",
+      "prompt_version" : "aisidecar.prompt.subject_isolated/1.6.0",
+      "raw_response_text" : "{\n  \"behavior_or_action\": [\n    {\n      \"confidence\": \"high\",\n      \"term\": \"waving\"\n    }\n  ],\n  \"genre_or_photography_type\": [\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"isolated object on neutral matte\",\n      \"term\": \"still_life\"\n    },\n    {\n      \"confidence\": \"low\",\n      \"evidence\": \"subject is a flag\",\n      \"term\": \"fine_art_conceptual\"\n    }\n  ],\n  \"main_subjects\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"blue field with yellow stars\",\n      \"term\": \"flag\"\n    }\n  ],\n  \"proposed_keywords\": [\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"blue fabric, five-pointed stars, gold color\",\n      \"term\": \"blue flag\"\n    },\n    {\n      \"confidence\": \"high\",\n      \"evidence\": \"yellow star pattern on blue field\",\n      \"term\": \"star pattern\"\n    },\n    {\n      \"confidence\": \"medium\",\n      \"evidence\": \"fabric texture and folds\",\n      \"term\": \"textile\"\n    }\n  ],\n  \"quality_assessment\": {\n    \"concerns\": [\n      \"rough, torn edges on the right side of the flag\"\n    ],\n    \"confidence\": \"high\",\n    \"detail_and_texture\": \"strong\",\n    \"exposure_and_tone\": \"acceptable\",\n    \"focus\": \"unrated\",\n    \"lighting_and_color\": \"strong\",\n    \"overall_subject_quality\": \"acceptable\",\n    \"pose_expression_or_moment\": \"unrated\",\n    \"strengths\": [\n      \"clear color contrast\",\n      \"visible fabric folds\"\n    ],\n    \"technical_cleanliness\": \"problem\"\n  },\n  \"secondary_subjects\": [],\n  \"species\": [],\n  \"summary\": \"An isolated, waving blue flag featuring several yellow five-pointed stars of varying sizes.\",\n  \"uncertainty_notes\": \"\"\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:subject-isolated:1.6.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 494,
+        "eval_duration_ns" : 7986365000,
+        "load_duration_ns" : 239285625,
+        "prompt_eval_count" : 1642,
+        "prompt_eval_duration_ns" : 3215956000,
+        "total_duration_ns" : 11558480625
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "skip",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run2",
+    "profile" : "gemma4-26b-default",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "tagging_with_quality"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "54618313408_a2a2703fe0_o.jpg",
+    "file_size" : 6371378,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "0e5cf0dc7bfab3a54b84866180e4ebdb1156825fa094f4fd4c00c8f941c7cf8d"
+    },
+    "modified_at" : "2026-06-11T16:49:57Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/54618313408_a2a2703fe0_o.jpg",
+    "relative_path" : "54618313408_a2a2703fe0_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1365,
+      "width" : 2048
+    },
+    "crop_bounding_box" : {
+      "height" : 1477,
+      "width" : 1852,
+      "x" : 1100,
+      "y" : 1038
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 128,
+    "final_dimensions" : {
+      "height" : 1477,
+      "width" : 1852
+    },
+    "full_resolution" : {
+      "height" : 3537,
+      "width" : 5306
+    },
+    "instance_count" : 1,
+    "instances" : [
+      {
+        "area_pixels" : 193088,
+        "index" : 1,
+        "normalized_bounding_box" : {
+          "height" : 0.34505494505494505,
+          "width" : 0.30078125,
+          "x" : 0.2314453125,
+          "y" : 0.32967032967032966
+        },
+        "normalized_centroid" : {
+          "x" : 0.3749651025374441,
+          "y" : 0.5088815128496518
+        }
+      }
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2.5908203125,
+      "y" : 2.5912087912087913
+    },
+    "selected_bounding_box" : {
+      "height" : 0.3450549450549451,
+      "width" : 0.30078125,
+      "x" : 0.2314453125,
+      "y" : 0.32967032967032966
+    },
+    "selected_instance_indices" : [
+      1
+    ],
+    "selected_to_union_area_ratio" : 0.9999999999999998,
+    "status" : "success",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 26594,
+    "pipeline_elapsed_ms" : 206998,
+    "render_ms" : 59,
+    "subject_isolation_ms" : 63,
+    "write_ms" : 2
+  }
+}

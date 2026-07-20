@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class NormalizationReportTests: XCTestCase {
@@ -51,14 +52,14 @@ final class NormalizationReportTests: XCTestCase {
         var assets = [
             phase3Asset(index: 1, relativePath: "seq/IMG_0001.JPG"),
             phase3Asset(index: 2, relativePath: "seq/IMG_0002.JPG"),
-            phase3Asset(index: 3, relativePath: "seq/IMG_0003.JPG")
+            phase3Asset(index: 3, relativePath: "seq/IMG_0003.JPG"),
         ]
         assets[0].affinityInputs.cameraSerialHash = AssetAffinityInputBuilder.stableSessionHash(rawSerial)
         let input = phase3InputBatch(assets: assets)
         let consensus = try BatchConsensusEngine(vocabulary: phase3LoadedVocabulary()).apply(
             canonicalization: phase3Canonicalization(decisions: [
                 phase3DirectDecision(assetID: "asset-000001", canonicalPath: "Subject|Wildlife|Birds"),
-                phase3DirectDecision(assetID: "asset-000002", canonicalPath: "Subject|Wildlife|Birds")
+                phase3DirectDecision(assetID: "asset-000002", canonicalPath: "Subject|Wildlife|Birds"),
             ]),
             input: input,
             configuration: phase3Configuration()
@@ -124,8 +125,8 @@ final class NormalizationReportTests: XCTestCase {
     }
 }
 
-private extension JSONDecoder {
-    static var iso8601: JSONDecoder {
+extension JSONDecoder {
+    fileprivate static var iso8601: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder

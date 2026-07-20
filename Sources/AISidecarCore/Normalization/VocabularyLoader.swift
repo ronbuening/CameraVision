@@ -62,11 +62,13 @@ public enum VocabularyLoader {
 
     private static func validateJSONSchema(_ data: Data) throws {
         let value = try JSONDecoder().decode(JSONValue.self, from: data)
-        guard let schemaURL = resourceURL(
-            name: "ai-sidecar-vocabulary-1.0.schema",
-            extension: "json",
-            subdirectory: "Schemas"
-        ) else {
+        guard
+            let schemaURL = resourceURL(
+                name: "ai-sidecar-vocabulary-1.0.schema",
+                extension: "json",
+                subdirectory: "Schemas"
+            )
+        else {
             throw vocabularyInvalid("Missing bundled vocabulary JSON Schema resource.")
         }
         let schemaData = try Data(contentsOf: schemaURL)

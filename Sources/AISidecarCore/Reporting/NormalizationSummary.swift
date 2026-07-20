@@ -70,7 +70,8 @@ public struct NormalizationSummaryWriter {
         lines.append("- Stored edges: \(report.affinity.edges.count)")
         for edge in report.affinity.edges.prefix(10) {
             let basis = edge.components.basisSignals.joined(separator: ", ")
-            lines.append("- \(edge.scoreBand): \(edge.fromNodeID) -> \(edge.toNodeID), score \(edge.affinity), basis \(basis)")
+            lines.append(
+                "- \(edge.scoreBand): \(edge.fromNodeID) -> \(edge.toNodeID), score \(edge.affinity), basis \(basis)")
         }
         lines.append("")
     }
@@ -86,14 +87,17 @@ public struct NormalizationSummaryWriter {
             lines.append("- \(stage.rawValue): \(decisions.count)")
         }
         for decision in report.perAssetDecisions.prefix(20) {
-            let term = decision.hierarchicalKeyword ?? decision.flatKeyword ?? decision.canonicalPath ?? decision.sourceText ?? "unknown"
+            let term =
+                decision.hierarchicalKeyword ?? decision.flatKeyword ?? decision.canonicalPath ?? decision.sourceText
+                ?? "unknown"
             var detail = "- \(decision.status.rawValue): \(decision.assetID) \(term) via \(decision.stage.rawValue)"
             if let rule = decision.governingRule {
                 detail += " (\(rule))"
             }
             if let consensus = decision.localConsensus {
                 let agreement = consensus.localWeightedAgreement.map { String($0) } ?? "n/a"
-                detail += "; agreement \(agreement), support \(consensus.supportMass)/\(consensus.eligibleMass), neighbors \(consensus.supportingNeighborCount)"
+                detail +=
+                    "; agreement \(agreement), support \(consensus.supportMass)/\(consensus.eligibleMass), neighbors \(consensus.supportingNeighborCount)"
             }
             lines.append(detail)
         }
@@ -164,12 +168,12 @@ public struct NormalizationSummaryWriter {
     }
 }
 
-private extension NormalizationDecisionStage {
-    static let allCasesForSummary: [NormalizationDecisionStage] = [
+extension NormalizationDecisionStage {
+    fileprivate static let allCasesForSummary: [NormalizationDecisionStage] = [
         .directModelObservation,
         .userSessionContext,
         .localAffinityPropagation,
         .globalBackstopPropagation,
-        .phase2Fallback
+        .phase2Fallback,
     ]
 }

@@ -1,11 +1,13 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class AssetAffinityScorerTests: XCTestCase {
     func testProfileDecayAndScoreBandsAreDeterministic() {
         let profile = AssetAffinityProfile.resolved(name: .conservative, minAffinityForConsensus: nil)
 
-        XCTAssertEqual(CaptureTimeAffinityScorer.score(deltaSeconds: 120, profile: profile) ?? 0, 0.5, accuracy: 0.000001)
+        XCTAssertEqual(
+            CaptureTimeAffinityScorer.score(deltaSeconds: 120, profile: profile) ?? 0, 0.5, accuracy: 0.000001)
         XCTAssertEqual(CaptureTimeAffinityScorer.score(deltaSeconds: 1_801, profile: profile), 0)
         XCTAssertEqual(GPSAffinityScorer.score(distanceMeters: 25, profile: profile) ?? 0, 0.5, accuracy: 0.000001)
         XCTAssertEqual(AffinityScoreFormatter.rounded(0.1234567), 0.123457)
@@ -44,7 +46,7 @@ final class AssetAffinityScorerTests: XCTestCase {
         let closeGraph = AssetAffinityGraphBuilder().build(
             input: inputBatch([
                 asset("asset-000001", "seq/IMG_0001.JPG"),
-                asset("asset-000002", "seq/IMG_0002.JPG")
+                asset("asset-000002", "seq/IMG_0002.JPG"),
             ]),
             profile: profile,
             mode: .metadataWeighted
@@ -58,7 +60,7 @@ final class AssetAffinityScorerTests: XCTestCase {
         let gearOnlyGraph = AssetAffinityGraphBuilder().build(
             input: inputBatch([
                 asset("asset-000001", "A.JPG", camera: "nikon-z8", lens: "500pf"),
-                asset("asset-000002", "B.JPG", camera: "nikon-z8", lens: "500pf")
+                asset("asset-000002", "B.JPG", camera: "nikon-z8", lens: "500pf"),
             ]),
             profile: profile,
             mode: .metadataWeighted

@@ -15,9 +15,11 @@ struct SessionContextPanel: View {
                 .font(.system(size: 10.5, weight: .semibold))
                 .kerning(0.6)
                 .foregroundStyle(theme.textFaint)
-            Text("Tell the batch what you know — applied only with explicit gates, never inferred. Conflicting photos are always protected.")
-                .font(.system(size: 11.5))
-                .foregroundStyle(theme.textDim)
+            Text(
+                "Tell the batch what you know — applied only with explicit gates, never inferred. Conflicting photos are always protected."
+            )
+            .font(.system(size: 11.5))
+            .foregroundStyle(theme.textDim)
 
             contextField("SUBJECT", text: $model.subject, propagation: $model.allowSubjectPropagation)
             contextField("HABITAT", text: $model.habitat, propagation: $model.allowHabitatPropagation)
@@ -53,11 +55,14 @@ struct SessionContextPanel: View {
                             // catalog generated from the batch's observed
                             // model tags, not the bundled starter vocabulary
                             // (that only backs controlled mode).
-                            Text(model.vocabularyPath.map { ($0 as NSString).lastPathComponent } ?? "observed tags (default)")
-                                .font(.system(size: 11.5, weight: .medium, design: .monospaced))
-                                .foregroundStyle(model.vocabularyPath == nil ? theme.textDim : theme.text)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                            Text(
+                                model.vocabularyPath.map { ($0 as NSString).lastPathComponent }
+                                    ?? "observed tags (default)"
+                            )
+                            .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                            .foregroundStyle(model.vocabularyPath == nil ? theme.textDim : theme.text)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                             if model.vocabularyPath != nil {
                                 Button("Default") { model.vocabularyPath = nil }
                                     .buttonStyle(.plain)

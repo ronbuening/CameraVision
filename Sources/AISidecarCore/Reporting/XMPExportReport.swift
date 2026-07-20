@@ -43,6 +43,13 @@ public struct XMPExportTargetReport: Codable, Sendable, Equatable {
     public var errors: [SidecarError]
     public var durationMs: Int
 
+    public var ratingWrite: PlannedScalarWrite? { plan.ratingWrite }
+    public var labelWrite: PlannedScalarWrite? { plan.labelWrite }
+    public var urgencyWrite: PlannedScalarWrite? { plan.urgencyWrite }
+    public var pickWrite: PlannedScalarWrite? { plan.pickWrite }
+    public var goodWrite: PlannedScalarWrite? { plan.goodWrite }
+    public var qualityExplanation: [String]? { plan.qualityExplanation }
+
     enum CodingKeys: String, CodingKey {
         case plan
         case status
@@ -130,7 +137,7 @@ public struct XMPExportReport: Codable, Sendable, Equatable {
 
     public static let applicationInstructions = [
         "Lightroom Classic: select already-imported photos and use Metadata > Read Metadata from Files to load sidecar changes.",
-        "Capture One: sidecar loading depends on Metadata preferences, especially Auto Sync Sidecar XMP, Load, and Full Sync."
+        "Capture One: sidecar loading depends on Metadata preferences, especially Auto Sync Sidecar XMP, Load, and Full Sync.",
     ]
 
     public var writtenCount: Int {

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class ProgressLogTests: XCTestCase {
@@ -51,7 +52,7 @@ final class ProgressLogTests: XCTestCase {
             identityPolicy: .sha256,
             images: [
                 makeSource(fileName: "A.NEF", relativePath: "A.NEF"),
-                makeSource(fileName: "B.NEF", relativePath: "B.NEF")
+                makeSource(fileName: "B.NEF", relativePath: "B.NEF"),
             ],
             errors: []
         )
@@ -77,7 +78,7 @@ final class ProgressLogTests: XCTestCase {
                     )
                 ],
                 durationMs: 1
-            )
+            ),
         ]
 
         let summary = BatchSummary.derive(

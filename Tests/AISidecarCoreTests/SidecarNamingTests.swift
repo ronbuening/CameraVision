@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class SidecarNamingTests: XCTestCase {
@@ -7,6 +8,23 @@ final class SidecarNamingTests: XCTestCase {
 
         XCTAssertEqual(SidecarNaming.sidecarFileName(for: source), "_DSC1234.NEF.ai.json")
         XCTAssertEqual(SidecarNaming.sidecarRelativePath(for: source), "_DSC1234.NEF.ai.json")
+    }
+
+    func testQualitySidecarUsesDistinctSuffix() {
+        let source = makeSource(fileName: "_DSC1234.NEF", relativePath: "2026/06/_DSC1234.NEF")
+
+        XCTAssertEqual(
+            SidecarNaming.sidecarFileName(for: source, kind: .quality),
+            "_DSC1234.NEF.quality.ai.json"
+        )
+        XCTAssertEqual(
+            SidecarNaming.sidecarRelativePath(for: source, kind: .quality),
+            "2026/06/_DSC1234.NEF.quality.ai.json"
+        )
+        XCTAssertNotEqual(
+            SidecarNaming.destinationPath(for: source, outputDir: nil),
+            SidecarNaming.destinationPath(for: source, outputDir: nil, kind: .quality)
+        )
     }
 
     func testOutputDirectoryMirrorsRelativeTree() throws {
@@ -36,7 +54,7 @@ final class SidecarNamingTests: XCTestCase {
                 fileName: "_DSC1234.NEF",
                 relativePath: "2026/07/_DSC1234.NEF",
                 path: "/photos/2026/07/_DSC1234.NEF"
-            )
+            ),
         ]
 
         let plan = SidecarNaming.plan(for: sources, outputDir: output.path)
@@ -53,7 +71,7 @@ final class SidecarNamingTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: output) }
         let sources = [
             makeSource(fileName: "Bird.NEF", relativePath: "Bird.NEF", path: "/photos/Bird.NEF"),
-            makeSource(fileName: "bird.NEF", relativePath: "bird.NEF", path: "/photos/bird.NEF")
+            makeSource(fileName: "bird.NEF", relativePath: "bird.NEF", path: "/photos/bird.NEF"),
         ]
 
         let plan = SidecarNaming.plan(for: sources, outputDir: output.path)
@@ -73,7 +91,7 @@ final class SidecarNamingTests: XCTestCase {
         let decomposed = "Cafe\u{301}.NEF"
         let sources = [
             makeSource(fileName: composed, relativePath: composed, path: "/photos/\(composed)"),
-            makeSource(fileName: decomposed, relativePath: decomposed, path: "/photos/\(decomposed)")
+            makeSource(fileName: decomposed, relativePath: decomposed, path: "/photos/\(decomposed)"),
         ]
 
         let plan = SidecarNaming.plan(for: sources, outputDir: output.path)

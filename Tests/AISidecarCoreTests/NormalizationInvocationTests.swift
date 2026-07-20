@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class NormalizationInvocationTests: XCTestCase {
@@ -35,7 +36,7 @@ final class NormalizationInvocationTests: XCTestCase {
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", modelResponseRepairAttempts: 1),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", gpsContext: .coarse),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", writeAIJSON: true),
-            NormalizationInvocationRequest(fromJSONPath: "A.ai.json", noWriteAIJSON: true)
+            NormalizationInvocationRequest(fromJSONPath: "A.ai.json", noWriteAIJSON: true),
         ]
 
         for request in invalidRequests {
@@ -59,6 +60,22 @@ final class NormalizationInvocationTests: XCTestCase {
         }
     }
 
+    func testNormalizeAssessQualityIsValidOnlyForPositionalAnalyzeMode() throws {
+        let analyze = try NormalizationInvocationValidator.validate(
+            NormalizationInvocationRequest(inputPath: "Images", assessQuality: true)
+        )
+        XCTAssertEqual(analyze, .analyze(inputPath: "Images"))
+
+        for request in [
+            NormalizationInvocationRequest(fromJSONPath: "A.ai.json", assessQuality: true),
+            NormalizationInvocationRequest(fileListPath: "images.txt", assessQuality: true),
+        ] {
+            try assertConfigInvalid {
+                _ = try NormalizationInvocationValidator.validate(request)
+            }
+        }
+    }
+
     func testNormalizeRejectsConflictingBooleanPairs() throws {
         let invalidRequests = [
             NormalizationInvocationRequest(inputPath: "Images", writeFlatKeywords: true, noWriteFlatKeywords: true),
@@ -68,7 +85,16 @@ final class NormalizationInvocationTests: XCTestCase {
                 noWriteHierarchicalKeywords: true
             ),
             NormalizationInvocationRequest(inputPath: "Images", backupSidecars: true, noBackupSidecars: true),
-            NormalizationInvocationRequest(inputPath: "Images", writeAIJSON: true, noWriteAIJSON: true)
+            NormalizationInvocationRequest(inputPath: "Images", writeRating: true, noWriteRating: true),
+            NormalizationInvocationRequest(inputPath: "Images", writeLabel: true, noWriteLabel: true),
+            NormalizationInvocationRequest(inputPath: "Images", writeUrgency: true, noWriteUrgency: true),
+            NormalizationInvocationRequest(inputPath: "Images", writeFlag: true, noWriteFlag: true),
+            NormalizationInvocationRequest(
+                inputPath: "Images",
+                writeQualityKeywords: true,
+                noWriteQualityKeywords: true
+            ),
+            NormalizationInvocationRequest(inputPath: "Images", writeAIJSON: true, noWriteAIJSON: true),
         ]
 
         for request in invalidRequests {
@@ -76,6 +102,38 @@ final class NormalizationInvocationTests: XCTestCase {
                 _ = try NormalizationInvocationValidator.validate(request)
             }
         }
+    }
+
+    func testNormalizeAcceptsQualityGradingOptionsForExistingAndAnalyzeInputs() throws {
+        let fromJSON = try NormalizationInvocationValidator.validate(
+            NormalizationInvocationRequest(
+                fromJSONPath: "A.ai.json",
+                qualityGrading: true,
+                qualityConflicts: .overwrite,
+                qualityMinConfidence: .low,
+                noWriteRating: true,
+                writeLabel: true,
+                noWriteUrgency: true,
+                writeFlag: true,
+                writeQualityKeywords: true
+            )
+        )
+        XCTAssertEqual(fromJSON, .fromJSON(path: "A.ai.json"))
+
+        let analyze = try NormalizationInvocationValidator.validate(
+            NormalizationInvocationRequest(
+                inputPath: "Images",
+                qualityGrading: true,
+                qualityConflicts: .refresh,
+                qualityMinConfidence: .high,
+                writeRating: true,
+                noWriteLabel: true,
+                writeUrgency: true,
+                noWriteFlag: true,
+                noWriteQualityKeywords: true
+            )
+        )
+        XCTAssertEqual(analyze, .analyze(inputPath: "Images"))
     }
 
     func testApplySessionRejectsDecisionFlagsAndRequiresSessionPath() throws {
@@ -102,8 +160,48 @@ final class NormalizationInvocationTests: XCTestCase {
             )
         }
 
+        let qualityConflicts = [
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeRating: true,
+                noWriteRating: true
+            ),
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeLabel: true,
+                noWriteLabel: true
+            ),
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeUrgency: true,
+                noWriteUrgency: true
+            ),
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeFlag: true,
+                noWriteFlag: true
+            ),
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeQualityKeywords: true,
+                noWriteQualityKeywords: true
+            ),
+        ]
+        for request in qualityConflicts {
+            try assertConfigInvalid {
+                _ = try ApplySessionInvocationValidator.validate(request)
+            }
+        }
+
         let session = try ApplySessionInvocationValidator.validate(
-            ApplySessionInvocationRequest(sessionPath: "normalization-session.json")
+            ApplySessionInvocationRequest(
+                sessionPath: "normalization-session.json",
+                writeRating: true,
+                writeLabel: true,
+                writeUrgency: true,
+                writeFlag: true,
+                writeQualityKeywords: true
+            )
         )
         XCTAssertEqual(session, "normalization-session.json")
     }
@@ -139,7 +237,7 @@ final class NormalizationInvocationTests: XCTestCase {
                 "AISIDECAR_NORMALIZATION_MODE": "batch-conservative",
                 "AISIDECAR_CONSENSUS_THRESHOLD": "0.6",
                 "AISIDECAR_AFFINITY_PROFILE": "balanced",
-                "AISIDECAR_SESSION_HABITAT": "Wetland"
+                "AISIDECAR_SESSION_HABITAT": "Wetland",
             ],
             defaultConfigPath: configPath
         )

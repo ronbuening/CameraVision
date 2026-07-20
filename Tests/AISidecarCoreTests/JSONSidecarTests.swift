@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class JSONSidecarTests: XCTestCase {
@@ -11,6 +12,7 @@ final class JSONSidecarTests: XCTestCase {
         XCTAssertEqual(object["schema_version"]?.stringValue, "ai-sidecar-json/1.3")
         XCTAssertNotNil(object["source"])
         XCTAssertNotNil(object["run_configuration"])
+        XCTAssertEqual(object["run_configuration"]?.objectValue?["task_profile"]?.stringValue, "tagging")
         XCTAssertNotNil(object["model_input_profile"])
         XCTAssertEqual(object["subject_isolation"], .object([:]))
         XCTAssertEqual(object["derivatives"]?.arrayValue?.count, 1)
@@ -41,6 +43,9 @@ final class JSONSidecarTests: XCTestCase {
         var object = try XCTUnwrap(try jsonValue(for: makeSidecar()).objectValue)
         object["schema_version"] = .string("ai-sidecar-json/1.0")
         object["timing"] = nil
+        var runConfiguration = try XCTUnwrap(object["run_configuration"]?.objectValue)
+        runConfiguration["task_profile"] = nil
+        object["run_configuration"] = .object(runConfiguration)
         var modelRuns = try XCTUnwrap(object["model_runs"]?.arrayValue)
         var modelRun = try XCTUnwrap(modelRuns.first?.objectValue)
         modelRun["runtime_metrics"] = nil
@@ -52,6 +57,7 @@ final class JSONSidecarTests: XCTestCase {
         let decoded = try decoder.decode(RawJSONSidecar.self, from: try encodedData(for: .object(object)))
 
         XCTAssertEqual(decoded.schemaVersion, "ai-sidecar-json/1.0")
+        XCTAssertEqual(decoded.runConfiguration.taskProfile, .tagging)
         XCTAssertNil(decoded.timing)
         XCTAssertNil(decoded.modelRuns.first?.runtimeMetrics)
     }
@@ -144,7 +150,8 @@ final class JSONSidecarTests: XCTestCase {
             "run metadata"
         )
         XCTAssertEqual(
-            rewritten["model_runs"]?.arrayValue?.first?.objectValue?["request_options"]?.objectValue?["future_request_option"]?.boolValue,
+            rewritten["model_runs"]?.arrayValue?.first?.objectValue?["request_options"]?.objectValue?[
+                "future_request_option"]?.boolValue,
             true
         )
         XCTAssertEqual(rewritten["errors"]?.arrayValue?.first?.objectValue?["code"]?.stringValue, "E_VALIDATION_FAILED")
@@ -165,12 +172,13 @@ final class JSONSidecarTests: XCTestCase {
             sourceIdentity: source.identity
         )
         let prompt = VersionedPrompt(version: "aisidecar.prompt.whole_image/1.5.0", text: "Prompt")
-        let modelInputContext = ModelInputContext(gps: GPSModelInputContext(
-            mode: .coarse,
-            latitude: 45.1,
-            longitude: -122.7,
-            precisionDegrees: 0.1
-        ))
+        let modelInputContext = ModelInputContext(
+            gps: GPSModelInputContext(
+                mode: .coarse,
+                latitude: 45.1,
+                longitude: -122.7,
+                precisionDegrees: 0.1
+            ))
         let modelRun = ModelRunRecord(
             inputRole: .wholeImage,
             model: "gemma4:26b-a4b-it-qat",

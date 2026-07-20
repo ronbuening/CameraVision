@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import AISidecarCore
 
 final class XMPExportInvocationTests: XCTestCase {
@@ -26,10 +27,45 @@ final class XMPExportInvocationTests: XCTestCase {
         XCTAssertEqual(analyze, .analyzeAndWrite(inputPath: "Image.JPG"))
     }
 
+    func testQualityGradingOptionsAreValidInBothInputModes() throws {
+        let fromJSONRequest = XMPExportInvocationRequest(
+            fromJSONPath: "Image.JPG.ai.json",
+            qualityGrading: true,
+            qualityConflicts: .refresh,
+            qualityMinConfidence: .high,
+            writeRating: true,
+            noWriteLabel: true,
+            writeUrgency: true,
+            noWriteFlag: true,
+            noWriteQualityKeywords: true
+        )
+        XCTAssertEqual(
+            try XMPExportInvocationValidator.validate(fromJSONRequest),
+            .fromJSON(path: "Image.JPG.ai.json")
+        )
+
+        let analyzeRequest = XMPExportInvocationRequest(
+            inputPath: "Image.JPG",
+            qualityGrading: true,
+            qualityConflicts: .overwrite,
+            qualityMinConfidence: .low,
+            noWriteRating: true,
+            writeLabel: true,
+            noWriteUrgency: true,
+            writeFlag: true,
+            writeQualityKeywords: true
+        )
+        XCTAssertEqual(
+            try XMPExportInvocationValidator.validate(analyzeRequest),
+            .analyzeAndWrite(inputPath: "Image.JPG")
+        )
+    }
+
     func testRejectsFromJSONWithAnalyzeOnlyOptions() throws {
         let invalidRequests = [
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", mode: .both),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", existing: .overwrite),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", assessQuality: true),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", model: "custom:model"),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelEndpoint: "http://localhost:11434"),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelTimeoutSeconds: 180),
@@ -42,7 +78,7 @@ final class XMPExportInvocationTests: XCTestCase {
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelResponseRepairAttempts: 1),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", gpsContext: .coarse),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeAIJSON: true),
-            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", noWriteAIJSON: true)
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", noWriteAIJSON: true),
         ]
 
         for request in invalidRequests {
@@ -74,8 +110,17 @@ final class XMPExportInvocationTests: XCTestCase {
                 writeHierarchicalKeywords: true,
                 noWriteHierarchicalKeywords: true
             ),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeRating: true, noWriteRating: true),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeLabel: true, noWriteLabel: true),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeUrgency: true, noWriteUrgency: true),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", writeFlag: true, noWriteFlag: true),
+            XMPExportInvocationRequest(
+                fromJSONPath: "A.ai.json",
+                writeQualityKeywords: true,
+                noWriteQualityKeywords: true
+            ),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", backupSidecars: true, noBackupSidecars: true),
-            XMPExportInvocationRequest(inputPath: "Image.JPG", writeAIJSON: true, noWriteAIJSON: true)
+            XMPExportInvocationRequest(inputPath: "Image.JPG", writeAIJSON: true, noWriteAIJSON: true),
         ]
 
         for request in invalidRequests {
@@ -86,8 +131,8 @@ final class XMPExportInvocationTests: XCTestCase {
     }
 
     func testSchemaIdentifierConstantsAreStable() {
-        XCTAssertEqual(XMPExportSchemaIdentifiers.exportReport, "ai-sidecar-xmp-export/1.0")
-        XCTAssertEqual(XMPExportSchemaIdentifiers.changePlan, "ai-sidecar-xmp-change-plan/1.0")
+        XCTAssertEqual(XMPExportSchemaIdentifiers.exportReport, "ai-sidecar-xmp-export/1.2")
+        XCTAssertEqual(XMPExportSchemaIdentifiers.changePlan, "ai-sidecar-xmp-change-plan/1.2")
     }
 
     private func assertConfigInvalid(_ operation: () throws -> Void) throws {

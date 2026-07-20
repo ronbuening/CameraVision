@@ -1,0 +1,275 @@
+{
+  "created_at" : "2026-07-19T22:33:25Z",
+  "derivatives" : [
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/0e5cf0dc7bfab3a54b84866180e4ebdb1156825fa094f4fd4c00c8f941c7cf8d-render-v2-gemma4-26b-default-whole_image.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1365,
+      "recipe_version" : "render-v2-gemma4-26b-default",
+      "role" : "whole_image",
+      "sha256" : "25b9780511fee41a504222bf594e0aa907630d07d95d52ff490c71b3530f5f49",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "0e5cf0dc7bfab3a54b84866180e4ebdb1156825fa094f4fd4c00c8f941c7cf8d"
+      },
+      "width" : 2048
+    },
+    {
+      "applied_orientation" : {
+        "exif_value" : 1
+      },
+      "cache_path" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives/0e5cf0dc7bfab3a54b84866180e4ebdb1156825fa094f4fd4c00c8f941c7cf8d-render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128-subject_isolated.jpg",
+      "color_space" : "sRGB",
+      "format" : "jpeg",
+      "height" : 1477,
+      "recipe_version" : "render-v2-gemma4-26b-default-subject-v3-margin-0.080000-merge-0.800000-matte-128-128-128",
+      "role" : "subject_isolated",
+      "sha256" : "3846d1c49e779f98a9533a83bbed3dba8eb68e6b4dc94bf8647defebf9605602",
+      "source_identity" : {
+        "policy" : "sha256",
+        "sha256" : "0e5cf0dc7bfab3a54b84866180e4ebdb1156825fa094f4fd4c00c8f941c7cf8d"
+      },
+      "width" : 1852
+    }
+  ],
+  "errors" : [
+
+  ],
+  "model_input_profile" : {
+    "allow_upscale_subject_by_default" : false,
+    "color_space" : "sRGB",
+    "jpeg_quality" : 0.9,
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "max_long_edge" : 2048,
+    "max_total_pixels" : 4194304,
+    "name" : "gemma4-26b-default",
+    "preferred_subject_format" : "jpeg-neutral-matte",
+    "preferred_whole_image_format" : "jpeg"
+  },
+  "model_runs" : [
+    {
+      "duration_ms" : 14906,
+      "error" : null,
+      "input_derivative_sha256" : "25b9780511fee41a504222bf594e0aa907630d07d95d52ff490c71b3530f5f49",
+      "input_role" : "whole_image",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "quality_assessment" : {
+          "composition" : "acceptable",
+          "concerns" : [
+
+          ],
+          "confidence" : "high",
+          "exposure_and_tone" : "acceptable",
+          "focus" : "unrated",
+          "lighting_and_color" : "acceptable",
+          "moment_or_expression" : "unrated",
+          "overall_effectiveness" : "acceptable",
+          "strengths" : [
+            "Clear subject-background contrast"
+          ],
+          "subject_background_relationship" : "strong",
+          "technical_cleanliness" : "acceptable"
+        }
+      },
+      "prompt_sha256" : "64810b8940e8884da3c443825ea4d45e6a5728ffaf7bb4cb31c1b682789d524c",
+      "prompt_version" : "aisidecar.prompt.whole_image_quality/1.0.0",
+      "raw_response_text" : "{\n  \"quality_assessment\": {\n    \"composition\": \"acceptable\",\n    \"concerns\": [],\n    \"confidence\": \"high\",\n    \"exposure_and_tone\": \"acceptable\",\n    \"focus\": \"unrated\",\n    \"lighting_and_color\": \"acceptable\",\n    \"moment_or_expression\": \"unrated\",\n    \"overall_effectiveness\": \"acceptable\",\n    \"strengths\": [\n      \"Clear subject-background contrast\"\n    ],\n    \"subject_background_relationship\": \"strong\",\n    \"technical_cleanliness\": \"acceptable\"\n  }\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:whole-image-quality:1.0.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 138,
+        "eval_duration_ns" : 2260385000,
+        "load_duration_ns" : 284558500,
+        "prompt_eval_count" : 663,
+        "prompt_eval_duration_ns" : 1891930000,
+        "total_duration_ns" : 14891085417
+      },
+      "runtime_version" : "0.32.0"
+    },
+    {
+      "duration_ms" : 7352,
+      "error" : null,
+      "input_derivative_sha256" : "3846d1c49e779f98a9533a83bbed3dba8eb68e6b4dc94bf8647defebf9605602",
+      "input_role" : "subject_isolated",
+      "json_valid" : true,
+      "model" : "gemma4:26b-a4b-it-qat",
+      "model_digest" : "sha256:2dd70431afed94dd3688d790443768c1487ed086b57147ff083851116ae4c4e4",
+      "parsed_response_json" : {
+        "quality_assessment" : {
+          "concerns" : [
+            "Irregular and jagged edges along the bottom and right sides of the flag."
+          ],
+          "confidence" : "high",
+          "detail_and_texture" : "unrated",
+          "exposure_and_tone" : "acceptable",
+          "focus" : "strong",
+          "lighting_and_color" : "acceptable",
+          "overall_subject_quality" : "acceptable",
+          "pose_expression_or_moment" : "unrated",
+          "strengths" : [
+            "Clear rendering of the stars and fabric folds."
+          ],
+          "technical_cleanliness" : "problem"
+        }
+      },
+      "prompt_sha256" : "03696e54df174de00608ef28d2ee104b59818d456d2d28533f941b7b0b82b9f5",
+      "prompt_version" : "aisidecar.prompt.subject_isolated_quality/1.0.0",
+      "raw_response_text" : "{\n  \"quality_assessment\": {\n    \"concerns\": [\n      \"Irregular and jagged edges along the bottom and right sides of the flag.\"\n    ],\n    \"confidence\": \"high\",\n    \"detail_and_texture\": \"unrated\",\n    \"exposure_and_tone\": \"acceptable\",\n    \"focus\": \"strong\",\n    \"lighting_and_color\": \"acceptable\",\n    \"overall_subject_quality\": \"acceptable\",\n    \"pose_expression_or_moment\": \"unrated\",\n    \"strengths\": [\n      \"Clear rendering of the stars and fabric folds.\"\n    ],\n    \"technical_cleanliness\": \"problem\"\n  }\n}",
+      "request_options" : {
+        "keep_alive" : "30m",
+        "max_response_tokens" : 2048,
+        "response_repair_attempts" : 1,
+        "retry_limit" : 2,
+        "seed" : 0,
+        "temperature" : 0,
+        "thinking_enabled" : false,
+        "timeout_seconds" : 180
+      },
+      "response_schema_version" : "urn:aisidecar:response:subject-isolated-quality:1.0.0",
+      "runtime" : "ollama",
+      "runtime_metrics" : {
+        "eval_count" : 158,
+        "eval_duration_ns" : 2598623000,
+        "load_duration_ns" : 234298042,
+        "prompt_eval_count" : 762,
+        "prompt_eval_duration_ns" : 2076185000,
+        "total_duration_ns" : 7339140584
+      },
+      "runtime_version" : "0.32.0"
+    }
+  ],
+  "run_configuration" : {
+    "clear_derivative_cache_after_success" : false,
+    "clear_derivative_cache_on_start" : false,
+    "debug_derivatives" : false,
+    "derivative_cache_dir" : "/Users/ronbuening/Library/Caches/aisidecar/derivatives",
+    "derivative_cache_size_bytes" : 21474836480,
+    "dry_run" : false,
+    "existing" : "skip",
+    "gps_context" : "coarse",
+    "log_format" : "text",
+    "log_level" : "info",
+    "mode" : "both",
+    "model" : "gemma4:26b-a4b-it-qat",
+    "model_context_window" : 0,
+    "model_endpoint" : "http://localhost:11434",
+    "model_keep_alive" : "30m",
+    "model_max_response_tokens" : 2048,
+    "model_response_repair_attempts" : 1,
+    "model_retry_limit" : 2,
+    "model_timeout_seconds" : 180,
+    "output_dir" : "/Users/ronbuening/Programming/LocalModels/CameraVision/Sample_Data_Versioned/0.2.0-beta1/260719_run3",
+    "profile" : "gemma4-26b-default",
+    "quality_scan_mode" : "sequential",
+    "recursive" : true,
+    "source_identity_policy" : "sha256",
+    "stage_concurrency" : 2,
+    "subject_crop_margin_fraction" : 0.08,
+    "subject_merge_dominance_threshold" : 0.8,
+    "task_profile" : "quality_only"
+  },
+  "schema_version" : "ai-sidecar-json/1.3",
+  "source" : {
+    "detected_type" : "jpg",
+    "file_extension" : "jpg",
+    "file_name" : "54618313408_a2a2703fe0_o.jpg",
+    "file_size" : 6371378,
+    "identity" : {
+      "policy" : "sha256",
+      "sha256" : "0e5cf0dc7bfab3a54b84866180e4ebdb1156825fa094f4fd4c00c8f941c7cf8d"
+    },
+    "modified_at" : "2026-06-11T16:49:57Z",
+    "path" : "/Users/ronbuening/Programming/LocalModels/TestingFileSet/PublicDomainDOI/54618313408_a2a2703fe0_o.jpg",
+    "relative_path" : "54618313408_a2a2703fe0_o.jpg"
+  },
+  "subject_isolation" : {
+    "analysis_resolution" : {
+      "height" : 1365,
+      "width" : 2048
+    },
+    "crop_bounding_box" : {
+      "height" : 1477,
+      "width" : 1852,
+      "x" : 1100,
+      "y" : 1038
+    },
+    "crop_margin_fraction" : 0.08,
+    "crop_margin_pixels" : 128,
+    "final_dimensions" : {
+      "height" : 1477,
+      "width" : 1852
+    },
+    "full_resolution" : {
+      "height" : 3537,
+      "width" : 5306
+    },
+    "instance_count" : 1,
+    "instances" : [
+      {
+        "area_pixels" : 193088,
+        "index" : 1,
+        "normalized_bounding_box" : {
+          "height" : 0.34505494505494505,
+          "width" : 0.30078125,
+          "x" : 0.2314453125,
+          "y" : 0.32967032967032966
+        },
+        "normalized_centroid" : {
+          "x" : 0.3749651025374441,
+          "y" : 0.5088815128496518
+        }
+      }
+    ],
+    "matte_rgb" : [
+      128,
+      128,
+      128
+    ],
+    "merge_dominance_threshold" : 0.8,
+    "merged_instances" : false,
+    "scale_factors" : {
+      "x" : 2.5908203125,
+      "y" : 2.5912087912087913
+    },
+    "selected_bounding_box" : {
+      "height" : 0.3450549450549451,
+      "width" : 0.30078125,
+      "x" : 0.2314453125,
+      "y" : 0.32967032967032966
+    },
+    "selected_instance_indices" : [
+      1
+    ],
+    "selected_to_union_area_ratio" : 0.9999999999999998,
+    "status" : "success",
+    "upscaled" : false
+  },
+  "timing" : {
+    "model_ms" : 22260,
+    "pipeline_elapsed_ms" : 202995,
+    "render_ms" : 51,
+    "subject_isolation_ms" : 379,
+    "write_ms" : 2
+  }
+}

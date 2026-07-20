@@ -18,6 +18,13 @@ public enum ModelInputRole: String, Codable, CaseIterable, Sendable, Equatable {
     }
 }
 
+/// What the model is asked to do with a rendered input.
+public enum ModelTaskProfile: String, Codable, Sendable, CaseIterable {
+    case tagging = "tagging"
+    case taggingWithQuality = "tagging_with_quality"
+    case qualityOnly = "quality_only"
+}
+
 /// Versioned model prompt with a stable content hash for provenance.
 public struct VersionedPrompt: Codable, Sendable, Equatable {
     public var version: String
@@ -157,10 +164,11 @@ public struct ModelRunOptions: Codable, Sendable, Equatable {
         self.contextWindow = try container.decodeIfPresent(Int.self, forKey: .contextWindow)
         // Absent in pre-1.5.1 records, whose runs genuinely had no cap.
         self.maxResponseTokens = try container.decodeIfPresent(Int.self, forKey: .maxResponseTokens)
-        self.responseRepairAttempts = try container.decodeIfPresent(
-            Int.self,
-            forKey: .responseRepairAttempts
-        ) ?? Self.default.responseRepairAttempts
+        self.responseRepairAttempts =
+            try container.decodeIfPresent(
+                Int.self,
+                forKey: .responseRepairAttempts
+            ) ?? Self.default.responseRepairAttempts
     }
 }
 

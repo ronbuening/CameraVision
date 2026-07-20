@@ -77,13 +77,14 @@ private struct AssetGridCell: View {
     }
 
     private var stateDot: some View {
-        let color: Color = switch record.state {
-        case .discovered: theme.textFaint
-        case .analyzed: theme.accent.accent
-        case .exported: theme.green
-        case .xmpPresentExternal: theme.textDim
-        case .xmpMissingWasExported, .failed: theme.danger
-        }
+        let color: Color =
+            switch record.state {
+            case .discovered: theme.textFaint
+            case .analyzed: theme.accent.accent
+            case .exported: theme.green
+            case .xmpPresentExternal: theme.textDim
+            case .xmpMissingWasExported, .failed: theme.danger
+            }
         return Circle()
             .fill(color)
             .frame(width: 9, height: 9)

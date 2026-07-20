@@ -3,18 +3,31 @@ import Foundation
 /// Loads the versioned Phase 1 prompts submitted to vision model runs.
 public enum PromptRegistry {
     /// Return the submitted prompt for the requested model-input role.
-    public static func prompt(for role: ModelInputRole, context: ModelInputContext? = nil) throws -> VersionedPrompt {
-        let text = try normalizedResourceText(named: resourceName(for: role))
-        let version = try promptVersion(from: text, resourceName: resourceName(for: role))
+    public static func prompt(
+        for role: ModelInputRole,
+        task: ModelTaskProfile = .tagging,
+        context: ModelInputContext? = nil
+    ) throws -> VersionedPrompt {
+        let resourceName = resourceName(for: role, task: task)
+        let text = try normalizedResourceText(named: resourceName)
+        let version = try promptVersion(from: text, resourceName: resourceName)
         return VersionedPrompt(version: version, text: textWithContext(text, context: context))
     }
 
-    private static func resourceName(for role: ModelInputRole) -> String {
-        switch role {
-        case .wholeImage:
+    private static func resourceName(for role: ModelInputRole, task: ModelTaskProfile) -> String {
+        switch (role, task) {
+        case (.wholeImage, .tagging):
             return "whole_image_v1.5.0"
-        case .subjectIsolated:
+        case (.wholeImage, .taggingWithQuality):
+            return "whole_image_v1.6.0"
+        case (.wholeImage, .qualityOnly):
+            return "whole_image_quality_v1.0.0"
+        case (.subjectIsolated, .tagging):
             return "subject_isolated_v1.5.0"
+        case (.subjectIsolated, .taggingWithQuality):
+            return "subject_isolated_v1.6.0"
+        case (.subjectIsolated, .qualityOnly):
+            return "subject_isolated_quality_v1.0.0"
         }
     }
 
@@ -53,7 +66,8 @@ private func textWithContext(_ text: String, context: ModelInputContext?) -> Str
 }
 
 private func normalizeFinalNewline(_ text: String) -> String {
-    var normalized = text
+    var normalized =
+        text
         .replacingOccurrences(of: "\r\n", with: "\n")
         .replacingOccurrences(of: "\r", with: "\n")
     while normalized.last == "\n" {

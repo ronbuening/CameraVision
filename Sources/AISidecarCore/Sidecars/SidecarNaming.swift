@@ -37,40 +37,57 @@ public struct SidecarPlan: Sendable, Equatable {
     }
 }
 
+/// Raw-sidecar contract written for an analyzed source image.
+public enum RawSidecarKind: Sendable {
+    case tagging
+    case quality
+}
+
 /// Computes Phase 1 raw JSON sidecar names and destination paths.
 ///
 /// Naming preserves the original source extension so RAW/JPEG pairs do not
 /// collapse onto the same `.ai.json` basename.
 public enum SidecarNaming {
+    public static let taggingSuffix = ".ai.json"
+    public static let qualitySuffix = ".quality.ai.json"
+
     /// Return `<original-file-name>.ai.json` for FR1-008.
-    public static func sidecarFileName(for source: SourceImage) -> String {
-        "\(source.fileName).ai.json"
+    public static func sidecarFileName(
+        for source: SourceImage,
+        kind: RawSidecarKind = .tagging
+    ) -> String {
+        "\(source.fileName)\(suffix(for: kind))"
     }
 
     /// Return the mirrored relative path used under `--output-dir`.
-    public static func sidecarRelativePath(for source: SourceImage) -> String {
+    public static func sidecarRelativePath(
+        for source: SourceImage,
+        kind: RawSidecarKind = .tagging
+    ) -> String {
         let components = relativeComponents(for: source.relativePath)
         guard let fileName = components.last else {
-            return sidecarFileName(for: source)
+            return sidecarFileName(for: source, kind: kind)
         }
-        return (Array(components.dropLast()) + ["\(fileName).ai.json"]).joined(separator: "/")
+        return (Array(components.dropLast()) + ["\(fileName)\(suffix(for: kind))"]).joined(separator: "/")
     }
 
     /// Resolve the concrete sidecar path for beside-source or mirrored output.
     public static func destinationPath(
         for source: SourceImage,
-        outputDir: String?
+        outputDir: String?,
+        kind: RawSidecarKind = .tagging
     ) -> String {
         let destination: URL
         if let outputDir {
             destination = appendRelativeSidecarPath(
                 for: source,
-                to: URL(fileURLWithPath: (outputDir as NSString).expandingTildeInPath)
+                to: URL(fileURLWithPath: (outputDir as NSString).expandingTildeInPath),
+                kind: kind
             )
         } else {
             destination = URL(fileURLWithPath: source.path)
                 .deletingLastPathComponent()
-                .appendingPathComponent(sidecarFileName(for: source))
+                .appendingPathComponent(sidecarFileName(for: source, kind: kind))
         }
         return destination.standardizedFileURL.path
     }
@@ -78,13 +95,14 @@ public enum SidecarNaming {
     /// Build a pre-write plan and classify case-insensitive collisions.
     public static func plan(
         for sources: [SourceImage],
-        outputDir: String?
+        outputDir: String?,
+        kind: RawSidecarKind = .tagging
     ) -> SidecarPlan {
         let provisional = sources.map { source in
             SidecarPlanEntry(
                 source: source,
-                sidecarPath: destinationPath(for: source, outputDir: outputDir),
-                sidecarRelativePath: sidecarRelativePath(for: source)
+                sidecarPath: destinationPath(for: source, outputDir: outputDir, kind: kind),
+                sidecarRelativePath: sidecarRelativePath(for: source, kind: kind)
             )
         }
         let grouped = Dictionary(grouping: provisional) {
@@ -94,7 +112,8 @@ public enum SidecarNaming {
         // target photo archive may live on a case-insensitive filesystem.
         let collidingKeys = Set(grouped.filter { $0.value.count > 1 }.map(\.key))
 
-        let collisions = grouped
+        let collisions =
+            grouped
             .filter { $0.value.count > 1 }
             .map { _, entries in
                 let sortedEntries = entries.sorted { $0.source.relativePath < $1.source.relativePath }
@@ -113,16 +132,30 @@ public enum SidecarNaming {
             }
             .sorted { $0.sidecarPath < $1.sidecarPath }
 
-        let entries = provisional
+        let entries =
+            provisional
             .filter { !collidingKeys.contains($0.sidecarPath.lowercased()) }
             .sorted { $0.source.relativePath < $1.source.relativePath }
 
         return SidecarPlan(entries: entries, collisions: collisions)
     }
 
-    private static func appendRelativeSidecarPath(for source: SourceImage, to base: URL) -> URL {
-        relativeComponents(for: sidecarRelativePath(for: source)).reduce(base) { url, component in
+    private static func appendRelativeSidecarPath(
+        for source: SourceImage,
+        to base: URL,
+        kind: RawSidecarKind
+    ) -> URL {
+        relativeComponents(for: sidecarRelativePath(for: source, kind: kind)).reduce(base) { url, component in
             url.appendingPathComponent(component)
+        }
+    }
+
+    private static func suffix(for kind: RawSidecarKind) -> String {
+        switch kind {
+        case .tagging:
+            taggingSuffix
+        case .quality:
+            qualitySuffix
         }
     }
 

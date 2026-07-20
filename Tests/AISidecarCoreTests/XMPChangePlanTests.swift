@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import AISidecarCore
 
 final class XMPChangePlanTests: XCTestCase {
@@ -18,18 +19,20 @@ final class XMPChangePlanTests: XCTestCase {
         configuration.backupSidecars = true
 
         let document = XMPChangePlanner().plan(
-            inputBatch: RawJSONSidecarInputBatch(inputs: [input], failures: [
-                RawJSONSidecarInputFailure(
-                    sidecarPath: URL(fileURLWithPath: "/sidecars/Bad.JPG.ai.json"),
-                    relativePath: "Bad.JPG.ai.json",
-                    error: SidecarError(
-                        code: .schemaUnsupported,
-                        stage: .scan,
-                        message: "Unsupported fixture schema.",
-                        recoverable: true
+            inputBatch: RawJSONSidecarInputBatch(
+                inputs: [input],
+                failures: [
+                    RawJSONSidecarInputFailure(
+                        sidecarPath: URL(fileURLWithPath: "/sidecars/Bad.JPG.ai.json"),
+                        relativePath: "Bad.JPG.ai.json",
+                        error: SidecarError(
+                            code: .schemaUnsupported,
+                            stage: .scan,
+                            message: "Unsupported fixture schema.",
+                            recoverable: true
+                        )
                     )
-                )
-            ]),
+                ]),
             extractionResults: [extraction(for: input)],
             configuration: configuration
         )
@@ -53,7 +56,7 @@ final class XMPChangePlanTests: XCTestCase {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         let encoded = String(data: try encoder.encode(document), encoding: .utf8)
-        XCTAssertTrue(encoded?.contains("\"schema_version\" : \"ai-sidecar-xmp-change-plan/1.0\"") == true)
+        XCTAssertTrue(encoded?.contains("\"schema_version\" : \"ai-sidecar-xmp-change-plan/1.2\"") == true)
         XCTAssertTrue(encoded?.contains("\"backup_plan\"") == true)
         XCTAssertTrue(encoded?.contains("\"source_field\"") == true)
         XCTAssertTrue(encoded?.contains("\"normalized_term\"") == true)
@@ -72,7 +75,7 @@ final class XMPChangePlanTests: XCTestCase {
             targetPlans: [
                 minimalTargetPlan(status: .planned, failures: []),
                 minimalTargetPlan(status: .failed, failures: [failure]),
-                minimalTargetPlan(status: .planned, failures: [failure])
+                minimalTargetPlan(status: .planned, failures: [failure]),
             ],
             inputFailures: [
                 XMPChangePlanInputFailure(
@@ -88,6 +91,130 @@ final class XMPChangePlanTests: XCTestCase {
             XMPChangePlanDocument(dryRun: true, targetPlans: [], inputFailures: []).failedCount,
             0
         )
+    }
+
+    func testScalarWritesRoundTripAndLegacyPlanStillDecodes() throws {
+        var plan = minimalTargetPlan(status: .planned, failures: [])
+        plan.ratingWrite = PlannedScalarWrite(
+            field: "xmp:Rating",
+            plannedValue: "4",
+            existingValue: nil,
+            action: .write
+        )
+        plan.labelWrite = PlannedScalarWrite(
+            field: "xmp:Label",
+            plannedValue: "Green",
+            existingValue: "Blue",
+            action: .skipExisting
+        )
+        plan.urgencyWrite = PlannedScalarWrite(
+            field: "photoshop:Urgency",
+            plannedValue: "2",
+            existingValue: "1",
+            action: .overwrite
+        )
+        plan.qualityExplanation = ["tier=good", "problem_count=0"]
+        plan.qualityTier = .good
+
+        let encoder = JSONCoding.documentEncoder()
+        let data = try encoder.encode(plan)
+        let decoded = try JSONDecoder().decode(XMPChangePlan.self, from: data)
+        XCTAssertEqual(decoded, plan)
+
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((object["rating_write"] as? [String: Any])?["action"] as? String, "write")
+        XCTAssertEqual((object["label_write"] as? [String: Any])?["action"] as? String, "skip_existing")
+        XCTAssertEqual((object["urgency_write"] as? [String: Any])?["action"] as? String, "overwrite")
+        XCTAssertEqual(object["quality_explanation"] as? [String], ["tier=good", "problem_count=0"])
+        XCTAssertEqual(object["quality_tier"] as? String, "good")
+
+        var legacyObject = object
+        legacyObject.removeValue(forKey: "rating_write")
+        legacyObject.removeValue(forKey: "label_write")
+        legacyObject.removeValue(forKey: "urgency_write")
+        legacyObject.removeValue(forKey: "quality_explanation")
+        legacyObject.removeValue(forKey: "quality_tier")
+        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject, options: [.sortedKeys])
+        let legacyPlan = try JSONDecoder().decode(XMPChangePlan.self, from: legacyData)
+        XCTAssertNil(legacyPlan.ratingWrite)
+        XCTAssertNil(legacyPlan.labelWrite)
+        XCTAssertNil(legacyPlan.urgencyWrite)
+        XCTAssertNil(legacyPlan.qualityExplanation)
+        XCTAssertNil(legacyPlan.qualityTier)
+        XCTAssertEqual(legacyPlan.targetXMPPath, plan.targetXMPPath)
+    }
+
+    func testMockEngineProjectsScalarActionsIntoPreviewAndResult() throws {
+        var plan = minimalTargetPlan(status: .planned, failures: [])
+        plan.ratingWrite = PlannedScalarWrite(
+            field: "xmp:Rating",
+            plannedValue: "4",
+            existingValue: nil,
+            action: .write
+        )
+        plan.labelWrite = PlannedScalarWrite(
+            field: "xmp:Label",
+            plannedValue: "Green",
+            existingValue: "Blue",
+            action: .skipExisting
+        )
+        plan.urgencyWrite = PlannedScalarWrite(
+            field: "photoshop:Urgency",
+            plannedValue: "2",
+            existingValue: "1",
+            action: .overwrite
+        )
+        let snapshot = XMPMetadataSnapshot(
+            targetPath: plan.targetXMPPath,
+            exists: true,
+            flatKeywords: [],
+            hierarchicalKeywords: [],
+            unmanagedContentFingerprint: .empty(),
+            label: "Blue",
+            urgency: "1"
+        )
+        let engine = MockMetadataWriteEngine(snapshotsByPath: [plan.targetXMPPath: snapshot])
+        let request = XMPWriteRequest(plan: plan)
+
+        XCTAssertEqual(request.ratingWrite, plan.ratingWrite)
+        XCTAssertEqual(request.labelWrite, plan.labelWrite)
+        XCTAssertEqual(request.urgencyWrite, plan.urgencyWrite)
+
+        let preview = try engine.preview(request)
+        XCTAssertNil(preview.existingRating)
+        XCTAssertEqual(preview.resultingRating, "4")
+        XCTAssertEqual(preview.existingLabel, "Blue")
+        XCTAssertEqual(preview.resultingLabel, "Blue")
+        XCTAssertEqual(preview.existingUrgency, "1")
+        XCTAssertEqual(preview.resultingUrgency, "2")
+
+        let result = try engine.apply(request)
+        XCTAssertEqual(result.existingRating, preview.existingRating)
+        XCTAssertEqual(result.resultingRating, preview.resultingRating)
+        XCTAssertEqual(result.existingLabel, preview.existingLabel)
+        XCTAssertEqual(result.resultingLabel, preview.resultingLabel)
+        XCTAssertEqual(result.existingUrgency, preview.existingUrgency)
+        XCTAssertEqual(result.resultingUrgency, preview.resultingUrgency)
+        XCTAssertEqual(result.postWriteSnapshot.rating, "4")
+        XCTAssertEqual(result.postWriteSnapshot.label, "Blue")
+        XCTAssertEqual(result.postWriteSnapshot.urgency, "2")
+
+        let encoder = JSONCoding.documentEncoder()
+        XCTAssertEqual(try JSONDecoder().decode(XMPWritePreview.self, from: encoder.encode(preview)), preview)
+        XCTAssertEqual(try JSONDecoder().decode(XMPWriteResult.self, from: encoder.encode(result)), result)
+    }
+
+    func testUngradedReasonExplanationExposesOnlyTierlessPrefixedEntries() {
+        XCTAssertEqual(XMPChangePlan.ungradedReasonPrefix, "ungraded reason=")
+
+        var plan = minimalTargetPlan(status: .planned, failures: [])
+        XCTAssertNil(plan.ungradedReasonExplanation)
+
+        plan.qualityExplanation = ["counts strong=0 problem=0", "ungraded reason=no_records"]
+        XCTAssertEqual(plan.ungradedReasonExplanation, "ungraded reason=no_records")
+
+        plan.qualityTier = .good
+        XCTAssertNil(plan.ungradedReasonExplanation)
     }
 
     private func minimalTargetPlan(status: XMPTargetPlanStatus, failures: [SidecarError]) -> XMPChangePlan {
@@ -145,10 +272,11 @@ final class XMPChangePlanTests: XCTestCase {
         )
         return ResolvedRawSidecarInput(
             sidecarPath: URL(fileURLWithPath: "/sidecars/Bird.JPG.ai.json"),
-            document: try RawJSONSidecarDocument(sidecar: RawJSONSidecar(
-                source: source,
-                runConfiguration: .builtInDefaults
-            )),
+            document: try RawJSONSidecarDocument(
+                sidecar: RawJSONSidecar(
+                    source: source,
+                    runConfiguration: .builtInDefaults
+                )),
             sourcePath: URL(fileURLWithPath: source.path),
             sourceIdentityStatus: .mismatched,
             relativePath: "Bird.JPG.ai.json",
