@@ -28,7 +28,7 @@ env:
   # Same toolchain pin as ci.yml — keep these two in lockstep. If ci.yml moves
   # to a new Xcode, move this the same day so releases build on the toolchain
   # the suite is verified against.
-  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
 
 jobs:
   release:

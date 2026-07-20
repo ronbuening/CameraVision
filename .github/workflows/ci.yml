@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # No branch filter: sub-PRs into long-lived feature branches must run CI
+  # too. The old `branches: [main]` filter let four days of feature-branch
+  # merges (PRs #46-#52) land without ever compiling on the pinned toolchain.
   pull_request:
-    branches: [main]
 
 # Least privilege: CI only needs to read the repository contents.
 permissions:
@@ -15,12 +17,14 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Pin the toolchain. macos-15 also ships Xcode 26.x, so if GitHub changes
-  # the image default our Swift 6 diagnostics (e.g. strict-concurrency
-  # isolation checks) could shift without any code change. 16.4 is the image
-  # default today and the toolchain this suite is verified against. Change
-  # this one line to move toolchains deliberately.
-  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+  # Pin the toolchain deliberately (never float on the image default) so
+  # Swift 6 diagnostics can't shift without a code change. Pinned to 26.3 to
+  # match the development toolchain (Swift 6.2.4): the previous 16.4 pin
+  # (Swift 6.1.2) segfaults in SILGen compiling CupricAspectApp
+  # (WizardShellView's ReviewModel stored-property initializer) on code that
+  # is valid and fully green under 6.2.4. Change this one line — and the
+  # matching pin in release.yml, the same day — to move toolchains.
+  DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
 
 jobs:
   build-test:
