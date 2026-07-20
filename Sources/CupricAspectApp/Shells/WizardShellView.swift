@@ -215,7 +215,7 @@ struct WizardShellView: View {
             .buttonStyle(.plain)
             .help("Settings")
         }
-        .padding(.leading, 84)  // clear the native traffic lights under .hiddenTitleBar
+        .padding(.leading, 34)  // align the brand with the content column
         .padding(.trailing, 14)
         .frame(height: 46)
         .background(theme.titlebar)
