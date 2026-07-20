@@ -123,6 +123,7 @@ struct Step2ActionView: View {
                     .foregroundStyle(theme.textDim)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .toggleStyle(.switch)
         .tint(theme.accent.accent)
