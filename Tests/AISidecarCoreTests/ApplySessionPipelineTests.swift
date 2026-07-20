@@ -432,9 +432,11 @@ final class ApplySessionPipelineTests: XCTestCase {
             at: destination.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
+        // Pinned fields keep the hashed fixture bytes machine-independent;
+        // see NormalizeQualityDefaultOffIdentityTests.fixtureRunConfiguration.
         let sidecar = RawJSONSidecar(
             source: source,
-            runConfiguration: .builtInDefaults,
+            runConfiguration: NormalizeQualityDefaultOffIdentityTests.fixtureRunConfiguration(),
             modelRuns: modelRuns,
             createdAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
@@ -495,6 +497,9 @@ final class ApplySessionPipelineTests: XCTestCase {
         var text = String(decoding: try Data(contentsOf: URL(fileURLWithPath: path)), as: UTF8.self)
         // Generated from QN5 commit fdf6cae before QN6 changed apply-session.
         // Normalize only temporary paths and the planners' random filename tokens.
+        // raw_sidecar re-pinned 2026-07-19 after fixing the fixture's
+        // machine-specific run configuration (cache dir, concurrency); the
+        // pipeline-produced artifact hashes were unchanged by that fix.
         text = text.replacingOccurrences(of: root.standardizedFileURL.path, with: "$ROOT")
         text = text.replacingOccurrences(of: sessionToken, with: "$SESSION_TOKEN")
         text = text.replacingOccurrences(of: applyToken, with: "$APPLY_TOKEN")

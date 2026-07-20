@@ -25,7 +25,7 @@ final class NormalizeQualityDefaultOffIdentityTests: XCTestCase {
         let taggingSidecar = jsonRoot.appendingPathComponent("Bird.JPG.ai.json")
         let sidecar = RawJSONSidecar(
             source: source,
-            runConfiguration: .builtInDefaults,
+            runConfiguration: Self.fixtureRunConfiguration(),
             modelRuns: [taggingRun()],
             createdAt: Date(timeIntervalSince1970: 1_700_000_200)
         )
@@ -90,6 +90,17 @@ final class NormalizeQualityDefaultOffIdentityTests: XCTestCase {
         XCTAssertEqual(actual, try baselineHashes())
     }
 
+    /// `builtInDefaults` embeds machine-specific values — a home-based
+    /// derivative cache path and a CPU-count stage concurrency — so a fixture
+    /// sidecar built from it hashes differently on every machine. Pin both so
+    /// the byte-identity baseline holds on CI and locally alike.
+    static func fixtureRunConfiguration() -> ResolvedRunConfiguration {
+        var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.derivativeCacheDir = "/fixture/derivative-cache"
+        configuration.stageConcurrency = 2
+        return configuration
+    }
+
     private func taggingRun() -> ModelRunRecord {
         ModelRunRecord(
             inputRole: .wholeImage,
@@ -147,6 +158,9 @@ final class NormalizeQualityDefaultOffIdentityTests: XCTestCase {
         var text = String(decoding: try Data(contentsOf: URL(fileURLWithPath: path)), as: UTF8.self)
         // The baseline was generated at QN2 commit 5ea2b9a. Normalize only the
         // temporary root and planner's random four-hex token before byte hashing.
+        // raw_sidecar re-pinned 2026-07-19 after fixing the fixture's
+        // machine-specific run configuration (cache dir, concurrency); the
+        // pipeline-produced artifact hashes were unchanged by that fix.
         text = text.replacingOccurrences(of: root.standardizedFileURL.path, with: "$ROOT")
         text = text.replacingOccurrences(of: runToken, with: "$RUN_TOKEN")
         return Data(text.utf8)
