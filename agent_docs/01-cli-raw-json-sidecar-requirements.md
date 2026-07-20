@@ -12,7 +12,7 @@ Primary output artifact: raw AI JSON sidecar file, not XMP
 
 Current artifact versions: new raw sidecar writes use `ai-sidecar-json/1.3`; the active prompt and response-schema resources are v1.4.
 Implementation status lives in README.md and AGENTS.md; this document carries requirements only.
-The Phase 1 Milestone 9 calibration/quality review evidence (or an explicit release-note deferral) is the only open Phase 1 acceptance item; its definition remains in the §12 acceptance criteria, and the benchmark plan lives in `agent_docs/cli-implementation-notes.md`.
+Phase 1 Milestone 9 calibration and quality review was accepted as complete by maintainer signoff on 2026-07-20. The signoff is recorded in `agent_docs/release-evidence/phase-1-milestone-9-calibration-signoff.md`; the durable benchmark scope remains in `agent_docs/cli-implementation-notes.md`.
 
 ## 1. Project-Wide Conventions
 

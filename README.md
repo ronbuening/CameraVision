@@ -16,8 +16,8 @@ auditable results:
 | **CupricAspect** | A native macOS SwiftUI app with a guided, five-step workflow | Reviewing and correcting tags visually before you write anything |
 | **aisidecar** | A single command-line tool with subcommands | Scripting, batch runs, and automation |
 
-> **Status:** CameraVision is in beta (`0.2.0-beta.1`). The `aisidecar` CLI is
-> feature-complete for its analyze → export → normalize workflows, and `0.2.0`
+> **Status:** `0.2.0` is the current full release. The `aisidecar` CLI is
+> feature-complete for its analyze → export → normalize workflows, and this release
 > adds an **experimental** AI quality assessment and grading pipeline (see
 > [Experimental: AI quality assessment & grading](#experimental-ai-quality-assessment--grading)).
 > Everything in this README reflects the tools as they ship today.
@@ -101,13 +101,13 @@ ollama pull gemma4:26b-a4b-it-qat
 
 Two ways to get CupricAspect: download a prebuilt app, or build from source.
 
-**Download (recommended for the beta).** Grab the latest build from the
+**Download (recommended).** Grab the latest build from the
 [Releases page](https://github.com/ronbuening/CameraVision/releases):
 
 - **`CupricAspect-<version>.dmg`** — open it and drag `CupricAspect.app` to Applications.
 - `SHA256SUMS` — checksums for verifying your download.
 
-Beta builds are **not notarized by Apple**, so on first launch macOS warns that it
+The `0.2.0` build is ad-hoc signed and **not notarized by Apple**, so on first launch macOS warns that it
 "could not verify" the app. This is expected. Clear it once, either way:
 
 - open **System Settings → Privacy & Security**, scroll to the note that CupricAspect
@@ -241,7 +241,7 @@ before/after value.
   `controlled_vocabulary`, make sure `vocabulary_path` is valid — GUI normalize
   runs now honor it too.
 - **Studio shell** (nonlinear, sidebar navigation) is planned for a later release;
-  its toggle is visible but disabled ("coming soon") during the beta.
+  its toggle is visible but disabled ("coming soon") in `0.2.0`.
 
 ---
 
@@ -350,7 +350,7 @@ swift run aisidecar analyze /path/to/photos --mode both \
 
 ### Experimental: AI quality assessment & grading
 
-> **Experimental.** This feature is new in `0.2.0-beta.1`. The metadata it writes
+> **Experimental.** This feature was introduced during the `0.2.0` beta cycle. The metadata it writes
 > follows what Lightroom Classic and Capture One themselves write, but round-trip
 > verification inside those apps is still in progress, and defaults may change
 > based on that evidence. Try it on a staging copy with `--output-dir` first.

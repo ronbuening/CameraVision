@@ -1,12 +1,12 @@
 # CLI Implementation Notes (Phases 1–3 + Image Quality)
 
-Durable implementation details extracted from the archived Phase 1–3 implementation plans (agent_docs/archive/). Requirements live in docs 01/02/03; invariants in invariants.md; module map in architecture-map.md. This file holds what the archived plans uniquely documented: the one open work item (Milestone 9), shipped defaults, conventions, boundary rules, and the live Phase 3 traceability matrix.
+Durable implementation details extracted from the archived Phase 1–3 implementation plans (agent_docs/archive/). Requirements live in docs 01/02/03; invariants in invariants.md; module map in architecture-map.md. This file holds the Milestone 9 calibration record, shipped defaults, conventions, boundary rules, and the live Phase 3 traceability matrix.
 
-## Open item: Milestone 9 calibration and quality review
+## Milestone 9 calibration and quality review — complete
 
-**This is the only open Phase 1–3 work item.** It gates overall release signoff (README:24): either the Milestone 9 evidence is archived, or an explicit release note documents each deferred check with reason and residual risk. Everything else in Phases 1–3 (Phase 1 M0–9a, Phase 2 M0–10, Phase 3 M0–11) is complete — do not reopen it (invariant 17).
+**Completed by maintainer signoff on 2026-07-20.** The accumulated benchmark reports, acceptance coverage, reference-sample runs, and shipped-default experience were accepted as sufficient for the `0.2.0` release. The signoff record is `agent_docs/release-evidence/phase-1-milestone-9-calibration-signoff.md`. Phase 1 M0–9a, Phase 2 M0–10, and Phase 3 M0–11 are complete — do not reopen them without new acceptance criteria (invariant 17).
 
-The remaining evidence: full benchmark matrix, final profile/`keep_alive`/`stage_concurrency` defaults, foreground-mask failure classification, tag-quality review, multi-subject instance-selection spot checks, rights-cleared format coverage or documented deferral, and final AC1-001 through AC1-015 acceptance evidence.
+The calibration scope covered the benchmark matrix, final profile/`keep_alive`/`stage_concurrency` defaults, foreground-mask behavior, tag-quality review, multi-subject instance selection, supported-format coverage, and final AC1-001 through AC1-015 acceptance. The axes below remain as the durable description of that scope and the benchmark harness.
 
 Benchmark axes (Phase 1 plan §13):
 
@@ -33,7 +33,7 @@ The harness is `aisidecar benchmark` (Milestone 9a, implemented): it builds `.bu
 
 ## Shipped defaults
 
-Default model input profile (to be justified empirically in Milestone 9, not assumed — vision-language models tile and downsample internally, so effective input resolution may sit below these ceilings):
+Default model input profile accepted at the Milestone 9 signoff (vision-language models may still tile and downsample internally, so effective input resolution can sit below these ceilings):
 
 ```json
 {
