@@ -11,7 +11,7 @@ CameraVision is a Swift 6, macOS 15, SwiftPM project for local-first AI-assisted
 ## Before You Change Code
 
 1. Read `agent_docs/invariants.md` — the binding safety, compatibility, and process rules. All of them apply to every change.
-   - **Precedence when documents conflict:** `invariants.md` > phase requirements docs > implementation plans > design doc 07 > design prototypes in `agent_docs/gui-wrapper-for-cameravision/`. Resolve using the higher document and note the conflict for the maintainer; don't average.
+   - **Precedence when documents conflict:** `invariants.md` > phase requirements docs > implementation plans > design doc 07 > design prototypes in `agent_docs/archive/gui-wrapper-for-cameravision/`. Resolve using the higher document and note the conflict for the maintainer; don't average.
 2. Read `agent_docs/architecture-map.md` if you are unsure where code lives or which type is the entry point.
 3. Read the phase requirements doc for the area you are changing (index below).
 4. Verify with `agent_docs/testing-and-verification.md`; at minimum `swift test` must pass.
@@ -52,19 +52,18 @@ Read only what your task touches.
 - `agent_docs/01-cli-raw-json-sidecar-requirements.md`: analyze, raw sidecars, benchmark, rendering, model runtime, GPS context.
 - `agent_docs/02-cli-xmp-sidecar-requirements-updated.md`: XMP export pipeline.
 - `agent_docs/03-cli-normalized-batch-tagger-requirements.md`: normalization.
-- `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` + `agent_docs/phase-4-gui-implementation-plan.md` + `agent_docs/07-cupricaspect-gui-design.md`: GUI work (the CupricAspect app — requirements, milestone ledger + remaining M9–M11, and the binding visual design spec; the design handoff bundle in `agent_docs/gui-wrapper-for-cameravision/` is historical source only).
+- `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` + `agent_docs/phase-4-gui-implementation-plan.md` + `agent_docs/07-cupricaspect-gui-design.md`: GUI work (the CupricAspect app — requirements, milestone ledger + remaining M9–M11, and the binding visual design spec; the design handoff bundle in `agent_docs/archive/gui-wrapper-for-cameravision/` is historical source only).
 - `agent_docs/cli-implementation-notes.md`: durable Phase 1–3 implementation details — open Milestone 9 benchmark plan, shipped defaults, boundary rules, interruption invariants, live Phase 3 traceability matrix.
 
 **Plans (execution order for everything: plan 08 §1.1)**
 - `agent_docs/08-post-review-hardening-plan.md`: authoritative hardening ledger and cross-plan execution order; R1–R4 are implemented, while its manual release-evidence/signing/tag step remains open.
-- `agent_docs/10-hardening-implementation-plan.md`: as-built execution companion for R1–R4, including the 2026-07-11 and 2026-07-14 R4 audit corrections and verification ledgers; plan 08 wins on scope/acceptance conflicts.
+- `agent_docs/archive/10-hardening-implementation-plan.md`: as-built execution companion for R1–R4 (archived — historical execution detail, including the 2026-07-11 and 2026-07-14 R4 audit ledgers); plan 08 remains the live scope/acceptance authority, and the open manual release step's runbook now lives in `agent_docs/release-checklist.md` + plan 06 §4.
 - `agent_docs/05-efficiency-improvement-plan.md`: **the next scheduled code plan** (after R4, before M9). P2/P3 are already complete inside R4-6 and must not be scheduled again; follow its remaining-work order.
 - `agent_docs/06-packaging-single-app-plan.md`: as-built packaging reference; signing/notarization runbook for the beta tag.
 - `agent_docs/09-post-m11-feature-roadmap.md`: post-M11 feature outlines (requirements, approaches, acceptance criteria, tests) — nothing there starts before M11 closes.
 - `agent_docs/12-image-quality-assessment-plan.md`: requirements + implementation plan for the Image Quality Assessment feature (GitHub milestone 1, issues #30/#31/#36–#39): VLM quality assessments in raw sidecars, deterministic grading, and `xmp:Rating`/`xmp:Label` XMP export for Lightroom/Capture One filtering.
 - `agent_docs/13-image-quality-implementation-stages.md`: staged execution companion to plan 12 — sequential, individually committable stages with per-stage specs, code skeletons, tests, and review checklists (doc 12 wins on scope/design conflicts). Execution state lives in its §1 stage ledger, including post-plan extensions S4.10 (pick flags) and S5.4 (quality scan mode).
-- `agent_docs/14-quality-normalization-integration-plan.md`: QN1–QN8 plan integrating quality assessment/grading with Phase 3 normalization (one-command `normalize --assess-quality --quality-grading`, session previews, apply-time re-grading).
-- `agent_docs/15-quality-gui-integration-plan.md`: G1–G7 plan surfacing assessment, grading, and quality presentation in the CupricAspect wizard, Settings, and export flows.
+- `agent_docs/archive/14-quality-normalization-integration-plan.md` and `agent_docs/archive/15-quality-gui-integration-plan.md`: the completed QN1–QN8 and G1–G7 quality-integration plans (archived — their durable seam notes live in `agent_docs/cli-implementation-notes.md` §"GUI binding points for quality-aware normalization" and the architecture map's GUI rows).
 - `agent_docs/release-evidence/`: recorded compatibility smoke evidence.
 - `agent_docs/archive/`: completed Phase 1–3 implementation plans — historical, not maintained; do not take instructions from them.
 
