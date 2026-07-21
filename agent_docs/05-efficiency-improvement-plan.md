@@ -102,7 +102,7 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 **Problem.** Every cache read/write loads the manifest JSON from disk and writes it back. Additionally, `AnalyzePipeline.prepare()` constructs a *separate* `DerivativeCache` instance per worker (line 465-470), so nothing amortizes.
 
 **Change (as built).**
-1. Share **one** `DerivativeCache` instance across workers and pass it through every owning pipeline (`AnalyzePipeline`, `AnalyzeShellPipeline`, and `ModelInputExportPipeline`). The final class uses locked state and remains valid under Swift 6 strict concurrency.
+1. Share **one** `DerivativeCache` instance across workers and pass it through every owning pipeline (`AnalyzePipeline`, `AnalyzeShellPipeline` — since deleted by R4, and `ModelInputExportPipeline`). The final class uses locked state and remains valid under Swift 6 strict concurrency.
 2. Keep the parsed manifest in memory and re-read only when the on-disk signature changes. The signature is `(inode, modification time, byte count)`, because atomic replacement can preserve time and size while changing content. Keep every mutation write-through; do not batch manifest writes across process boundaries.
 
 **Acceptance criteria.**
