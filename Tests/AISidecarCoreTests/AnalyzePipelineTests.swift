@@ -206,6 +206,10 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(sidecar.subjectIsolation?.status, .success)
         XCTAssertEqual(sidecar.subjectIsolation?.selectedInstanceIndices, [1])
         XCTAssertTrue(sidecar.errors.isEmpty)
+        let cacheNames = try FileManager.default.contentsOfDirectory(
+            atPath: output.appendingPathComponent("cache").path)
+        XCTAssertFalse(cacheNames.contains { $0.contains("whole_image") })
+        XCTAssertFalse(cacheNames.contains { $0.contains("full_resolution") })
         let derivative = try XCTUnwrap(sidecar.derivatives.first)
         XCTAssertEqual(
             derivative.debugPath,

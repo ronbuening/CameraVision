@@ -118,6 +118,20 @@ final class XMPExportReportTests: XCTestCase {
         }
     }
 
+    func testReportWriterPassesSidecarErrorsThroughUnwrapped() {
+        let underlying = SidecarError(
+            code: .writeFailed,
+            stage: .write,
+            message: "atomic writer failure detail",
+            recoverable: false
+        )
+        let writer = XMPExportReportWriter(dataWriter: { _, _, _ in throw underlying })
+
+        XCTAssertThrowsError(try writer.write(emptyReport(), to: "/reports/xmp-export-report.json")) { error in
+            XCTAssertEqual(error as? SidecarError, underlying)
+        }
+    }
+
     private func emptyReport() -> XMPExportReport {
         XMPExportReport(
             createdAt: Date(timeIntervalSince1970: 1_800_000_000),
