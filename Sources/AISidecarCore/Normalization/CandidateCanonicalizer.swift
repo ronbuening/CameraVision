@@ -907,27 +907,26 @@ public struct CandidateCanonicalizer {
     private func preferredSpeciesFallbackDisplayTerm(observations: [CandidateObservation]) -> String {
         let terms = observations.map(\.normalizedTerm).filter { !$0.isEmpty }
         let counts = counts(terms)
-        return terms.sorted { lhs, rhs in
-            let lhsCount = counts[lhs, default: 0]
-            let rhsCount = counts[rhs, default: 0]
+        let keyedTerms = terms.map { (term: $0, lowercased: $0.lowercased()) }
+        return keyedTerms.sorted { lhs, rhs in
+            let lhsCount = counts[lhs.term, default: 0]
+            let rhsCount = counts[rhs.term, default: 0]
             if lhsCount != rhsCount {
                 return lhsCount > rhsCount
             }
-            let lhsTitleScore = titleCaseWordCount(lhs)
-            let rhsTitleScore = titleCaseWordCount(rhs)
+            let lhsTitleScore = titleCaseWordCount(lhs.term)
+            let rhsTitleScore = titleCaseWordCount(rhs.term)
             if lhsTitleScore != rhsTitleScore {
                 return lhsTitleScore > rhsTitleScore
             }
-            if lhs.count != rhs.count {
-                return lhs.count < rhs.count
+            if lhs.term.count != rhs.term.count {
+                return lhs.term.count < rhs.term.count
             }
-            let lhsLowercased = lhs.lowercased()
-            let rhsLowercased = rhs.lowercased()
-            if lhsLowercased != rhsLowercased {
-                return lhsLowercased < rhsLowercased
+            if lhs.lowercased != rhs.lowercased {
+                return lhs.lowercased < rhs.lowercased
             }
-            return lhs < rhs
-        }.first ?? ""
+            return lhs.term < rhs.term
+        }.first?.term ?? ""
     }
 
     private func titleCaseWordCount(_ value: String) -> Int {

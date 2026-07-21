@@ -244,6 +244,44 @@ final class CandidateCanonicalizerTests: XCTestCase {
         XCTAssertEqual(summary.sourceFields, ["species": 2])
     }
 
+    func testSpeciesFallbackDisplayTermPreservesCaseInsensitiveThenLiteralTieBreak() throws {
+        let vocabulary = try loadedVocabulary()
+        let uppercase = try extractionResult(
+            fileName: "Upper.JPG",
+            responses: [
+                (
+                    .wholeImage,
+                    response([
+                        .species: .array([
+                            candidate("GREAT BLUE HERON", confidence: "high")
+                        ])
+                    ])
+                )
+            ]
+        )
+        let lowercase = try extractionResult(
+            fileName: "Lower.JPG",
+            responses: [
+                (
+                    .wholeImage,
+                    response([
+                        .species: .array([
+                            candidate("great blue heron", confidence: "high")
+                        ])
+                    ])
+                )
+            ]
+        )
+
+        let result = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+            extractionResults: [uppercase, lowercase],
+            input: inputBatch(fileNames: ["Upper.JPG", "Lower.JPG"]),
+            configuration: normalizationConfiguration()
+        )
+
+        XCTAssertEqual(result.perAssetDecisions.compactMap(\.flatKeyword), ["GREAT BLUE HERON", "GREAT BLUE HERON"])
+    }
+
     func testUnmatchedSpeciesFallbackHonorsSpecificTagPolicy() throws {
         let vocabulary = try loadedVocabulary()
         let extraction = try extractionResult(
