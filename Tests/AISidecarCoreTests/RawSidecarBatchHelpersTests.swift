@@ -60,6 +60,62 @@ final class RawSidecarBatchHelpersTests: XCTestCase {
         )
     }
 
+    func testRawInputBatchFallsBackToDiskForWrittenEntriesMissingFromHandoff() throws {
+        let handedOffPath = "/output/Fresh.jpg.ai.json"
+        let missingPath = "/output/Missing.jpg.ai.json"
+        let handedOffDocument = try sidecarDocument(sourceName: "Fresh.jpg")
+        let missingDocument = try sidecarDocument(sourceName: "Missing.jpg")
+        let result = AnalyzeResult(
+            scanResult: ScanResult(
+                inputPath: "/input",
+                scanRoot: "/input",
+                recursive: false,
+                identityPolicy: .sha256,
+                images: [handedOffDocument.sidecar.source, missingDocument.sidecar.source],
+                errors: []
+            ),
+            records: [
+                ProgressRecord(
+                    sourcePath: handedOffDocument.sidecar.source.path,
+                    relativePath: handedOffDocument.sidecar.source.relativePath,
+                    sidecarPath: handedOffPath,
+                    status: .written,
+                    durationMs: 1
+                ),
+                ProgressRecord(
+                    sourcePath: missingDocument.sidecar.source.path,
+                    relativePath: missingDocument.sidecar.source.relativePath,
+                    sidecarPath: missingPath,
+                    status: .written,
+                    durationMs: 1
+                ),
+            ],
+            progressLogPath: nil,
+            summaryPath: nil,
+            summary: nil,
+            interrupted: false,
+            writtenSidecarsByPath: [handedOffPath: handedOffDocument]
+        )
+        var readPaths: [String] = []
+
+        let batch = RawSidecarBatchHelpers.rawInputBatch(
+            from: result,
+            failureContext: "XMP export",
+            fileManager: .default,
+            readDocument: { url in
+                readPaths.append(url.path)
+                return missingDocument
+            }
+        )
+
+        XCTAssertEqual(readPaths, [missingPath])
+        XCTAssertEqual(batch.failures, [])
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: batch.inputs.map { ($0.document.sidecar.source.fileName, $0.document) }),
+            ["Fresh.jpg": handedOffDocument, "Missing.jpg": missingDocument]
+        )
+    }
+
     func testRawInputBatchPreservesAdapterSpecificFailureMessages() {
         let result = AnalyzeResult(
             scanResult: ScanResult(

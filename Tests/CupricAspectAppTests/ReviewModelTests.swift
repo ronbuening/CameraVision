@@ -177,6 +177,54 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testFirstVerdictOnWithheldDecisionAppendsChipOrCreatesRowInDecisionOrder() throws {
+        var rowBuildCounts: [String: Int] = [:]
+        let model = makeModel(onAssetRowBuilt: { assetID in
+            rowBuildCounts[assetID, default: 0] += 1
+        })
+        var session = try makeBaseSession(terms: ["bird", "tree"])
+        let firstAsset = try XCTUnwrap(session.sourceAssets.first)
+        var withheldOnFirstAsset = try XCTUnwrap(session.perAssetDecisions.first)
+        withheldOnFirstAsset.decisionID = "decision-withheld-first"
+        withheldOnFirstAsset.flatKeyword = "water"
+        withheldOnFirstAsset.status = .withheld
+        session.perAssetDecisions.append(withheldOnFirstAsset)
+        var secondAsset = firstAsset
+        secondAsset.assetID = "asset-second"
+        secondAsset.sourcePath = root.appendingPathComponent("source/B.JPG").path
+        secondAsset.sourceRelativePath = "B.JPG"
+        secondAsset.fileName = "B.JPG"
+        session.sourceAssets.append(secondAsset)
+        var withheldOnSecondAsset = withheldOnFirstAsset
+        withheldOnSecondAsset.decisionID = "decision-withheld-second"
+        withheldOnSecondAsset.assetID = secondAsset.assetID
+        withheldOnSecondAsset.flatKeyword = "sky"
+        session.perAssetDecisions.append(withheldOnSecondAsset)
+
+        model.adopt(session: session)
+        XCTAssertEqual(model.assetRows.map(\.assetID), [firstAsset.assetID])
+        XCTAssertEqual(model.assetRows.first?.chips.count, 2)
+
+        model.setVerdict(.rejected, for: withheldOnFirstAsset.decisionID)
+        XCTAssertEqual(
+            model.assetRows.first?.chips.map(\.keyword),
+            ["bird", "tree", "water"],
+            "a newly visible chip joins its existing row in decision order"
+        )
+        XCTAssertEqual(rowBuildCounts[firstAsset.assetID], 1, "appending a chip does not rebuild the row")
+
+        model.setVerdict(.approved, for: withheldOnSecondAsset.decisionID)
+        XCTAssertEqual(
+            model.assetRows.map(\.assetID),
+            [firstAsset.assetID, secondAsset.assetID],
+            "a newly visible asset gains a sorted-in row"
+        )
+        XCTAssertEqual(rowBuildCounts[secondAsset.assetID], 1)
+        XCTAssertEqual(model.assetRows.last?.chips.map(\.keyword), ["sky"])
+        XCTAssertEqual(model.assetRows.last?.chips.first?.verdict, .approved)
+    }
+
+    @MainActor
     func testReviewBuilderUsesResolverAndMapsOnlyGUIQualityFields() throws {
         let configURL = root.appendingPathComponent("review-config.json")
         try Data(

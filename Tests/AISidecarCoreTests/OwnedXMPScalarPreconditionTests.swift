@@ -62,6 +62,40 @@ final class OwnedXMPScalarPreconditionTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: target), replacementData)
     }
 
+    func testApplyDetectsSameSizeInPlaceRewriteAfterCachedPreview() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Rewritten-In-Place.xmp")
+        try Data(existingRatingThreeXMP.utf8).write(to: target)
+        // Same byte count as the original, rewritten through the existing file:
+        // inode and size stay identical, so only the mtime component of the
+        // pre-write cache's file-identity key can catch this mutation.
+        let rewrittenData = Data(existingRatingFiveXMP.utf8)
+        XCTAssertEqual(rewrittenData.count, Data(existingRatingThreeXMP.utf8).count)
+        let engine = OwnedXMPSidecarEngine()
+        _ = try engine.prepare(configuration: .builtInDefaults)
+        defer { try? engine.shutdown() }
+        let request = XMPWriteRequest(
+            plan: changePlan(
+                targetPath: target.path,
+                scalar: .rating,
+                plannedValue: "4",
+                existingValue: "3",
+                action: .overwrite
+            )
+        )
+
+        XCTAssertEqual(try engine.preview(request).resultingRating, "4")
+        let handle = try FileHandle(forWritingTo: target)
+        try handle.write(contentsOf: rewrittenData)
+        try handle.close()
+
+        XCTAssertThrowsError(try engine.apply(request)) { error in
+            XCTAssertTrue(error is XMPScalarWritePreconditionFailure)
+        }
+        XCTAssertEqual(try Data(contentsOf: target), rewrittenData)
+    }
+
     func testPreWriteCacheDoesNotCrossEngineInvocations() throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }

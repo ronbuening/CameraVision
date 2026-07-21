@@ -50,6 +50,8 @@ public struct ImageScanner {
     }
 
     /// Scan with source-identity work bounded by a resolved stage worker count.
+    /// The bound is the run's `stage_concurrency` (not `activeProcessorCount`)
+    /// so one user-facing setting governs every concurrent stage of a run.
     public func scan(
         inputPath: String,
         recursive: Bool,
