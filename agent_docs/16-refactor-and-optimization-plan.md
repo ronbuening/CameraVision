@@ -489,3 +489,10 @@ The maintainer deferred live Ollama/corpus measurements from this implementation
 3. **A7/P4 — progress sync cadence:** observe the analyze run with `fs_usage`; record progress-log synchronization calls. A 100-record log should synchronize about four times during appends, plus close/interruption synchronization only when records remain pending, instead of about 100 append synchronizations.
 
 Keep the raw command output, wall-clock numbers, corpus identity, cache state, and `fs_usage` excerpt together as the manual evidence record. The deterministic release benchmark self-test remains the automated gate for this tranche.
+
+### Tranche A signoff
+
+- Scope: A1–A9 complete; A10/P6 deferred by maintainer direction until the post-B2 profiling gate.
+- Final automated verification: `swift test` passed 806 tests with 2 opt-in skips; the release benchmark self-test and `aisidecar --help` passed.
+- Formatting: all 38 changed Swift files pass `swift format lint`. The repository-wide advisory lint still reports only the pre-existing `Step3OptionsView.swift` indentation and `ModelRuntimeTests.swift` line-break findings, neither touched by this tranche.
+- Git: 20 scoped commits on `ronbuening/RefactorTrancheA`; range diff is 1,394 insertions / 1,493 deletions, with no whitespace errors.
