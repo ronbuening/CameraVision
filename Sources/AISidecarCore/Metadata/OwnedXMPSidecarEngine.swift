@@ -12,13 +12,25 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
     public static let writerRecipeVersion = "owned-xmp-sidecar-writer/1.0"
 
     private let fileManagerBox: SendableFileManager
+    private let preWriteCache: XMPPreWriteCache
+    private let parseObserver: (@Sendable (XMPDocumentParsePurpose) -> Void)?
 
     public init(fileManager: FileManager = .default) {
+        self.init(fileManager: fileManager, parseObserver: nil)
+    }
+
+    init(
+        fileManager: FileManager = .default,
+        parseObserver: (@Sendable (XMPDocumentParsePurpose) -> Void)?
+    ) {
         self.fileManagerBox = SendableFileManager(fileManager)
+        self.preWriteCache = XMPPreWriteCache(fileManager: fileManager, parseObserver: parseObserver)
+        self.parseObserver = parseObserver
     }
 
     public func prepare(configuration _: ResolvedXMPExportConfiguration) throws -> MetadataWriteEngineContext {
-        MetadataWriteEngineContext(
+        preWriteCache.beginInvocation()
+        return MetadataWriteEngineContext(
             engineName: Self.engineName,
             engineVersion: Self.engineVersion,
             writerRecipeVersion: Self.writerRecipeVersion
@@ -28,22 +40,18 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
     public func readSnapshot(at targetXMPPath: String) throws -> XMPMetadataSnapshot {
         let targetPath = URL(fileURLWithPath: targetXMPPath).standardizedFileURL.path
         guard fileManagerBox.value.fileExists(atPath: targetPath) else {
+            preWriteCache.invalidate(targetPath: targetPath)
             return .empty(targetPath: targetPath, exists: false)
         }
-        let parsed = try XMPDocumentParser(fileManager: fileManagerBox.value).parseFile(at: targetPath)
-        return try XMPMetadataSnapshot.make(targetPath: targetPath, exists: true, parsed: parsed)
+        return try preWriteCache.state(at: targetPath, sourceFileNames: []).snapshot
     }
 
     public func preview(_ request: XMPWriteRequest) throws -> XMPWritePreview {
         try validateExecutablePlan(request.plan)
-        let snapshot = try readSnapshot(at: request.plan.targetXMPPath)
+        let state = try preWriteState(for: request.plan)
+        let snapshot = state.snapshot
         try validateScalarPreconditions(in: request, against: snapshot)
-        let parsed = try parsedDocumentForWrite(
-            targetPath: request.plan.targetXMPPath,
-            existed: snapshot.exists,
-            includeHierarchicalBag: !request.plan.hierarchicalKeywordsToAdd.isEmpty,
-            sourceFileNames: request.plan.sourceMembers.map(\.sourceFileName)
-        )
+        let parsed = state.parsed
         let outcome = try XMPKeywordMerger().merge(plan: request.plan, into: parsed)
         let resultingSnapshot = try applyPlannedScalars(
             from: request,
@@ -77,16 +85,12 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
         try validateExecutablePlan(request.plan)
         let targetURL = URL(fileURLWithPath: request.plan.targetXMPPath).standardizedFileURL
         let targetPath = targetURL.path
-        let existed = fileManagerBox.value.fileExists(atPath: targetPath)
-        let preSnapshot = try readSnapshot(at: targetPath)
+        let state = try preWriteState(for: request.plan)
+        let preSnapshot = state.snapshot
+        let existed = preSnapshot.exists
         try validateScalarPreconditions(in: request, against: preSnapshot)
 
-        let parsed = try parsedDocumentForWrite(
-            targetPath: targetPath,
-            existed: existed,
-            includeHierarchicalBag: !request.plan.hierarchicalKeywordsToAdd.isEmpty,
-            sourceFileNames: request.plan.sourceMembers.map(\.sourceFileName)
-        )
+        let parsed = state.parsed
         let outcome = try XMPKeywordMerger().merge(plan: request.plan, into: parsed)
         let resultingSnapshot = try applyPlannedScalars(
             from: request,
@@ -129,7 +133,8 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
             _ = try validateReadable(at: temporaryURL.path)
         }
 
-        let postSnapshot = try readSnapshot(at: targetPath)
+        preWriteCache.invalidate(targetPath: targetPath)
+        let postSnapshot = try freshSnapshot(at: targetPath)
         return XMPWriteResult(
             targetXMPPath: targetPath,
             created: !existed,
@@ -154,28 +159,41 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
 
     public func validateReadable(at targetXMPPath: String) throws -> XMPMetadataSnapshot {
         let targetPath = URL(fileURLWithPath: targetXMPPath).standardizedFileURL.path
-        let parsed = try XMPDocumentParser(fileManager: fileManagerBox.value).parseFile(at: targetPath)
-        return try XMPMetadataSnapshot.make(targetPath: targetPath, exists: true, parsed: parsed)
+        return try freshSnapshot(at: targetPath)
     }
 
-    public func shutdown() throws {}
+    public func shutdown() throws {
+        preWriteCache.endInvocation()
+    }
 
-    private func parsedDocumentForWrite(
-        targetPath: String,
-        existed: Bool,
-        includeHierarchicalBag: Bool,
-        sourceFileNames: [String]
-    ) throws -> XMPParsedDocument {
-        if existed {
-            return try XMPDocumentParser(fileManager: fileManagerBox.value).parseFile(
+    func beginPreWriteInvocation() {
+        preWriteCache.beginInvocation()
+    }
+
+    private func preWriteState(
+        for plan: XMPChangePlan
+    ) throws -> (snapshot: XMPMetadataSnapshot, parsed: XMPParsedDocument) {
+        let targetPath = URL(fileURLWithPath: plan.targetXMPPath).standardizedFileURL.path
+        if fileManagerBox.value.fileExists(atPath: targetPath) {
+            return try preWriteCache.state(
                 at: targetPath,
-                sourceFileNames: sourceFileNames
+                sourceFileNames: plan.sourceMembers.map(\.sourceFileName)
             )
         }
-        return XMPDocumentWriter().makeNewDocument(
-            targetPath: targetPath,
-            includeHierarchicalBag: includeHierarchicalBag
+        preWriteCache.invalidate(targetPath: targetPath)
+        return (
+            .empty(targetPath: targetPath, exists: false),
+            XMPDocumentWriter().makeNewDocument(
+                targetPath: targetPath,
+                includeHierarchicalBag: !plan.hierarchicalKeywordsToAdd.isEmpty
+            )
         )
+    }
+
+    private func freshSnapshot(at targetPath: String) throws -> XMPMetadataSnapshot {
+        let parsed = try XMPDocumentParser(fileManager: fileManagerBox.value).parseFile(at: targetPath)
+        parseObserver?(.validation)
+        return try XMPMetadataSnapshot.make(targetPath: targetPath, exists: true, parsed: parsed)
     }
 
     private func validateExecutablePlan(_ plan: XMPChangePlan) throws {
@@ -343,6 +361,144 @@ public struct OwnedXMPSidecarEngine: MetadataWriteEngine {
     private func managedScalarsDiffer(_ lhs: XMPMetadataSnapshot, _ rhs: XMPMetadataSnapshot) -> Bool {
         lhs.rating != rhs.rating || lhs.label != rhs.label || lhs.urgency != rhs.urgency
             || lhs.pick != rhs.pick || lhs.good != rhs.good
+    }
+}
+
+enum XMPDocumentParsePurpose: Hashable, Sendable {
+    case preWrite
+    case validation
+}
+
+/// Retains immutable parse bases only while an engine invocation is active.
+/// Each merge receives a deep copy, while file identity changes force a fresh
+/// parse before any mutation can use the cached snapshot.
+private final class XMPPreWriteCache: @unchecked Sendable {
+    private struct FileIdentity: Equatable {
+        let inode: UInt64
+        let modificationDate: Date
+        let size: UInt64
+    }
+
+    private struct Entry {
+        let identity: FileIdentity
+        let parsed: XMPParsedDocument
+        let snapshot: XMPMetadataSnapshot
+    }
+
+    private let fileManagerBox: SendableFileManager
+    private let parseObserver: (@Sendable (XMPDocumentParsePurpose) -> Void)?
+    private let lock = NSLock()
+    private var invocationDepth = 0
+    private var entriesByPath: [String: Entry] = [:]
+
+    init(
+        fileManager: FileManager,
+        parseObserver: (@Sendable (XMPDocumentParsePurpose) -> Void)?
+    ) {
+        self.fileManagerBox = SendableFileManager(fileManager)
+        self.parseObserver = parseObserver
+    }
+
+    func beginInvocation() {
+        lock.withLock {
+            if invocationDepth == 0 {
+                entriesByPath.removeAll(keepingCapacity: false)
+            }
+            invocationDepth += 1
+        }
+    }
+
+    func endInvocation() {
+        lock.withLock {
+            guard invocationDepth > 0 else {
+                entriesByPath.removeAll(keepingCapacity: false)
+                return
+            }
+            invocationDepth -= 1
+            if invocationDepth == 0 {
+                entriesByPath.removeAll(keepingCapacity: false)
+            }
+        }
+    }
+
+    func state(
+        at targetPath: String,
+        sourceFileNames: [String]
+    ) throws -> (snapshot: XMPMetadataSnapshot, parsed: XMPParsedDocument) {
+        try lock.withLock {
+            let shouldCache = invocationDepth > 0
+            for _ in 0..<2 {
+                let identityBeforeParse = try fileIdentity(at: targetPath)
+                let entry: Entry
+                if shouldCache,
+                    let cached = entriesByPath[targetPath],
+                    cached.identity == identityBeforeParse
+                {
+                    entry = cached
+                } else {
+                    let parsed = try XMPDocumentParser(fileManager: fileManagerBox.value).parseFile(at: targetPath)
+                    parseObserver?(.preWrite)
+                    let identityAfterParse = try fileIdentity(at: targetPath)
+                    guard identityBeforeParse == identityAfterParse else {
+                        entriesByPath.removeValue(forKey: targetPath)
+                        continue
+                    }
+                    entry = Entry(
+                        identity: identityAfterParse,
+                        parsed: parsed,
+                        snapshot: try XMPMetadataSnapshot.make(
+                            targetPath: targetPath,
+                            exists: true,
+                            parsed: parsed
+                        )
+                    )
+                    if shouldCache {
+                        entriesByPath[targetPath] = entry
+                    }
+                }
+
+                return (
+                    entry.snapshot,
+                    try XMPDocumentParser(fileManager: fileManagerBox.value).copy(
+                        entry.parsed,
+                        sourceFileNames: sourceFileNames
+                    )
+                )
+            }
+
+            throw XMPXML.sidecarError(
+                code: .xmpParseFailed,
+                message: "XMP sidecar \(targetPath) changed while it was being read."
+            )
+        }
+    }
+
+    func invalidate(targetPath: String) {
+        _ = lock.withLock {
+            entriesByPath.removeValue(forKey: targetPath)
+        }
+    }
+
+    private func fileIdentity(at targetPath: String) throws -> FileIdentity {
+        let attributes: [FileAttributeKey: Any]
+        do {
+            attributes = try fileManagerBox.value.attributesOfItem(atPath: targetPath)
+        } catch {
+            throw XMPXML.sidecarError(
+                code: .xmpParseFailed,
+                message: "Unable to inspect XMP sidecar \(targetPath): \(error.localizedDescription)"
+            )
+        }
+        guard let inode = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value,
+            let modificationDate = attributes[.modificationDate] as? Date,
+            let size = (attributes[.size] as? NSNumber)?.uint64Value
+        else {
+            throw XMPXML.sidecarError(
+                code: .xmpParseFailed,
+                message: "Unable to identify XMP sidecar \(targetPath) for a stable read."
+            )
+        }
+        return FileIdentity(inode: inode, modificationDate: modificationDate, size: size)
     }
 }
 
