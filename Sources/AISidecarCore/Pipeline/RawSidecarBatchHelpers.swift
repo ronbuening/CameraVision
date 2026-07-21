@@ -74,14 +74,15 @@ enum RawSidecarBatchHelpers {
         configuration: ResolvedRunConfiguration,
         fileManager: FileManager,
         preScanRawSidecars: (@Sendable (String, ResolvedRunConfiguration) throws -> Set<String>)?
-    ) throws -> Set<String> {
+    ) async throws -> Set<String> {
         if let preScanRawSidecars {
             return try preScanRawSidecars(inputPath, configuration)
         }
-        let scan = try ImageScanner(fileManager: fileManager).scan(
+        let scan = try await ImageScanner(fileManager: fileManager).scan(
             inputPath: inputPath,
             recursive: configuration.recursive,
-            identityPolicy: configuration.sourceIdentityPolicy
+            identityPolicy: configuration.sourceIdentityPolicy,
+            stageConcurrency: configuration.stageConcurrency
         )
         var planned = SidecarNaming.plan(for: scan.images, outputDir: configuration.outputDir)
             .entries

@@ -132,10 +132,11 @@ public struct AnalyzePipeline {
         if configuration.clearDerivativeCacheOnStart {
             try lifecycleCache.clear()
         }
-        let scanResult = try scanner.scan(
+        let scanResult = try await scanner.scan(
             inputPath: inputPath,
             recursive: configuration.recursive,
-            identityPolicy: configuration.sourceIdentityPolicy
+            identityPolicy: configuration.sourceIdentityPolicy,
+            stageConcurrency: configuration.stageConcurrency
         )
         let isQualityOnly = configuration.taskProfile == .qualityOnly
         let sidecarKind: RawSidecarKind = isQualityOnly ? .quality : .tagging

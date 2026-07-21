@@ -12,9 +12,21 @@ import Foundation
 /// (CORE-5; identity is computed later, only when a pipeline needs it).
 public struct ImageScanner {
     private let fileManager: FileManager
+    private let identityComputer: IdentityComputer
 
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
+        self.identityComputer = IdentityComputer(fileManager: fileManager) { url, policy, fileManager in
+            try SourceIdentityCalculator.compute(for: url, policy: policy, fileManager: fileManager)
+        }
+    }
+
+    init(
+        fileManager: FileManager = .default,
+        identityCalculator: @escaping @Sendable (URL, SourceIdentityPolicy, FileManager) throws -> SourceIdentity
+    ) {
+        self.fileManager = fileManager
+        self.identityComputer = IdentityComputer(fileManager: fileManager, calculate: identityCalculator)
     }
 
     /// Scan one file or one folder using the resolved run configuration.
@@ -28,33 +40,50 @@ public struct ImageScanner {
         identityPolicy: SourceIdentityPolicy
     ) throws -> ScanResult {
         let discovered = try discover(inputPath: inputPath, recursive: recursive)
+        let outcomes = discovered.entries.map { identityOutcome(for: $0, policy: identityPolicy) }
+        return scanResult(
+            discovered: discovered,
+            recursive: recursive,
+            identityPolicy: identityPolicy,
+            outcomes: outcomes
+        )
+    }
 
+    /// Scan with source-identity work bounded by a resolved stage worker count.
+    public func scan(
+        inputPath: String,
+        recursive: Bool,
+        identityPolicy: SourceIdentityPolicy,
+        stageConcurrency: Int
+    ) async throws -> ScanResult {
+        let discovered = try discover(inputPath: inputPath, recursive: recursive)
+        let outcomes = await concurrentIdentityOutcomes(
+            for: discovered.entries,
+            policy: identityPolicy,
+            stageConcurrency: stageConcurrency
+        )
+        return scanResult(
+            discovered: discovered,
+            recursive: recursive,
+            identityPolicy: identityPolicy,
+            outcomes: outcomes
+        )
+    }
+
+    private func scanResult(
+        discovered: Discovery,
+        recursive: Bool,
+        identityPolicy: SourceIdentityPolicy,
+        outcomes: [IdentityOutcome]
+    ) -> ScanResult {
         var images: [SourceImage] = []
         var errors = discovered.errors
-        for entry in discovered.entries {
-            autoreleasepool {
-                do {
-                    let identity = try SourceIdentityCalculator.compute(
-                        for: URL(fileURLWithPath: entry.path),
-                        policy: identityPolicy,
-                        fileManager: fileManager
-                    )
-                    images.append(
-                        SourceImage(
-                            path: entry.path,
-                            relativePath: entry.relativePath,
-                            fileName: entry.fileName,
-                            fileExtension: entry.fileExtension,
-                            fileSize: entry.fileSize,
-                            modifiedAt: entry.modifiedAt,
-                            detectedType: entry.detectedType,
-                            identity: identity
-                        )
-                    )
-                } catch {
-                    errors.append(
-                        metadataOrIdentityError(path: entry.path, relativePath: entry.relativePath, error: error))
-                }
+        for outcome in outcomes {
+            switch outcome {
+            case .image(let image):
+                images.append(image)
+            case .error(let error):
+                errors.append(error)
             }
         }
 
@@ -67,6 +96,51 @@ public struct ImageScanner {
             images: sorted.images,
             errors: sorted.errors
         )
+    }
+
+    private func concurrentIdentityOutcomes(
+        for entries: [ScanInventoryEntry],
+        policy: SourceIdentityPolicy,
+        stageConcurrency: Int
+    ) async -> [IdentityOutcome] {
+        let workerCount = min(max(1, stageConcurrency), entries.count)
+        guard workerCount > 1 else {
+            return entries.map { identityOutcome(for: $0, policy: policy) }
+        }
+
+        return await withTaskGroup(of: (Int, IdentityOutcome).self) { group in
+            var outcomes = [IdentityOutcome?](repeating: nil, count: entries.count)
+            var nextIndex = 0
+            let identityComputer = identityComputer
+
+            func submit(_ index: Int) {
+                let entry = entries[index]
+                group.addTask {
+                    (index, identityComputer.outcome(for: entry, policy: policy))
+                }
+            }
+
+            while nextIndex < workerCount {
+                submit(nextIndex)
+                nextIndex += 1
+            }
+            while let (index, outcome) = await group.next() {
+                outcomes[index] = outcome
+                if nextIndex < entries.count {
+                    submit(nextIndex)
+                    nextIndex += 1
+                }
+            }
+
+            return outcomes.compactMap { $0 }
+        }
+    }
+
+    private func identityOutcome(
+        for entry: ScanInventoryEntry,
+        policy: SourceIdentityPolicy
+    ) -> IdentityOutcome {
+        identityComputer.outcome(for: entry, policy: policy)
     }
 
     /// Discovery-only variant of `scan`: same visibility, ignore, and
@@ -92,6 +166,57 @@ public struct ImageScanner {
         var scanRoot: String
         var entries: [ScanInventoryEntry]
         var errors: [ScanErrorRecord]
+    }
+
+    private enum IdentityOutcome: Sendable {
+        case image(SourceImage)
+        case error(ScanErrorRecord)
+    }
+
+    // Foundation does not annotate `FileManager` as Sendable. This executor
+    // shares only its read operations; each task owns its file handles.
+    private final class IdentityComputer: @unchecked Sendable {
+        private let fileManager: FileManager
+        private let calculate: @Sendable (URL, SourceIdentityPolicy, FileManager) throws -> SourceIdentity
+
+        init(
+            fileManager: FileManager,
+            calculate: @escaping @Sendable (URL, SourceIdentityPolicy, FileManager) throws -> SourceIdentity
+        ) {
+            self.fileManager = fileManager
+            self.calculate = calculate
+        }
+
+        func outcome(
+            for entry: ScanInventoryEntry,
+            policy: SourceIdentityPolicy
+        ) -> IdentityOutcome {
+            autoreleasepool {
+                do {
+                    let identity = try calculate(URL(fileURLWithPath: entry.path), policy, fileManager)
+                    return .image(
+                        SourceImage(
+                            path: entry.path,
+                            relativePath: entry.relativePath,
+                            fileName: entry.fileName,
+                            fileExtension: entry.fileExtension,
+                            fileSize: entry.fileSize,
+                            modifiedAt: entry.modifiedAt,
+                            detectedType: entry.detectedType,
+                            identity: identity
+                        )
+                    )
+                } catch {
+                    return .error(
+                        ImageScanner.metadataOrIdentityError(
+                            path: entry.path,
+                            relativePath: entry.relativePath,
+                            error: error
+                        )
+                    )
+                }
+            }
+        }
     }
 
     private func discover(inputPath: String, recursive: Bool) throws -> Discovery {
@@ -263,11 +388,15 @@ public struct ImageScanner {
             // A readable folder may still contain a file whose metadata cannot
             // be read; keep the batch recoverable. Message matches the scan
             // path's combined wording so `scan` output is unchanged.
-            errors.append(metadataOrIdentityError(path: candidate.path, relativePath: relativePath, error: error))
+            errors.append(Self.metadataOrIdentityError(path: candidate.path, relativePath: relativePath, error: error))
         }
     }
 
-    private func metadataOrIdentityError(path: String, relativePath: String, error: Error) -> ScanErrorRecord {
+    private static func metadataOrIdentityError(
+        path: String,
+        relativePath: String,
+        error: Error
+    ) -> ScanErrorRecord {
         ScanErrorRecord(
             path: path,
             relativePath: relativePath,

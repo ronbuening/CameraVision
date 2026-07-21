@@ -101,7 +101,7 @@ public struct AnalyzeAndNormalizePipeline {
         var preScanFailed = false
         if !normalizationConfiguration.writeAIJSON {
             do {
-                preexistingRawSidecars = try RawSidecarBatchHelpers.plannedRawSidecarPaths(
+                preexistingRawSidecars = try await RawSidecarBatchHelpers.plannedRawSidecarPaths(
                     inputPath: inputPath,
                     configuration: runConfiguration,
                     fileManager: fileManager,
