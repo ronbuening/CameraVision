@@ -97,4 +97,32 @@ final class ProgressLogTests: XCTestCase {
         XCTAssertEqual(summary.dryRun, 0)
         XCTAssertEqual(summary.errors.map(\.code), [.sidecarExists, .interrupted])
     }
+
+    func testBatchSummaryWriterPreservesExactWrappedFailureMessage() {
+        let path = "/reports/batch-summary.json"
+        let writer = BatchSummaryWriter(dataWriter: { _, _, _ in throw InjectedReportWriteError() })
+        let summary = BatchSummary(
+            inputPath: "/photos",
+            scanRoot: "/photos",
+            recursive: true,
+            outputDir: nil,
+            totalImages: 0,
+            written: 0,
+            skipped: 0,
+            failed: 0,
+            dryRun: 0,
+            errors: []
+        )
+
+        XCTAssertThrowsError(try writer.write(summary, to: path)) { error in
+            XCTAssertEqual(
+                (error as? SidecarError)?.message,
+                "Unable to encode batch summary /reports/batch-summary.json: injected report write failure"
+            )
+        }
+    }
+}
+
+private struct InjectedReportWriteError: LocalizedError {
+    var errorDescription: String? { "injected report write failure" }
 }

@@ -47,6 +47,30 @@ final class NormalizationReportTests: XCTestCase {
         XCTAssertFalse(text.contains("-74.006"))
     }
 
+    func testReportWriterPreservesExactWrappedFailureMessage() throws {
+        let path = "/reports/normalization-report.json"
+        let writer = NormalizationReportWriter(dataWriter: { _, _, _ in throw InjectedReportWriteError() })
+
+        XCTAssertThrowsError(try writer.write(reportFixture().report, to: path)) { error in
+            XCTAssertEqual(
+                (error as? SidecarError)?.message,
+                "Unable to write normalization report /reports/normalization-report.json: injected report write failure"
+            )
+        }
+    }
+
+    func testSummaryWriterPreservesExactWrappedFailureMessage() throws {
+        let path = "/reports/normalization-summary.md"
+        let writer = NormalizationSummaryWriter(dataWriter: { _, _, _ in throw InjectedReportWriteError() })
+
+        XCTAssertThrowsError(try writer.write(reportFixture().report, to: path)) { error in
+            XCTAssertEqual(
+                (error as? SidecarError)?.message,
+                "Unable to write normalization summary /reports/normalization-summary.md: injected report write failure"
+            )
+        }
+    }
+
     private func reportFixture() throws -> (report: NormalizationReport, rawSerial: String) {
         let rawSerial = "serial-do-not-persist"
         var assets = [
@@ -123,6 +147,10 @@ final class NormalizationReportTests: XCTestCase {
         )
         return (report, rawSerial)
     }
+}
+
+private struct InjectedReportWriteError: LocalizedError {
+    var errorDescription: String? { "injected report write failure" }
 }
 
 extension JSONDecoder {
