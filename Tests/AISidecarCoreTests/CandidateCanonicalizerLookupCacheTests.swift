@@ -43,4 +43,34 @@ final class CandidateCanonicalizerLookupCacheTests: XCTestCase {
         XCTAssertEqual(foldCalls, 1)
         XCTAssertEqual(lookupCalls, 2, "Both matching entries and misses are cached by input text.")
     }
+
+    func testConcurrentFoldAndLookupReturnConsistentValues() async {
+        let cache = CandidateCanonicalizerLookupCache(
+            foldText: { $0.lowercased() },
+            lookupEntry: { _ in nil }
+        )
+        let terms = (0..<20).map { "Term \($0 % 5)" }
+
+        let folds = await withTaskGroup(of: [String].self, returning: [String].self) { group in
+            for _ in 0..<8 {
+                group.addTask {
+                    terms.map { term in
+                        _ = cache.entry(matching: term)
+                        return cache.fold(term)
+                    }
+                }
+            }
+            var results: [String] = []
+            for await folded in group {
+                results.append(contentsOf: folded)
+            }
+            return results
+        }
+
+        XCTAssertEqual(folds.count, 8 * terms.count)
+        XCTAssertTrue(
+            folds.allSatisfy { $0.hasPrefix("term ") },
+            "Concurrent cache access must return the underlying fold results uncorrupted."
+        )
+    }
 }

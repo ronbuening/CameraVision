@@ -1041,7 +1041,12 @@ public struct CandidateCanonicalizer {
     }
 }
 
-final class CandidateCanonicalizerLookupCache {
+/// `CandidateCanonicalizer` is a struct sharing this class-backed cache across copies, so the
+/// dictionaries are lock-guarded: a copy handed to another thread must not be able to corrupt
+/// cache state. The wrapped fold and lookup are pure over value-type vocabulary state, so a
+/// duplicated computation under contention is safe.
+final class CandidateCanonicalizerLookupCache: @unchecked Sendable {
+    private let lock = NSLock()
     private var foldsByText: [String: String] = [:]
     private var entriesByText: [String: ResolvedVocabularyEntry?] = [:]
     private let foldText: (String) -> String
@@ -1061,6 +1066,8 @@ final class CandidateCanonicalizerLookupCache {
     }
 
     func fold(_ text: String) -> String {
+        lock.lock()
+        defer { lock.unlock() }
         if let cached = foldsByText[text] {
             return cached
         }
@@ -1070,6 +1077,8 @@ final class CandidateCanonicalizerLookupCache {
     }
 
     func entry(matching text: String) -> ResolvedVocabularyEntry? {
+        lock.lock()
+        defer { lock.unlock() }
         if let cached = entriesByText[text] {
             return cached
         }
