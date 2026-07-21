@@ -99,12 +99,17 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
-    private func makeModel(clock: @escaping () -> Date = Date.init, decisionLimit: Int = 25) -> ReviewModel {
+    private func makeModel(
+        clock: @escaping () -> Date = Date.init,
+        decisionLimit: Int = 25,
+        onAssetRowBuilt: @escaping (String) -> Void = { _ in }
+    ) -> ReviewModel {
         ReviewModel(
             stateDirectory: root.appendingPathComponent("state"),
             autosaveDecisionLimit: decisionLimit,
             autosaveInterval: 300,
-            now: clock
+            now: clock,
+            onAssetRowBuilt: onAssetRowBuilt
         )
     }
 
@@ -129,6 +134,46 @@ final class ReviewModelTests: XCTestCase {
 
         model.acceptAll(assetID: model.assetRows[0].assetID)
         XCTAssertEqual(model.approvedCount, 3)
+    }
+
+    @MainActor
+    func testVerdictChangeUpdatesOnlyTouchedCachedRowWithoutRebuildingRows() throws {
+        var rowBuildCounts: [String: Int] = [:]
+        let model = makeModel(onAssetRowBuilt: { assetID in
+            rowBuildCounts[assetID, default: 0] += 1
+        })
+        var session = try makeBaseSession(terms: ["bird"])
+        let firstAsset = try XCTUnwrap(session.sourceAssets.first)
+        var secondAsset = firstAsset
+        secondAsset.assetID = "asset-second"
+        secondAsset.sourcePath = root.appendingPathComponent("source/B.JPG").path
+        secondAsset.sourceRelativePath = "B.JPG"
+        secondAsset.fileName = "B.JPG"
+        session.sourceAssets.append(secondAsset)
+        var secondDecision = try XCTUnwrap(session.perAssetDecisions.first)
+        secondDecision.decisionID = "decision-second"
+        secondDecision.assetID = secondAsset.assetID
+        secondDecision.flatKeyword = "tree"
+        session.perAssetDecisions.append(secondDecision)
+
+        model.adopt(session: session)
+        let initialRows = model.assetRows
+        XCTAssertEqual(rowBuildCounts, [firstAsset.assetID: 1, secondAsset.assetID: 1])
+        _ = model.assetRows
+        _ = model.assetRows
+        XCTAssertEqual(rowBuildCounts, [firstAsset.assetID: 1, secondAsset.assetID: 1])
+
+        let firstRow = try XCTUnwrap(initialRows.first { $0.assetID == firstAsset.assetID })
+        let secondRow = try XCTUnwrap(initialRows.first { $0.assetID == secondAsset.assetID })
+        let decisionID = try XCTUnwrap(firstRow.chips.first?.decisionID)
+        model.toggle(decisionID)
+
+        XCTAssertEqual(rowBuildCounts, [firstAsset.assetID: 1, secondAsset.assetID: 1])
+        XCTAssertEqual(model.assetRows.first { $0.assetID == secondAsset.assetID }, secondRow)
+        XCTAssertEqual(
+            model.assetRows.first { $0.assetID == firstAsset.assetID }?.chips.first?.verdict,
+            .rejected
+        )
     }
 
     @MainActor
