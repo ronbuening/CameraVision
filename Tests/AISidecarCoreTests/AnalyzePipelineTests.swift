@@ -4,6 +4,49 @@ import XCTest
 @testable import AISidecarCore
 
 final class AnalyzePipelineTests: XCTestCase {
+    func testAnalyzeBatchConstructsPreparationServicesOnceForSerialAndConcurrentWorkers() async throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+        }
+        _ = try writeTestImage("A.JPG", in: root)
+        _ = try writeTestImage("B.JPG", in: root)
+
+        for stageConcurrency in [1, 2] {
+            let output = try temporaryDirectory()
+            addTeardownBlock {
+                try? FileManager.default.removeItem(at: output)
+            }
+            let constructions = PreparationServiceConstructionCounter()
+
+            let result = try await pipeline(
+                maskProvider: StaticForegroundMaskProvider([]),
+                runner: RecordingVisionModelRunner(),
+                imageRendererFactory: { cache in
+                    constructions.recordRenderer()
+                    return ImageRenderer(cache: cache)
+                },
+                subjectIsolationServiceFactory: { cache, maskProvider in
+                    constructions.recordSubjectIsolationService()
+                    return SubjectIsolationService(cache: cache, maskProvider: maskProvider)
+                }
+            ).run(
+                inputPath: root.path,
+                configuration: config(
+                    recursive: false,
+                    outputDir: output.path,
+                    mode: .both,
+                    cacheDir: output.appendingPathComponent("cache").path,
+                    stageConcurrency: stageConcurrency
+                )
+            )
+
+            XCTAssertEqual(result.records.map(\.status), [.written, .written])
+            XCTAssertEqual(constructions.rendererCount, 1, "stage_concurrency=\(stageConcurrency)")
+            XCTAssertEqual(constructions.subjectIsolationServiceCount, 1, "stage_concurrency=\(stageConcurrency)")
+        }
+    }
+
     func testSuccessfulAnalysisWritesSidecarExactlyOnce() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -1125,7 +1168,13 @@ final class AnalyzePipelineTests: XCTestCase {
     private func pipeline(
         maskProvider: (any ForegroundMaskProvider)? = nil,
         runner: any VisionModelRunner,
-        sidecarWriter: (any RawJSONSidecarWriting)? = nil
+        sidecarWriter: (any RawJSONSidecarWriting)? = nil,
+        imageRendererFactory: @escaping @Sendable (DerivativeCache) -> ImageRenderer = { ImageRenderer(cache: $0) },
+        subjectIsolationServiceFactory:
+            @escaping @Sendable (
+                DerivativeCache,
+                any ForegroundMaskProvider
+            ) -> SubjectIsolationService = { SubjectIsolationService(cache: $0, maskProvider: $1) }
     ) -> AnalyzePipeline {
         AnalyzePipeline(
             logger: Logger(sink: { _ in }),
@@ -1133,7 +1182,9 @@ final class AnalyzePipelineTests: XCTestCase {
             runner: runner,
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_002_000)),
             filenameSuffix: { "a3f2" },
-            sidecarWriter: sidecarWriter ?? RawJSONSidecarWriter()
+            sidecarWriter: sidecarWriter ?? RawJSONSidecarWriter(),
+            imageRendererFactory: imageRendererFactory,
+            subjectIsolationServiceFactory: subjectIsolationServiceFactory
         )
     }
 
@@ -1366,6 +1417,28 @@ private final class CountingRawJSONSidecarWriter: RawJSONSidecarWriting, @unchec
     ) throws -> RawJSONSidecarWriteOutcome {
         lock.withLock { count += 1 }
         return try writer.write(sidecar, to: destinationPath, existingPolicy: existingPolicy)
+    }
+}
+
+private final class PreparationServiceConstructionCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var renderers = 0
+    private var subjectIsolationServices = 0
+
+    var rendererCount: Int {
+        lock.withLock { renderers }
+    }
+
+    var subjectIsolationServiceCount: Int {
+        lock.withLock { subjectIsolationServices }
+    }
+
+    func recordRenderer() {
+        lock.withLock { renderers += 1 }
+    }
+
+    func recordSubjectIsolationService() {
+        lock.withLock { subjectIsolationServices += 1 }
     }
 }
 

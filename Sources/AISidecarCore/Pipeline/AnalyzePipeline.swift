@@ -38,6 +38,9 @@ public struct AnalyzePipeline {
     private let runner: any VisionModelRunner
     private let now: @Sendable () -> Date
     private let filenameSuffix: @Sendable () -> String
+    private let imageRendererFactory: @Sendable (DerivativeCache) -> ImageRenderer
+    private let subjectIsolationServiceFactory:
+        @Sendable (DerivativeCache, any ForegroundMaskProvider) -> SubjectIsolationService
 
     public init(
         fileManager: FileManager = .default,
@@ -65,7 +68,13 @@ public struct AnalyzePipeline {
         runner: any VisionModelRunner = OllamaVisionRunner(),
         now: @escaping @Sendable () -> Date = Date.init,
         filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix,
-        sidecarWriter: any RawJSONSidecarWriting
+        sidecarWriter: any RawJSONSidecarWriting,
+        imageRendererFactory: @escaping @Sendable (DerivativeCache) -> ImageRenderer = { ImageRenderer(cache: $0) },
+        subjectIsolationServiceFactory:
+            @escaping @Sendable (
+                DerivativeCache,
+                any ForegroundMaskProvider
+            ) -> SubjectIsolationService = { SubjectIsolationService(cache: $0, maskProvider: $1) }
     ) {
         self.fileManager = fileManager
         self.scanner = ImageScanner(fileManager: fileManager)
@@ -82,6 +91,8 @@ public struct AnalyzePipeline {
         self.runner = runner
         self.now = now
         self.filenameSuffix = filenameSuffix
+        self.imageRendererFactory = imageRendererFactory
+        self.subjectIsolationServiceFactory = subjectIsolationServiceFactory
     }
 
     /// Run full Phase 1 analysis for one file or folder.
@@ -342,6 +353,8 @@ public struct AnalyzePipeline {
         let maxWorkers = max(1, min(configuration.stageConcurrency, pendingWork.count))
         let maskProvider = maskProvider
         let now = now
+        let renderer = imageRendererFactory(cache)
+        let subjectIsolationService = subjectIsolationServiceFactory(cache, maskProvider)
 
         if maxWorkers == 1 {
             return try await processPendingWorkSequentially(
@@ -352,7 +365,8 @@ public struct AnalyzePipeline {
                 runtime: runtime,
                 cache: cache,
                 interruptionMonitor: interruptionMonitor,
-                maskProvider: maskProvider,
+                renderer: renderer,
+                subjectIsolationService: subjectIsolationService,
                 now: now,
                 emit: emit
             )
@@ -376,8 +390,8 @@ public struct AnalyzePipeline {
                             entry: entry,
                             configuration: configuration,
                             profile: profile,
-                            cache: cache,
-                            maskProvider: maskProvider,
+                            renderer: renderer,
+                            subjectIsolationService: subjectIsolationService,
                             now: now
                         )
                         return (work.index, prepared)
@@ -464,7 +478,8 @@ public struct AnalyzePipeline {
         runtime: ModelRuntimeContext,
         cache: DerivativeCache,
         interruptionMonitor: InterruptionMonitor?,
-        maskProvider: any ForegroundMaskProvider,
+        renderer: ImageRenderer,
+        subjectIsolationService: SubjectIsolationService,
         now: @escaping @Sendable () -> Date,
         emit: (ProgressRecord) throws -> Void
     ) async throws -> Bool {
@@ -486,8 +501,8 @@ public struct AnalyzePipeline {
                     entry: entries[index],
                     configuration: configuration,
                     profile: profile,
-                    cache: cache,
-                    maskProvider: maskProvider,
+                    renderer: renderer,
+                    subjectIsolationService: subjectIsolationService,
                     now: now
                 )
                 if interruptionMonitor?.isInterrupted == true {
@@ -588,14 +603,12 @@ public struct AnalyzePipeline {
         entry: SidecarPlanEntry,
         configuration: ResolvedRunConfiguration,
         profile: ModelInputProfile,
-        cache: DerivativeCache,
-        maskProvider: any ForegroundMaskProvider,
+        renderer: ImageRenderer,
+        subjectIsolationService: SubjectIsolationService,
         now: @escaping @Sendable () -> Date
     ) async -> PreparedAnalysis {
         let renderStartedAt = now()
         do {
-            let renderer = ImageRenderer(cache: cache)
-            let subjectIsolationService = SubjectIsolationService(cache: cache, maskProvider: maskProvider)
             var derivatives: [DerivativeRecord] = []
             var subjectIsolation: SubjectIsolationRecord?
             var errors: [SidecarError] = []
