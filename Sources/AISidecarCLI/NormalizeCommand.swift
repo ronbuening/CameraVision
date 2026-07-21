@@ -250,11 +250,9 @@ struct NormalizeCommand: AsyncParsableCommand {
                     interruptionMonitor: interruptionMonitor
                 )
             }
-            let report = result.normalizeResult.report
             CommandOutputHelpers.writeEssentialSummary(
                 prefix: "normalize",
-                writtenCount: report.xmpExportReport?.writtenCount ?? 0,
-                failedCount: report.xmpExportReport?.failedCount ?? report.errors.count
+                report: result.normalizeResult.report
             )
             try enforceBatchExitPolicy(
                 failureCount: failureCount(for: result.normalizeResult.report),
@@ -269,11 +267,9 @@ struct NormalizeCommand: AsyncParsableCommand {
                     interruptionMonitor: interruptionMonitor
                 )
             }
-            let report = result.normalizeResult.report
             CommandOutputHelpers.writeEssentialSummary(
                 prefix: "normalize",
-                writtenCount: report.xmpExportReport?.writtenCount ?? 0,
-                failedCount: report.xmpExportReport?.failedCount ?? report.errors.count
+                report: result.normalizeResult.report
             )
             try enforceBatchExitPolicy(
                 failureCount: failureCount(for: result.normalizeResult.report),

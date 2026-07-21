@@ -38,6 +38,88 @@ final class CommandOutputHelpersTests: XCTestCase {
         }
     }
 
+    func testEssentialSummaryFromReportUsesExportCountsWithErrorCountFallback() throws {
+        var report = makeNormalizationReport(errors: [makeError("first"), makeError("second")])
+
+        let fallbackOutput = try captureOutput { handle in
+            CommandOutputHelpers.writeEssentialSummary(prefix: "normalize", report: report, to: handle)
+        }
+        XCTAssertEqual(
+            String(decoding: fallbackOutput, as: UTF8.self),
+            "normalize complete: 0 written, 2 failed.\n",
+            "Without an XMP export report, failures fall back to the report's error count."
+        )
+
+        report.xmpExportReport = XMPExportReport(
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+            inputPath: "/photos/images.txt",
+            reportDirectory: nil,
+            dryRun: false,
+            configuration: .builtInDefaults,
+            engine: makeEngineContext(),
+            targetReports: [],
+            inputFailures: [
+                XMPChangePlanInputFailure(
+                    sidecarPath: "/sidecars/a.ai.json",
+                    relativePath: "a.ai.json",
+                    error: makeError("target")
+                )
+            ]
+        )
+        let exportOutput = try captureOutput { handle in
+            CommandOutputHelpers.writeEssentialSummary(prefix: "normalize", report: report, to: handle)
+        }
+        XCTAssertEqual(
+            String(decoding: exportOutput, as: UTF8.self),
+            "normalize complete: 0 written, 1 failed.\n",
+            "With an XMP export report, its counts win over the report error count."
+        )
+    }
+
+    private func makeNormalizationReport(errors: [SidecarError]) -> NormalizationReport {
+        NormalizationReport(
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+            sessionPath: nil,
+            workflow: .fileList,
+            inputPath: "/photos/images.txt",
+            configuration: .builtInDefaults,
+            vocabulary: VocabularyIdentity(
+                path: "/vocab.json",
+                sha256: String(repeating: "a", count: 64),
+                schemaVersion: "ai-sidecar-vocabulary/1.0"
+            ),
+            xmpWriter: makeEngineContext(),
+            artifacts: NormalizationArtifactPlan(
+                sessionPath: "/reports/normalization-session.json",
+                reportPath: "/reports/normalization-report.json",
+                summaryPath: "/reports/normalization-summary.md",
+                progressPath: "/reports/normalization-progress.jsonl",
+                xmpTargetRoot: nil
+            ),
+            inputSummary: NormalizationInputSummary(
+                sourceAssetCount: 0,
+                sourceAISidecarCount: 0,
+                sameBaseNameGroupCount: 0,
+                warningCount: 0,
+                failureCount: errors.count
+            ),
+            warnings: [],
+            errors: errors
+        )
+    }
+
+    private func makeEngineContext() -> MetadataWriteEngineContext {
+        MetadataWriteEngineContext(
+            engineName: OwnedXMPSidecarEngine.engineName,
+            engineVersion: OwnedXMPSidecarEngine.engineVersion,
+            writerRecipeVersion: OwnedXMPSidecarEngine.writerRecipeVersion
+        )
+    }
+
+    private func makeError(_ message: String) -> SidecarError {
+        SidecarError(code: .writeFailed, stage: .write, message: message, recoverable: true)
+    }
+
     private func captureOutput(_ body: (FileHandle) throws -> Void) throws -> Data {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

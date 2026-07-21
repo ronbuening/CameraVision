@@ -129,8 +129,7 @@ struct ApplySessionCommand: AsyncParsableCommand {
         }
         CommandOutputHelpers.writeEssentialSummary(
             prefix: "apply-session",
-            writtenCount: result.report.xmpExportReport?.writtenCount ?? 0,
-            failedCount: result.report.xmpExportReport?.failedCount ?? result.report.errors.count
+            report: result.report
         )
         try enforceBatchExitPolicy(
             failureCount: failureCount(for: result.report),

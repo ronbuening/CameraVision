@@ -1,6 +1,8 @@
 import Foundation
 
 enum RawSidecarBatchHelpers {
+    /// `failureContext` is interpolated into "…raw sidecar for \(failureContext)." — pass the bare
+    /// stage noun ("XMP export", "normalization"), never a leading "for".
     static func rawInputBatch(
         from analyzeResult: AnalyzeResult,
         failureContext: String,
