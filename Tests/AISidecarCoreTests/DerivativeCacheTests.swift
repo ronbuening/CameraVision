@@ -117,6 +117,25 @@ final class DerivativeCacheTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: copied.debugPath!)), Data("debug".utf8))
     }
 
+    func testDebugCopySkipsExistingDestinationWithMatchingByteCount() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let sourceURL = try writeTestImage("Bird.JPG", in: root)
+        let cache = DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 1_024)
+        let source = makeSource(fileName: "Bird.JPG", relativePath: "Bird.JPG", path: sourceURL.path)
+        let record = try Self.store(Data("debug".utf8), in: cache, source: source)
+        let first = try cache.copyDebugArtifact(record: record, source: source)
+        let debugPath = try XCTUnwrap(first.debugPath)
+        let sentinelDate = Date(timeIntervalSince1970: 100)
+        try FileManager.default.setAttributes([.modificationDate: sentinelDate], ofItemAtPath: debugPath)
+
+        let second = try cache.copyDebugArtifact(record: record, source: source)
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: debugPath)
+        XCTAssertEqual(second.debugPath, debugPath)
+        XCTAssertEqual(attributes[.modificationDate] as? Date, sentinelDate)
+    }
+
     func testConcurrentStoresForDistinctDerivativesAllLandInManifest() throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }

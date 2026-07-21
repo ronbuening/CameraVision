@@ -227,6 +227,18 @@ public final class DerivativeCache: @unchecked Sendable {
             )
             .standardizedFileURL
         do {
+            let cacheAttributes = try fileManager.attributesOfItem(atPath: record.cachePath)
+            let cacheByteCount = (cacheAttributes[.size] as? NSNumber)?.int64Value
+            if fileManager.fileExists(atPath: destination.path) {
+                let destinationAttributes = try fileManager.attributesOfItem(atPath: destination.path)
+                let destinationByteCount = (destinationAttributes[.size] as? NSNumber)?.int64Value
+                if let cacheByteCount, let destinationByteCount, cacheByteCount == destinationByteCount {
+                    var copied = record
+                    copied.debugPath = destination.path
+                    return copied
+                }
+            }
+
             let data = try Data(contentsOf: URL(fileURLWithPath: record.cachePath))
             try AtomicFileWriter.write(data, to: destination, fileManager: fileManager)
             var copied = record
