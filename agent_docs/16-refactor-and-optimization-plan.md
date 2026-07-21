@@ -484,7 +484,7 @@ History confirms the shell was introduced for the early durable-sidecar/renderin
 
 The maintainer deferred live Ollama/corpus measurements from this implementation pass. On one stable 50–100-image corpus, compare the pre-Tranche-A commit (`8e42219`) with the A9-complete branch using the same machine, Ollama model, profile, cache state, and separate output directories:
 
-1. **A3/P1 — sidecar write:** time `aisidecar analyze <folder> --recursive --mode both`; record non-model write time and confirm one final raw-sidecar atomic replacement per completed image.
+1. **A3/P1 — sidecar write:** time `aisidecar analyze <folder> --recursive --mode both`; record non-model write time and confirm one final raw-sidecar atomic replacement per completed image. Per-image measured write durations are available as `write_ms` in the batch progress log (and as `median_write_ms` in benchmark output); sidecar `timing.write_ms` is intentionally 0.
 2. **A4/P5 — vocabulary memoization:** time `aisidecar normalize <folder> --recursive --mode both --dry-run`; record normalization wall time with identical vocabulary/configuration and compare session/report bytes.
 3. **A7/P4 — progress sync cadence:** observe the analyze run with `fs_usage`; record progress-log synchronization calls. A 100-record log should synchronize about four times during appends, plus close/interruption synchronization only when records remain pending, instead of about 100 append synchronizations.
 
@@ -493,6 +493,7 @@ Keep the raw command output, wall-clock numbers, corpus identity, cache state, a
 ### Tranche A signoff
 
 - Scope: A1–A9 complete; A10/P6 deferred by maintainer direction until the post-B2 profiling gate.
+- Post-signoff hardening (2026-07-21, maintainer-directed): the audit pass restored the shell test's subject-mode cache assertion and added these amendments — A3: measured sidecar-write duration now recorded in an additive, default-elided `ProgressRecord.write_ms`, and `benchmark` aggregates `median_write_ms` from batch progress logs (sidecar `timing.write_ms` stays 0); A4: the shared lookup cache is lock-guarded against cross-thread struct-copy sharing; A5: the debug-derivative skip also requires the destination to be at least as new as the cache artifact; A7: `NormalizationXMPExecutionRecorder` registers the interruption flush like the four pipelines; A2/R2 follow-up: normalization-report summary counts extracted once via a `CommandOutputHelpers` overload.
 - Final automated verification: `swift test` passed 806 tests with 2 opt-in skips; the release benchmark self-test and `aisidecar --help` passed.
 - Formatting: all 38 changed Swift files pass `swift format lint`. The repository-wide advisory lint still reports only the pre-existing `Step3OptionsView.swift` indentation and `ModelRuntimeTests.swift` line-break findings, neither touched by this tranche.
 - Git: 20 scoped commits on `ronbuening/RefactorTrancheA`; range diff is 1,394 insertions / 1,493 deletions, with no whitespace errors.
