@@ -442,9 +442,9 @@ Implementing `analyze` against a vision-capable FoundationModels API, the schema
 | A7 | complete | 2026-07-21 | JSONL logs synchronize every 25 records, on explicit interruption flush, and on close; cadence/interruption tests, release self-test, and full suite green. The 100-image `fs_usage` count is a manual follow-up per maintainer direction. |
 | A8 | complete | 2026-07-21 | Five report writers use `WriterSupport.writeAndWrap`; exact wrapper messages are pinned per writer; report, summary, golden, and full suites green. |
 | A9 | complete | 2026-07-21 | Audited and deleted the test-only `AnalyzeShellPipeline` plus its private isolation copies; unique coverage moved to `AnalyzePipeline`; no-XMP sabotage check failed/passed as expected; full suite green; net −751 implementation/test lines. |
-| A10 | deferred | 2026-07-21 | Maintainer direction: defer until the explicit post-B2 profiling gate can be evaluated. |
+| A10 | deferred | 2026-07-21 | Maintainer direction after B2: keep P6 outside this tranche; live profiling remains a manual follow-up. |
 | B1 | complete | 2026-07-21 | One `ImageRenderer` and `SubjectIsolationService` are shared across serial or concurrent preparation workers per analyze pass; a counting-factory regression proves one construction of each service, the full suite and release self-test pass, and live render-stage timing is a maintainer-directed manual follow-up. |
-| B2 | pending | | |
+| B2 | complete | 2026-07-21 | Graph node/adjacency and inverted supporting-asset indexes remove hot-loop scans; one `DirectSupportIndex` is incrementally updated across context/local/global stages. Focused consensus/session suites, the R4 regression gate, the full suite, and release self-test pass; live normalization timing is a maintainer-directed manual follow-up. |
 | B3 | pending | | |
 | B4 | pending | | |
 | B5 | pending | | |
