@@ -733,11 +733,13 @@ public struct AnalyzePipeline {
             )
 
             do {
+                let writeStartedAt = now()
                 let outcome = try writer.write(
                     sidecar,
                     to: entry.sidecarPath,
                     existingPolicy: configuration.existing
                 )
+                let writeMs = durationMs(from: writeStartedAt, to: now())
                 let status: ProgressStatus
                 switch outcome.status {
                 case .skippedExisting:
@@ -753,7 +755,8 @@ public struct AnalyzePipeline {
                         sidecarPath: entry.sidecarPath,
                         status: status,
                         errors: errors,
-                        durationMs: durationMs(from: startedAt, to: now())
+                        durationMs: durationMs(from: startedAt, to: now()),
+                        writeMs: outcome.status == .written ? writeMs : nil
                     )
                 )
             } catch {
@@ -797,8 +800,14 @@ public struct AnalyzePipeline {
             createdAt: now()
         )
         var progressErrors = errors
+        var writeMs: Int?
         do {
-            _ = try writer.write(errorSidecar, to: sidecarPath, existingPolicy: configuration.existing)
+            let writeStartedAt = now()
+            let outcome = try writer.write(
+                errorSidecar, to: sidecarPath, existingPolicy: configuration.existing)
+            if outcome.status == .written {
+                writeMs = durationMs(from: writeStartedAt, to: now())
+            }
         } catch {
             progressErrors.append(Self.sidecarError(from: error, sidecarPath: sidecarPath))
         }
@@ -810,7 +819,8 @@ public struct AnalyzePipeline {
             sidecarPath: sidecarPath,
             status: .failed,
             errors: progressErrors,
-            durationMs: durationMs(from: startedAt, to: now())
+            durationMs: durationMs(from: startedAt, to: now()),
+            writeMs: writeMs
         )
     }
 

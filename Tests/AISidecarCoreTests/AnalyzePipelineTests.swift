@@ -26,6 +26,7 @@ final class AnalyzePipelineTests: XCTestCase {
 
         XCTAssertEqual(result.records.map(\.status), [.written])
         XCTAssertEqual(writer.writeCount, 1)
+        XCTAssertNotNil(result.records.first?.writeMs)
         XCTAssertNil(result.progressLogPath)
         XCTAssertNil(result.summaryPath)
         XCTAssertNil(result.summary)
@@ -952,6 +953,7 @@ final class AnalyzePipelineTests: XCTestCase {
         )
 
         XCTAssertEqual(result.records.map(\.status), [.skippedExisting])
+        XCTAssertNil(result.records.first?.writeMs)
         let prepareCount = await runner.prepareCount()
         let calls = await runner.capturedCalls()
         XCTAssertEqual(prepareCount, 0)

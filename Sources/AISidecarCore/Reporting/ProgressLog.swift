@@ -17,6 +17,10 @@ public struct ProgressRecord: Codable, Sendable, Equatable {
     public var status: ProgressStatus
     public var errors: [SidecarError]
     public var durationMs: Int
+    /// Measured sidecar-write duration; present only when a sidecar write occurred. Sidecar
+    /// `timing.write_ms` is fixed at 0 (the document is finalized before its single write), so
+    /// this record is the sole carrier of the measured value.
+    public var writeMs: Int?
 
     enum CodingKeys: String, CodingKey {
         case timestamp
@@ -26,6 +30,7 @@ public struct ProgressRecord: Codable, Sendable, Equatable {
         case status
         case errors
         case durationMs = "duration_ms"
+        case writeMs = "write_ms"
     }
 
     public init(
@@ -35,7 +40,8 @@ public struct ProgressRecord: Codable, Sendable, Equatable {
         sidecarPath: String?,
         status: ProgressStatus,
         errors: [SidecarError] = [],
-        durationMs: Int
+        durationMs: Int,
+        writeMs: Int? = nil
     ) {
         self.timestamp = timestamp
         self.sourcePath = sourcePath
@@ -44,6 +50,7 @@ public struct ProgressRecord: Codable, Sendable, Equatable {
         self.status = status
         self.errors = errors
         self.durationMs = durationMs
+        self.writeMs = writeMs
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -55,6 +62,7 @@ public struct ProgressRecord: Codable, Sendable, Equatable {
         try container.encode(status, forKey: .status)
         try container.encode(errors, forKey: .errors)
         try container.encode(durationMs, forKey: .durationMs)
+        try container.encodeIfPresent(writeMs, forKey: .writeMs)
     }
 }
 

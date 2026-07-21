@@ -44,6 +44,33 @@ final class ProgressLogTests: XCTestCase {
         XCTAssertEqual(first.sidecarPath, "/out/A.NEF.ai.json")
     }
 
+    func testProgressRecordElidesWriteMsWhenAbsentAndRoundTripsWhenPresent() throws {
+        let encoder = JSONCoding.jsonlEncoder()
+        let base = ProgressRecord(
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
+            sourcePath: "/photos/A.NEF",
+            relativePath: "A.NEF",
+            sidecarPath: "/out/A.NEF.ai.json",
+            status: .written,
+            durationMs: 12
+        )
+        let withoutWriteMs = String(decoding: try encoder.encode(base), as: UTF8.self)
+        XCTAssertFalse(
+            withoutWriteMs.contains("write_ms"),
+            "Absent write_ms must be elided so pre-existing record bytes are unchanged"
+        )
+
+        var measured = base
+        measured.writeMs = 4
+        let data = try encoder.encode(measured)
+        XCTAssertTrue(String(decoding: data, as: UTF8.self).contains("\"write_ms\":4"))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        XCTAssertEqual(try decoder.decode(ProgressRecord.self, from: data).writeMs, 4)
+        XCTAssertNil(
+            try decoder.decode(ProgressRecord.self, from: Data(withoutWriteMs.utf8)).writeMs)
+    }
+
     func testBatchSummaryDerivesCountsAndInterruptionError() {
         let scanResult = ScanResult(
             inputPath: "/photos",
