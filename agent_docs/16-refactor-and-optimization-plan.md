@@ -446,7 +446,7 @@ Implementing `analyze` against a vision-capable FoundationModels API, the schema
 | B1 | complete | 2026-07-21 | One `ImageRenderer` and `SubjectIsolationService` are shared across serial or concurrent preparation workers per analyze pass; a counting-factory regression proves one construction of each service, the full suite and release self-test pass, and live render-stage timing is a maintainer-directed manual follow-up. |
 | B2 | complete | 2026-07-21 | Graph node/adjacency and inverted supporting-asset indexes remove hot-loop scans; one `DirectSupportIndex` is incrementally updated across context/local/global stages. Focused consensus/session suites, the R4 regression gate, the full suite, and release self-test pass; live normalization timing is a maintainer-directed manual follow-up. |
 | B3 | complete | 2026-07-21 | Invocation-local, file-identity-keyed XMP parse reuse spans Phase 2 and normalized plan → preview → apply chains; merge copies stay isolated, writes invalidate the cache, and validation reads bypass it. Counting, external-replacement, invocation-boundary, focused/golden, R4, full-suite, and release-self-test gates pass; live XMP timing is a maintainer-directed manual follow-up. |
-| B4 | pending | | |
+| B4 | complete | 2026-07-21 | Freshly written raw-sidecar documents are handed to combined pipeline adapters in memory, while skipped/pre-existing entries retain the disk-reader fallback. Counting-reader, exact-document/byte, combined-pipeline, compatibility/golden, R4, full-suite, and release-self-test gates pass; live combined-run timing is a maintainer-directed manual follow-up. |
 | B5 | pending | | |
 | B6 | pending | | |
 | C1–C16 | pending | | |
