@@ -6,9 +6,11 @@ enum RawSidecarBatchHelpers {
     static func rawInputBatch(
         from analyzeResult: AnalyzeResult,
         failureContext: String,
-        fileManager: FileManager
+        fileManager: FileManager,
+        readDocument: ((URL) throws -> RawJSONSidecarDocument)? = nil
     ) -> RawJSONSidecarInputBatch {
         let reader = RawJSONSidecarReader(fileManager: fileManager)
+        let readDocument = readDocument ?? { try reader.read(from: $0) }
         var inputs: [ResolvedRawSidecarInput] = []
         var failures: [RawJSONSidecarInputFailure] = []
 
@@ -23,7 +25,14 @@ enum RawSidecarBatchHelpers {
             }
             let sidecarURL = URL(fileURLWithPath: sidecarPath).standardizedFileURL
             do {
-                let document = try reader.read(from: sidecarURL)
+                let document: RawJSONSidecarDocument
+                if record.status == .written,
+                    let writtenDocument = analyzeResult.writtenSidecarsByPath?[sidecarURL.path]
+                {
+                    document = writtenDocument
+                } else {
+                    document = try readDocument(sidecarURL)
+                }
                 inputs.append(
                     ResolvedRawSidecarInput(
                         sidecarPath: sidecarURL,

@@ -73,8 +73,12 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertNil(result.progressLogPath)
         XCTAssertNil(result.summaryPath)
         XCTAssertNil(result.summary)
-        let sidecar = try decodeSidecar(output.appendingPathComponent("A.JPG.ai.json"))
+        let sidecarURL = output.appendingPathComponent("A.JPG.ai.json")
+        let sidecar = try decodeSidecar(sidecarURL)
+        let writtenDocument = try XCTUnwrap(result.writtenSidecarsByPath?[sidecarURL.path])
         XCTAssertEqual(sidecar.timing?.writeMs, 0)
+        XCTAssertEqual(writtenDocument.sidecar, sidecar)
+        XCTAssertEqual(try writtenDocument.encodedData(), try Data(contentsOf: sidecarURL))
         XCTAssertTrue(
             try FileManager.default.contentsOfDirectory(atPath: output.path)
                 .filter { $0.hasPrefix("batch-") }
@@ -472,6 +476,10 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(result.records.map(\.status), [.written, .written])
         XCTAssertEqual(
             result.records.map { $0.sidecarPath.map { URL(fileURLWithPath: $0).lastPathComponent } },
+            ["A.JPG.ai.json", "A.JPG.quality.ai.json"]
+        )
+        XCTAssertEqual(
+            Set((result.writtenSidecarsByPath ?? [:]).keys.map { URL(fileURLWithPath: $0).lastPathComponent }),
             ["A.JPG.ai.json", "A.JPG.quality.ai.json"]
         )
         XCTAssertFalse(result.interrupted)

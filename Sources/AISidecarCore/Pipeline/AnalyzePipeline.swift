@@ -9,6 +9,8 @@ public struct AnalyzeResult: Sendable, Equatable {
     public var summaryPath: String?
     public var summary: BatchSummary?
     public var interrupted: Bool
+    /// Newly written documents available to same-process pipeline adapters.
+    public var writtenSidecarsByPath: [String: RawJSONSidecarDocument]?
 
     public init(
         scanResult: ScanResult,
@@ -16,7 +18,8 @@ public struct AnalyzeResult: Sendable, Equatable {
         progressLogPath: String?,
         summaryPath: String?,
         summary: BatchSummary?,
-        interrupted: Bool
+        interrupted: Bool,
+        writtenSidecarsByPath: [String: RawJSONSidecarDocument]? = nil
     ) {
         self.scanResult = scanResult
         self.records = records
@@ -24,6 +27,7 @@ public struct AnalyzeResult: Sendable, Equatable {
         self.summaryPath = summaryPath
         self.summary = summary
         self.interrupted = interrupted
+        self.writtenSidecarsByPath = writtenSidecarsByPath
     }
 }
 
@@ -175,6 +179,7 @@ public struct AnalyzePipeline {
         }
 
         var records: [ProgressRecord] = []
+        var writtenSidecarsByPath: [String: RawJSONSidecarDocument] = [:]
         var interrupted = false
 
         func emit(_ record: ProgressRecord) throws {
@@ -239,6 +244,9 @@ public struct AnalyzePipeline {
                 runtime: runtime!,
                 cache: lifecycleCache,
                 interruptionMonitor: interruptionMonitor,
+                retainWrittenSidecar: { path, document in
+                    writtenSidecarsByPath[path] = document
+                },
                 emit: emit
             )
         }
@@ -274,7 +282,8 @@ public struct AnalyzePipeline {
             progressLogPath: progressPath,
             summaryPath: summaryPath,
             summary: summary,
-            interrupted: interrupted
+            interrupted: interrupted,
+            writtenSidecarsByPath: writtenSidecarsByPath.isEmpty ? nil : writtenSidecarsByPath
         )
     }
 
@@ -315,13 +324,18 @@ public struct AnalyzePipeline {
             writesBatchArtifacts: writesBatchArtifacts,
             progressHandler: progressHandler
         )
+        var writtenSidecarsByPath = tagging.writtenSidecarsByPath ?? [:]
+        writtenSidecarsByPath.merge(quality.writtenSidecarsByPath ?? [:]) { _, qualityDocument in
+            qualityDocument
+        }
         return AnalyzeResult(
             scanResult: tagging.scanResult,
             records: tagging.records + quality.records,
             progressLogPath: tagging.progressLogPath,
             summaryPath: tagging.summaryPath,
             summary: tagging.summary,
-            interrupted: quality.interrupted
+            interrupted: quality.interrupted,
+            writtenSidecarsByPath: writtenSidecarsByPath.isEmpty ? nil : writtenSidecarsByPath
         )
     }
 
@@ -347,6 +361,7 @@ public struct AnalyzePipeline {
         runtime: ModelRuntimeContext,
         cache: DerivativeCache,
         interruptionMonitor: InterruptionMonitor?,
+        retainWrittenSidecar: (String, RawJSONSidecarDocument) -> Void,
         emit: (ProgressRecord) throws -> Void
     ) async throws -> Bool {
         var interrupted = false
@@ -368,6 +383,7 @@ public struct AnalyzePipeline {
                 renderer: renderer,
                 subjectIsolationService: subjectIsolationService,
                 now: now,
+                retainWrittenSidecar: retainWrittenSidecar,
                 emit: emit
             )
         }
@@ -449,7 +465,10 @@ public struct AnalyzePipeline {
                     )
                     cache.release(prepared.derivatives)
                     switch outcome {
-                    case .completed(let record):
+                    case .completed(let record, let document):
+                        if let document, let sidecarPath = record.sidecarPath {
+                            retainWrittenSidecar(sidecarPath, document)
+                        }
                         try emit(record)
                     case .interrupted:
                         interrupted = true
@@ -481,6 +500,7 @@ public struct AnalyzePipeline {
         renderer: ImageRenderer,
         subjectIsolationService: SubjectIsolationService,
         now: @escaping @Sendable () -> Date,
+        retainWrittenSidecar: (String, RawJSONSidecarDocument) -> Void,
         emit: (ProgressRecord) throws -> Void
     ) async throws -> Bool {
         for (index, action) in actions.enumerated() {
@@ -519,7 +539,10 @@ public struct AnalyzePipeline {
                 )
                 cache.release(prepared.derivatives)
                 switch outcome {
-                case .completed(let record):
+                case .completed(let record, let document):
+                    if let document, let sidecarPath = record.sidecarPath {
+                        retainWrittenSidecar(sidecarPath, document)
+                    }
                     try emit(record)
                 case .interrupted:
                     return true
@@ -708,7 +731,8 @@ public struct AnalyzePipeline {
                     errors: [error],
                     renderMs: renderMs,
                     startedAt: startedAt
-                )
+                ),
+                nil
             )
         case .prepared(let prepared):
             let modelStartedAt = now()
@@ -727,25 +751,28 @@ public struct AnalyzePipeline {
             }
             let errors = prepared.errors + modelRuns.compactMap(\.error)
             let pipelineElapsedMs = durationMs(from: startedAt, to: now())
-            let sidecar = RawJSONSidecar(
-                source: entry.source,
-                runConfiguration: configuration,
-                modelInputProfile: profile,
-                derivatives: prepared.derivatives,
-                subjectIsolation: prepared.subjectIsolation,
-                modelRuns: modelRuns,
-                errors: errors,
-                timing: PipelineTimingRecord(
-                    pipelineElapsedMs: pipelineElapsedMs,
-                    renderMs: prepared.renderMs,
-                    subjectIsolationMs: prepared.subjectIsolationMs,
-                    modelMs: modelMs,
-                    writeMs: 0
-                ),
-                createdAt: now()
+            let sidecar = Self.canonicalizedForSidecarEncoding(
+                RawJSONSidecar(
+                    source: entry.source,
+                    runConfiguration: configuration,
+                    modelInputProfile: profile,
+                    derivatives: prepared.derivatives,
+                    subjectIsolation: prepared.subjectIsolation,
+                    modelRuns: modelRuns,
+                    errors: errors,
+                    timing: PipelineTimingRecord(
+                        pipelineElapsedMs: pipelineElapsedMs,
+                        renderMs: prepared.renderMs,
+                        subjectIsolationMs: prepared.subjectIsolationMs,
+                        modelMs: modelMs,
+                        writeMs: 0
+                    ),
+                    createdAt: now()
+                )
             )
 
             do {
+                let document = try RawJSONSidecarDocument(sidecar: sidecar)
                 let writeStartedAt = now()
                 let outcome = try writer.write(
                     sidecar,
@@ -770,7 +797,8 @@ public struct AnalyzePipeline {
                         errors: errors,
                         durationMs: durationMs(from: startedAt, to: now()),
                         writeMs: outcome.status == .written ? writeMs : nil
-                    )
+                    ),
+                    outcome.status == .written ? document : nil
                 )
             } catch {
                 return .completed(
@@ -782,7 +810,8 @@ public struct AnalyzePipeline {
                         status: .failed,
                         errors: errors + [Self.sidecarError(from: error, sidecarPath: entry.sidecarPath)],
                         durationMs: durationMs(from: startedAt, to: now())
-                    )
+                    ),
+                    nil
                 )
             }
         }
@@ -835,6 +864,19 @@ public struct AnalyzePipeline {
             durationMs: durationMs(from: startedAt, to: now()),
             writeMs: writeMs
         )
+    }
+
+    private static func canonicalizedForSidecarEncoding(_ sidecar: RawJSONSidecar) -> RawJSONSidecar {
+        var canonical = sidecar
+        // Foundation's ISO-8601 JSON strategy emits whole seconds. Keep the
+        // in-memory handoff identical to the values a disk reader decodes.
+        canonical.source.modifiedAt = wholeSecond(canonical.source.modifiedAt)
+        canonical.createdAt = wholeSecond(canonical.createdAt)
+        return canonical
+    }
+
+    private static func wholeSecond(_ date: Date) -> Date {
+        Date(timeIntervalSince1970: floor(date.timeIntervalSince1970))
     }
 
     private func runModelRuns(
@@ -1084,7 +1126,7 @@ private enum PreparedAnalysis: Sendable {
 }
 
 private enum FinishPreparedOutcome: Sendable {
-    case completed(ProgressRecord)
+    case completed(ProgressRecord, RawJSONSidecarDocument?)
     case interrupted
 }
 
