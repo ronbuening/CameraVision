@@ -443,7 +443,12 @@ Implementing `analyze` against a vision-capable FoundationModels API, the schema
 | A8 | complete | 2026-07-21 | Five report writers use `WriterSupport.writeAndWrap`; exact wrapper messages are pinned per writer; report, summary, golden, and full suites green. |
 | A9 | complete | 2026-07-21 | Audited and deleted the test-only `AnalyzeShellPipeline` plus its private isolation copies; unique coverage moved to `AnalyzePipeline`; no-XMP sabotage check failed/passed as expected; full suite green; net −751 implementation/test lines. |
 | A10 | deferred | 2026-07-21 | Maintainer direction: defer until the explicit post-B2 profiling gate can be evaluated. |
-| B1–B6 | pending | | |
+| B1 | complete | 2026-07-21 | One `ImageRenderer` and `SubjectIsolationService` are shared across serial or concurrent preparation workers per analyze pass; a counting-factory regression proves one construction of each service, the full suite and release self-test pass, and live render-stage timing is a maintainer-directed manual follow-up. |
+| B2 | pending | | |
+| B3 | pending | | |
+| B4 | pending | | |
+| B5 | pending | | |
+| B6 | pending | | |
 | C1–C16 | pending | | |
 | D1–D7 | pending | | |
 | D8 | blocked | | awaits vision-capable FoundationModels API + test hardware |
