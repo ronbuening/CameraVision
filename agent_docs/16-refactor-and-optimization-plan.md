@@ -434,7 +434,8 @@ Implementing `analyze` against a vision-capable FoundationModels API, the schema
 | Item | State | Date | Notes |
 |---|---|---|---|
 | A1 | complete | 2026-07-21 | Shared raw-sidecar batch helpers, including cleanup-warning logging; focused and full suites green. |
-| A2–A9 | pending | | plan-05 text authoritative |
+| A2 | complete | 2026-07-21 | Shared CLI flag/output helpers; dry-run stdout byte-identical; focused and full suites green. |
+| A3–A9 | pending | | plan-05 text authoritative |
 | A10 | deferred | 2026-07-21 | Maintainer direction: defer until the explicit post-B2 profiling gate can be evaluated. |
 | B1–B6 | pending | | |
 | C1–C16 | pending | | |
