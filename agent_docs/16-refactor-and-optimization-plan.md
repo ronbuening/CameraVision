@@ -441,7 +441,7 @@ Implementing `analyze` against a vision-capable FoundationModels API, the schema
 | A6 | complete | 2026-07-21 | Species-display lowercase sort keys precomputed with tie-break order pinned; release self-test and full suite green. |
 | A7 | complete | 2026-07-21 | JSONL logs synchronize every 25 records, on explicit interruption flush, and on close; cadence/interruption tests, release self-test, and full suite green. The 100-image `fs_usage` count is a manual follow-up per maintainer direction. |
 | A8 | complete | 2026-07-21 | Five report writers use `WriterSupport.writeAndWrap`; exact wrapper messages are pinned per writer; report, summary, golden, and full suites green. |
-| A9 | pending | | plan-05 text authoritative |
+| A9 | complete | 2026-07-21 | Audited and deleted the test-only `AnalyzeShellPipeline` plus its private isolation copies; unique coverage moved to `AnalyzePipeline`; no-XMP sabotage check failed/passed as expected; full suite green; net −751 implementation/test lines. |
 | A10 | deferred | 2026-07-21 | Maintainer direction: defer until the explicit post-B2 profiling gate can be evaluated. |
 | B1–B6 | pending | | |
 | C1–C16 | pending | | |
@@ -459,3 +459,23 @@ The branch-only workflow has no PR description, so the plan-05 R3 pre-migration 
 | `XMPExportSummaryWriter` | `Unable to write XMP export summary {path}: {underlying}` |
 | `XMPExportReportWriter` | `Unable to write XMP export report {path}: {underlying}` |
 | `NormalizationReportWriter` | `Unable to write normalization report {path}: {underlying}` |
+
+### A9 `AnalyzeShellPipeline` audit ledger
+
+History confirms the shell was introduced for the early durable-sidecar/rendering/isolation milestones (`39c55bc`, `10f1ae2`, `22f23e8`). The full model-execution pipeline arrived separately in `22ab3bf`; the shell had no production callers. Its private subject-isolation helpers therefore had no independent contract to retain.
+
+| Retired shell test | Disposition in `AnalyzePipelineTests` |
+|---|---|
+| Single-file artifacts | Ported into `testSuccessfulAnalysisWritesSidecarExactlyOnce` |
+| Recursive mirroring/progress/summary | Ported as `testRecursiveFolderWritesMirroredSidecarsProgressAndSummary` |
+| Dry-run artifact silence | Ported as `testDryRunCreatesNoSidecarsProgressLogSummaryOrCache` |
+| Existing-policy rerun | Already covered by `testTwoSliceRunMatchesSingleFullRun` |
+| Existing skip before rendering | Already covered by `testExistingSkipAvoidsPrepareRenderAndModelWork` |
+| Render failure sidecar | Unique assertions added to `testRenderFailureWritesFailureSidecarExactlyOnce` |
+| Debug derivative copy | Ported as `testDebugDerivativesAreCopiedBesideSourceAndRecorded` |
+| Subject-only success | Ported as `testSubjectModeWritesOnlySubjectDerivativeAndModelRun` |
+| Subject-only no-foreground failure | Ported as `testSubjectModeNoForegroundWritesFailureSidecarWithoutModelRun` |
+| Both-mode no-foreground fallback | Already covered by `testBothModeNoForegroundWritesWholeRunWithRecoverableError` |
+| Interrupted summary/no partial sidecar | Existing `testInterruptionBetweenRolesSkipsSecondRoleAndFailsClosed` strengthened to require the summary artifact |
+
+`NoXMPRegressionTests.testAnalyzePipelineRemainsXMPSilent` now invokes `AnalyzePipeline`. A temporary `.xmp` write made it fail on the injected path; after removing the sabotage, it passed unchanged.
