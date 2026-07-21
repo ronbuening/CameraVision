@@ -149,7 +149,8 @@ public struct AnalyzeAndNormalizePipeline {
         let finalNormalizeResult = try executionRecorder.recordExecution(
             normalizeResult: normalizeResult,
             exportResult: exportResult,
-            progressMessage: "Analyze-and-normalize XMP target processed."
+            progressMessage: "Analyze-and-normalize XMP target processed.",
+            interruptionMonitor: interruptionMonitor
         )
 
         if shouldClearDerivativeCacheAfterOverallSuccess,
