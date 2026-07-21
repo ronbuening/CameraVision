@@ -479,3 +479,13 @@ History confirms the shell was introduced for the early durable-sidecar/renderin
 | Interrupted summary/no partial sidecar | Existing `testInterruptionBetweenRolesSkipsSecondRoleAndFailsClosed` strengthened to require the summary artifact |
 
 `NoXMPRegressionTests.testAnalyzePipelineRemainsXMPSilent` now invokes `AnalyzePipeline`. A temporary `.xmp` write made it fail on the injected path; after removing the sabotage, it passed unchanged.
+
+### Tranche A manual performance follow-up
+
+The maintainer deferred live Ollama/corpus measurements from this implementation pass. On one stable 50–100-image corpus, compare the pre-Tranche-A commit (`8e42219`) with the A9-complete branch using the same machine, Ollama model, profile, cache state, and separate output directories:
+
+1. **A3/P1 — sidecar write:** time `aisidecar analyze <folder> --recursive --mode both`; record non-model write time and confirm one final raw-sidecar atomic replacement per completed image.
+2. **A4/P5 — vocabulary memoization:** time `aisidecar normalize <folder> --recursive --mode both --dry-run`; record normalization wall time with identical vocabulary/configuration and compare session/report bytes.
+3. **A7/P4 — progress sync cadence:** observe the analyze run with `fs_usage`; record progress-log synchronization calls. A 100-record log should synchronize about four times during appends, plus close/interruption synchronization only when records remain pending, instead of about 100 append synchronizations.
+
+Keep the raw command output, wall-clock numbers, corpus identity, cache state, and `fs_usage` excerpt together as the manual evidence record. The deterministic release benchmark self-test remains the automated gate for this tranche.
