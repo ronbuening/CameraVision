@@ -7,7 +7,7 @@ Audience: junior engineer or Sonnet-level coding agent executing one work item a
 
 This plan covers two tracks: **performance** (P items — remove wasted runtime work) and **reusability** (R items — eliminate duplicated code). Every item is self-contained: files, exact problem, exact change, acceptance criteria.
 
-**Scheduling:** this plan runs in its slot in `agent_docs/08-post-review-hardening-plan.md` §1.1 (after R4, before M9) — it is not a parallel active track. Two items are pinned there: P2/P3 execute *as part of* plan-08 R4-6 (one `DerivativeCache` manifest redesign, not two), and P4 must wait until plan-08 R1-3 has landed (it rewrites the same `JSONLWriter` lines). File/line anchors below were captured 2026-07-06; expect line drift after plan-08 items touch `JSONLWriter.swift` and `AnalyzePipeline.swift` — the file + symbol references remain authoritative.
+**Scheduling (updated 2026-07-21):** this plan's remaining items now execute as **Tranche A of `agent_docs/16-refactor-and-optimization-plan.md`**, which supersedes this plan's standalone slot in plan 08 §1.1 step 7. Plan 16 is the execution-order authority; the item text below remains the authoritative spec for each absorbed item (plan 16 references, it does not duplicate). It is not a parallel active track. Two items are pinned there: P2/P3 execute *as part of* plan-08 R4-6 (one `DerivativeCache` manifest redesign, not two), and P4 must wait until plan-08 R1-3 has landed (it rewrites the same `JSONLWriter` lines). File/line anchors below were captured 2026-07-06; expect line drift after plan-08 items touch `JSONLWriter.swift` and `AnalyzePipeline.swift` — the file + symbol references remain authoritative.
 
 ## Ground Rules (read first)
 
