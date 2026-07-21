@@ -120,14 +120,18 @@ struct ApplySessionCommand: AsyncParsableCommand {
             )
         }
         if resolved.dryRun {
-            try writeChangePlan(result.changePlan)
+            try CommandOutputHelpers.writeChangePlan(result.changePlan)
             try enforceBatchExitPolicy(
                 failureCount: failureCount(for: result.report),
                 interrupted: result.interrupted
             )
             return
         }
-        writeEssentialSummary(result.report)
+        CommandOutputHelpers.writeEssentialSummary(
+            prefix: "apply-session",
+            writtenCount: result.report.xmpExportReport?.writtenCount ?? 0,
+            failedCount: result.report.xmpExportReport?.failedCount ?? result.report.errors.count
+        )
         try enforceBatchExitPolicy(
             failureCount: failureCount(for: result.report),
             interrupted: result.interrupted
@@ -162,7 +166,10 @@ struct ApplySessionCommand: AsyncParsableCommand {
             dryRun: dryRun ? true : nil,
             sourceRoot: sourceRoot,
             sourceVerification: sourceVerification,
-            backupSidecars: pairedFlag(positive: backupSidecars, negative: noBackupSidecars),
+            backupSidecars: CommandOutputHelpers.pairedFlag(
+                positive: backupSidecars,
+                negative: noBackupSidecars
+            ),
             xmpConflictPolicy: xmpConflictPolicy,
             allowStale: allowStale ? true : nil,
             qualityGrading: quality.overrides
@@ -196,31 +203,6 @@ struct ApplySessionCommand: AsyncParsableCommand {
         if invalidWriteAIJSON { flags.append("--write-ai-json") }
         if invalidNoWriteAIJSON { flags.append("--no-write-ai-json") }
         return flags
-    }
-
-    private func pairedFlag(positive: Bool, negative: Bool) -> Bool? {
-        if positive {
-            return true
-        }
-        if negative {
-            return false
-        }
-        return nil
-    }
-
-    private func writeChangePlan(_ changePlan: XMPChangePlanDocument) throws {
-        let encoder = JSONCoding.documentEncoder(iso8601Dates: false)
-        let data = try encoder.encode(changePlan)
-        FileHandle.standardOutput.write(data)
-        FileHandle.standardOutput.write(Data("\n".utf8))
-    }
-
-    private func writeEssentialSummary(_ report: NormalizationReport) {
-        let exportReport = report.xmpExportReport
-        let written = exportReport?.writtenCount ?? 0
-        let failed = exportReport?.failedCount ?? report.errors.count
-        let line = "apply-session complete: \(written) written, \(failed) failed."
-        FileHandle.standardOutput.write(Data((line + "\n").utf8))
     }
 
     private func failureCount(for report: NormalizationReport) -> Int {

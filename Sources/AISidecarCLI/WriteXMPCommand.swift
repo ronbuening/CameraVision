@@ -153,14 +153,20 @@ struct WriteXMPCommand: AsyncParsableCommand {
                 )
             }
             if exportConfiguration.dryRun {
-                try writeChangePlan(result.changePlan)
+                try CommandOutputHelpers.writeChangePlan(result.changePlan)
                 try enforceBatchExitPolicy(
                     failureCount: failureCount(for: result),
                     interrupted: result.interrupted
                 )
                 return
             }
-            writeEssentialSummary(result.report)
+            if let report = result.report {
+                CommandOutputHelpers.writeEssentialSummary(
+                    prefix: "XMP export",
+                    writtenCount: report.writtenCount,
+                    failedCount: report.failedCount
+                )
+            }
             try enforceBatchExitPolicy(
                 failureCount: failureCount(for: result),
                 interrupted: result.interrupted
@@ -176,14 +182,20 @@ struct WriteXMPCommand: AsyncParsableCommand {
                 )
             }
             if exportConfiguration.dryRun {
-                try writeChangePlan(result.exportResult.changePlan)
+                try CommandOutputHelpers.writeChangePlan(result.exportResult.changePlan)
                 try enforceBatchExitPolicy(
                     failureCount: failureCount(for: result.exportResult),
                     interrupted: result.analyzeResult.interrupted || result.exportResult.interrupted
                 )
                 return
             }
-            writeEssentialSummary(result.exportResult.report)
+            if let report = result.exportResult.report {
+                CommandOutputHelpers.writeEssentialSummary(
+                    prefix: "XMP export",
+                    writtenCount: report.writtenCount,
+                    failedCount: report.failedCount
+                )
+            }
             try enforceBatchExitPolicy(
                 failureCount: failureCount(for: result.exportResult),
                 interrupted: result.analyzeResult.interrupted || result.exportResult.interrupted
@@ -245,17 +257,23 @@ struct WriteXMPCommand: AsyncParsableCommand {
             dryRun: dryRun ? true : nil,
             sourceRoot: sourceRoot,
             sourceVerification: sourceVerification,
-            writeFlatKeywords: pairedFlag(positive: writeFlatKeywords, negative: noWriteFlatKeywords),
-            writeHierarchicalKeywords: pairedFlag(
+            writeFlatKeywords: CommandOutputHelpers.pairedFlag(
+                positive: writeFlatKeywords,
+                negative: noWriteFlatKeywords
+            ),
+            writeHierarchicalKeywords: CommandOutputHelpers.pairedFlag(
                 positive: writeHierarchicalKeywords,
                 negative: noWriteHierarchicalKeywords
             ),
-            backupSidecars: pairedFlag(positive: backupSidecars, negative: noBackupSidecars),
+            backupSidecars: CommandOutputHelpers.pairedFlag(
+                positive: backupSidecars,
+                negative: noBackupSidecars
+            ),
             xmpConflictPolicy: xmpConflictPolicy,
             minConfidence: minConfidence,
             allowSpecificTags: allowSpecificTags ? true : nil,
             pairScope: pairScope,
-            writeAIJSON: pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON),
+            writeAIJSON: CommandOutputHelpers.pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON),
             qualityGrading: quality.overrides
         )
     }
@@ -284,31 +302,6 @@ struct WriteXMPCommand: AsyncParsableCommand {
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext
         )
-    }
-
-    private func pairedFlag(positive: Bool, negative: Bool) -> Bool? {
-        if positive {
-            return true
-        }
-        if negative {
-            return false
-        }
-        return nil
-    }
-
-    private func writeChangePlan(_ changePlan: XMPChangePlanDocument) throws {
-        let encoder = JSONCoding.documentEncoder(iso8601Dates: false)
-        let data = try encoder.encode(changePlan)
-        FileHandle.standardOutput.write(data)
-        FileHandle.standardOutput.write(Data("\n".utf8))
-    }
-
-    private func writeEssentialSummary(_ report: XMPExportReport?) {
-        guard let report else {
-            return
-        }
-        let line = "XMP export complete: \(report.writtenCount) written, \(report.failedCount) failed."
-        FileHandle.standardOutput.write(Data((line + "\n").utf8))
     }
 
     private func failureCount(for result: XMPExportPipelineResult) -> Int {

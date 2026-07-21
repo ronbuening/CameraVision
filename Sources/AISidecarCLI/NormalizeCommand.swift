@@ -227,7 +227,7 @@ struct NormalizeCommand: AsyncParsableCommand {
                 )
             }
             if let changePlan = result.changePlan {
-                try writeChangePlan(changePlan)
+                try CommandOutputHelpers.writeChangePlan(changePlan)
             }
             // The change plan's failedCount covers the report's input errors plus
             // failed target plans, so the printed plan and the exit status agree.
@@ -250,7 +250,12 @@ struct NormalizeCommand: AsyncParsableCommand {
                     interruptionMonitor: interruptionMonitor
                 )
             }
-            writeEssentialSummary(result.normalizeResult.report)
+            let report = result.normalizeResult.report
+            CommandOutputHelpers.writeEssentialSummary(
+                prefix: "normalize",
+                writtenCount: report.xmpExportReport?.writtenCount ?? 0,
+                failedCount: report.xmpExportReport?.failedCount ?? report.errors.count
+            )
             try enforceBatchExitPolicy(
                 failureCount: failureCount(for: result.normalizeResult.report),
                 interrupted: result.analyzeResult.interrupted || result.exportResult.interrupted
@@ -264,7 +269,12 @@ struct NormalizeCommand: AsyncParsableCommand {
                     interruptionMonitor: interruptionMonitor
                 )
             }
-            writeEssentialSummary(result.normalizeResult.report)
+            let report = result.normalizeResult.report
+            CommandOutputHelpers.writeEssentialSummary(
+                prefix: "normalize",
+                writtenCount: report.xmpExportReport?.writtenCount ?? 0,
+                failedCount: report.xmpExportReport?.failedCount ?? report.errors.count
+            )
             try enforceBatchExitPolicy(
                 failureCount: failureCount(for: result.normalizeResult.report),
                 interrupted: result.exportResult.interrupted
@@ -327,17 +337,23 @@ struct NormalizeCommand: AsyncParsableCommand {
             dryRun: dryRun ? true : nil,
             sourceRoot: sourceRoot,
             sourceVerification: sourceVerification,
-            writeFlatKeywords: pairedFlag(positive: writeFlatKeywords, negative: noWriteFlatKeywords),
-            writeHierarchicalKeywords: pairedFlag(
+            writeFlatKeywords: CommandOutputHelpers.pairedFlag(
+                positive: writeFlatKeywords,
+                negative: noWriteFlatKeywords
+            ),
+            writeHierarchicalKeywords: CommandOutputHelpers.pairedFlag(
                 positive: writeHierarchicalKeywords,
                 negative: noWriteHierarchicalKeywords
             ),
-            backupSidecars: pairedFlag(positive: backupSidecars, negative: noBackupSidecars),
+            backupSidecars: CommandOutputHelpers.pairedFlag(
+                positive: backupSidecars,
+                negative: noBackupSidecars
+            ),
             xmpConflictPolicy: xmpConflictPolicy,
             minConfidence: minConfidence,
             allowSpecificTags: allowSpecificTags ? true : nil,
             pairScope: pairScope,
-            writeAIJSON: pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON),
+            writeAIJSON: CommandOutputHelpers.pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON),
             vocabularyPath: vocabulary,
             vocabularyMode: vocabularyMode,
             normalizationMode: normalizationMode,
@@ -382,31 +398,6 @@ struct NormalizeCommand: AsyncParsableCommand {
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext
         )
-    }
-
-    private func pairedFlag(positive: Bool, negative: Bool) -> Bool? {
-        if positive {
-            return true
-        }
-        if negative {
-            return false
-        }
-        return nil
-    }
-
-    private func writeChangePlan(_ changePlan: XMPChangePlanDocument) throws {
-        let encoder = JSONCoding.documentEncoder(iso8601Dates: false)
-        let data = try encoder.encode(changePlan)
-        FileHandle.standardOutput.write(data)
-        FileHandle.standardOutput.write(Data("\n".utf8))
-    }
-
-    private func writeEssentialSummary(_ report: NormalizationReport) {
-        let exportReport = report.xmpExportReport
-        let written = exportReport?.writtenCount ?? 0
-        let failed = exportReport?.failedCount ?? report.errors.count
-        let line = "normalize complete: \(written) written, \(failed) failed."
-        FileHandle.standardOutput.write(Data((line + "\n").utf8))
     }
 
     private func failureCount(for report: NormalizationReport) -> Int {

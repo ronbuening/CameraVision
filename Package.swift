@@ -74,6 +74,13 @@ let package = Package(
                 .enableUpcomingFeature("StrictConcurrency")
             ]
         ),
+        .testTarget(
+            name: "AISidecarCLITests",
+            dependencies: ["AISidecarCLI"],
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency")
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
