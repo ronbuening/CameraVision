@@ -153,7 +153,13 @@ public struct AnalyzePipeline {
             ? "\(reportDirectory)/\(isQualityOnly ? ArtifactNames.qualitySummaryPrefix : ArtifactNames.batchSummaryPrefix)\(timestamp).json"
             : nil
         let progressLog = try progressPath.map { try ProgressLog(path: $0, fileManager: fileManager) }
+        let progressFlushRegistration = progressLog.flatMap { progressLog in
+            interruptionMonitor?.onInterruption {
+                try? progressLog.flush()
+            }
+        }
         defer {
+            progressFlushRegistration?.cancel()
             try? progressLog?.close()
         }
 

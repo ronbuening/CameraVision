@@ -229,7 +229,11 @@ public struct NormalizePipeline {
         }
 
         let progressLog = try NormalizationProgressLog(path: artifactPlan.progressPath)
+        let progressFlushRegistration = interruptionMonitor?.onInterruption {
+            try? progressLog.flush()
+        }
         defer {
+            progressFlushRegistration?.cancel()
             try? progressLog.close()
         }
         try appendProgressRecords(

@@ -60,9 +60,10 @@ public struct ProgressRecord: Codable, Sendable, Equatable {
 
 /// Append-only JSONL progress log for folder runs.
 ///
-/// Each append is flushed before the batch advances so interruption recovery can
-/// derive completed work directly from the log.
-public final class ProgressLog {
+/// Each append reaches the kernel's file cache before the batch advances, preserving
+/// process-interruption recovery. Explicit flush, close, and the 25-record cadence
+/// synchronize pending records for bounded power-loss durability.
+public final class ProgressLog: @unchecked Sendable {
     private let writer: JSONLWriter<ProgressRecord>
 
     public var path: String { writer.path }
@@ -71,12 +72,17 @@ public final class ProgressLog {
         self.writer = try JSONLWriter(path: path, label: "progress log", fileManager: fileManager)
     }
 
-    /// Append and flush one completed-file record before the batch advances.
+    /// Append one completed-file record before the batch advances.
     public func append(_ record: ProgressRecord) throws {
         try writer.append(record)
     }
 
-    /// Close the underlying file handle, surfacing close failures as write errors.
+    /// Synchronize pending records without closing the log.
+    public func flush() throws {
+        try writer.flush()
+    }
+
+    /// Synchronize pending records and close the underlying file handle.
     public func close() throws {
         try writer.close()
     }
