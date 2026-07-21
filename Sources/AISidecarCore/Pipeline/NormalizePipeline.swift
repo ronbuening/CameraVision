@@ -150,11 +150,9 @@ public struct NormalizePipeline {
             configuration: xmpExportConfiguration(from: configuration)
         )
         let vocabulary = try loadVocabulary(configuration, extractionResults: extractionResults)
-        try CandidateCanonicalizer.preflightSessionContext(
-            configuration: configuration,
-            vocabulary: vocabulary
-        )
-        let canonicalization = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+        let canonicalizer = CandidateCanonicalizer(vocabulary: vocabulary)
+        try canonicalizer.preflightSessionContext(configuration: configuration)
+        let canonicalization = try canonicalizer.canonicalize(
             extractionResults: extractionResults,
             input: input,
             configuration: configuration
@@ -231,7 +229,11 @@ public struct NormalizePipeline {
         }
 
         let progressLog = try NormalizationProgressLog(path: artifactPlan.progressPath)
+        let progressFlushRegistration = interruptionMonitor?.onInterruption {
+            try? progressLog.flush()
+        }
         defer {
+            progressFlushRegistration?.cancel()
             try? progressLog.close()
         }
         try appendProgressRecords(

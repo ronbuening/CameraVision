@@ -2,7 +2,7 @@ import Darwin
 import Dispatch
 import Foundation
 
-/// Shared interruption state for the analyze shell pipeline.
+/// Shared interruption state for analyze, normalization, and XMP export pipelines.
 ///
 /// The pipeline observes the flag at file and model-role boundaries. Registered
 /// handlers cancel in-flight model requests while atomic writes remain complete

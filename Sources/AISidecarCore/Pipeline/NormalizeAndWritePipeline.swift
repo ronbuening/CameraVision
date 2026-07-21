@@ -77,7 +77,8 @@ public struct NormalizeAndWritePipeline {
         let finalNormalizeResult = try executionRecorder.recordExecution(
             normalizeResult: normalizeResult,
             exportResult: exportResult,
-            progressMessage: "Normalize XMP target processed."
+            progressMessage: "Normalize XMP target processed.",
+            interruptionMonitor: interruptionMonitor
         )
         return NormalizeAndWritePipelineResult(
             normalizeResult: finalNormalizeResult,

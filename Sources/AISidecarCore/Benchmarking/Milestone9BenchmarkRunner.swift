@@ -269,7 +269,7 @@ public struct Milestone9BenchmarkRunner {
                 "render_ms": 2,
                 "subject_isolation_ms": 3,
                 "model_ms": 4,
-                "write_ms": 1
+                "write_ms": 0
               },
               "model_runs": [
                 {
@@ -282,10 +282,18 @@ public struct Milestone9BenchmarkRunner {
             }
             """
         try Data(sidecar.utf8).write(to: sidecars.appendingPathComponent("self.JPG.ai.json"))
+        let progressLog = """
+            {"timestamp":"2027-01-01T00:00:00Z","source_path":"/self.JPG","relative_path":null,"sidecar_path":"/self.JPG.ai.json","status":"written","errors":[],"duration_ms":10,"write_ms":1}
+            {"timestamp":"2027-01-01T00:00:01Z","source_path":"/other.JPG","relative_path":null,"sidecar_path":"/other.JPG.ai.json","status":"written","errors":[],"duration_ms":12,"write_ms":3}
+            {"timestamp":"2027-01-01T00:00:02Z","source_path":"/skip.JPG","relative_path":null,"sidecar_path":"/skip.JPG.ai.json","status":"skipped_existing","errors":[],"duration_ms":1}
+            """
+        try Data(progressLog.utf8).write(
+            to: sidecars.appendingPathComponent("batch-progress-self-test.jsonl"))
         let metrics = try aggregateSidecars(in: sidecars)
         guard metrics.sidecarCount == 1,
             metrics.validModelRunCount == 1,
             metrics.medianPipelineMs == 10,
+            metrics.medianWriteMs == 3,
             metrics.totalOllamaLoadDurationNs == 1000
         else {
             throw BenchmarkError("Self-test aggregation did not match expected metrics: \(metrics)")
@@ -515,6 +523,19 @@ public struct Milestone9BenchmarkRunner {
         var writeMs: [Int] = []
         var modelRunMs: [Int] = []
 
+        for url in try files(in: directory)
+        where isBatchProgressLog(url) {
+            // Sidecar timing.write_ms is fixed at 0 (documents are finalized before their single
+            // write), so the measured write duration is aggregated from progress records instead.
+            for line in try String(contentsOf: url, encoding: .utf8).split(separator: "\n") {
+                guard
+                    let record = try? JSONSerialization.jsonObject(with: Data(line.utf8))
+                        as? [String: Any]
+                else { continue }
+                appendInt(record["write_ms"], to: &writeMs)
+            }
+        }
+
         for url in try files(in: directory) where url.lastPathComponent.hasSuffix(".ai.json") {
             let data = try Data(contentsOf: url)
             guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
@@ -527,7 +548,6 @@ public struct Milestone9BenchmarkRunner {
                 appendInt(timing["render_ms"], to: &renderMs)
                 appendInt(timing["subject_isolation_ms"], to: &subjectMs)
                 appendInt(timing["model_ms"], to: &modelMs)
-                appendInt(timing["write_ms"], to: &writeMs)
             }
             for run in object["model_runs"] as? [[String: Any]] ?? [] {
                 metrics.modelRunCount += 1
@@ -764,6 +784,11 @@ public struct Milestone9BenchmarkRunner {
             "Quality scoring, foreground-mask failure classification, and instance-selection accuracy are deferred to Milestone 9b."
         )
         try lines.joined(separator: "\n").data(using: .utf8)!.write(to: url)
+    }
+
+    private func isBatchProgressLog(_ url: URL) -> Bool {
+        url.lastPathComponent.hasPrefix(ArtifactNames.batchProgressPrefix)
+            && url.pathExtension == "jsonl"
     }
 
     private func files(in directory: URL) throws -> [URL] {

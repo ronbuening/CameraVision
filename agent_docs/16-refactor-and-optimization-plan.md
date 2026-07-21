@@ -433,8 +433,67 @@ Implementing `analyze` against a vision-capable FoundationModels API, the schema
 
 | Item | State | Date | Notes |
 |---|---|---|---|
-| A1–A10 | pending | | plan-05 text authoritative |
+| A1 | complete | 2026-07-21 | Shared raw-sidecar batch helpers, including cleanup-warning logging; focused and full suites green. |
+| A2 | complete | 2026-07-21 | Shared CLI flag/output helpers; dry-run stdout byte-identical; focused and full suites green. |
+| A3 | complete | 2026-07-21 | Success/failure sidecars write once; release self-test and full suite green. Live 50–100-image timing is a manual follow-up per maintainer direction. |
+| A4 | complete | 2026-07-21 | Run-scoped fold/lookup memoization, including cached misses; release self-test and full suite green. Live normalization timing is a manual follow-up. |
+| A5 | complete | 2026-07-21 | Matching-size debug derivatives are not recopied; modification-time regression, release self-test, and full suite green. |
+| A6 | complete | 2026-07-21 | Species-display lowercase sort keys precomputed with tie-break order pinned; release self-test and full suite green. |
+| A7 | complete | 2026-07-21 | JSONL logs synchronize every 25 records, on explicit interruption flush, and on close; cadence/interruption tests, release self-test, and full suite green. The 100-image `fs_usage` count is a manual follow-up per maintainer direction. |
+| A8 | complete | 2026-07-21 | Five report writers use `WriterSupport.writeAndWrap`; exact wrapper messages are pinned per writer; report, summary, golden, and full suites green. |
+| A9 | complete | 2026-07-21 | Audited and deleted the test-only `AnalyzeShellPipeline` plus its private isolation copies; unique coverage moved to `AnalyzePipeline`; no-XMP sabotage check failed/passed as expected; full suite green; net −751 implementation/test lines. |
+| A10 | deferred | 2026-07-21 | Maintainer direction: defer until the explicit post-B2 profiling gate can be evaluated. |
 | B1–B6 | pending | | |
 | C1–C16 | pending | | |
 | D1–D7 | pending | | |
 | D8 | blocked | | awaits vision-capable FoundationModels API + test hardware |
+
+### A8 error-message fidelity ledger
+
+The branch-only workflow has no PR description, so the plan-05 R3 pre-migration message table is retained here instead. Existing `SidecarError` values from `AtomicFileWriter` remain pass-through; these templates apply when a non-`SidecarError` is wrapped.
+
+| Writer | Exact message template |
+|---|---|
+| `BatchSummaryWriter` | `Unable to encode batch summary {path}: {underlying}` |
+| `NormalizationSummaryWriter` | `Unable to write normalization summary {path}: {underlying}` |
+| `XMPExportSummaryWriter` | `Unable to write XMP export summary {path}: {underlying}` |
+| `XMPExportReportWriter` | `Unable to write XMP export report {path}: {underlying}` |
+| `NormalizationReportWriter` | `Unable to write normalization report {path}: {underlying}` |
+
+### A9 `AnalyzeShellPipeline` audit ledger
+
+History confirms the shell was introduced for the early durable-sidecar/rendering/isolation milestones (`39c55bc`, `10f1ae2`, `22f23e8`). The full model-execution pipeline arrived separately in `22ab3bf`; the shell had no production callers. Its private subject-isolation helpers therefore had no independent contract to retain.
+
+| Retired shell test | Disposition in `AnalyzePipelineTests` |
+|---|---|
+| Single-file artifacts | Ported into `testSuccessfulAnalysisWritesSidecarExactlyOnce` |
+| Recursive mirroring/progress/summary | Ported as `testRecursiveFolderWritesMirroredSidecarsProgressAndSummary` |
+| Dry-run artifact silence | Ported as `testDryRunCreatesNoSidecarsProgressLogSummaryOrCache` |
+| Existing-policy rerun | Already covered by `testTwoSliceRunMatchesSingleFullRun` |
+| Existing skip before rendering | Already covered by `testExistingSkipAvoidsPrepareRenderAndModelWork` |
+| Render failure sidecar | Unique assertions added to `testRenderFailureWritesFailureSidecarExactlyOnce` |
+| Debug derivative copy | Ported as `testDebugDerivativesAreCopiedBesideSourceAndRecorded` |
+| Subject-only success | Ported as `testSubjectModeWritesOnlySubjectDerivativeAndModelRun` |
+| Subject-only no-foreground failure | Ported as `testSubjectModeNoForegroundWritesFailureSidecarWithoutModelRun` |
+| Both-mode no-foreground fallback | Already covered by `testBothModeNoForegroundWritesWholeRunWithRecoverableError` |
+| Interrupted summary/no partial sidecar | Existing `testInterruptionBetweenRolesSkipsSecondRoleAndFailsClosed` strengthened to require the summary artifact |
+
+`NoXMPRegressionTests.testAnalyzePipelineRemainsXMPSilent` now invokes `AnalyzePipeline`. A temporary `.xmp` write made it fail on the injected path; after removing the sabotage, it passed unchanged.
+
+### Tranche A manual performance follow-up
+
+The maintainer deferred live Ollama/corpus measurements from this implementation pass. On one stable 50–100-image corpus, compare the pre-Tranche-A commit (`8e42219`) with the A9-complete branch using the same machine, Ollama model, profile, cache state, and separate output directories:
+
+1. **A3/P1 — sidecar write:** time `aisidecar analyze <folder> --recursive --mode both`; record non-model write time and confirm one final raw-sidecar atomic replacement per completed image. Per-image measured write durations are available as `write_ms` in the batch progress log (and as `median_write_ms` in benchmark output); sidecar `timing.write_ms` is intentionally 0.
+2. **A4/P5 — vocabulary memoization:** time `aisidecar normalize <folder> --recursive --mode both --dry-run`; record normalization wall time with identical vocabulary/configuration and compare session/report bytes.
+3. **A7/P4 — progress sync cadence:** observe the analyze run with `fs_usage`; record progress-log synchronization calls. A 100-record log should synchronize about four times during appends, plus close/interruption synchronization only when records remain pending, instead of about 100 append synchronizations.
+
+Keep the raw command output, wall-clock numbers, corpus identity, cache state, and `fs_usage` excerpt together as the manual evidence record. The deterministic release benchmark self-test remains the automated gate for this tranche.
+
+### Tranche A signoff
+
+- Scope: A1–A9 complete; A10/P6 deferred by maintainer direction until the post-B2 profiling gate.
+- Post-signoff hardening (2026-07-21, maintainer-directed): the audit pass restored the shell test's subject-mode cache assertion and added these amendments — A3: measured sidecar-write duration now recorded in an additive, default-elided `ProgressRecord.write_ms`, and `benchmark` aggregates `median_write_ms` from batch progress logs (sidecar `timing.write_ms` stays 0); A4: the shared lookup cache is lock-guarded against cross-thread struct-copy sharing; A5: the debug-derivative skip also requires the destination to be at least as new as the cache artifact; A7: `NormalizationXMPExecutionRecorder` registers the interruption flush like the four pipelines; A2/R2 follow-up: normalization-report summary counts extracted once via a `CommandOutputHelpers` overload.
+- Final automated verification: `swift test` passed 806 tests with 2 opt-in skips; the release benchmark self-test and `aisidecar --help` passed.
+- Formatting: all 38 changed Swift files pass `swift format lint`. The repository-wide advisory lint still reports only the pre-existing `Step3OptionsView.swift` indentation and `ModelRuntimeTests.swift` line-break findings, neither touched by this tranche.
+- Git: 20 scoped commits on `ronbuening/RefactorTrancheA`; range diff is 1,394 insertions / 1,493 deletions, with no whitespace errors.

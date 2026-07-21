@@ -31,7 +31,7 @@ public struct AnalyzeResult: Sendable, Equatable {
 public struct AnalyzePipeline {
     private let fileManager: FileManager
     private let scanner: ImageScanner
-    private let writer: RawJSONSidecarWriter
+    private let writer: any RawJSONSidecarWriting
     private let summaryWriter: BatchSummaryWriter
     private let logger: Logger
     private let maskProvider: any ForegroundMaskProvider
@@ -47,9 +47,29 @@ public struct AnalyzePipeline {
         now: @escaping @Sendable () -> Date = Date.init,
         filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix
     ) {
+        self.init(
+            fileManager: fileManager,
+            logger: logger,
+            maskProvider: maskProvider,
+            runner: runner,
+            now: now,
+            filenameSuffix: filenameSuffix,
+            sidecarWriter: RawJSONSidecarWriter(fileManager: fileManager)
+        )
+    }
+
+    init(
+        fileManager: FileManager = .default,
+        logger: Logger = Logger(),
+        maskProvider: (any ForegroundMaskProvider)? = nil,
+        runner: any VisionModelRunner = OllamaVisionRunner(),
+        now: @escaping @Sendable () -> Date = Date.init,
+        filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix,
+        sidecarWriter: any RawJSONSidecarWriting
+    ) {
         self.fileManager = fileManager
         self.scanner = ImageScanner(fileManager: fileManager)
-        self.writer = RawJSONSidecarWriter(fileManager: fileManager)
+        self.writer = sidecarWriter
         self.summaryWriter = BatchSummaryWriter(fileManager: fileManager)
         self.logger = logger
         if let maskProvider {
@@ -133,7 +153,13 @@ public struct AnalyzePipeline {
             ? "\(reportDirectory)/\(isQualityOnly ? ArtifactNames.qualitySummaryPrefix : ArtifactNames.batchSummaryPrefix)\(timestamp).json"
             : nil
         let progressLog = try progressPath.map { try ProgressLog(path: $0, fileManager: fileManager) }
+        let progressFlushRegistration = progressLog.flatMap { progressLog in
+            interruptionMonitor?.onInterruption {
+                try? progressLog.flush()
+            }
+        }
         defer {
+            progressFlushRegistration?.cancel()
             try? progressLog?.close()
         }
 
@@ -687,7 +713,8 @@ public struct AnalyzePipeline {
                 return .interrupted
             }
             let errors = prepared.errors + modelRuns.compactMap(\.error)
-            var sidecar = RawJSONSidecar(
+            let pipelineElapsedMs = durationMs(from: startedAt, to: now())
+            let sidecar = RawJSONSidecar(
                 source: entry.source,
                 runConfiguration: configuration,
                 modelInputProfile: profile,
@@ -696,7 +723,7 @@ public struct AnalyzePipeline {
                 modelRuns: modelRuns,
                 errors: errors,
                 timing: PipelineTimingRecord(
-                    pipelineElapsedMs: durationMs(from: startedAt, to: now()),
+                    pipelineElapsedMs: pipelineElapsedMs,
                     renderMs: prepared.renderMs,
                     subjectIsolationMs: prepared.subjectIsolationMs,
                     modelMs: modelMs,
@@ -713,11 +740,6 @@ public struct AnalyzePipeline {
                     existingPolicy: configuration.existing
                 )
                 let writeMs = durationMs(from: writeStartedAt, to: now())
-                if outcome.status == .written {
-                    sidecar.timing?.writeMs = writeMs
-                    sidecar.timing?.pipelineElapsedMs = durationMs(from: startedAt, to: now())
-                    _ = try writer.write(sidecar, to: entry.sidecarPath, existingPolicy: .overwrite)
-                }
                 let status: ProgressStatus
                 switch outcome.status {
                 case .skippedExisting:
@@ -733,7 +755,8 @@ public struct AnalyzePipeline {
                         sidecarPath: entry.sidecarPath,
                         status: status,
                         errors: errors,
-                        durationMs: durationMs(from: startedAt, to: now())
+                        durationMs: durationMs(from: startedAt, to: now()),
+                        writeMs: outcome.status == .written ? writeMs : nil
                     )
                 )
             } catch {
@@ -761,13 +784,14 @@ public struct AnalyzePipeline {
         renderMs: Int,
         startedAt: Date
     ) -> ProgressRecord {
-        var errorSidecar = RawJSONSidecar(
+        let pipelineElapsedMs = durationMs(from: startedAt, to: now())
+        let errorSidecar = RawJSONSidecar(
             source: source,
             runConfiguration: configuration,
             modelInputProfile: profile,
             errors: errors,
             timing: PipelineTimingRecord(
-                pipelineElapsedMs: durationMs(from: startedAt, to: now()),
+                pipelineElapsedMs: pipelineElapsedMs,
                 renderMs: renderMs,
                 subjectIsolationMs: 0,
                 modelMs: 0,
@@ -776,14 +800,13 @@ public struct AnalyzePipeline {
             createdAt: now()
         )
         var progressErrors = errors
+        var writeMs: Int?
         do {
             let writeStartedAt = now()
-            let outcome = try writer.write(errorSidecar, to: sidecarPath, existingPolicy: configuration.existing)
-            let writeMs = durationMs(from: writeStartedAt, to: now())
+            let outcome = try writer.write(
+                errorSidecar, to: sidecarPath, existingPolicy: configuration.existing)
             if outcome.status == .written {
-                errorSidecar.timing?.writeMs = writeMs
-                errorSidecar.timing?.pipelineElapsedMs = durationMs(from: startedAt, to: now())
-                _ = try writer.write(errorSidecar, to: sidecarPath, existingPolicy: .overwrite)
+                writeMs = durationMs(from: writeStartedAt, to: now())
             }
         } catch {
             progressErrors.append(Self.sidecarError(from: error, sidecarPath: sidecarPath))
@@ -796,7 +819,8 @@ public struct AnalyzePipeline {
             sidecarPath: sidecarPath,
             status: .failed,
             errors: progressErrors,
-            durationMs: durationMs(from: startedAt, to: now())
+            durationMs: durationMs(from: startedAt, to: now()),
+            writeMs: writeMs
         )
     }
 

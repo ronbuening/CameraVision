@@ -52,25 +52,15 @@ struct QualityGradingOptions: ParsableArguments {
             enabled: qualityGrading ? true : nil,
             conflictPolicy: qualityConflicts,
             minimumConfidence: qualityConfidence(from: qualityMinConfidence),
-            writeRating: pairedFlag(positive: writeRating, negative: noWriteRating),
-            writeLabel: pairedFlag(positive: writeLabel, negative: noWriteLabel),
-            writeUrgency: pairedFlag(positive: writeUrgency, negative: noWriteUrgency),
-            writeFlag: pairedFlag(positive: writeFlag, negative: noWriteFlag),
-            writeKeywords: pairedFlag(
+            writeRating: CommandOutputHelpers.pairedFlag(positive: writeRating, negative: noWriteRating),
+            writeLabel: CommandOutputHelpers.pairedFlag(positive: writeLabel, negative: noWriteLabel),
+            writeUrgency: CommandOutputHelpers.pairedFlag(positive: writeUrgency, negative: noWriteUrgency),
+            writeFlag: CommandOutputHelpers.pairedFlag(positive: writeFlag, negative: noWriteFlag),
+            writeKeywords: CommandOutputHelpers.pairedFlag(
                 positive: writeQualityKeywords,
                 negative: noWriteQualityKeywords
             )
         )
-    }
-
-    private func pairedFlag(positive: Bool, negative: Bool) -> Bool? {
-        if positive {
-            return true
-        }
-        if negative {
-            return false
-        }
-        return nil
     }
 
     private func qualityConfidence(

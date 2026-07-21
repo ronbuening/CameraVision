@@ -94,6 +94,61 @@ final class XMPExportReportTests: XCTestCase {
         XCTAssertEqual(object["wrote_urgency"] as? Bool, true)
     }
 
+    func testReportWriterPreservesExactWrappedFailureMessage() {
+        let path = "/reports/xmp-export-report.json"
+        let writer = XMPExportReportWriter(dataWriter: { _, _, _ in throw InjectedReportWriteError() })
+
+        XCTAssertThrowsError(try writer.write(emptyReport(), to: path)) { error in
+            XCTAssertEqual(
+                (error as? SidecarError)?.message,
+                "Unable to write XMP export report /reports/xmp-export-report.json: injected report write failure"
+            )
+        }
+    }
+
+    func testSummaryWriterPreservesExactWrappedFailureMessage() {
+        let path = "/reports/xmp-export-summary.md"
+        let writer = XMPExportSummaryWriter(dataWriter: { _, _, _ in throw InjectedReportWriteError() })
+
+        XCTAssertThrowsError(try writer.write(emptyReport(), to: path)) { error in
+            XCTAssertEqual(
+                (error as? SidecarError)?.message,
+                "Unable to write XMP export summary /reports/xmp-export-summary.md: injected report write failure"
+            )
+        }
+    }
+
+    func testReportWriterPassesSidecarErrorsThroughUnwrapped() {
+        let underlying = SidecarError(
+            code: .writeFailed,
+            stage: .write,
+            message: "atomic writer failure detail",
+            recoverable: false
+        )
+        let writer = XMPExportReportWriter(dataWriter: { _, _, _ in throw underlying })
+
+        XCTAssertThrowsError(try writer.write(emptyReport(), to: "/reports/xmp-export-report.json")) { error in
+            XCTAssertEqual(error as? SidecarError, underlying)
+        }
+    }
+
+    private func emptyReport() -> XMPExportReport {
+        XMPExportReport(
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+            inputPath: "/photos",
+            reportDirectory: "/reports",
+            dryRun: false,
+            configuration: .builtInDefaults,
+            engine: MetadataWriteEngineContext(
+                engineName: OwnedXMPSidecarEngine.engineName,
+                engineVersion: OwnedXMPSidecarEngine.engineVersion,
+                writerRecipeVersion: OwnedXMPSidecarEngine.writerRecipeVersion
+            ),
+            targetReports: [],
+            inputFailures: []
+        )
+    }
+
     private func reportChangePlan(targetPath: String, flat: [String], hierarchical: [String]) -> XMPChangePlan {
         XMPChangePlan(
             status: .planned,
@@ -122,4 +177,8 @@ final class XMPExportReportTests: XCTestCase {
             candidates: []
         )
     }
+}
+
+private struct InjectedReportWriteError: LocalizedError {
+    var errorDescription: String? { "injected report write failure" }
 }

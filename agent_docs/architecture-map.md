@@ -53,7 +53,6 @@ All results are `Sendable`; no `@MainActor` coupling; Core never prints directly
 | `AnalyzeAndXMPPipeline` | `run(...)` | yes | analyze + write-xmp in one command |
 | `AnalyzeAndNormalizePipeline` | `run(...)` | yes | analyze + normalize (+ export) in one command; carries the selected tagging/combined task profile and grading configuration |
 | `ModelInputExportPipeline` | `run(...)` | yes | Diagnostic only: rendered model inputs + manifest, no sidecars/model calls |
-| `AnalyzeShellPipeline` | — | — | Legacy pre-model test seam, test-only call sites; audit before touching (see efficiency plan R4) |
 
 ## CLI Layer (Sources/AISidecarCLI)
 

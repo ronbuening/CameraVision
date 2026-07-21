@@ -27,6 +27,7 @@ public struct CandidateCanonicalizationResult: Sendable, Equatable {
 public struct CandidateCanonicalizer {
     private let vocabulary: LoadedVocabulary
     private let observationBuilder: CandidateObservationBuilder
+    private let lookupCache: CandidateCanonicalizerLookupCache
 
     public init(
         vocabulary: LoadedVocabulary,
@@ -34,6 +35,7 @@ public struct CandidateCanonicalizer {
     ) {
         self.vocabulary = vocabulary
         self.observationBuilder = observationBuilder
+        self.lookupCache = CandidateCanonicalizerLookupCache(vocabulary: vocabulary)
     }
 
     /// Reject unknown session context before any expensive analysis or writing can start.
@@ -41,12 +43,16 @@ public struct CandidateCanonicalizer {
         configuration: ResolvedNormalizationConfiguration,
         vocabulary: LoadedVocabulary
     ) throws {
+        try CandidateCanonicalizer(vocabulary: vocabulary).preflightSessionContext(configuration: configuration)
+    }
+
+    func preflightSessionContext(configuration: ResolvedNormalizationConfiguration) throws {
         guard configuration.normalizationMode != .off else {
             return
         }
-        for context in sessionContextInputs(configuration) {
+        for context in Self.sessionContextInputs(configuration) {
             let normalized = KeywordTextNormalizer.normalize(context.value)
-            let folded = VocabularyTextFolder.fold(normalized)
+            let folded = lookupCache.fold(normalized)
             guard !folded.isEmpty else {
                 continue
             }
@@ -79,7 +85,7 @@ public struct CandidateCanonicalizer {
                 }
                 continue
             }
-            if vocabulary.index.entry(matching: context.value) == nil,
+            if lookupCache.entry(matching: context.value) == nil,
                 configuration.unknownSessionContextPolicy == .reject
             {
                 throw SidecarError(
@@ -90,7 +96,7 @@ public struct CandidateCanonicalizer {
                     recoverable: false
                 )
             }
-            if vocabulary.index.entry(matching: context.value) == nil,
+            if lookupCache.entry(matching: context.value) == nil,
                 context.value.contains("|")
             {
                 throw SidecarError(
@@ -186,7 +192,7 @@ public struct CandidateCanonicalizer {
                     appendSkip(&skips, reason: blockingReason, observation: observation)
                     continue
                 }
-                guard let entry = vocabulary.index.entry(matching: candidate.normalizedTerm) else {
+                guard let entry = lookupCache.entry(matching: candidate.normalizedTerm) else {
                     appendSkip(&skips, reason: .unmatchedVocabulary, observation: observation)
                     continue
                 }
@@ -297,7 +303,7 @@ public struct CandidateCanonicalizer {
                     )
                     continue
                 }
-                guard let entry = vocabulary.index.entry(matching: candidate.normalizedTerm) else {
+                guard let entry = lookupCache.entry(matching: candidate.normalizedTerm) else {
                     if candidate.provenance.sourceField == .species {
                         // FR3-011c: unmatched species common names may normalize
                         // across model text, but cannot become vocabulary-backed
@@ -591,7 +597,7 @@ public struct CandidateCanonicalizer {
                 return NormalizationSessionContextRecord(
                     contextType: context.type,
                     originalText: context.value,
-                    foldedText: VocabularyTextFolder.fold(normalized),
+                    foldedText: lookupCache.fold(normalized),
                     matchedCanonicalPath: nil,
                     unknownPolicyResult: "ignored_normalization_off",
                     directApplyPolicy: nil,
@@ -618,7 +624,7 @@ public struct CandidateCanonicalizer {
                 return NormalizationSessionContextRecord(
                     contextType: context.type,
                     originalText: context.value,
-                    foldedText: VocabularyTextFolder.fold(normalized),
+                    foldedText: lookupCache.fold(normalized),
                     matchedCanonicalPath: nil,
                     unknownPolicyResult: writesUnnormalized ? "write_unnormalized" : "rejected",
                     directApplyPolicy: writesUnnormalized ? .flatOnly : nil,
@@ -627,11 +633,11 @@ public struct CandidateCanonicalizer {
                     exportResult: unmatchedExportResult
                 )
             }
-            if let entry = vocabulary.index.entry(matching: normalized) {
+            if let entry = lookupCache.entry(matching: normalized) {
                 return NormalizationSessionContextRecord(
                     contextType: context.type,
                     originalText: context.value,
-                    foldedText: VocabularyTextFolder.fold(normalized),
+                    foldedText: lookupCache.fold(normalized),
                     matchedCanonicalPath: entry.canonicalPath,
                     unknownPolicyResult: "matched",
                     directApplyPolicy: entry.directApplyPolicy,
@@ -645,7 +651,7 @@ public struct CandidateCanonicalizer {
             return NormalizationSessionContextRecord(
                 contextType: context.type,
                 originalText: context.value,
-                foldedText: VocabularyTextFolder.fold(normalized),
+                foldedText: lookupCache.fold(normalized),
                 matchedCanonicalPath: nil,
                 unknownPolicyResult: writesUnnormalized ? "write_unnormalized" : "rejected",
                 directApplyPolicy: writesUnnormalized ? .flatOnly : nil,
@@ -790,7 +796,7 @@ public struct CandidateCanonicalizer {
                 observationID: observation?.observationID,
                 term: observation?.term ?? term,
                 normalizedTerm: observation?.normalizedTerm ?? normalizedTerm,
-                foldedTerm: observation?.foldedTerm ?? normalizedTerm.map(VocabularyTextFolder.fold),
+                foldedTerm: observation?.foldedTerm ?? normalizedTerm.map { lookupCache.fold($0) },
                 canonicalPath: canonicalPath,
                 sourceSidecar: observation?.provenance.sourceSidecar,
                 sourceImage: observation?.provenance.sourceImage,
@@ -901,27 +907,26 @@ public struct CandidateCanonicalizer {
     private func preferredSpeciesFallbackDisplayTerm(observations: [CandidateObservation]) -> String {
         let terms = observations.map(\.normalizedTerm).filter { !$0.isEmpty }
         let counts = counts(terms)
-        return terms.sorted { lhs, rhs in
-            let lhsCount = counts[lhs, default: 0]
-            let rhsCount = counts[rhs, default: 0]
+        let keyedTerms = terms.map { (term: $0, lowercased: $0.lowercased()) }
+        return keyedTerms.sorted { lhs, rhs in
+            let lhsCount = counts[lhs.term, default: 0]
+            let rhsCount = counts[rhs.term, default: 0]
             if lhsCount != rhsCount {
                 return lhsCount > rhsCount
             }
-            let lhsTitleScore = titleCaseWordCount(lhs)
-            let rhsTitleScore = titleCaseWordCount(rhs)
+            let lhsTitleScore = titleCaseWordCount(lhs.term)
+            let rhsTitleScore = titleCaseWordCount(rhs.term)
             if lhsTitleScore != rhsTitleScore {
                 return lhsTitleScore > rhsTitleScore
             }
-            if lhs.count != rhs.count {
-                return lhs.count < rhs.count
+            if lhs.term.count != rhs.term.count {
+                return lhs.term.count < rhs.term.count
             }
-            let lhsLowercased = lhs.lowercased()
-            let rhsLowercased = rhs.lowercased()
-            if lhsLowercased != rhsLowercased {
-                return lhsLowercased < rhsLowercased
+            if lhs.lowercased != rhs.lowercased {
+                return lhs.lowercased < rhs.lowercased
             }
-            return lhs < rhs
-        }.first ?? ""
+            return lhs.term < rhs.term
+        }.first?.term ?? ""
     }
 
     private func titleCaseWordCount(_ value: String) -> Int {
@@ -1033,6 +1038,53 @@ public struct CandidateCanonicalizer {
                 propagationAllowed: propagationAllowed
             )
         )
+    }
+}
+
+/// `CandidateCanonicalizer` is a struct sharing this class-backed cache across copies, so the
+/// dictionaries are lock-guarded: a copy handed to another thread must not be able to corrupt
+/// cache state. The wrapped fold and lookup are pure over value-type vocabulary state, so a
+/// duplicated computation under contention is safe.
+final class CandidateCanonicalizerLookupCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var foldsByText: [String: String] = [:]
+    private var entriesByText: [String: ResolvedVocabularyEntry?] = [:]
+    private let foldText: (String) -> String
+    private let lookupEntry: (String) -> ResolvedVocabularyEntry?
+
+    init(vocabulary: LoadedVocabulary) {
+        self.foldText = VocabularyTextFolder.fold
+        self.lookupEntry = vocabulary.index.entry(matching:)
+    }
+
+    init(
+        foldText: @escaping (String) -> String,
+        lookupEntry: @escaping (String) -> ResolvedVocabularyEntry?
+    ) {
+        self.foldText = foldText
+        self.lookupEntry = lookupEntry
+    }
+
+    func fold(_ text: String) -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = foldsByText[text] {
+            return cached
+        }
+        let folded = foldText(text)
+        foldsByText[text] = folded
+        return folded
+    }
+
+    func entry(matching text: String) -> ResolvedVocabularyEntry? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = entriesByText[text] {
+            return cached
+        }
+        let entry = lookupEntry(text)
+        entriesByText[text] = .some(entry)
+        return entry
     }
 }
 

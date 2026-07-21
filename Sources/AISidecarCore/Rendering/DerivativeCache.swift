@@ -227,6 +227,25 @@ public final class DerivativeCache: @unchecked Sendable {
             )
             .standardizedFileURL
         do {
+            let cacheAttributes = try fileManager.attributesOfItem(atPath: record.cachePath)
+            let cacheByteCount = (cacheAttributes[.size] as? NSNumber)?.int64Value
+            let cacheModified = cacheAttributes[.modificationDate] as? Date
+            if fileManager.fileExists(atPath: destination.path) {
+                let destinationAttributes = try fileManager.attributesOfItem(atPath: destination.path)
+                let destinationByteCount = (destinationAttributes[.size] as? NSNumber)?.int64Value
+                let destinationModified = destinationAttributes[.modificationDate] as? Date
+                // The destination name carries only source/role/format, so a same-size file older
+                // than the cache artifact can be a stale copy of a previous render; trust only a
+                // copy at least as new as the artifact it claims to mirror.
+                if let cacheByteCount, let destinationByteCount, cacheByteCount == destinationByteCount,
+                    let cacheModified, let destinationModified, destinationModified >= cacheModified
+                {
+                    var copied = record
+                    copied.debugPath = destination.path
+                    return copied
+                }
+            }
+
             let data = try Data(contentsOf: URL(fileURLWithPath: record.cachePath))
             try AtomicFileWriter.write(data, to: destination, fileManager: fileManager)
             var copied = record

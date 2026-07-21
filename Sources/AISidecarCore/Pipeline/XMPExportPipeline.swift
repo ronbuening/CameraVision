@@ -212,7 +212,13 @@ public struct XMPExportPipeline {
         let progressLog = try artifacts.map {
             try XMPExportProgressLog(path: $0.progressPath, fileManager: fileManager)
         }
+        let progressFlushRegistration = progressLog.flatMap { progressLog in
+            interruptionMonitor?.onInterruption {
+                try? progressLog.flush()
+            }
+        }
         defer {
+            progressFlushRegistration?.cancel()
             try? progressLog?.close()
         }
 

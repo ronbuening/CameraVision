@@ -21,7 +21,15 @@ public struct RawJSONSidecarWriteOutcome: Sendable, Equatable {
 }
 
 /// Writes Phase 1 raw JSON sidecars with FR1-010 existing-file semantics.
-public struct RawJSONSidecarWriter {
+protocol RawJSONSidecarWriting {
+    func write(
+        _ sidecar: RawJSONSidecar,
+        to destinationPath: String,
+        existingPolicy: ExistingPolicy
+    ) throws -> RawJSONSidecarWriteOutcome
+}
+
+public struct RawJSONSidecarWriter: RawJSONSidecarWriting {
     private let fileManager: FileManager
     private let encoder: JSONEncoder
 

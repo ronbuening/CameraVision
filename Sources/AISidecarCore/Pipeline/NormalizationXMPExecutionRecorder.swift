@@ -20,7 +20,8 @@ struct NormalizationXMPExecutionRecorder {
     func recordExecution(
         normalizeResult: NormalizePipelineResult,
         exportResult: XMPExportPipelineResult,
-        progressMessage: String
+        progressMessage: String,
+        interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> NormalizePipelineResult {
         var report = normalizeResult.report
         report.xmpExportReport = exportResult.report
@@ -36,7 +37,12 @@ struct NormalizationXMPExecutionRecorder {
 
         try reportWriter.write(report, to: report.artifacts.reportPath)
         try summaryWriter.write(report, to: report.artifacts.summaryPath)
-        try appendExecutionProgress(report: report, exportReport: exportResult.report, message: progressMessage)
+        try appendExecutionProgress(
+            report: report,
+            exportReport: exportResult.report,
+            message: progressMessage,
+            interruptionMonitor: interruptionMonitor
+        )
 
         return NormalizePipelineResult(
             session: normalizeResult.session,
@@ -48,13 +54,18 @@ struct NormalizationXMPExecutionRecorder {
     private func appendExecutionProgress(
         report: NormalizationReport,
         exportReport: XMPExportReport?,
-        message: String
+        message: String,
+        interruptionMonitor: InterruptionMonitor?
     ) throws {
         guard let exportReport else {
             return
         }
         let progressLog = try NormalizationProgressLog(path: report.artifacts.progressPath, fileManager: fileManager)
+        let flushRegistration = interruptionMonitor?.onInterruption {
+            try? progressLog.flush()
+        }
         defer {
+            flushRegistration?.cancel()
             try? progressLog.close()
         }
         for target in exportReport.targetReports {
