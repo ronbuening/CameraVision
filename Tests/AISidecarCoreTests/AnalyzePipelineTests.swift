@@ -26,8 +26,16 @@ final class AnalyzePipelineTests: XCTestCase {
 
         XCTAssertEqual(result.records.map(\.status), [.written])
         XCTAssertEqual(writer.writeCount, 1)
+        XCTAssertNil(result.progressLogPath)
+        XCTAssertNil(result.summaryPath)
+        XCTAssertNil(result.summary)
         let sidecar = try decodeSidecar(output.appendingPathComponent("A.JPG.ai.json"))
         XCTAssertEqual(sidecar.timing?.writeMs, 0)
+        XCTAssertTrue(
+            try FileManager.default.contentsOfDirectory(atPath: output.path)
+                .filter { $0.hasPrefix("batch-") }
+                .isEmpty
+        )
     }
 
     func testRenderFailureWritesFailureSidecarExactlyOnce() async throws {
@@ -54,6 +62,190 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertEqual(writer.writeCount, 1)
         let sidecar = try decodeSidecar(output.appendingPathComponent("Broken.JPG.ai.json"))
         XCTAssertEqual(sidecar.timing?.writeMs, 0)
+        XCTAssertTrue(sidecar.derivatives.isEmpty)
+        XCTAssertEqual(sidecar.errors.map(\.code), [.decodeFailed])
+        XCTAssertEqual(result.records.first?.errors.map(\.code), [.decodeFailed])
+    }
+
+    func testRecursiveFolderWritesMirroredSidecarsProgressAndSummary() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        _ = try writeTestImage("2026/06/_DSC1234.JPG", in: root)
+        _ = try writeTestImage("2026/07/_DSC1234.JPG", in: root)
+        _ = try writeFile("2026/07/notes.txt", data: Data("notes".utf8), in: root)
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: config(
+                recursive: true,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        let juneSidecar = output.appendingPathComponent("2026/06/_DSC1234.JPG.ai.json")
+        let julySidecar = output.appendingPathComponent("2026/07/_DSC1234.JPG.ai.json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: juneSidecar.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: julySidecar.path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: output.appendingPathComponent("_DSC1234.JPG.ai.json").path))
+        XCTAssertEqual(result.records.map(\.status), [.failed, .written, .written])
+        XCTAssertEqual(result.records.first?.errors.first?.code, .unsupportedFormat)
+        XCTAssertEqual(result.summary?.written, 2)
+        XCTAssertEqual(result.summary?.failed, 1)
+        XCTAssertEqual(result.summary?.totalImages, 2)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(result.summaryPath)))
+        let progressLines = try String(contentsOfFile: XCTUnwrap(result.progressLogPath), encoding: .utf8)
+            .split(separator: "\n")
+        XCTAssertEqual(progressLines.count, 3)
+        let sidecar = try decodeSidecar(juneSidecar)
+        XCTAssertEqual(sidecar.source.relativePath, "2026/06/_DSC1234.JPG")
+        XCTAssertEqual(sidecar.derivatives.map(\.role), [.wholeImage])
+        XCTAssertEqual(sidecar.modelRuns.map(\.inputRole), [.wholeImage])
+    }
+
+    func testDryRunCreatesNoSidecarsProgressLogSummaryOrCache() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        try FileManager.default.removeItem(at: output)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        _ = try writeFile("A.NEF", data: Data("nef".utf8), in: root)
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: root.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path,
+                dryRun: true
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.dryRun])
+        XCTAssertNil(result.progressLogPath)
+        XCTAssertNil(result.summaryPath)
+        XCTAssertNil(result.summary)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+    }
+
+    func testDebugDerivativesAreCopiedBesideSourceAndRecorded() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Bird.JPG", in: root)
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path,
+                debugDerivatives: true
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        let sidecar = try decodeSidecar(output.appendingPathComponent("Bird.JPG.ai.json"))
+        XCTAssertEqual(
+            sidecar.derivatives.compactMap(\.debugPath),
+            [root.appendingPathComponent("Bird.JPG.aisidecar.whole_image.jpg").path]
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: root.appendingPathComponent("Bird.JPG.aisidecar.full_resolution.tiff").path)
+        )
+        XCTAssertTrue(
+            sidecar.derivatives.compactMap(\.debugPath).allSatisfy {
+                FileManager.default.fileExists(atPath: $0)
+            }
+        )
+    }
+
+    func testSubjectModeWritesOnlySubjectDerivativeAndModelRun() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Subject.JPG", width: 120, height: 80, in: root)
+
+        let result = try await pipeline(
+            maskProvider: StaticForegroundMaskProvider([
+                StaticMaskSpec(index: 1, rect: CGRect(x: 40, y: 20, width: 30, height: 20))
+            ]),
+            runner: RecordingVisionModelRunner()
+        ).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .subject,
+                cacheDir: output.appendingPathComponent("cache").path,
+                debugDerivatives: true
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        let sidecar = try decodeSidecar(output.appendingPathComponent("Subject.JPG.ai.json"))
+        XCTAssertEqual(sidecar.derivatives.map(\.role), [.subjectIsolated])
+        XCTAssertEqual(sidecar.modelRuns.map(\.inputRole), [.subjectIsolated])
+        XCTAssertEqual(sidecar.subjectIsolation?.status, .success)
+        XCTAssertEqual(sidecar.subjectIsolation?.selectedInstanceIndices, [1])
+        XCTAssertTrue(sidecar.errors.isEmpty)
+        let derivative = try XCTUnwrap(sidecar.derivatives.first)
+        XCTAssertEqual(
+            derivative.debugPath,
+            root.appendingPathComponent("Subject.JPG.aisidecar.subject_isolated.jpg").path
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(derivative.debugPath)))
+    }
+
+    func testSubjectModeNoForegroundWritesFailureSidecarWithoutModelRun() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("NoForeground.JPG", width: 120, height: 80, in: root)
+        let runner = RecordingVisionModelRunner()
+
+        let result = try await pipeline(
+            maskProvider: StaticForegroundMaskProvider([]),
+            runner: runner
+        ).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .subject,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.failed])
+        XCTAssertEqual(result.records.first?.errors.map(\.code), [.subjectIsolationNoForeground])
+        let sidecar = try decodeSidecar(output.appendingPathComponent("NoForeground.JPG.ai.json"))
+        XCTAssertEqual(sidecar.subjectIsolation?.status, .noForeground)
+        XCTAssertTrue(sidecar.derivatives.isEmpty)
+        XCTAssertTrue(sidecar.modelRuns.isEmpty)
+        XCTAssertEqual(sidecar.errors.map(\.code), [.subjectIsolationNoForeground])
+        let calls = await runner.capturedCalls()
+        XCTAssertTrue(calls.isEmpty)
     }
 
     func testWholeModeWritesModelRunAndProvenance() async throws {
@@ -409,6 +601,7 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.JPG.ai.json").path)
         )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(result.summaryPath)))
         let calls = await runner.capturedCalls()
         let cancellationObserved = await runner.observedCancellation()
         XCTAssertEqual(calls.map(\.inputRole), [.wholeImage])
@@ -953,7 +1146,9 @@ final class AnalyzePipelineTests: XCTestCase {
         clearDerivativeCacheAfterSuccess: Bool = false,
         modelContextWindow: Int = ResolvedRunConfiguration.builtInDefaults.modelContextWindow,
         taskProfile: ModelTaskProfile = .tagging,
-        qualityScanMode: QualityScanMode = .combined
+        qualityScanMode: QualityScanMode = .combined,
+        dryRun: Bool = false,
+        debugDerivatives: Bool = false
     ) -> ResolvedRunConfiguration {
         ResolvedRunConfiguration(
             mode: mode,
@@ -970,8 +1165,8 @@ final class AnalyzePipelineTests: XCTestCase {
             profile: ResolvedRunConfiguration.builtInDefaults.profile,
             logLevel: .debug,
             logFormat: .json,
-            dryRun: false,
-            debugDerivatives: false,
+            dryRun: dryRun,
+            debugDerivatives: debugDerivatives,
             sourceIdentityPolicy: .sha256,
             derivativeCacheDir: cacheDir,
             derivativeCacheSizeBytes: derivativeCacheSizeBytes,
