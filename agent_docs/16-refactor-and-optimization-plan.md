@@ -439,7 +439,8 @@ Implementing `analyze` against a vision-capable FoundationModels API, the schema
 | A4 | complete | 2026-07-21 | Run-scoped fold/lookup memoization, including cached misses; release self-test and full suite green. Live normalization timing is a manual follow-up. |
 | A5 | complete | 2026-07-21 | Matching-size debug derivatives are not recopied; modification-time regression, release self-test, and full suite green. |
 | A6 | complete | 2026-07-21 | Species-display lowercase sort keys precomputed with tie-break order pinned; release self-test and full suite green. |
-| A7–A9 | pending | | plan-05 text authoritative |
+| A7 | complete | 2026-07-21 | JSONL logs synchronize every 25 records, on explicit interruption flush, and on close; cadence/interruption tests, release self-test, and full suite green. The 100-image `fs_usage` count is a manual follow-up per maintainer direction. |
+| A8–A9 | pending | | plan-05 text authoritative |
 | A10 | deferred | 2026-07-21 | Maintainer direction: defer until the explicit post-B2 profiling gate can be evaluated. |
 | B1–B6 | pending | | |
 | C1–C16 | pending | | |
