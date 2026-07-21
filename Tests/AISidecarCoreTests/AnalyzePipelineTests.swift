@@ -4,6 +4,58 @@ import XCTest
 @testable import AISidecarCore
 
 final class AnalyzePipelineTests: XCTestCase {
+    func testSuccessfulAnalysisWritesSidecarExactlyOnce() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("A.JPG", in: root)
+        let writer = CountingRawJSONSidecarWriter()
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner(), sidecarWriter: writer).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        XCTAssertEqual(writer.writeCount, 1)
+        let sidecar = try decodeSidecar(output.appendingPathComponent("A.JPG.ai.json"))
+        XCTAssertEqual(sidecar.timing?.writeMs, 0)
+    }
+
+    func testRenderFailureWritesFailureSidecarExactlyOnce() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeFile("Broken.JPG", data: Data("not an image".utf8), in: root)
+        let writer = CountingRawJSONSidecarWriter()
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner(), sidecarWriter: writer).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.failed])
+        XCTAssertEqual(writer.writeCount, 1)
+        let sidecar = try decodeSidecar(output.appendingPathComponent("Broken.JPG.ai.json"))
+        XCTAssertEqual(sidecar.timing?.writeMs, 0)
+    }
+
     func testWholeModeWritesModelRunAndProvenance() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -873,14 +925,16 @@ final class AnalyzePipelineTests: XCTestCase {
 
     private func pipeline(
         maskProvider: (any ForegroundMaskProvider)? = nil,
-        runner: any VisionModelRunner
+        runner: any VisionModelRunner,
+        sidecarWriter: (any RawJSONSidecarWriting)? = nil
     ) -> AnalyzePipeline {
         AnalyzePipeline(
             logger: Logger(sink: { _ in }),
             maskProvider: maskProvider,
             runner: runner,
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_002_000)),
-            filenameSuffix: { "a3f2" }
+            filenameSuffix: { "a3f2" },
+            sidecarWriter: sidecarWriter ?? RawJSONSidecarWriter()
         )
     }
 
@@ -1092,6 +1146,25 @@ final class AnalyzePipelineTests: XCTestCase {
     private func normalizedSidecarJSON(_ data: Data, strippingOutputDir dir: String) -> String {
         String(decoding: data, as: UTF8.self)
             .replacingOccurrences(of: dir, with: "<out>")
+    }
+}
+
+private final class CountingRawJSONSidecarWriter: RawJSONSidecarWriting, @unchecked Sendable {
+    private let lock = NSLock()
+    private let writer = RawJSONSidecarWriter()
+    private var count = 0
+
+    var writeCount: Int {
+        lock.withLock { count }
+    }
+
+    func write(
+        _ sidecar: RawJSONSidecar,
+        to destinationPath: String,
+        existingPolicy: ExistingPolicy
+    ) throws -> RawJSONSidecarWriteOutcome {
+        lock.withLock { count += 1 }
+        return try writer.write(sidecar, to: destinationPath, existingPolicy: existingPolicy)
     }
 }
 
