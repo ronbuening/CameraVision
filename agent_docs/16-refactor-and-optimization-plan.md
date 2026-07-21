@@ -502,3 +502,20 @@ Keep the raw command output, wall-clock numbers, corpus identity, cache state, a
 - Final automated verification: `swift test` passed 806 tests with 2 opt-in skips; the release benchmark self-test and `aisidecar --help` passed.
 - Formatting: all 38 changed Swift files pass `swift format lint`. The repository-wide advisory lint still reports only the pre-existing `Step3OptionsView.swift` indentation and `ModelRuntimeTests.swift` line-break findings, neither touched by this tranche.
 - Git: 20 scoped commits on `ronbuening/RefactorTrancheA`; range diff is 1,394 insertions / 1,493 deletions, with no whitespace errors.
+
+### Tranche B audit (2026-07-21)
+
+Commit-by-commit audit of B1–B6 against this plan: all six items verified complete against their acceptance criteria; the automated gates were re-run at audit time (`swift test` green, release benchmark self-test passed). The audit added coverage for four gaps — all behaviors were already implemented correctly, only the pins were missing:
+
+- B4: disk fallback for a `.written` record absent from the in-memory handoff (`RawSidecarBatchHelpersTests`).
+- B3: detection of a same-size, same-inode in-place rewrite between preview and apply, exercising the mtime component of the pre-write cache's file-identity key (`OwnedXMPScalarPreconditionTests`).
+- B6: first verdict on a withheld decision appends its chip in decision order, or creates a sorted-in row for a previously chipless asset, without rebuilding existing rows (`ReviewModelTests`).
+- B5: the scan-hashing bound choice (`stage_concurrency` over `activeProcessorCount`) is now stated in the `ImageScanner` doc comment.
+
+Known follow-ups recorded for later scheduling (none blocks Tranche C):
+
+1. **B3 — coarse-mtime cache-key blind spot.** The pre-write parse cache keys on `(path, inode, mtime, size)`. On filesystems with 1–2 s mtime granularity (SMB/NAS, FAT/exFAT, HFS+), a same-size in-place external rewrite between preview and apply is undetectable and apply would write from the stale parse — a window the pre-B3 re-read-at-apply did not have. APFS's sub-second mtime covers the dev and CI environments. If exports must support network volumes, add a content hash to the cache key (the parse, not the read, is the cost being saved). Separately, cache entries for preview-only/dry-run targets persist until engine shutdown; consider invalidating per target after its report is built if very large export batches show memory pressure.
+2. **B4 — retention scope.** Written documents are retained even when no consumer exists (standalone `analyze`) and for records whose progress status is `.failed`; the retain key is the raw `entry.sidecarPath` while the lookup standardizes the path, so a non-standardized `output_dir` silently falls back to disk reads (correctness preserved, optimization lost). All correctness-neutral; fold into a C-tranche cleanup — gate retention on a consumer, key on the writer's standardized path, and have the adapters drop the map after `rawInputBatch`.
+3. **B5 — remaining serial hashing path.** `NormalizationInputResolver.resolveAnalyzeInput` still hashes serially; `ResolvedNormalizationConfiguration` carries no `stage_concurrency` to thread through. Needs config plumbing if normalize-from-folder scan time becomes noticeable.
+4. **B2 — index/snapshot coupling.** `AssetAffinityGraph.nodes`/`edges` remain `public var` while `nodeByID`/`neighborsByNodeID` are init-time snapshots; post-init mutation would silently desynchronize them. Nothing mutates them today. If A10/P6 is ever scheduled, prune in the builder before graph init (its current shape), or tighten the fields to `private(set)` first.
+5. **B6 — per-toggle residue at M11 scale.** The model-side rebuild is gone, but each toggle still re-evaluates the full view body: O(rows) ForEach diff plus O(decisions) subtitle counters. If the 5,000-asset smoke stutters, cache the verdict counters as stored properties and split the row list into a child view observing only `assetRows`. `ReviewScaleTests` still pins 1,500 assets, not the M11 target.
