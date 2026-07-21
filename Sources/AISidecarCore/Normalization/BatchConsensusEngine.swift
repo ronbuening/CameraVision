@@ -76,6 +76,7 @@ public struct BatchConsensusEngine {
             vocabulary: vocabulary,
             eligibleAssetIDs: eligibleAssetIDs
         )
+        let sessionContextDecisionStartIndex = decisions.count
         let sessionContext = applySessionContext(
             records: canonicalization.sessionContext,
             support: support,
@@ -84,6 +85,7 @@ public struct BatchConsensusEngine {
             configuration: configuration,
             decisions: &decisions
         )
+        support.add(decisions: Array(decisions.dropFirst(sessionContextDecisionStartIndex)))
         if configuration.normalizationMode == .singleImage {
             decisions.sort(by: compareDecisions)
             assignDecisionIDs(&decisions)
@@ -99,37 +101,28 @@ public struct BatchConsensusEngine {
                 decisions: decisions
             )
         }
-        support = DirectSupportIndex(
-            decisions: decisions,
-            vocabulary: vocabulary,
-            eligibleAssetIDs: eligibleAssetIDs
-        )
-
         var localConsensus: [LocalWeightedConsensusRecord] = []
         if configuration.affinityMode == .metadataWeighted {
-            decisions.append(
-                contentsOf: localPropagationDecisions(
-                    support: support,
-                    input: input,
-                    graph: graph,
-                    profile: profile,
-                    configuration: configuration,
-                    localConsensus: &localConsensus
-                ))
-            support = DirectSupportIndex(
-                decisions: decisions,
-                vocabulary: vocabulary,
-                eligibleAssetIDs: eligibleAssetIDs
-            )
-        }
-        decisions.append(
-            contentsOf: globalBackstopDecisions(
+            let localDecisions = localPropagationDecisions(
                 support: support,
                 input: input,
                 graph: graph,
                 profile: profile,
-                configuration: configuration
-            ))
+                configuration: configuration,
+                localConsensus: &localConsensus
+            )
+            decisions.append(contentsOf: localDecisions)
+            support.add(decisions: localDecisions)
+        }
+        let globalDecisions = globalBackstopDecisions(
+            support: support,
+            input: input,
+            graph: graph,
+            profile: profile,
+            configuration: configuration
+        )
+        decisions.append(contentsOf: globalDecisions)
+        support.add(decisions: globalDecisions)
         decisions.sort(by: compareDecisions)
         assignDecisionIDs(&decisions)
         localConsensus.sort(by: compareLocalConsensus)
@@ -142,8 +135,7 @@ public struct BatchConsensusEngine {
             graph: graph,
             configuration: configuration,
             batchCandidates: hierarchyAwareBatchCandidates(
-                support: DirectSupportIndex(
-                    decisions: decisions, vocabulary: vocabulary, eligibleAssetIDs: eligibleAssetIDs),
+                support: support,
                 decisions: decisions,
                 eligibleAssetIDs: eligibleAssetIDs,
                 configuration: configuration
@@ -725,8 +717,7 @@ public struct BatchConsensusEngine {
     ) -> [String] {
         graph.neighbors(of: targetNodeID, minimumAffinity: minimumAffinity)
             .flatMap { neighbor in
-                graph.nodes
-                    .first { $0.nodeID == neighbor.nodeID }?
+                graph.nodeByID[neighbor.nodeID]?
                     .memberAssetIDs
                     .filter { support.asset($0, supports: canonicalPath) } ?? []
             }
@@ -787,16 +778,23 @@ private struct DirectSupportIndex {
     var exactPathsByAssetID: [String: Set<String>] = [:]
     var supportedPathsByAssetID: [String: Set<String>] = [:]
     var supportedCanonicalPaths: Set<String> = []
+    var supportingAssetsByPath: [String: Set<String>] = [:]
+    private let vocabularyIndex: VocabularyIndex
 
     init(
         decisions: [PerAssetNormalizationDecision],
         vocabulary: LoadedVocabulary,
         eligibleAssetIDs: [String]
     ) {
+        self.vocabularyIndex = vocabulary.index
         for assetID in eligibleAssetIDs {
             exactPathsByAssetID[assetID] = []
             supportedPathsByAssetID[assetID] = []
         }
+        add(decisions: decisions)
+    }
+
+    mutating func add(decisions: [PerAssetNormalizationDecision]) {
         for decision in decisions {
             guard let canonicalPath = decision.canonicalPath else {
                 continue
@@ -804,17 +802,20 @@ private struct DirectSupportIndex {
             switch decision.stage {
             case .directModelObservation, .userSessionContext:
                 exactPathsByAssetID[decision.assetID, default: []].insert(canonicalPath)
-                supportedPathsByAssetID[decision.assetID, default: []].insert(canonicalPath)
-                supportedCanonicalPaths.insert(canonicalPath)
-                for ancestor in vocabulary.index.ancestors(of: canonicalPath) {
-                    supportedPathsByAssetID[decision.assetID, default: []].insert(ancestor.canonicalPath)
-                    supportedCanonicalPaths.insert(ancestor.canonicalPath)
+                insertSupportedPath(canonicalPath, assetID: decision.assetID)
+                for ancestor in vocabularyIndex.ancestors(of: canonicalPath) {
+                    insertSupportedPath(ancestor.canonicalPath, assetID: decision.assetID)
                 }
             case .localAffinityPropagation, .globalBackstopPropagation, .phase2Fallback:
-                supportedPathsByAssetID[decision.assetID, default: []].insert(canonicalPath)
-                supportedCanonicalPaths.insert(canonicalPath)
+                insertSupportedPath(canonicalPath, assetID: decision.assetID)
             }
         }
+    }
+
+    private mutating func insertSupportedPath(_ canonicalPath: String, assetID: String) {
+        supportedPathsByAssetID[assetID, default: []].insert(canonicalPath)
+        supportedCanonicalPaths.insert(canonicalPath)
+        supportingAssetsByPath[canonicalPath, default: []].insert(assetID)
     }
 
     func asset(_ assetID: String, supports canonicalPath: String) -> Bool {
@@ -822,21 +823,17 @@ private struct DirectSupportIndex {
     }
 
     func node(_ nodeID: String, supports canonicalPath: String, graph: AssetAffinityGraph) -> Bool {
-        graph.nodes
-            .first { $0.nodeID == nodeID }?
+        graph.nodeByID[nodeID]?
             .memberAssetIDs
             .contains { asset($0, supports: canonicalPath) } == true
     }
 
     func assetsSupporting(_ canonicalPath: String) -> Set<String> {
-        Set(
-            supportedPathsByAssetID.compactMap { assetID, paths in
-                paths.contains(canonicalPath) ? assetID : nil
-            })
+        supportingAssetsByPath[canonicalPath, default: []]
     }
 
     func exactPathsForNode(_ nodeID: String, graph: AssetAffinityGraph) -> Set<String> {
-        let assetIDs = graph.nodes.first { $0.nodeID == nodeID }?.memberAssetIDs ?? []
+        let assetIDs = graph.nodeByID[nodeID]?.memberAssetIDs ?? []
         return assetIDs.reduce(into: Set<String>()) { partial, assetID in
             partial.formUnion(exactPathsByAssetID[assetID, default: []])
         }

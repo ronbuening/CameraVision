@@ -116,6 +116,8 @@ public struct AssetAffinityGraph: Sendable, Equatable {
     public var edges: [AssetAffinityEdgeRecord]
     public var clusters: [NormalizationClusterRecord]
     public var nodeIDByAssetID: [String: String]
+    let nodeByID: [String: NormalizationAffinityNodeRecord]
+    private let neighborsByNodeID: [String: [IndexedAffinityNeighbor]]
 
     public init(
         nodes: [NormalizationAffinityNodeRecord],
@@ -127,22 +129,37 @@ public struct AssetAffinityGraph: Sendable, Equatable {
         self.edges = edges
         self.clusters = clusters
         self.nodeIDByAssetID = nodeIDByAssetID
+        var nodeByID: [String: NormalizationAffinityNodeRecord] = [:]
+        for node in nodes where nodeByID[node.nodeID] == nil {
+            nodeByID[node.nodeID] = node
+        }
+        self.nodeByID = nodeByID
+
+        var neighborsByNodeID: [String: [IndexedAffinityNeighbor]] = [:]
+        for edge in edges {
+            neighborsByNodeID[edge.fromNodeID, default: []].append(
+                IndexedAffinityNeighbor(nodeID: edge.toNodeID, affinity: edge.affinity)
+            )
+            neighborsByNodeID[edge.toNodeID, default: []].append(
+                IndexedAffinityNeighbor(nodeID: edge.fromNodeID, affinity: edge.affinity)
+            )
+        }
+        self.neighborsByNodeID = neighborsByNodeID
     }
 
     public func neighbors(of nodeID: String, minimumAffinity: Double) -> [(nodeID: String, affinity: Double)] {
-        edges.compactMap { edge in
-            guard edge.affinity >= minimumAffinity else {
+        neighborsByNodeID[nodeID, default: []].compactMap { neighbor in
+            guard neighbor.affinity >= minimumAffinity else {
                 return nil
             }
-            if edge.fromNodeID == nodeID {
-                return (edge.toNodeID, edge.affinity)
-            }
-            if edge.toNodeID == nodeID {
-                return (edge.fromNodeID, edge.affinity)
-            }
-            return nil
+            return (neighbor.nodeID, neighbor.affinity)
         }
     }
+}
+
+private struct IndexedAffinityNeighbor: Sendable, Equatable {
+    var nodeID: String
+    var affinity: Double
 }
 
 /// Deterministic graph builder for Phase 3 metadata affinity.
