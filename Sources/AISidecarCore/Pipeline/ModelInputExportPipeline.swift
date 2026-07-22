@@ -532,7 +532,7 @@ public struct ModelInputExportPipeline {
                 outputs: outputs,
                 subjectIsolation: subjectIsolation,
                 errors: errors,
-                durationMs: durationMs(from: sourceStartedAt, to: now())
+                durationMs: Timestamp.durationMs(from: sourceStartedAt, to: now())
             )
         } catch {
             return failedRecord(
@@ -610,7 +610,7 @@ public struct ModelInputExportPipeline {
             relativePath: source.relativePath,
             status: .failed,
             errors: [error],
-            durationMs: durationMs(from: startedAt, to: now())
+            durationMs: Timestamp.durationMs(from: startedAt, to: now())
         )
     }
 
@@ -708,10 +708,6 @@ public struct ModelInputExportPipeline {
                 recoverable: true
             )
         }
-    }
-
-    private func durationMs(from start: Date, to end: Date) -> Int {
-        max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
     }
 
     private func completedSuccessfully(records: [ModelInputExportRecord], interrupted: Bool) -> Bool {

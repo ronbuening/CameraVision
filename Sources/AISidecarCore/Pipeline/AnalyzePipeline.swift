@@ -597,7 +597,7 @@ public struct AnalyzePipeline {
                 relativePath: entry.source.relativePath,
                 sidecarPath: entry.sidecarPath,
                 status: .dryRun,
-                durationMs: durationMs(from: startedAt, to: now())
+                durationMs: Timestamp.durationMs(from: startedAt, to: now())
             )
         case .existingSkip(let startedAt):
             return ProgressRecord(
@@ -606,7 +606,7 @@ public struct AnalyzePipeline {
                 relativePath: entry.source.relativePath,
                 sidecarPath: entry.sidecarPath,
                 status: .skippedExisting,
-                durationMs: durationMs(from: startedAt, to: now())
+                durationMs: Timestamp.durationMs(from: startedAt, to: now())
             )
         case .existingFailure(let error, let startedAt):
             return ProgressRecord(
@@ -616,7 +616,7 @@ public struct AnalyzePipeline {
                 sidecarPath: entry.sidecarPath,
                 status: .failed,
                 errors: [error],
-                durationMs: durationMs(from: startedAt, to: now())
+                durationMs: Timestamp.durationMs(from: startedAt, to: now())
             )
         case .pending:
             return nil
@@ -647,7 +647,7 @@ public struct AnalyzePipeline {
                     debugDerivatives: configuration.debugDerivatives
                 )
                 derivatives = rendered.derivatives
-                renderMs = Self.durationMs(from: renderStartedAt, to: now())
+                renderMs = Timestamp.durationMs(from: renderStartedAt, to: now())
             case .subject, .both:
                 let prepared = try renderer.prepareSourceRender(source: entry.source, profile: profile)
                 if configuration.mode == .both {
@@ -659,7 +659,7 @@ public struct AnalyzePipeline {
                     )
                     derivatives.append(whole)
                 }
-                renderMs = Self.durationMs(from: renderStartedAt, to: now())
+                renderMs = Timestamp.durationMs(from: renderStartedAt, to: now())
 
                 let isolationStartedAt = now()
                 do {
@@ -676,9 +676,9 @@ public struct AnalyzePipeline {
                     if let error = isolation.error {
                         errors.append(error)
                     }
-                    subjectIsolationMs = Self.durationMs(from: isolationStartedAt, to: now())
+                    subjectIsolationMs = Timestamp.durationMs(from: isolationStartedAt, to: now())
                 } catch {
-                    subjectIsolationMs = Self.durationMs(from: isolationStartedAt, to: now())
+                    subjectIsolationMs = Timestamp.durationMs(from: isolationStartedAt, to: now())
                     let isolationError = subjectIsolationError(from: error)
                     subjectIsolation = failedSubjectIsolationRecord(
                         prepared: prepared,
@@ -707,7 +707,7 @@ public struct AnalyzePipeline {
         } catch {
             return .renderFailed(
                 sidecarError(from: error, sidecarPath: entry.sidecarPath),
-                renderMs: Self.durationMs(from: renderStartedAt, to: now())
+                renderMs: Timestamp.durationMs(from: renderStartedAt, to: now())
             )
         }
     }
@@ -744,14 +744,14 @@ public struct AnalyzePipeline {
                 runtime: runtime,
                 interruptionMonitor: interruptionMonitor
             )
-            let modelMs = durationMs(from: modelStartedAt, to: now())
+            let modelMs = Timestamp.durationMs(from: modelStartedAt, to: now())
             guard case .completed(let modelRuns) = modelOutcome,
                 interruptionMonitor?.isInterrupted != true
             else {
                 return .interrupted
             }
             let errors = prepared.errors + modelRuns.compactMap(\.error)
-            let pipelineElapsedMs = durationMs(from: startedAt, to: now())
+            let pipelineElapsedMs = Timestamp.durationMs(from: startedAt, to: now())
             let sidecar = Self.canonicalizedForSidecarEncoding(
                 RawJSONSidecar(
                     source: entry.source,
@@ -780,7 +780,7 @@ public struct AnalyzePipeline {
                     to: entry.sidecarPath,
                     existingPolicy: configuration.existing
                 )
-                let writeMs = durationMs(from: writeStartedAt, to: now())
+                let writeMs = Timestamp.durationMs(from: writeStartedAt, to: now())
                 let status: ProgressStatus
                 switch outcome.status {
                 case .skippedExisting:
@@ -796,7 +796,7 @@ public struct AnalyzePipeline {
                         sidecarPath: entry.sidecarPath,
                         status: status,
                         errors: errors,
-                        durationMs: durationMs(from: startedAt, to: now()),
+                        durationMs: Timestamp.durationMs(from: startedAt, to: now()),
                         writeMs: outcome.status == .written ? writeMs : nil
                     ),
                     outcome.status == .written ? document : nil
@@ -810,7 +810,7 @@ public struct AnalyzePipeline {
                         sidecarPath: entry.sidecarPath,
                         status: .failed,
                         errors: errors + [Self.sidecarError(from: error, sidecarPath: entry.sidecarPath)],
-                        durationMs: durationMs(from: startedAt, to: now())
+                        durationMs: Timestamp.durationMs(from: startedAt, to: now())
                     ),
                     nil
                 )
@@ -827,7 +827,7 @@ public struct AnalyzePipeline {
         renderMs: Int,
         startedAt: Date
     ) -> ProgressRecord {
-        let pipelineElapsedMs = durationMs(from: startedAt, to: now())
+        let pipelineElapsedMs = Timestamp.durationMs(from: startedAt, to: now())
         let errorSidecar = RawJSONSidecar(
             source: source,
             runConfiguration: configuration,
@@ -849,7 +849,7 @@ public struct AnalyzePipeline {
             let outcome = try writer.write(
                 errorSidecar, to: sidecarPath, existingPolicy: configuration.existing)
             if outcome.status == .written {
-                writeMs = durationMs(from: writeStartedAt, to: now())
+                writeMs = Timestamp.durationMs(from: writeStartedAt, to: now())
             }
         } catch {
             progressErrors.append(Self.sidecarError(from: error, sidecarPath: sidecarPath))
@@ -862,7 +862,7 @@ public struct AnalyzePipeline {
             sidecarPath: sidecarPath,
             status: .failed,
             errors: progressErrors,
-            durationMs: durationMs(from: startedAt, to: now()),
+            durationMs: Timestamp.durationMs(from: startedAt, to: now()),
             writeMs: writeMs
         )
     }
@@ -997,14 +997,6 @@ public struct AnalyzePipeline {
     private func reportDirectoryPath(scanRoot: String, outputDir: String?) -> String {
         let path = outputDir ?? scanRoot
         return URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path
-    }
-
-    private func durationMs(from start: Date, to end: Date) -> Int {
-        Self.durationMs(from: start, to: end)
-    }
-
-    private static func durationMs(from start: Date, to end: Date) -> Int {
-        max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
     }
 
     private func logRecord(for record: ProgressRecord) -> LogRecord {

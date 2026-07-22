@@ -616,7 +616,7 @@ public struct XMPExportPipeline {
             backup: backup,
             sourceHashChecks: sourceHashChecks,
             errors: errors,
-            durationMs: durationMs(from: startedAt, to: now())
+            durationMs: Timestamp.durationMs(from: startedAt, to: now())
         )
     }
 
@@ -955,10 +955,6 @@ public struct XMPExportPipeline {
 
     private func absolutePath(for path: String) -> String {
         absoluteURL(for: path, fileManager: fileManager).path
-    }
-
-    private func durationMs(from start: Date, to end: Date) -> Int {
-        max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
     }
 
     private func existingSidecarError(path: String) -> SidecarError {
