@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Shared visual building blocks for Settings sections.
+@MainActor
 struct SettingsControls {
     let theme: Theme
 
