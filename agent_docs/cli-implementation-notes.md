@@ -67,12 +67,18 @@ D1–D8 stage-ledger rows. The shipped selection behavior is:
   `AISIDECAR_MODEL_BACKEND` > config > built-in precedence chain. The default is
   `ollama` and is omitted from run-configuration encoding; non-default values
   are additive provenance.
-- The factory resolves one descriptor before model work and uses it for the
-  entire run. A pinned backend fails closed when unavailable. `auto` checks the
-  deterministic production registry in Apple-then-Ollama order and chooses the
-  first available backend; it never falls back per image or mixes runtime
-  provenance inside a batch. Dry-run planning is the deliberate exception: it
-  does no backend availability I/O because it never prepares or calls a runner.
+- The factory selects one descriptor for the entire run; it never falls back per
+  image or mixes runtime provenance inside a batch. A pinned backend (including
+  the default `ollama`) comes from configuration alone, so the factory
+  constructs its runner without probing and the runner's own `prepare` — which
+  the pipelines call only when a run has pending model work — stays the
+  fail-closed gate. A fully skipped rerun and dry-run planning therefore do no
+  backend I/O at all, and an unreachable Ollama keeps reporting
+  `E_MODEL_ENDPOINT_UNREACHABLE`; a pinned but unusable Apple backend fails
+  closed with `E_MODEL_BACKEND_UNAVAILABLE`. `auto` is the one shape that must
+  probe: it checks the deterministic production registry in Apple-then-Ollama
+  order, chooses the first available backend, and reports every reason when none
+  is available (still skipping availability I/O for dry-run planning).
 - Ollama is the only usable backend today. The Apple descriptor is compiled in,
   appears in the GUI, and always reports unavailable because current public
   FoundationModels APIs do not accept image input for this workload. The
