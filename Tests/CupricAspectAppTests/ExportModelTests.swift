@@ -83,7 +83,8 @@ final class ExportModelTests: XCTestCase {
         return sourceRoot
     }
 
-    private func makeSession(terms: [String] = ["bird"]) throws -> (
+    @MainActor
+    private func makeSession(terms: [String] = ["bird"]) async throws -> (
         session: NormalizationSessionDocument, sourceRoot: URL
     ) {
         let sourceRoot = try makeRawSidecarSource(terms: terms)
@@ -94,7 +95,7 @@ final class ExportModelTests: XCTestCase {
         configuration.sourceRoot = sourceRoot.path
         configuration.outputDir = root.appendingPathComponent("artifacts").path
 
-        let result = try NormalizePipeline().runSessionOnly(
+        let result = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: sourceRoot.path),
             configuration: configuration
         )
@@ -128,7 +129,7 @@ final class ExportModelTests: XCTestCase {
 
     @MainActor
     func testPlanThenWriteFlipsQueueDerivationToExported() async throws {
-        let (session, sourceRoot) = try makeSession()
+        let (session, sourceRoot) = try await makeSession()
         let sourcePath = sourceRoot.appendingPathComponent("A.JPG").path
 
         // Before export: analyzed (sidecar present, no stamp, no XMP).
@@ -313,7 +314,7 @@ final class ExportModelTests: XCTestCase {
 
     @MainActor
     func testApplyQualityPlanReadsAssessmentAddedAfterSessionCreation() async throws {
-        let (session, sourceRoot) = try makeSession()
+        let (session, sourceRoot) = try await makeSession()
         let sidecarURL = sourceRoot.appendingPathComponent("A.JPG.ai.json")
         let current = try RawJSONSidecarReader().read(from: sidecarURL)
         let qualityRun = ModelRunRecord(
@@ -379,7 +380,7 @@ final class ExportModelTests: XCTestCase {
 
     @MainActor
     func testPlanFreezesQualityOverridesForMatchingWrite() async throws {
-        let (session, sourceRoot) = try makeSession()
+        let (session, sourceRoot) = try await makeSession()
         let overrides = QualityGradingConfigurationOverrides(
             enabled: true,
             conflictPolicy: .overwrite,
@@ -419,7 +420,7 @@ final class ExportModelTests: XCTestCase {
 
     @MainActor
     func testConfirmWriteReplaysFrozenConfigurationDespiteConfigAndToggleChanges() async throws {
-        let (session, sourceRoot) = try makeSession()
+        let (session, sourceRoot) = try await makeSession()
         let sidecarURL = sourceRoot.appendingPathComponent("A.JPG.ai.json")
         let current = try RawJSONSidecarReader().read(from: sidecarURL)
         let updated = RawJSONSidecar(
@@ -497,7 +498,7 @@ final class ExportModelTests: XCTestCase {
 
     @MainActor
     func testCleanupAfterSuccessfulWriteRemovesOwnedArtifactsAndPreservesOutputs() async throws {
-        let (session, sourceRoot) = try makeSession()
+        let (session, sourceRoot) = try await makeSession()
         let rawSidecar = sourceRoot.appendingPathComponent("A.JPG.ai.json")
         let nested = sourceRoot.appendingPathComponent("nested", isDirectory: true)
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
@@ -534,7 +535,7 @@ final class ExportModelTests: XCTestCase {
 
     @MainActor
     func testCleanupSkippedWhenFlagIsFalse() async throws {
-        let (session, sourceRoot) = try makeSession()
+        let (session, sourceRoot) = try await makeSession()
         let rawSidecar = sourceRoot.appendingPathComponent("A.JPG.ai.json")
 
         let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
@@ -556,7 +557,7 @@ final class ExportModelTests: XCTestCase {
 
     @MainActor
     func testCleanupSkippedWhenWriteHasFailedTargets() async throws {
-        let (session, sourceRoot) = try makeSession()
+        let (session, sourceRoot) = try await makeSession()
         let rawSidecar = sourceRoot.appendingPathComponent("A.JPG.ai.json")
         let xmpURL = sourceRoot.appendingPathComponent("A.xmp")
         try Data(
@@ -600,7 +601,7 @@ final class ExportModelTests: XCTestCase {
     /// keywords kept, not a new file), and the write preserves them on disk.
     @MainActor
     func testPlanRevealsMergeIntoExistingXMPAndWritePreservesKeywords() async throws {
-        let (session, sourceRoot) = try makeSession()
+        let (session, sourceRoot) = try await makeSession()
         let xmpURL = sourceRoot.appendingPathComponent("A.xmp")
         try Data(
             """
@@ -658,7 +659,7 @@ final class ExportModelTests: XCTestCase {
 
     @MainActor
     func testCancelPlanWritesNothing() async throws {
-        let (session, sourceRoot) = try makeSession()
+        let (session, sourceRoot) = try await makeSession()
         let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
         export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil, qualityGrading: noQualityGrading)
         try await waitUntil("dry-run plan") { export.phase == .planReady }

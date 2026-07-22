@@ -40,6 +40,10 @@ extension ConfigurationResolver {
             logFormat: try enumValue(
                 LogFormat.self, from: environment["AISIDECAR_LOG_FORMAT"], key: "AISIDECAR_LOG_FORMAT"),
             dryRun: try boolValue(from: environment["AISIDECAR_DRY_RUN"], key: "AISIDECAR_DRY_RUN"),
+            stageConcurrency: try intValue(
+                from: environment["AISIDECAR_STAGE_CONCURRENCY"],
+                key: "AISIDECAR_STAGE_CONCURRENCY"
+            ),
             sourceRoot: environment["AISIDECAR_SOURCE_ROOT"],
             sourceVerification: try enumValue(
                 XMPSourceVerificationPolicy.self,
@@ -152,6 +156,7 @@ private struct NormalizationConfigurationBuilder {
         merge(&config.logLevel, fileConfig.logLevel)
         merge(&config.logFormat, fileConfig.logFormat)
         merge(&config.dryRun, fileConfig.dryRun)
+        merge(&config.stageConcurrency, fileConfig.stageConcurrency)
         merge(&config.sourceRoot, fileConfig.sourceRoot)
         merge(&config.sourceVerification, fileConfig.sourceVerification)
         merge(&config.writeFlatKeywords, fileConfig.writeFlatKeywords)
@@ -191,6 +196,7 @@ private struct NormalizationConfigurationBuilder {
         merge(&config.logLevel, overrides.logLevel)
         merge(&config.logFormat, overrides.logFormat)
         merge(&config.dryRun, overrides.dryRun)
+        merge(&config.stageConcurrency, overrides.stageConcurrency)
         merge(&config.sourceRoot, overrides.sourceRoot)
         merge(&config.sourceVerification, overrides.sourceVerification)
         merge(&config.writeFlatKeywords, overrides.writeFlatKeywords)
@@ -243,6 +249,9 @@ private struct NormalizationConfigurationBuilder {
         if config.xmpConflictPolicy == .backupAndMerge, !config.backupSidecars {
             throw SidecarError.configInvalid("xmp_conflict_policy backup-and-merge requires backup_sidecars to be true")
         }
+        if let stageConcurrency = config.stageConcurrency, stageConcurrency <= 0 {
+            throw SidecarError.configInvalid("stage_concurrency must be greater than zero")
+        }
         config.qualityGrading = try qualityGrading.resolved()
         return config
     }
@@ -256,6 +265,7 @@ extension NormalizationConfigurationOverrides {
             logLevel: logLevel,
             logFormat: logFormat,
             dryRun: dryRun,
+            stageConcurrency: stageConcurrency,
             sourceRoot: sourceRoot,
             sourceVerification: sourceVerification,
             writeFlatKeywords: writeFlatKeywords,

@@ -60,23 +60,30 @@ public struct NormalizationResolvedInputBatch: Sendable, Equatable {
 /// Resolves Phase 3 normalize input modes without running model analysis.
 public struct NormalizationInputResolver {
     private let fileManager: FileManager
+    private let imageScanner: ImageScanner
 
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
+        self.imageScanner = ImageScanner(fileManager: fileManager)
+    }
+
+    init(fileManager: FileManager = .default, imageScanner: ImageScanner) {
+        self.fileManager = fileManager
+        self.imageScanner = imageScanner
     }
 
     /// Resolve the selected `normalize` input mode for a session skeleton.
     public func resolve(
         mode: NormalizationInvocationMode,
         configuration: ResolvedNormalizationConfiguration
-    ) throws -> NormalizationResolvedInputBatch {
+    ) async throws -> NormalizationResolvedInputBatch {
         switch mode {
         case .fromJSON(let path):
             return try resolveFromJSON(path, configuration: configuration)
         case .fileList(let path):
             return try resolveFileList(path, configuration: configuration)
         case .analyze(let inputPath):
-            return try resolveAnalyzeInput(inputPath, configuration: configuration)
+            return try await resolveAnalyzeInput(inputPath, configuration: configuration)
         }
     }
 
@@ -178,11 +185,12 @@ public struct NormalizationInputResolver {
     private func resolveAnalyzeInput(
         _ inputPath: String,
         configuration: ResolvedNormalizationConfiguration
-    ) throws -> NormalizationResolvedInputBatch {
-        let scan = try ImageScanner(fileManager: fileManager).scan(
+    ) async throws -> NormalizationResolvedInputBatch {
+        let scan = try await imageScanner.scan(
             inputPath: inputPath,
             recursive: configuration.recursive,
-            identityPolicy: .sha256
+            identityPolicy: .sha256,
+            stageConcurrency: configuration.stageConcurrency ?? ResolvedRunConfiguration.defaultStageConcurrency()
         )
         let assets = scan.images.enumerated().map { index, source in
             sourceAsset(

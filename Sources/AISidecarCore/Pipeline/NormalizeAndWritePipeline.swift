@@ -67,7 +67,7 @@ public struct NormalizeAndWritePipeline {
         mode: NormalizationInvocationMode,
         configuration: ResolvedNormalizationConfiguration,
         interruptionMonitor: InterruptionMonitor? = nil
-    ) throws -> NormalizeAndWritePipelineResult {
+    ) async throws -> NormalizeAndWritePipelineResult {
         invocationEngine?.beginPreWriteInvocation()
         defer {
             try? invocationEngine?.shutdown()
@@ -77,7 +77,7 @@ public struct NormalizeAndWritePipeline {
                 "NormalizeAndWritePipeline requires --from-json or --file-list; use AnalyzeAndNormalizePipeline for image input."
             )
         }
-        let normalizeResult = try normalizePipeline.runWritePlan(
+        let normalizeResult = try await normalizePipeline.runWritePlan(
             mode: mode,
             configuration: configuration,
             interruptionMonitor: interruptionMonitor

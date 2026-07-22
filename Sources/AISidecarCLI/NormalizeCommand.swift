@@ -84,7 +84,7 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Flag(help: "Clear the derivative cache after successful analyze-and-normalize.")
     var clearDerivativeCacheAfterSuccess = false
 
-    @Option(help: "Maximum concurrent render/isolation preparation workers for analyze-and-normalize.")
+    @Option(help: "Maximum concurrent source-identity hashing and analyze render/isolation workers.")
     var stageConcurrency: Int?
 
     @Option(help: "Schema-constrained repair attempts after invalid model JSON or schema failure.")
@@ -198,8 +198,8 @@ struct NormalizeCommand: AsyncParsableCommand {
         let interruptionMonitor = InterruptionMonitor()
         interruptionMonitor.installSignalHandlers()
         if resolved.sessionOnly {
-            let result = try withBatchInterruptionExit {
-                try NormalizePipeline().runSessionOnly(
+            let result = try await withAsyncBatchInterruptionExit {
+                try await NormalizePipeline().runSessionOnly(
                     mode: mode,
                     configuration: resolved,
                     interruptionMonitor: interruptionMonitor
@@ -219,8 +219,8 @@ struct NormalizeCommand: AsyncParsableCommand {
             return
         }
         if resolved.dryRun {
-            let result = try withBatchInterruptionExit {
-                try NormalizePipeline().runDryRun(
+            let result = try await withAsyncBatchInterruptionExit {
+                try await NormalizePipeline().runDryRun(
                     mode: mode,
                     configuration: resolved,
                     interruptionMonitor: interruptionMonitor
@@ -260,8 +260,8 @@ struct NormalizeCommand: AsyncParsableCommand {
             )
         case .fromJSON, .fileList:
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
-            let result = try withBatchInterruptionExit {
-                try NormalizeAndWritePipeline(logger: logger).run(
+            let result = try await withAsyncBatchInterruptionExit {
+                try await NormalizeAndWritePipeline(logger: logger).run(
                     mode: mode,
                     configuration: resolved,
                     interruptionMonitor: interruptionMonitor
@@ -323,7 +323,7 @@ struct NormalizeCommand: AsyncParsableCommand {
         )
     }
 
-    private var normalizationOverrides: NormalizationConfigurationOverrides {
+    var normalizationOverrides: NormalizationConfigurationOverrides {
         NormalizationConfigurationOverrides(
             recursive: recursive ? true : nil,
             outputDir: outputDir,
@@ -331,6 +331,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             logLevel: logLevel,
             logFormat: logFormat,
             dryRun: dryRun ? true : nil,
+            stageConcurrency: stageConcurrency,
             sourceRoot: sourceRoot,
             sourceVerification: sourceVerification,
             writeFlatKeywords: CommandOutputHelpers.pairedFlag(

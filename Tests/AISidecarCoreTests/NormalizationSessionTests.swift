@@ -4,7 +4,7 @@ import XCTest
 @testable import AISidecarCore
 
 final class NormalizationSessionTests: XCTestCase {
-    func testFromJSONSessionOnlyWritesSchemaPrivacyIdentityAndReportWithoutXMP() throws {
+    func testFromJSONSessionOnlyWritesSchemaPrivacyIdentityAndReportWithoutXMP() async throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -22,7 +22,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.allowSessionSubjectPropagation = true
         let timestamp = Date(timeIntervalSince1970: 1_800_000_000)
 
-        let result = try NormalizePipeline().runSessionOnly(
+        let result = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration,
             timestamp: timestamp,
@@ -82,7 +82,7 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(progress.map(\.status), [.completed, .completed, .skipped, .completed])
     }
 
-    func testObservedTagsDefaultWritesFlatOnlyDecisionsAndSyntheticVocabularyIdentity() throws {
+    func testObservedTagsDefaultWritesFlatOnlyDecisionsAndSyntheticVocabularyIdentity() async throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -116,7 +116,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.dryRun = true
         configuration.normalizationMode = .singleImage
 
-        let result = try NormalizePipeline().runDryRun(
+        let result = try await NormalizePipeline().runDryRun(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_050),
@@ -149,7 +149,7 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(decision.skipReasons, [.directApplyFlatOnly])
     }
 
-    func testUnknownDecisionEnumValuesFromNewerMinorVersionDoNotFailDocumentDecode() throws {
+    func testUnknownDecisionEnumValuesFromNewerMinorVersionDoNotFailDocumentDecode() async throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -173,7 +173,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.outputDir = output.path
         configuration.sessionOnly = true
         configuration.normalizationMode = .singleImage
-        let result = try NormalizePipeline().runSessionOnly(
+        let result = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration
         )
@@ -257,7 +257,7 @@ final class NormalizationSessionTests: XCTestCase {
         )
     }
 
-    func testRewrittenSessionPreservesNewerWritersKnownStatusAndExportFlags() throws {
+    func testRewrittenSessionPreservesNewerWritersKnownStatusAndExportFlags() async throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -281,7 +281,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.outputDir = output.path
         configuration.sessionOnly = true
         configuration.normalizationMode = .singleImage
-        let result = try NormalizePipeline().runSessionOnly(
+        let result = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration
         )
@@ -318,7 +318,7 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(rewrittenDecisions[0]["namespace"] as? String, "Future Namespace")
     }
 
-    func testEditedSessionFromDiskDoesNotResurrectClearedDecisionFields() throws {
+    func testEditedSessionFromDiskDoesNotResurrectClearedDecisionFields() async throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -342,7 +342,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.outputDir = output.path
         configuration.sessionOnly = true
         configuration.normalizationMode = .singleImage
-        let result = try NormalizePipeline().runSessionOnly(
+        let result = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration
         )
@@ -403,7 +403,7 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(PerAssetNormalizationDecision.self, from: data))
     }
 
-    func testFromJSONSessionOnlyPersistsCanonicalizedCandidateDecisionsAndReportCounts() throws {
+    func testFromJSONSessionOnlyPersistsCanonicalizedCandidateDecisionsAndReportCounts() async throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -441,7 +441,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.vocabularyMode = .controlledVocabulary
         configuration.vocabularyPath = vocabularyPath
 
-        let result = try NormalizePipeline().runSessionOnly(
+        let result = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_100),
@@ -469,7 +469,7 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(report.decisionSummary.acceptedCount, 1)
     }
 
-    func testNormalizeDryRunPersistsNormalizedXMPPlansWithoutCreatingXMP() throws {
+    func testNormalizeDryRunPersistsNormalizedXMPPlansWithoutCreatingXMP() async throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -500,7 +500,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.vocabularyMode = .controlledVocabulary
         configuration.vocabularyPath = vocabularyPath
 
-        let result = try NormalizePipeline().runDryRun(
+        let result = try await NormalizePipeline().runDryRun(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_200),
@@ -538,7 +538,7 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(progress[3].plannedHierarchicalKeywords, ["Subject|Wildlife|Birds"])
     }
 
-    func testNormalizeDryRunWritesUnmatchedModelSpeciesFallbackAsFlatKeywordOnly() throws {
+    func testNormalizeDryRunWritesUnmatchedModelSpeciesFallbackAsFlatKeywordOnly() async throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -569,7 +569,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.vocabularyMode = .controlledVocabulary
         configuration.vocabularyPath = vocabularyPath
 
-        let result = try NormalizePipeline().runDryRun(
+        let result = try await NormalizePipeline().runDryRun(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_250),
@@ -593,7 +593,7 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertTrue(writePlan.hierarchicalKeywordProvenance.isEmpty)
     }
 
-    func testNormalizeDryRunWriteUnnormalizedSessionContextPlansFlatKeywordOnly() throws {
+    func testNormalizeDryRunWriteUnnormalizedSessionContextPlansFlatKeywordOnly() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()
         let vocabularyPath = try writeVocabulary()
@@ -610,7 +610,7 @@ final class NormalizationSessionTests: XCTestCase {
         configuration.unknownSessionContextPolicy = .writeUnnormalized
         configuration.allowSessionSubjectPropagation = true
 
-        let result = try NormalizePipeline().runDryRun(
+        let result = try await NormalizePipeline().runDryRun(
             mode: .fileList(path: list.path),
             configuration: configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_300),

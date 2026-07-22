@@ -335,7 +335,7 @@ final class ReviewModel {
                     qualityGrading: qualityGrading
                 )
                 let result = try await Task.detached(priority: .userInitiated) {
-                    return try NormalizePipeline().runSessionOnly(
+                    return try await NormalizePipeline().runSessionOnly(
                         mode: .fromJSON(path: jsonRoot),
                         configuration: configuration
                     )
@@ -356,6 +356,7 @@ final class ReviewModel {
             cli: NormalizationConfigurationOverrides(
                 recursive: true,
                 outputDir: outputDir,
+                stageConcurrency: nil,
                 sourceRoot: sourceRoot,
                 vocabularyMode: .observedTags,
                 normalizationMode: .singleImage,

@@ -55,8 +55,8 @@ public struct NormalizePipeline {
         timestamp: Date = Date(),
         sessionID: String = UUID().uuidString,
         interruptionMonitor: InterruptionMonitor? = nil
-    ) throws -> NormalizePipelineResult {
-        try run(
+    ) async throws -> NormalizePipelineResult {
+        try await run(
             mode: mode,
             configuration: configuration,
             timestamp: timestamp,
@@ -73,8 +73,8 @@ public struct NormalizePipeline {
         timestamp: Date = Date(),
         sessionID: String = UUID().uuidString,
         interruptionMonitor: InterruptionMonitor? = nil
-    ) throws -> NormalizePipelineResult {
-        try run(
+    ) async throws -> NormalizePipelineResult {
+        try await run(
             mode: mode,
             configuration: configuration,
             timestamp: timestamp,
@@ -91,8 +91,8 @@ public struct NormalizePipeline {
         timestamp: Date = Date(),
         sessionID: String = UUID().uuidString,
         interruptionMonitor: InterruptionMonitor? = nil
-    ) throws -> NormalizePipelineResult {
-        try run(
+    ) async throws -> NormalizePipelineResult {
+        try await run(
             mode: mode,
             configuration: configuration,
             timestamp: timestamp,
@@ -130,9 +130,9 @@ public struct NormalizePipeline {
         sessionID: String,
         includeXMPPlans: Bool,
         interruptionMonitor: InterruptionMonitor?
-    ) throws -> NormalizePipelineResult {
-        try withSnapshotInvocation {
-            let input = try inputResolver.resolve(mode: mode, configuration: configuration)
+    ) async throws -> NormalizePipelineResult {
+        try await withAsyncSnapshotInvocation {
+            let input = try await inputResolver.resolve(mode: mode, configuration: configuration)
             return try runResolvedInput(
                 input,
                 configuration: configuration,
@@ -150,6 +150,14 @@ public struct NormalizePipeline {
             try? snapshotEngine?.shutdown()
         }
         return try body()
+    }
+
+    private func withAsyncSnapshotInvocation<Result>(_ body: () async throws -> Result) async rethrows -> Result {
+        snapshotEngine?.beginPreWriteInvocation()
+        defer {
+            try? snapshotEngine?.shutdown()
+        }
+        return try await body()
     }
 
     private func runResolvedInput(

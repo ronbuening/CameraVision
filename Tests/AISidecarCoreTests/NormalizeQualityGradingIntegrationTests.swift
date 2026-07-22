@@ -4,10 +4,10 @@ import XCTest
 @testable import AISidecarCore
 
 final class NormalizeQualityGradingIntegrationTests: XCTestCase {
-    func testNormalizeWriteCombinesNormalizedAndQualityMetadataAndRecordsArtifacts() throws {
+    func testNormalizeWriteCombinesNormalizedAndQualityMetadataAndRecordsArtifacts() async throws {
         let fixture = try makeFixture(confidence: "high")
 
-        let result = try NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
+        let result = try await NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration
         )
@@ -52,10 +52,10 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertEqual(taggingStamp.qualityTier, .good)
     }
 
-    func testQualityKeywordsBypassVocabularyAndNormalizationProvenance() throws {
+    func testQualityKeywordsBypassVocabularyAndNormalizationProvenance() async throws {
         let fixture = try makeFixture(confidence: "high", includesQualityRenamingVocabulary: true)
 
-        let result = try NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
+        let result = try await NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration
         )
@@ -75,10 +75,10 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         )
     }
 
-    func testNormalizePreservesExistingQualityAndForeignKeywords() throws {
+    func testNormalizePreservesExistingQualityAndForeignKeywords() async throws {
         let fixture = try makeFixture(confidence: "high", existingXMP: existingQualityKeywordsXMP)
 
-        _ = try NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
+        _ = try await NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration
         )
@@ -91,10 +91,10 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         )
     }
 
-    func testNormalizePlansAgainstCurrentForeignScalarsAndPreservesThem() throws {
+    func testNormalizePlansAgainstCurrentForeignScalarsAndPreservesThem() async throws {
         let fixture = try makeFixture(confidence: "high", existingXMP: existingForeignQualityScalarsXMP)
 
-        let result = try NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
+        let result = try await NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration
         )
@@ -123,7 +123,7 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertEqual(stamp.qualityTier, .good)
     }
 
-    func testSessionOnlyQualityPreviewOmitsUnresolvedScalarsWithoutReadingXMP() throws {
+    func testSessionOnlyQualityPreviewOmitsUnresolvedScalarsWithoutReadingXMP() async throws {
         let fixture = try makeFixture(confidence: "high")
         let counter = NormalizeSnapshotReadCounter()
         let pipeline = NormalizePipeline(snapshotReader: { path in
@@ -131,7 +131,7 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
             return .empty(targetPath: path, exists: false)
         })
 
-        let result = try pipeline.runSessionOnly(
+        let result = try await pipeline.runSessionOnly(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_000),
@@ -155,9 +155,9 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.targetXMP.path))
     }
 
-    func testApplySessionRegradesMutatedCurrentAssessmentAndWritesFullQualityOutput() throws {
+    func testApplySessionRegradesMutatedCurrentAssessmentAndWritesFullQualityOutput() async throws {
         let fixture = try makeFixture(confidence: "high")
-        let sessionResult = try NormalizePipeline().runSessionOnly(
+        let sessionResult = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_010),
@@ -220,9 +220,9 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         )
     }
 
-    func testApplySessionUsesCurrentXMPForQualityConflicts() throws {
+    func testApplySessionUsesCurrentXMPForQualityConflicts() async throws {
         let fixture = try makeFixture(confidence: "high", existingXMP: existingForeignQualityScalarsXMP)
-        let sessionResult = try NormalizePipeline().runSessionOnly(
+        let sessionResult = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_012),
@@ -251,9 +251,9 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertEqual(snapshot.good, "false")
     }
 
-    func testApplySessionMissingCurrentAssessmentIsUngradedInsteadOfUsingPreview() throws {
+    func testApplySessionMissingCurrentAssessmentIsUngradedInsteadOfUsingPreview() async throws {
         let fixture = try makeFixture(confidence: "high")
-        let sessionResult = try NormalizePipeline().runSessionOnly(
+        let sessionResult = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_014),
@@ -291,9 +291,9 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertEqual(snapshot.hierarchicalKeywords, ["Subject|Wildlife|Birds"])
     }
 
-    func testApplySessionRejectsCurrentQualityContributorForAnotherSource() throws {
+    func testApplySessionRejectsCurrentQualityContributorForAnotherSource() async throws {
         let fixture = try makeFixture(confidence: "high")
-        let sessionResult = try NormalizePipeline().runSessionOnly(
+        let sessionResult = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_019),
@@ -336,9 +336,9 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertNil(RawSidecarExportStamp.contents(sidecarPath: fixture.qualitySidecar.path))
     }
 
-    func testApplySessionAllowStaleStillUsesCurrentQualityContributors() throws {
+    func testApplySessionAllowStaleStillUsesCurrentQualityContributors() async throws {
         let fixture = try makeFixture(confidence: "high")
-        let sessionResult = try NormalizePipeline().runSessionOnly(
+        let sessionResult = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_023),
@@ -366,9 +366,9 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertEqual(snapshot.rating, "4")
     }
 
-    func testApplySessionGradesFromSurvivingQualitySiblingWhenRecordedPrimaryIsGone() throws {
+    func testApplySessionGradesFromSurvivingQualitySiblingWhenRecordedPrimaryIsGone() async throws {
         let fixture = try makeFixture(confidence: "high", sidecarPrefix: "nested/")
-        let sessionResult = try NormalizePipeline().runSessionOnly(
+        let sessionResult = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_021),
@@ -399,11 +399,11 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertEqual(stamp.qualityTier, .good)
     }
 
-    func testLegacyShapedSessionAppliesWithQualityOffAndOn() throws {
+    func testLegacyShapedSessionAppliesWithQualityOffAndOn() async throws {
         var fixture = try makeFixture(confidence: "high")
         let qualityGrading = fixture.configuration.qualityGrading
         fixture.configuration.qualityGrading = .builtInDefaults
-        let sessionResult = try NormalizePipeline().runSessionOnly(
+        let sessionResult = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_016),
@@ -458,11 +458,11 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertEqual(onSnapshot.label, "Green")
     }
 
-    func testUngradedReasonFlowsThroughNormalizeReportAndProgress() throws {
+    func testUngradedReasonFlowsThroughNormalizeReportAndProgress() async throws {
         var fixture = try makeFixture(confidence: "low")
         fixture.configuration.dryRun = true
 
-        let result = try NormalizePipeline().runDryRun(
+        let result = try await NormalizePipeline().runDryRun(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_001),
@@ -481,11 +481,11 @@ final class NormalizeQualityGradingIntegrationTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.targetXMP.path))
     }
 
-    func testLegacySessionWithoutGradingOrScalarRowsStillDecodes() throws {
+    func testLegacySessionWithoutGradingOrScalarRowsStillDecodes() async throws {
         var fixture = try makeFixture(confidence: "high")
         fixture.configuration.qualityGrading = .builtInDefaults
         fixture.configuration.dryRun = true
-        let result = try NormalizePipeline().runDryRun(
+        let result = try await NormalizePipeline().runDryRun(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_002),

@@ -64,11 +64,41 @@ final class ImageScannerInventoryTests: XCTestCase {
         XCTAssertEqual(inventory.scanRoot, scan.scanRoot)
     }
 
+    func testInventoryNeverComputesSourceIdentities() throws {
+        let probe = InventoryIdentityProbe()
+        let scanner = ImageScanner(
+            identityCalculator: { _, policy, _ in
+                probe.recordInvocation()
+                return SourceIdentity(policy: policy, sha256: String(repeating: "a", count: 64))
+            }
+        )
+
+        let inventory = try scanner.inventory(inputPath: root.path, recursive: true)
+
+        XCTAssertEqual(inventory.entries.count, 3)
+        XCTAssertEqual(probe.invocationCount, 0)
+    }
+
     func testSingleFileInputInventory() throws {
         let inventory = try ImageScanner().inventory(
             inputPath: root.appendingPathComponent("a.NEF").path, recursive: false
         )
         XCTAssertEqual(inventory.entries.map(\.fileName), ["a.NEF"])
         XCTAssertEqual(inventory.scanRoot, root.standardizedFileURL.path)
+    }
+}
+
+private final class InventoryIdentityProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedInvocationCount = 0
+
+    var invocationCount: Int {
+        lock.withLock { storedInvocationCount }
+    }
+
+    func recordInvocation() {
+        lock.withLock {
+            storedInvocationCount += 1
+        }
     }
 }
