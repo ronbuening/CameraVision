@@ -13,7 +13,9 @@ enum VisionTagState: Equatable, Sendable {
 ///
 /// Automatic consumers reuse the settled result for an endpoint, while an
 /// explicit refresh repeats discovery. Requests for a new endpoint supersede
-/// older work so a late response cannot restore stale model tags.
+/// older work so a late response cannot restore stale model tags. Settled
+/// results are kept per endpoint, so one surface's failure (or an endpoint
+/// switch) never costs another endpoint its cached result.
 @MainActor
 @Observable
 final class VisionTagsModel {
@@ -27,6 +29,12 @@ final class VisionTagsModel {
         case failed(String)
     }
 
+    private struct SettledDiscovery {
+        var tags: [String]
+        var state: VisionTagState
+        var lastChecked: Date?
+    }
+
     private(set) var tags: [String] = []
     private(set) var state: VisionTagState = .idle
     private(set) var endpoint: URL?
@@ -35,6 +43,7 @@ final class VisionTagsModel {
     @ObservationIgnored private let loader: Loader
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var inFlight: (endpoint: String, task: Task<Void, Never>)?
+    @ObservationIgnored private var settledByEndpoint: [String: SettledDiscovery] = [:]
 
     init(loader: @escaping Loader = VisionTagsModel.liveLoader) {
         self.loader = loader
@@ -74,6 +83,15 @@ final class VisionTagsModel {
         {
             return
         }
+        if !force, let settled = settledByEndpoint[endpointKey] {
+            generation += 1
+            inFlight = nil
+            self.endpoint = endpoint
+            tags = settled.tags
+            state = settled.state
+            lastChecked = settled.lastChecked
+            return
+        }
 
         generation += 1
         let requestGeneration = generation
@@ -105,6 +123,11 @@ final class VisionTagsModel {
                 self.tags = []
                 self.state = .failed(message: message)
             }
+            self.settledByEndpoint[endpointKey] = SettledDiscovery(
+                tags: self.tags,
+                state: self.state,
+                lastChecked: self.lastChecked
+            )
         }
         inFlight = (endpoint: endpointKey, task: task)
         await task.value

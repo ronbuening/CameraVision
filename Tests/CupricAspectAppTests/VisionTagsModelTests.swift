@@ -154,6 +154,33 @@ final class VisionTagsModelTests: XCTestCase {
         XCTAssertEqual(finalCallCount, 1)
     }
 
+    func testFailureForOneSurfaceDoesNotEvictAnotherEndpointsSettledResult() async throws {
+        let loader = ControlledVisionTagLoader()
+        let model = VisionTagsModel(loader: { endpoint in
+            try await loader.load(endpoint)
+        })
+        let endpoint = try XCTUnwrap(URL(string: "http://127.0.0.1:11434"))
+
+        let load = Task { await model.loadIfNeeded(endpoint: endpoint) }
+        try await waitForCallCount(1, loader: loader)
+        await loader.succeed(callAt: 0, tags: ["kept:vision"])
+        await load.value
+        XCTAssertEqual(model.state, .loaded)
+
+        model.fail(message: "Invalid model endpoint.")
+        XCTAssertEqual(model.state, .failed(message: "Invalid model endpoint."))
+        XCTAssertEqual(model.tags, [])
+        XCTAssertNil(model.endpoint)
+
+        await model.loadIfNeeded(endpoint: endpoint)
+        XCTAssertEqual(model.state, .loaded)
+        XCTAssertEqual(model.tags, ["kept:vision"])
+        XCTAssertEqual(model.endpoint, endpoint)
+        XCTAssertNotNil(model.lastChecked)
+        let callCount = await loader.callCount
+        XCTAssertEqual(callCount, 1, "a settled endpoint re-projects without repeating discovery")
+    }
+
     func testSettingsProjectsSharedStateAndApplyingEndpointForcesRefresh() async throws {
         let loader = ControlledVisionTagLoader()
         let discovery = VisionTagsModel(loader: { endpoint in
