@@ -6,6 +6,31 @@ import XCTest
 
 @MainActor
 final class BackendAwareGUITests: XCTestCase {
+    func testProductionAppleDescriptorAppearsUnavailableInSettingsPicker() async throws {
+        let fixture = try ConfigFixture(modelBackend: .apple)
+        addTeardownBlock { fixture.remove() }
+        let registry = VisionBackendRegistry(descriptors: [
+            AppleFoundationModelsDescriptor(),
+            GUIBackendDescriptor.ollamaAvailable,
+        ])
+        let settings = SettingsModel(
+            configPath: fixture.path,
+            environment: [:],
+            backendRegistry: registry
+        )
+
+        await settings.loadBackendDataIfNeeded()
+
+        let apple = try XCTUnwrap(settings.backendOptions.first { $0.id == .apple })
+        XCTAssertEqual(apple.displayName, "Apple on-device")
+        XCTAssertEqual(
+            apple.availabilityText,
+            "unavailable: \(AppleFoundationModelsDescriptor.unavailableReason)"
+        )
+        XCTAssertEqual(settings.selectedBackendID, .apple)
+        XCTAssertFalse(settings.usesEndpoint)
+    }
+
     func testSettingsPickerAvailabilityWriteThroughAndKnobFilteringUseDescriptors() async throws {
         let fixture = try ConfigFixture()
         addTeardownBlock { fixture.remove() }

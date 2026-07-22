@@ -8,9 +8,12 @@ public struct VisionBackendRegistry: Sendable {
         self.descriptors = descriptors
     }
 
-    /// Production registry. The unavailable Apple descriptor joins this list in D5.
+    /// Production order implements `auto`: Apple first, then Ollama fallback.
     public static var live: VisionBackendRegistry {
-        VisionBackendRegistry(descriptors: [OllamaBackendDescriptor()])
+        VisionBackendRegistry(descriptors: [
+            AppleFoundationModelsDescriptor(),
+            OllamaBackendDescriptor(),
+        ])
     }
 
     public func descriptor(for id: ModelBackend) -> (any VisionBackendDescriptor)? {
