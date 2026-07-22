@@ -51,6 +51,9 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Option(help: "Ollama model tag for analyze-and-normalize.")
     var model: String?
 
+    @Option(help: "Vision model backend for analyze-and-normalize: ollama, apple, or auto.")
+    var modelBackend: ModelBackend?
+
     @Option(help: "Ollama endpoint URL for analyze-and-normalize.")
     var modelEndpoint: String?
 
@@ -289,6 +292,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             assessQuality: assessQuality,
             existing: existing,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
             modelRetryLimit: modelRetryLimit,
@@ -380,6 +384,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
             modelRetryLimit: modelRetryLimit,

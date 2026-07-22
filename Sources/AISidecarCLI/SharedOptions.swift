@@ -94,6 +94,12 @@ extension QualityScanMode: ExpressibleByArgument {
     }
 }
 
+extension ModelBackend: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(rawValue: argument)
+    }
+}
+
 extension NormalizationMode: ExpressibleByArgument {
     public init?(argument: String) {
         self.init(rawValue: argument)
@@ -139,6 +145,9 @@ struct SharedOptions: ParsableArguments {
 
     @Option(help: "Ollama model tag.")
     var model: String?
+
+    @Option(help: "Vision model backend: ollama, apple, or auto.")
+    var modelBackend: ModelBackend?
 
     @Option(help: "Ollama endpoint URL.")
     var modelEndpoint: String?
@@ -191,6 +200,7 @@ struct SharedOptions: ParsableArguments {
             recursive: recursive ? true : nil,
             outputDir: outputDir,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
             modelRetryLimit: modelRetryLimit,

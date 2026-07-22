@@ -45,6 +45,9 @@ struct WriteXMPCommand: AsyncParsableCommand {
     @Option(help: "Ollama model tag for analyze-and-write.")
     var model: String?
 
+    @Option(help: "Vision model backend for analyze-and-write: ollama, apple, or auto.")
+    var modelBackend: ModelBackend?
+
     @Option(help: "Ollama endpoint URL for analyze-and-write.")
     var modelEndpoint: String?
 
@@ -213,6 +216,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             existing: existing,
             assessQuality: assessQuality,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
             modelRetryLimit: modelRetryLimit,
@@ -287,6 +291,7 @@ struct WriteXMPCommand: AsyncParsableCommand {
             qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
             modelRetryLimit: modelRetryLimit,

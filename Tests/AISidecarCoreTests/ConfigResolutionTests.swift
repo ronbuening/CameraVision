@@ -254,6 +254,54 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(ResolvedRunConfiguration.self, from: data), configuration)
     }
 
+    func testModelBackendDefaultsToOllamaAndUsesStandardPrecedence() throws {
+        let defaults = try ConfigurationResolver.resolve(
+            environment: [:],
+            defaultConfigPath: missingConfigPath()
+        )
+        XCTAssertEqual(defaults.modelBackend, .ollama)
+
+        let configPath = try writeConfig(#"{ "model_backend": "apple" }"#)
+        let configured = try ConfigurationResolver.resolve(
+            environment: [:],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(configured.modelBackend, .apple)
+
+        let environment = try ConfigurationResolver.resolve(
+            environment: ["AISIDECAR_MODEL_BACKEND": "auto"],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(environment.modelBackend, .auto)
+
+        let commandLine = try ConfigurationResolver.resolve(
+            cli: RunConfigurationOverrides(modelBackend: .ollama),
+            environment: ["AISIDECAR_MODEL_BACKEND": "auto"],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(commandLine.modelBackend, .ollama)
+    }
+
+    func testModelBackendProvenanceIsDefaultElidedAndDecodesLegacyBytes() throws {
+        let defaultData = try JSONEncoder().encode(ResolvedRunConfiguration.builtInDefaults)
+        let defaultObject = try XCTUnwrap(JSONSerialization.jsonObject(with: defaultData) as? [String: Any])
+        XCTAssertNil(defaultObject["model_backend"])
+
+        let legacyData = try JSONSerialization.data(withJSONObject: defaultObject)
+        XCTAssertEqual(
+            try JSONDecoder().decode(ResolvedRunConfiguration.self, from: legacyData).modelBackend,
+            .ollama
+        )
+
+        var apple = ResolvedRunConfiguration.builtInDefaults
+        apple.modelBackend = .apple
+        let appleData = try JSONEncoder().encode(apple)
+        let appleObject = try XCTUnwrap(JSONSerialization.jsonObject(with: appleData) as? [String: Any])
+        XCTAssertEqual(appleObject["model_backend"] as? String, "apple")
+        XCTAssertNil(appleObject["modelBackend"])
+        XCTAssertEqual(try JSONDecoder().decode(ResolvedRunConfiguration.self, from: appleData), apple)
+    }
+
     func testResolvedConfigurationDecodesWhenQualityScanModeKeyIsMissing() throws {
         let data = try JSONEncoder().encode(ResolvedRunConfiguration.builtInDefaults)
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])

@@ -67,6 +67,7 @@ final class XMPExportInvocationTests: XCTestCase {
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", existing: .overwrite),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", assessQuality: true),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", model: "custom:model"),
+            XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelBackend: .auto),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelEndpoint: "http://localhost:11434"),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelTimeoutSeconds: 180),
             XMPExportInvocationRequest(fromJSONPath: "A.ai.json", modelRetryLimit: 2),

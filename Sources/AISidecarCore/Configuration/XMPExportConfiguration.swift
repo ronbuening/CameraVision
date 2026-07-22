@@ -405,6 +405,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
     public var existing: ExistingPolicy?
     public var assessQuality: Bool
     public var model: String?
+    public var modelBackend: ModelBackend?
     public var modelEndpoint: String?
     public var modelTimeoutSeconds: Double?
     public var modelRetryLimit: Int?
@@ -446,6 +447,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         existing: ExistingPolicy? = nil,
         assessQuality: Bool = false,
         model: String? = nil,
+        modelBackend: ModelBackend? = nil,
         modelEndpoint: String? = nil,
         modelTimeoutSeconds: Double? = nil,
         modelRetryLimit: Int? = nil,
@@ -486,6 +488,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         self.existing = existing
         self.assessQuality = assessQuality
         self.model = model
+        self.modelBackend = modelBackend
         self.modelEndpoint = modelEndpoint
         self.modelTimeoutSeconds = modelTimeoutSeconds
         self.modelRetryLimit = modelRetryLimit
@@ -590,6 +593,7 @@ public enum XMPExportInvocationValidator {
             ("existing", request.existing != nil),
             ("assess-quality", request.assessQuality),
             ("model", request.model != nil),
+            ("model-backend", request.modelBackend != nil),
             ("model-endpoint", request.modelEndpoint != nil),
             ("model-timeout", request.modelTimeoutSeconds != nil),
             ("model-retry-limit", request.modelRetryLimit != nil),
