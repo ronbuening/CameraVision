@@ -768,7 +768,7 @@ public struct CandidateCanonicalizer {
         let assetID = observation?.assetID ?? observationExtraction.sourceAssetIDBySidecarPath[result.sourceSidecar]
         appendSkip(
             &skips,
-            reason: Self.convert(reason: skipped.reason),
+            reason: CandidateSkipReasonBridge.normalizationReason(for: skipped.reason),
             observation: observation,
             assetID: assetID,
             groupID: assetID.flatMap { observationExtraction.groupIDByAssetID[$0] },
@@ -867,65 +867,6 @@ public struct CandidateCanonicalizer {
             DisplayTermRanking.preferredTerm(
                 in: entries.flatMap { $0.value.observations }.map(\.normalizedTerm).filter { !$0.isEmpty }
             )
-        }
-    }
-
-    private static func convert(reason: SkippedCandidateReason) -> NormalizationCandidateSkipReason {
-        switch reason {
-        case .belowConfidenceThreshold:
-            return .belowConfidenceThreshold
-        case .unmatchedVocabulary:
-            return .unmatchedVocabulary
-        case .directApplyWithheld:
-            return .directApplyWithheld
-        case .directApplyFlatOnly:
-            return .directApplyFlatOnly
-        case .requiresReview:
-            return .requiresReview
-        case .specificTagPolicy:
-            return .specificTagPolicy
-        case .containsHierarchySeparator:
-            return .containsHierarchySeparator
-        case .emptyAfterNormalization:
-            return .emptyAfterNormalization
-        case .duplicate:
-            return .duplicate
-        case .disabledFlatExport:
-            return .disabledFlatExport
-        case .disabledHierarchicalExport:
-            return .disabledHierarchicalExport
-        case .coordinateLikeTerm:
-            return .coordinateLikeTerm
-        case .gpsOnlyEvidence:
-            return .gpsOnlyEvidence
-        case .speciesWithoutBiologicalGenre:
-            return .speciesWithoutBiologicalGenre
-        case .unknownSessionContextRejected:
-            return .unknownSessionContextRejected
-        case .unknownSessionContextFlatOnly:
-            return .unknownSessionContextFlatOnly
-        case .weakLocalAgreement:
-            return .weakLocalAgreement
-        case .lowSupportMass:
-            return .lowSupportMass
-        case .lowSupportingNeighborCount:
-            return .lowSupportingNeighborCount
-        case .lowMaxSupportingAffinity:
-            return .lowMaxSupportingAffinity
-        case .blockedDirectConflict:
-            return .blockedDirectConflict
-        case .blockedLocalConflictMass:
-            return .blockedLocalConflictMass
-        case .gearOnlyAffinity:
-            return .gearOnlyAffinity
-        case .globalBackstopThreshold:
-            return .globalBackstopThreshold
-        case .sessionContextConflict:
-            return .sessionContextConflict
-        case .userReviewRejected:
-            return .userReviewRejected
-        case .userReviewDeferred:
-            return .userReviewDeferred
         }
     }
 

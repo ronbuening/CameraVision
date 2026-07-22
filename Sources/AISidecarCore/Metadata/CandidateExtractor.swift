@@ -133,7 +133,7 @@ public struct ExportableKeyword: Codable, Sendable, Equatable {
 }
 
 /// Machine-readable reason a candidate or accepted keyword is absent from an output set.
-public enum SkippedCandidateReason: String, Codable, Equatable, Sendable {
+public enum SkippedCandidateReason: String, Codable, CaseIterable, Equatable, Sendable {
     case belowConfidenceThreshold = "below_confidence_threshold"
     case unmatchedVocabulary = "unmatched_vocabulary"
     case directApplyWithheld = "direct_apply_withheld"

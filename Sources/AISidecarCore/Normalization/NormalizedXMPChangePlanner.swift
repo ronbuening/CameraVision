@@ -495,7 +495,7 @@ public struct NormalizedXMPChangePlanner {
 
     private func skippedCandidate(_ skip: NormalizationCandidateSkip) -> SkippedCandidate {
         SkippedCandidate(
-            reason: SkippedCandidateReason(normalizationReason: skip.reason),
+            reason: CandidateSkipReasonBridge.skippedCandidateReason(for: skip.reason),
             candidate: nil,
             term: skip.term ?? skip.canonicalPath,
             normalizedTerm: skip.normalizedTerm
@@ -548,67 +548,6 @@ private struct PlannedKeywordAccumulator {
             governingRules: uniqueStrings(sortedDecisions.compactMap(\.governingRule)),
             supportingAssetIDs: uniqueStrings(sortedDecisions.flatMap(\.supportingAssetIDs))
         )
-    }
-}
-
-extension SkippedCandidateReason {
-    fileprivate init(normalizationReason: NormalizationCandidateSkipReason) {
-        switch normalizationReason {
-        case .belowConfidenceThreshold:
-            self = .belowConfidenceThreshold
-        case .unmatchedVocabulary:
-            self = .unmatchedVocabulary
-        case .directApplyWithheld:
-            self = .directApplyWithheld
-        case .directApplyFlatOnly:
-            self = .directApplyFlatOnly
-        case .requiresReview:
-            self = .requiresReview
-        case .specificTagPolicy:
-            self = .specificTagPolicy
-        case .containsHierarchySeparator:
-            self = .containsHierarchySeparator
-        case .emptyAfterNormalization:
-            self = .emptyAfterNormalization
-        case .duplicate:
-            self = .duplicate
-        case .disabledFlatExport:
-            self = .disabledFlatExport
-        case .disabledHierarchicalExport:
-            self = .disabledHierarchicalExport
-        case .coordinateLikeTerm:
-            self = .coordinateLikeTerm
-        case .gpsOnlyEvidence:
-            self = .gpsOnlyEvidence
-        case .speciesWithoutBiologicalGenre:
-            self = .speciesWithoutBiologicalGenre
-        case .unknownSessionContextRejected:
-            self = .unknownSessionContextRejected
-        case .unknownSessionContextFlatOnly:
-            self = .unknownSessionContextFlatOnly
-        case .weakLocalAgreement:
-            self = .weakLocalAgreement
-        case .lowSupportMass:
-            self = .lowSupportMass
-        case .lowSupportingNeighborCount:
-            self = .lowSupportingNeighborCount
-        case .lowMaxSupportingAffinity:
-            self = .lowMaxSupportingAffinity
-        case .blockedDirectConflict:
-            self = .blockedDirectConflict
-        case .blockedLocalConflictMass:
-            self = .blockedLocalConflictMass
-        case .gearOnlyAffinity:
-            self = .gearOnlyAffinity
-        case .globalBackstopThreshold:
-            self = .globalBackstopThreshold
-        case .sessionContextConflict:
-            self = .sessionContextConflict
-        case .userReviewRejected:
-            self = .userReviewRejected
-        case .userReviewDeferred:
-            self = .userReviewDeferred
-        }
     }
 }
 
