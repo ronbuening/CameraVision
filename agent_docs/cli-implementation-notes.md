@@ -122,6 +122,13 @@ separate future scope and is not required to activate Apple for normal analysis.
 If the public API cannot fit these existing seams, that is a new design change,
 not permission to bypass the factory, schema validator, or provenance contract.
 
+Three refinements outside that directory are scheduled to land with the adapter
+rather than being required by it — plan 16's D8 items B1–B3: stamping the
+resolved backend into `run_configuration.model_backend` so an `auto` run never
+records `"auto"`, declaring the tuning knobs Apple actually honors instead of
+today's empty set, and the DD-6 notice for CLI flags a backend ignores. Each
+becomes verifiable only once a second backend can be selected.
+
 ## Image-quality assessment contract
 
 `analyze --assess-quality` selects the v1.6.0 combined tagging-and-quality
