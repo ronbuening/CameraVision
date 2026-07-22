@@ -344,7 +344,7 @@ public struct RawJSONSidecarInputResolver {
         recursive: Bool
     ) throws -> (urls: [URL], failures: [RawJSONSidecarInputFailure]) {
         if recursive {
-            let enumerationFailures = SynchronousInputFailureAccumulator()
+            let enumerationFailures = SynchronousCallbackAccumulator<RawJSONSidecarInputFailure>()
             guard
                 let enumerator = fileManager.enumerator(
                     at: root,
@@ -526,15 +526,5 @@ public struct RawJSONSidecarInputResolver {
 
     private func sourceIdentityMismatch(_ message: String) -> SidecarError {
         SidecarError(code: .sourceIdentityMismatch, stage: .scan, message: message, recoverable: true)
-    }
-}
-
-/// FileManager enumeration invokes its error callback synchronously. This box
-/// gives that callback reference semantics without suggesting cross-task use.
-private final class SynchronousInputFailureAccumulator: @unchecked Sendable {
-    private(set) var values: [RawJSONSidecarInputFailure] = []
-
-    func append(_ value: RawJSONSidecarInputFailure) {
-        values.append(value)
     }
 }

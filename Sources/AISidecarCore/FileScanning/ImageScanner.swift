@@ -258,7 +258,7 @@ public struct ImageScanner {
         var errors: [ScanErrorRecord] = []
 
         if recursive {
-            let enumerationErrors = SynchronousScanErrorAccumulator<ScanErrorRecord>()
+            let enumerationErrors = SynchronousCallbackAccumulator<ScanErrorRecord>()
             guard
                 let enumerator = fileManager.enumerator(
                     at: root,
@@ -502,15 +502,5 @@ public struct ImageScanner {
 
     private func validationError(_ message: String, recoverable: Bool = false) -> SidecarError {
         SidecarError(code: .validationFailed, stage: .scan, message: message, recoverable: recoverable)
-    }
-}
-
-/// FileManager enumeration invokes its error callback synchronously. This box
-/// gives that callback reference semantics without suggesting cross-task use.
-private final class SynchronousScanErrorAccumulator<Value>: @unchecked Sendable {
-    private(set) var values: [Value] = []
-
-    func append(_ value: Value) {
-        values.append(value)
     }
 }
