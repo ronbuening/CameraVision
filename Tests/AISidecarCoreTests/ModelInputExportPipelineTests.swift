@@ -4,6 +4,11 @@ import XCTest
 @testable import AISidecarCore
 
 final class ModelInputExportPipelineTests: XCTestCase {
+    func testDerivativeFormatsUseStableArtifactExtensions() {
+        XCTAssertEqual(DerivativeFormat.jpeg.fileExtension, "jpg")
+        XCTAssertEqual(DerivativeFormat.tiff.fileExtension, "tiff")
+    }
+
     func testUnicodeNormalizationVariantsCollideInExportPlan() throws {
         let composed = "Café.NEF"
         let decomposed = "Cafe\u{301}.NEF"
