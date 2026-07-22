@@ -48,6 +48,7 @@ Work strictly top to bottom inside each tranche. Tranche A first (it shrinks the
 | C1–C5 | Core dedup | Path utils; enum bridge; plan assembler; quality extractor; canonicalizer filter |
 | C6–C12 | Core structure | Tolerant-enum helper; resolver/pipeline/file splits; small factories |
 | C13–C16 | GUI structure | Core-boundary fixes; flow model; view splits; shared vision-tags model |
+| C17 | B4 handoff retention | Key alignment; `.written`-only, opt-in retention; adapters drop the map after use |
 | D1–D8 | Backend abstraction | Config, factory, descriptors, GUI, Apple stub, provenance, docs |
 
 ---
@@ -342,6 +343,22 @@ Mechanical; no behavior change; do after C14 and D4 to avoid churn (they edit th
 
 **Acceptance.** One implementation (grep); Settings and Step 3 show consistent state; `RuntimeGuidanceModelTests`/`SettingsModelTests` pass with the injected loader seam preserved.
 
+### C17. Scope the B4 written-sidecar handoff retention ⚡
+
+- **Priority:** LOW-MEDIUM · **Effort:** Small · **Risk:** Low
+- **Files:** `Sources/AISidecarCore/Pipeline/AnalyzePipeline.swift` (document-retention sites in `run`/`finishPrepared`), `AnalyzeAndXMPPipeline.swift`, `AnalyzeAndNormalizePipeline.swift` (side-channel consumption), `Tests/AISidecarCoreTests/RawSidecarBatchHelpersTests.swift`
+
+**Problem.** Three correctness-neutral leftovers from B4's in-memory handoff (found by the Tranche B audit):
+1. Every written document is retained even when no consumer exists — standalone `analyze` holds all N decoded documents (typed struct + `JSONValue` tree, roughly 2× the JSON size each) for the whole run, and the combined pipelines keep the map alive inside their results after the export phase no longer needs it.
+2. Documents are retained even for records whose progress status is `.failed` (file written, no valid model run) — the helper never consults the side channel for `.failed` records.
+3. The retain key is the raw `entry.sidecarPath` while the lookup standardizes the path (`URL(fileURLWithPath:).standardizedFileURL.path`) — a non-standardized `output_dir` (trailing slash, `./`) silently misses the cache and falls back to disk reads, losing the optimization without any test failing.
+
+**Change.** (a) Retain under the writer's already-standardized `outcome.sidecarPath` (or standardize at retain time) so retain and lookup keys always agree; (b) gate retention on the ProgressRecord `status == .written`, not merely a non-nil written document; (c) make retention opt-in — only the combined pipelines request it — and have the adapters drop the map immediately after `rawInputBatch` so standalone analyze pays nothing and combined runs release the memory before Phase 2/3 work.
+
+**Acceptance.**
+- Existing counting-reader and exact-document/byte gates pass unchanged.
+- New tests: a non-standardized `output_dir` (trailing slash) still hits the in-memory path (zero disk reads); a standalone analyze run retains no documents (seam or memory-shape assertion); a `.failed`-status record retains nothing.
+
 ---
 
 ## Tranche D — vision-backend abstraction and Apple FoundationModels readiness
@@ -449,7 +466,7 @@ Implementing `analyze` against a vision-capable FoundationModels API, the schema
 | B4 | complete | 2026-07-21 | Freshly written raw-sidecar documents are handed to combined pipeline adapters in memory, while skipped/pre-existing entries retain the disk-reader fallback. Counting-reader, exact-document/byte, combined-pipeline, compatibility/golden, R4, full-suite, and release-self-test gates pass; live combined-run timing is a maintainer-directed manual follow-up. |
 | B5 | complete | 2026-07-21 | Analyze, model-input export, dry-scan, and combined pre-scan paths hash source identities through a bounded task group sized by resolved `stage_concurrency`; inventory remains hash-free. A counting seam proves the bound and serial/concurrent result equality, including ordering and an identity failure. Focused pipeline, R4, full-suite, and release-self-test gates pass; live large-folder scan timing is a maintainer-directed manual follow-up. |
 | B6 | complete | 2026-07-21 | Review rows and decision indexes are materialized per adopted session; ordinary verdict changes update only the indexed chip, while edits, newly visible decisions, and asynchronous quality-only rows preserve prior behavior. A row-build counting seam proves repeated reads and a verdict toggle do not rebuild either the touched or unrelated row. Focused review/quality, R4, full-suite, and release-self-test gates pass; the large-session GUI fluidity smoke is a maintainer-directed manual follow-up. |
-| C1–C16 | pending | | |
+| C1–C17 | pending | | |
 | D1–D7 | pending | | |
 | D8 | blocked | | awaits vision-capable FoundationModels API + test hardware |
 
@@ -512,10 +529,10 @@ Commit-by-commit audit of B1–B6 against this plan: all six items verified comp
 - B6: first verdict on a withheld decision appends its chip in decision order, or creates a sorted-in row for a previously chipless asset, without rebuilding existing rows (`ReviewModelTests`).
 - B5: the scan-hashing bound choice (`stage_concurrency` over `activeProcessorCount`) is now stated in the `ImageScanner` doc comment.
 
-Known follow-ups recorded for later scheduling (none blocks Tranche C):
+Follow-up dispositions (2026-07-21, maintainer-directed):
 
-1. **B3 — coarse-mtime cache-key blind spot.** The pre-write parse cache keys on `(path, inode, mtime, size)`. On filesystems with 1–2 s mtime granularity (SMB/NAS, FAT/exFAT, HFS+), a same-size in-place external rewrite between preview and apply is undetectable and apply would write from the stale parse — a window the pre-B3 re-read-at-apply did not have. APFS's sub-second mtime covers the dev and CI environments. If exports must support network volumes, add a content hash to the cache key (the parse, not the read, is the cost being saved). Separately, cache entries for preview-only/dry-run targets persist until engine shutdown; consider invalidating per target after its report is built if very large export batches show memory pressure.
-2. **B4 — retention scope.** Written documents are retained even when no consumer exists (standalone `analyze`) and for records whose progress status is `.failed`; the retain key is the raw `entry.sidecarPath` while the lookup standardizes the path, so a non-standardized `output_dir` silently falls back to disk reads (correctness preserved, optimization lost). All correctness-neutral; fold into a C-tranche cleanup — gate retention on a consumer, key on the writer's standardized path, and have the adapters drop the map after `rawInputBatch`.
-3. **B5 — remaining serial hashing path.** `NormalizationInputResolver.resolveAnalyzeInput` still hashes serially; `ResolvedNormalizationConfiguration` carries no `stage_concurrency` to thread through. Needs config plumbing if normalize-from-folder scan time becomes noticeable.
-4. **B2 — index/snapshot coupling.** `AssetAffinityGraph.nodes`/`edges` remain `public var` while `nodeByID`/`neighborsByNodeID` are init-time snapshots; post-init mutation would silently desynchronize them. Nothing mutates them today. If A10/P6 is ever scheduled, prune in the builder before graph init (its current shape), or tighten the fields to `private(set)` first.
-5. **B6 — per-toggle residue at M11 scale.** The model-side rebuild is gone, but each toggle still re-evaluates the full view body: O(rows) ForEach diff plus O(decisions) subtitle counters. If the 5,000-asset smoke stutters, cache the verdict counters as stored properties and split the row list into a child view observing only `assetRows`. `ReviewScaleTests` still pins 1,500 assets, not the M11 target.
+1. **B3 — coarse-mtime cache-key blind spot: resolved.** The pre-write cache now hashes the target's current bytes on every lookup (SHA-256, `CryptoKit`); a hit requires the stat identity `(inode, mtime, size)` **and** the content hash to match, and a miss parses the exact bytes that were hashed. A same-size in-place rewrite is therefore detected on any filesystem's mtime granularity — pinned by `testApplyDetectsInPlaceRewriteEvenWhenModificationTimeIsRestored`, which backdates the rewrite so all three stat components match and only the hash can catch it. The read-per-lookup cost is KB-scale; the XML parse remains the saved expense. Remaining (unscheduled): cache entries for preview-only/dry-run targets persist until engine shutdown; invalidate per target after its report is built if very large export batches show memory pressure.
+2. **B4 — retention scope: scheduled as C17.** Key alignment, `.written`-only opt-in retention, and adapter map release — see the C17 item for the full spec.
+3. **B5 — remaining serial hashing path: assessed, awaiting scheduling.** `NormalizationInputResolver.resolveAnalyzeInput` still hashes serially; `ResolvedNormalizationConfiguration` carries no `stage_concurrency`. Cheap path: bound a task group by the same physical-P-core default `ResolvedRunConfiguration` uses, no new config surface. Full path: plumb a normalization `stage_concurrency` key/env/flag with precedence tests — if taken, do it after C7 splits the resolver to avoid double churn.
+4. **B2 — index/snapshot coupling: resolved.** `AssetAffinityGraph.nodes`/`edges`/`clusters`/`nodeIDByAssetID` are now `let`; pruning already ran in the builder before graph init (`prune(edges:maxNeighborsPerNode:)` on the edge array), and immutability now makes builder-side pruning the only representable shape. A10/P6, if ever scheduled, changes the builder only.
+5. **B6 — per-toggle residue at M11 scale: open, maintainer will run the large-session smoke.** If the 5,000-asset smoke stutters, cache the verdict counters as stored properties and split the row list into a child view observing only `assetRows`. `ReviewScaleTests` still pins 1,500 assets, not the M11 target.
