@@ -2,14 +2,8 @@ import AISidecarCore
 import Foundation
 import Observation
 
-/// Launch-time runtime guidance (FR4-058, AC4-034): one check when the shell
+/// Launch-time backend guidance (FR4-058, AC4-034): one check when the shell
 /// appears plus manual re-checks — never a polling loop (FR4-051 policy).
-///
-/// Two failure shapes get first-class guidance instead of an empty picker or
-/// a failing run: Ollama unreachable (install/start pointers) and Ollama
-/// reachable with no vision-capable model installed (a starter model named
-/// with its `ollama pull` command — the configured default tag is never
-/// silently assumed to exist).
 @MainActor
 @Observable
 final class RuntimeGuidanceModel {
@@ -21,36 +15,68 @@ final class RuntimeGuidanceModel {
         case noVisionModels
     }
 
-    static let downloadURL = "https://ollama.com/download"
-
     /// The configured model tag, resolved through the standard chain — the
     /// starter suggestion when no vision model is installed.
     private(set) var configuredModel = ""
     private(set) var endpointDisplay = ""
+    private(set) var backendID = ModelBackend.ollama
+    private(set) var backendDisplayName = "Ollama"
+    private(set) var backendGuidance = OllamaBackendDescriptor().guidance
 
     let visionTagsModel: VisionTagsModel
     /// Alternate config path for tests; nil uses the standard chain.
     private let configPath: String?
+    private let backendRegistry: VisionBackendRegistry
+    private let runnerFactory: VisionModelRunnerFactory
     private var checkedEndpoint: URL?
+    private var checkedBackendID: ModelBackend?
+    private var checkGeneration = 0
+    private var checkingResolution = false
+    private var directFailure: String?
+    private var directFailureCheckedAt: Date?
 
     init(
         configPath: String? = nil,
-        listVisionTags: @escaping VisionTagsModel.Loader = VisionTagsModel.liveLoader
+        backendRegistry: VisionBackendRegistry = .live
+    ) {
+        self.configPath = configPath
+        self.visionTagsModel = VisionTagsModel()
+        self.backendRegistry = backendRegistry
+        self.runnerFactory = VisionModelRunnerFactory(registry: backendRegistry)
+    }
+
+    init(
+        configPath: String? = nil,
+        listVisionTags: @escaping VisionTagsModel.Loader,
+        backendRegistry: VisionBackendRegistry = .live
     ) {
         self.configPath = configPath
         self.visionTagsModel = VisionTagsModel(loader: listVisionTags)
+        self.backendRegistry = backendRegistry
+        self.runnerFactory = VisionModelRunnerFactory(registry: backendRegistry)
     }
 
-    init(configPath: String? = nil, visionTagsModel: VisionTagsModel) {
+    init(
+        configPath: String? = nil,
+        visionTagsModel: VisionTagsModel,
+        backendRegistry: VisionBackendRegistry = .live
+    ) {
         self.configPath = configPath
         self.visionTagsModel = visionTagsModel
+        self.backendRegistry = backendRegistry
+        self.runnerFactory = VisionModelRunnerFactory(registry: backendRegistry)
     }
 
     var visionTags: VisionTagsModel { visionTagsModel }
-    var pullCommand: String { "ollama pull \(configuredModel)" }
+    var pullCommand: String { backendGuidance.pullCommand(for: configuredModel) ?? "" }
+    var downloadURL: URL? { backendGuidance.downloadURL }
 
     var status: Status {
+        if checkingResolution { return .checking }
+        if let directFailure { return .unreachable(message: directFailure) }
         guard let checkedEndpoint,
+            let checkedBackendID,
+            checkedBackendID == visionTagsModel.backendID,
             let discoveryEndpoint = visionTagsModel.endpoint,
             checkedEndpoint.absoluteString == discoveryEndpoint.absoluteString
         else {
@@ -71,7 +97,10 @@ final class RuntimeGuidanceModel {
     }
 
     var lastChecked: Date? {
+        if directFailure != nil { return directFailureCheckedAt }
         guard let checkedEndpoint,
+            let checkedBackendID,
+            checkedBackendID == visionTagsModel.backendID,
             let discoveryEndpoint = visionTagsModel.endpoint,
             checkedEndpoint.absoluteString == discoveryEndpoint.absoluteString
         else {
@@ -99,27 +128,72 @@ final class RuntimeGuidanceModel {
     }
 
     private func startCheck(environment: [String: String], forceRefresh: Bool) {
-        let endpoint: URL
+        let configuration: ResolvedRunConfiguration
         do {
-            let resolved = try ConfigurationResolver.resolve(
+            configuration = try ConfigurationResolver.resolve(
                 environment: environment,
                 defaultConfigPath: configPath
             )
-            configuredModel = resolved.model
-            endpoint = resolved.modelEndpoint
-            endpointDisplay = endpoint.absoluteString
+            configuredModel = configuration.model
+            endpointDisplay = configuration.modelEndpoint.absoluteString
         } catch {
             // An unresolvable config never blocks launch; Settings surfaces it.
             checkedEndpoint = nil
+            checkedBackendID = nil
+            checkingResolution = false
+            directFailure = nil
             return
         }
-        checkedEndpoint = endpoint
+
+        checkGeneration += 1
+        let generation = checkGeneration
+        checkingResolution = true
+        directFailure = nil
         Task {
-            if forceRefresh {
-                await visionTagsModel.refresh(endpoint: endpoint)
-            } else {
-                await visionTagsModel.loadIfNeeded(endpoint: endpoint)
+            let descriptor: any VisionBackendDescriptor
+            do {
+                if configuration.modelBackend == .auto {
+                    descriptor = try await runnerFactory.resolveBackend(for: configuration)
+                } else if let pinned = backendRegistry.descriptor(for: configuration.modelBackend) {
+                    descriptor = pinned
+                } else {
+                    throw SidecarError(
+                        code: .modelBackendUnavailable,
+                        stage: .model,
+                        message: "Backend is not registered in this build.",
+                        recoverable: true
+                    )
+                }
+            } catch {
+                guard generation == checkGeneration else { return }
+                let fallback =
+                    backendRegistry.descriptor(for: configuration.modelBackend)
+                    ?? backendRegistry.descriptor(for: .ollama)
+                    ?? backendRegistry.descriptors.last
+                backendID = fallback?.id ?? configuration.modelBackend
+                backendDisplayName = fallback?.displayName ?? configuration.modelBackend.displayName
+                if let fallback { backendGuidance = fallback.guidance }
+                directFailure = (error as? SidecarError)?.message ?? error.localizedDescription
+                directFailureCheckedAt = Date()
+                checkedEndpoint = configuration.modelEndpoint
+                checkedBackendID = backendID
+                checkingResolution = false
+                return
             }
+
+            guard generation == checkGeneration else { return }
+            backendID = descriptor.id
+            backendDisplayName = descriptor.displayName
+            backendGuidance = descriptor.guidance
+            checkedEndpoint = configuration.modelEndpoint
+            checkedBackendID = descriptor.id
+            if forceRefresh {
+                await visionTagsModel.refresh(descriptor: descriptor, configuration: configuration)
+            } else {
+                await visionTagsModel.loadIfNeeded(descriptor: descriptor, configuration: configuration)
+            }
+            guard generation == checkGeneration else { return }
+            checkingResolution = false
         }
     }
 }

@@ -17,6 +17,9 @@ struct BenchmarkCommand: ParsableCommand {
     @Option(help: "Ollama model tag to benchmark.")
     var model = "gemma4:26b-a4b-it-qat"
 
+    @Option(help: "Vision model backend to benchmark; only ollama is currently supported.")
+    var modelBackend: ModelBackend = .ollama
+
     @Option(help: "Number of matrix repetitions.")
     var iterations = 1
 
@@ -41,6 +44,9 @@ struct BenchmarkCommand: ParsableCommand {
         }
         guard maxHashCopies > 0 else {
             throw ValidationError("--max-hash-copies must be a positive integer")
+        }
+        guard modelBackend == .ollama else {
+            throw ValidationError("benchmark currently supports only --model-backend ollama")
         }
     }
 

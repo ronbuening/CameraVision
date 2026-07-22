@@ -19,11 +19,12 @@ struct AssessQualityCommand: AsyncParsableCommand {
         let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
         let interruptionMonitor = InterruptionMonitor()
         interruptionMonitor.installSignalHandlers()
-        let pipeline = QualityAssessPipeline(logger: logger, runner: OllamaVisionRunner())
+        let selection = try await VisionModelRunnerFactory().make(for: resolved)
+        let pipeline = QualityAssessPipeline(logger: logger, runner: selection.runner)
         let result = try await withAsyncBatchInterruptionExit {
             try await pipeline.run(
                 inputPath: inputPath,
-                configuration: resolved,
+                configuration: selection.configuration,
                 interruptionMonitor: interruptionMonitor
             )
         }

@@ -91,6 +91,22 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testInvalidModelBackendFailsAsConfigInvalid() throws {
+        try assertConfigInvalid {
+            _ = try ConfigurationResolver.resolve(
+                environment: [:],
+                defaultConfigPath: writeConfig(#"{ "model_backend": "cloud" }"#)
+            )
+        }
+
+        try assertConfigInvalidMessage("Invalid value for AISIDECAR_MODEL_BACKEND: cloud") {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_MODEL_BACKEND": "cloud"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     func testUnknownModelInputProfileFailsAsConfigInvalid() throws {
         try assertConfigInvalid {
             _ = try ConfigurationResolver.resolve(

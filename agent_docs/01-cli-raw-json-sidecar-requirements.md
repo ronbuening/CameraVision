@@ -1,9 +1,9 @@
 # Phase 1 Requirements - CLI Raw JSON Sidecar Generator
 
-Version: 0.6
-Date: 2026-07-11
-Supersedes: 0.5
-Change log: v0.6: specified the audited cross-process derivative-cache transaction, active-artifact lease, cap-restoration, and purge rules (FR1-018c).
+Version: 0.7
+Date: 2026-07-22
+Supersedes: 0.6
+Change log: v0.7: added the shipped model-backend selection surface and default-elided backend provenance rule (PW-004, FR1-030g, FR1-040a). v0.6: specified the audited cross-process derivative-cache transaction, active-artifact lease, cap-restoration, and purge rules (FR1-018c).
 Binary: `aisidecar` (subcommands: `analyze`, `benchmark`, `purge`, `cleanup`)
 Core library: `AISidecarCore`
 Minimum deployment target: macOS 15
@@ -35,6 +35,7 @@ PW-004 - The following flags shall have identical names, types, and semantics in
 --existing <skip|overwrite|fail>     Policy for pre-existing output files. Default: skip.
 --recursive                          Recurse into subfolders. Default: off.
 --output-dir <path>                  Redirect outputs; mirrors the relative scan tree.
+--model-backend <ollama|apple|auto>  Local vision backend. Default: ollama.
 --model <tag>                        Ollama model tag. Default: gemma4:26b-a4b-it-qat.
 --model-endpoint <url>               Ollama endpoint. Default: http://localhost:11434.
 --model-timeout <seconds>            Timeout for each Ollama request. Default: 180.
@@ -317,6 +318,13 @@ The timeout and retry limit shall resolve through `model_timeout_seconds` / `mod
 FR1-030f - Request options shall record temperature, seed, thinking setting, `keep_alive`, timeout, retry limit, and
 any context override, per PW-013.
 
+FR1-030g - For analysis-capable command shapes, `model_backend` shall resolve through `--model-backend`,
+`AISIDECAR_MODEL_BACKEND`, config, and the built-in `ollama` default. A pinned backend shall fail closed with
+`E_MODEL_BACKEND_UNAVAILABLE` when unavailable.
+`auto` shall select one backend for the whole run in deterministic registry order and shall not mix runtimes between
+images. The compiled-in Apple FoundationModels adapter shall remain unavailable until a public vision-capable API
+exists; this requirement does not promise live Apple inference. Benchmark execution remains Ollama-only.
+
 FR1-031 - The model client shall be implemented behind a `VisionModelRunner` protocol so later phases can support other Ollama tags, llama.cpp, MLX, or a direct library backend. A mock runner and a recorded-fixture replay runner shall be implemented alongside the live runner so the full pipeline is testable without a network.
 
 FR1-032 - The model call shall pass one image and one prompt per request.
@@ -377,6 +385,17 @@ FR1-040 - Each `model_runs` entry shall include:
   "response_attempts": []
 }
 ```
+
+The example above shows Ollama provenance. Runtime, model, and digest strings are backend-native fields and shall not
+be normalized into Ollama-shaped values for another backend.
+
+FR1-040a - `run_configuration.model_backend` shall be additive and default-elided: omit it for the `ollama` default,
+encode the concrete non-default backend, and decode an absent value as `ollama`. The runner factory stamps a
+requested `auto` to the backend it resolved before the pipelines receive the configuration, so `"auto"` shall never
+appear in a sidecar and an `auto` run resolving `ollama` is byte-identical to a pinned `ollama` run. Existing sidecar
+bytes therefore remain unchanged when backend selection is not used. Apple provenance identifiers are reserved as runtime
+`apple-foundation-models`, model `system-language-model`, and digest `system:<macOS build>`; reserving these values
+does not imply that the dark Apple adapter can perform inference.
 
 FR1-041 - Invalid primary model JSON shall be preserved as raw text. When repair is attempted, `response_attempts` shall preserve the primary response, repair response, per-attempt prompt hash, request options, parsed JSON when available, and per-attempt error. The top-level `model_runs` fields represent the final accepted response or final failure. The parser shall strip Markdown code fences before parsing, since fenced-but-valid JSON is a common local-model failure mode; fence-stripped valid JSON is not an error.
 

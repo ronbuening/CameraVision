@@ -3,6 +3,12 @@ import AppKit
 import Foundation
 import Observation
 
+struct BackendPickerOption: Identifiable, Equatable {
+    var id: ModelBackend
+    var displayName: String
+    var availabilityText: String
+}
+
 /// Settings state (FR4-056/057): reads through the same resolver chain as
 /// every run (CLI flag > env > config.json > defaults) and writes user
 /// changes back to the shared `config.json` via `ConfigFileEditor`, so CLI
@@ -14,9 +20,11 @@ import Observation
 final class SettingsModel {
     private let configPath: String
     private let environment: [String: String]
+    private let backendRegistry: VisionBackendRegistry
     let visionTagsModel: VisionTagsModel
 
     private(set) var model = ""
+    private(set) var modelBackend = ModelBackend.ollama
     private(set) var endpoint = ""
     private(set) var mode: AnalysisMode = .both
     private(set) var gps: GPSContextMode = .coarse
@@ -39,23 +47,67 @@ final class SettingsModel {
     private(set) var loadError: String?
     /// AISIDECAR_* variables present in the environment (precedence notice).
     private(set) var environmentOverrides: [String] = []
+    private(set) var backendAvailability: [ModelBackend: BackendAvailability] = [:]
 
     var endpointDraft = ""
 
     init(
         configPath: String = ConfigurationResolver.defaultConfigPath(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        visionTagsModel: VisionTagsModel = VisionTagsModel()
+        visionTagsModel: VisionTagsModel = VisionTagsModel(),
+        backendRegistry: VisionBackendRegistry = .live
     ) {
         self.configPath = configPath
         self.environment = environment
         self.visionTagsModel = visionTagsModel
+        self.backendRegistry = backendRegistry
         reload()
     }
 
     var configPathDisplay: String { configPath }
     var visionTags: [String] { visionTagsModel.tags }
     var visionTagState: VisionTagState { visionTagsModel.state }
+    var backendOptions: [BackendPickerOption] {
+        let automaticStatus: String
+        if backendAvailability.values.contains(.available) {
+            automaticStatus = "uses first available"
+        } else if backendAvailability.count == backendRegistry.descriptors.count,
+            !backendRegistry.descriptors.isEmpty
+        {
+            automaticStatus = "unavailable"
+        } else {
+            automaticStatus = "checking…"
+        }
+        return [
+            BackendPickerOption(id: .auto, displayName: "Automatic", availabilityText: automaticStatus)
+        ]
+            + backendRegistry.descriptors.map { descriptor in
+                BackendPickerOption(
+                    id: descriptor.id,
+                    displayName: descriptor.displayName,
+                    availabilityText: availabilityText(for: descriptor.id)
+                )
+            }
+    }
+
+    var selectedBackendDisplayName: String {
+        if modelBackend == .auto { return "Automatic" }
+        return backendRegistry.descriptor(for: modelBackend)?.displayName ?? modelBackend.rawValue.capitalized
+    }
+
+    var selectedBackendID: ModelBackend? { selectedBackendDescriptor?.id }
+
+    var selectedBackendGuidance: BackendGuidance? {
+        selectedBackendDescriptor?.guidance
+    }
+
+    var supportedTuningKnobs: Set<ModelTuningKnob> {
+        selectedBackendDescriptor?.supportedTuningKnobs ?? []
+    }
+
+    var usesEndpoint: Bool {
+        selectedBackendDescriptor?.id == .ollama
+    }
 
     func reload() {
         do {
@@ -68,6 +120,7 @@ final class SettingsModel {
                 defaultConfigPath: configPath
             )
             model = resolved.model
+            modelBackend = resolved.modelBackend
             endpoint = resolved.modelEndpoint.absoluteString
             endpointDraft = endpoint
             mode = resolved.mode
@@ -145,6 +198,11 @@ final class SettingsModel {
         write("model", .string(tag))
     }
 
+    func setModelBackend(_ backend: ModelBackend) {
+        write("model_backend", .string(backend.rawValue))
+        Task { await loadBackendDataIfNeeded() }
+    }
+
     /// Validate and persist the endpoint draft; refreshes the model list.
     func applyEndpoint() {
         let trimmed = endpointDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -159,20 +217,82 @@ final class SettingsModel {
     // MARK: - Model picker (FR4-057, CORE-8)
 
     func refreshVisionTags() {
-        guard let url = URL(string: endpoint) else { return }
         Task {
-            await visionTagsModel.refresh(endpoint: url)
+            await loadBackendData(forceDiscovery: true)
         }
     }
 
     func loadVisionTagsIfNeeded() async {
-        guard let url = URL(string: endpoint) else { return }
-        await visionTagsModel.loadIfNeeded(endpoint: url)
+        await loadBackendDataIfNeeded()
+    }
+
+    func loadBackendDataIfNeeded() async {
+        await loadBackendData(forceDiscovery: false)
     }
 
     /// The configured model is missing or lost its vision capability.
     var configuredModelUnavailable: Bool {
         visionTagState == .loaded && !visionTags.contains(model)
+    }
+
+    private var selectedBackendDescriptor: (any VisionBackendDescriptor)? {
+        if modelBackend != .auto {
+            return backendRegistry.descriptor(for: modelBackend)
+        }
+        if let available = backendRegistry.descriptors.first(where: {
+            backendAvailability[$0.id] == .available
+        }) {
+            return available
+        }
+        return backendRegistry.descriptor(for: .ollama) ?? backendRegistry.descriptors.first
+    }
+
+    private func loadBackendData(forceDiscovery: Bool) async {
+        let configuration: ResolvedRunConfiguration
+        do {
+            configuration = try ConfigurationResolver.resolve(
+                environment: environment,
+                defaultConfigPath: configPath
+            )
+        } catch {
+            loadError = (error as? SidecarError)?.message ?? error.localizedDescription
+            return
+        }
+
+        // Every backend's annotation comes from its own descriptor probe — the
+        // same answer the factory acts on — so the picker and a run can never
+        // disagree. Discovery below answers the separate question of which
+        // models the selected backend offers.
+        var availability = backendAvailability
+        for descriptor in backendRegistry.descriptors {
+            availability[descriptor.id] = await descriptor.availability(configuration: configuration)
+        }
+        backendAvailability = availability
+
+        guard let descriptor = selectedBackendDescriptor else {
+            loadError = "No vision backend is registered for \(configuration.modelBackend.rawValue)."
+            return
+        }
+        if case .unavailable(let reason, _) = backendAvailability[descriptor.id] {
+            visionTagsModel.fail(descriptor: descriptor, configuration: configuration, message: reason)
+            return
+        }
+        if forceDiscovery {
+            await visionTagsModel.refresh(descriptor: descriptor, configuration: configuration)
+        } else {
+            await visionTagsModel.loadIfNeeded(descriptor: descriptor, configuration: configuration)
+        }
+    }
+
+    private func availabilityText(for backend: ModelBackend) -> String {
+        switch backendAvailability[backend] {
+        case .available:
+            "available"
+        case .unavailable(let reason, _):
+            "unavailable: \(reason)"
+        case nil:
+            "checking…"
+        }
     }
 
     // MARK: - Cache

@@ -3,6 +3,8 @@ import SwiftUI
 
 struct AdvancedOptionsCard: View {
     @Bindable var options: AnalysisOptions
+    let backendID: ModelBackend?
+    let supportedTuningKnobs: Set<ModelTuningKnob>
 
     @Environment(\.cvTheme) private var theme
 
@@ -19,11 +21,9 @@ struct AdvancedOptionsCard: View {
                     Text("Advanced flags")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(theme.text)
-                    Text(
-                        "gps · existing .ai.json · existing xmp · concurrency · image size · context window · quality scan"
-                    )
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.textFaint)
+                    Text(advancedFlagsSummary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.textFaint)
                     Spacer()
                 }
                 .padding(EdgeInsets(top: 13, leading: 17, bottom: 13, trailing: 17))
@@ -79,8 +79,10 @@ struct AdvancedOptionsCard: View {
                                 label: { ModelTuning.imageSizeLabel(forProfileNamed: $0) }
                             )
                         }
-                        advancedGroup("MODEL CONTEXT WINDOW") {
-                            contextWindowMenu
+                        if ModelTuning.supports(.contextWindow, in: supportedTuningKnobs) {
+                            advancedGroup("MODEL CONTEXT WINDOW") {
+                                contextWindowMenu
+                            }
                         }
                     }
                     GridRow {
@@ -102,9 +104,13 @@ struct AdvancedOptionsCard: View {
                     Text(
                         "Image size: longest edge of the render sent to the model — smaller is faster, larger keeps fine detail."
                     )
-                    Text(
-                        "Context window: Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
-                    )
+                    if ModelTuning.supports(.contextWindow, in: supportedTuningKnobs) {
+                        Text(
+                            backendID == .ollama
+                                ? "Context window: Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
+                                : "Context window: tokens per call — match it to what the backend supports; Default lets the backend decide."
+                        )
+                    }
                     Text(Step3OptionsView.qualityScanFootnote)
                 }
                 .font(.system(size: 11))
@@ -117,9 +123,16 @@ struct AdvancedOptionsCard: View {
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
     }
 
+    private var advancedFlagsSummary: String {
+        if ModelTuning.supports(.contextWindow, in: supportedTuningKnobs) {
+            return "gps · existing .ai.json · existing xmp · concurrency · image size · context window · quality scan"
+        }
+        return "gps · existing .ai.json · existing xmp · concurrency · image size · quality scan"
+    }
+
     private func advancedGroup(_ label: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel(label)
+            WizardSectionLabel(text: label, color: theme.textFaint)
             content()
         }
     }
@@ -152,14 +165,11 @@ struct AdvancedOptionsCard: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Ollama num_ctx tokens requested per model call")
-    }
-
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10.5, weight: .semibold))
-            .kerning(0.5)
-            .foregroundStyle(theme.textFaint)
+        .help(
+            backendID == .ollama
+                ? "Ollama num_ctx tokens requested per model call"
+                : "Context-window tokens requested per model call"
+        )
     }
 
     private func xmpPolicyLabel(_ policy: XMPConflictPolicy) -> String {

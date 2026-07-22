@@ -14,51 +14,76 @@ struct SettingsModelSection: View {
             controls.card {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
+                        Text("Vision backend")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundStyle(theme.text)
+                        Text("Choose the local runtime used for image analysis.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(theme.textFaint)
+                    }
+                    Spacer()
+                    backendPicker
+                }
+                Divider().overlay(theme.border)
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("Vision model tag")
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundStyle(theme.text)
-                        Text("Installed Ollama models with the vision capability.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(theme.textFaint)
+                        Text(
+                            settings.selectedBackendID == .ollama
+                                ? "Installed Ollama models with the vision capability."
+                                : "Models available through \(settings.selectedBackendDisplayName)."
+                        )
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.textFaint)
                     }
                     Spacer()
                     modelPicker
                 }
                 if settings.configuredModelUnavailable, !settings.visionTags.isEmpty {
-                    Text(
-                        "The configured model isn't installed (or isn't vision-capable) at this endpoint — pick another or `ollama pull` it."
-                    )
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.danger)
+                    Text(configuredModelUnavailableMessage)
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.danger)
                 }
                 emptyModelGuidance
-                Divider().overlay(theme.border)
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Ollama endpoint")
-                            .font(.system(size: 12.5, weight: .semibold))
+                if settings.usesEndpoint {
+                    Divider().overlay(theme.border)
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(settings.selectedBackendDisplayName) endpoint")
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundStyle(theme.text)
+                        }
+                        Spacer()
+                        TextField("http://localhost:11434", text: $settings.endpointDraft)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundStyle(theme.text)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 10)
+                            .frame(width: 220)
+                            .background(theme.panel2)
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(theme.border))
+                            .onSubmit { settings.applyEndpoint() }
+                        Button("Apply") { settings.applyEndpoint() }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundStyle(theme.accent.accent)
+                        connectionBadge
                     }
-                    Spacer()
-                    TextField("http://localhost:11434", text: $settings.endpointDraft)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(theme.text)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 10)
-                        .frame(width: 220)
-                        .background(theme.panel2)
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(theme.border))
-                        .onSubmit { settings.applyEndpoint() }
-                    Button("Apply") { settings.applyEndpoint() }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundStyle(theme.accent.accent)
-                    connectionBadge
                 }
             }
         }
+    }
+
+    private var configuredModelUnavailableMessage: String {
+        if settings.selectedBackendID == .ollama {
+            return
+                "The configured model isn't installed (or isn't vision-capable) at this endpoint — pick another or `ollama pull` it."
+        }
+        return "The configured model isn't available (or isn't vision-capable) through this backend — pick another."
     }
 
     /// FR4-058/AC4-034: an empty vision-model list explains itself and names
@@ -71,16 +96,23 @@ struct SettingsModelSection: View {
                     .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(theme.danger)
                 HStack(spacing: 8) {
-                    Text("ollama pull \(settings.model)")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(theme.text)
-                        .padding(.vertical, 3)
-                        .padding(.horizontal, 8)
-                        .background(theme.panel2)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    Text(
+                        settings.selectedBackendGuidance?.pullCommand(for: settings.model)
+                            ?? "Install the configured model"
+                    )
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(theme.text)
+                    .padding(.vertical, 3)
+                    .padding(.horizontal, 8)
+                    .background(theme.panel2)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                     Button {
                         NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString("ollama pull \(settings.model)", forType: .string)
+                        NSPasteboard.general.setString(
+                            settings.selectedBackendGuidance?.pullCommand(for: settings.model)
+                                ?? "Install the configured model",
+                            forType: .string
+                        )
                     } label: {
                         Image(systemName: "doc.on.doc")
                             .font(.system(size: 11))
@@ -94,6 +126,37 @@ struct SettingsModelSection: View {
                     .foregroundStyle(theme.textFaint)
             }
         }
+    }
+
+    private var backendPicker: some View {
+        Menu {
+            ForEach(settings.backendOptions) { option in
+                Button {
+                    settings.setModelBackend(option.id)
+                } label: {
+                    let label = "\(option.displayName) — \(option.availabilityText)"
+                    if option.id == settings.modelBackend {
+                        Label(label, systemImage: "checkmark")
+                    } else {
+                        Text(label)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(settings.selectedBackendDisplayName)
+                    .font(.system(size: 12, weight: .semibold))
+                Text("▾").font(.system(size: 9))
+            }
+            .foregroundStyle(theme.text)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 11)
+            .background(theme.panel2)
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(theme.border))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
     private var modelPicker: some View {

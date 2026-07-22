@@ -27,6 +27,13 @@ public enum QualityScanMode: String, Codable, CaseIterable, Sendable {
     case sequential
 }
 
+/// Vision runtime selected once for an analysis run.
+public enum ModelBackend: String, Codable, CaseIterable, Hashable, Sendable {
+    case ollama
+    case apple
+    case auto
+}
+
 /// Logging severity used by both human-readable and JSON log records.
 public enum LogLevel: String, Codable, CaseIterable, Comparable, Sendable {
     case error
@@ -66,6 +73,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
     public var qualityScanMode: QualityScanMode?
     public var outputDir: String?
     public var model: String?
+    public var modelBackend: ModelBackend?
     public var modelEndpoint: String?
     public var modelKeepAlive: String?
     public var modelTimeoutSeconds: Double?
@@ -102,6 +110,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         qualityScanMode: QualityScanMode? = nil,
         outputDir: String? = nil,
         model: String? = nil,
+        modelBackend: ModelBackend? = nil,
         modelEndpoint: String? = nil,
         modelKeepAlive: String? = nil,
         modelTimeoutSeconds: Double? = nil,
@@ -132,6 +141,7 @@ public struct RunConfigurationOverrides: Sendable, Equatable {
         self.qualityScanMode = qualityScanMode
         self.outputDir = outputDir
         self.model = model
+        self.modelBackend = modelBackend
         self.modelEndpoint = modelEndpoint
         self.modelKeepAlive = modelKeepAlive
         self.modelTimeoutSeconds = modelTimeoutSeconds
@@ -202,6 +212,8 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
     public var qualityScanMode: QualityScanMode
     public var outputDir: String?
     public var model: String
+    /// Requested backend selection; `auto` is resolved to one concrete backend before a run starts.
+    public var modelBackend: ModelBackend
     public var modelEndpoint: URL
     public var modelKeepAlive: String
     /// Timeout applied to each Ollama model request.
@@ -245,6 +257,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         case qualityScanMode = "quality_scan_mode"
         case outputDir = "output_dir"
         case model
+        case modelBackend = "model_backend"
         case modelEndpoint = "model_endpoint"
         case modelKeepAlive = "model_keep_alive"
         case modelTimeoutSeconds = "model_timeout_seconds"
@@ -276,6 +289,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         qualityScanMode: QualityScanMode = .combined,
         outputDir: String?,
         model: String,
+        modelBackend: ModelBackend = .ollama,
         modelEndpoint: URL,
         modelKeepAlive: String = ModelRunOptions.default.keepAlive,
         modelTimeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds,
@@ -305,6 +319,7 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         self.qualityScanMode = qualityScanMode
         self.outputDir = outputDir
         self.model = model
+        self.modelBackend = modelBackend
         self.modelEndpoint = modelEndpoint
         self.modelKeepAlive = modelKeepAlive
         self.modelTimeoutSeconds = modelTimeoutSeconds
@@ -394,6 +409,11 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
         }
         try container.encodeIfPresent(outputDir, forKey: .outputDir)
         try container.encode(model, forKey: .model)
+        // Ollama was the only backend before this key existed. Eliding that
+        // default keeps every legacy run-configuration byte pattern stable.
+        if modelBackend != Self.builtInDefaults.modelBackend {
+            try container.encode(modelBackend, forKey: .modelBackend)
+        }
         try container.encode(modelEndpoint, forKey: .modelEndpoint)
         try container.encode(modelKeepAlive, forKey: .modelKeepAlive)
         try container.encode(modelTimeoutSeconds, forKey: .modelTimeoutSeconds)
@@ -430,6 +450,9 @@ public struct ResolvedRunConfiguration: Codable, Sendable, Equatable {
             ?? Self.builtInDefaults.qualityScanMode
         self.outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
         self.model = try container.decode(String.self, forKey: .model)
+        self.modelBackend =
+            try container.decodeIfPresent(ModelBackend.self, forKey: .modelBackend)
+            ?? Self.builtInDefaults.modelBackend
         self.modelEndpoint = try container.decode(URL.self, forKey: .modelEndpoint)
         self.modelKeepAlive =
             try container.decodeIfPresent(

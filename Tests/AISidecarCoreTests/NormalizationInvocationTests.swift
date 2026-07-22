@@ -25,6 +25,7 @@ final class NormalizationInvocationTests: XCTestCase {
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", mode: .both),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", existing: .overwrite),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", model: "custom:model"),
+            NormalizationInvocationRequest(fromJSONPath: "A.ai.json", modelBackend: .auto),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", modelEndpoint: "http://localhost:11434"),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", modelTimeoutSeconds: 180),
             NormalizationInvocationRequest(fromJSONPath: "A.ai.json", modelRetryLimit: 2),

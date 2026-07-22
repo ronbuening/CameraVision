@@ -8,6 +8,7 @@ struct ConfigurationBuilder {
     private var qualityScanMode: QualityScanMode
     private var outputDir: String?
     private var model: String
+    private var modelBackend: ModelBackend
     private var modelEndpoint: String
     private var modelKeepAlive: String
     private var modelTimeoutSeconds: Double
@@ -38,6 +39,7 @@ struct ConfigurationBuilder {
         self.qualityScanMode = defaults.qualityScanMode
         self.outputDir = defaults.outputDir
         self.model = defaults.model
+        self.modelBackend = defaults.modelBackend
         self.modelEndpoint = defaults.modelEndpoint.absoluteString
         self.modelKeepAlive = defaults.modelKeepAlive
         self.modelTimeoutSeconds = defaults.modelTimeoutSeconds
@@ -69,6 +71,7 @@ struct ConfigurationBuilder {
         merge(&qualityScanMode, config.qualityScanMode)
         merge(&outputDir, config.outputDir)
         merge(&model, config.model)
+        merge(&modelBackend, config.modelBackend)
         merge(&modelEndpoint, config.modelEndpoint)
         merge(&modelKeepAlive, config.modelKeepAlive)
         merge(&modelTimeoutSeconds, config.modelTimeoutSeconds)
@@ -100,6 +103,7 @@ struct ConfigurationBuilder {
         merge(&qualityScanMode, overrides.qualityScanMode)
         merge(&outputDir, overrides.outputDir)
         merge(&model, overrides.model)
+        merge(&modelBackend, overrides.modelBackend)
         merge(&modelEndpoint, overrides.modelEndpoint)
         merge(&modelKeepAlive, overrides.modelKeepAlive)
         merge(&modelTimeoutSeconds, overrides.modelTimeoutSeconds)
@@ -175,6 +179,7 @@ struct ConfigurationBuilder {
             qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: endpoint,
             modelKeepAlive: modelKeepAlive,
             modelTimeoutSeconds: modelTimeoutSeconds,

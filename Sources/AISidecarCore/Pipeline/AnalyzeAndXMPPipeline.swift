@@ -25,7 +25,7 @@ public struct AnalyzeAndXMPPipeline {
         exportPipeline: XMPExportPipeline? = nil,
         logger: Logger = Logger(),
         maskProvider: (any ForegroundMaskProvider)? = nil,
-        runner: any VisionModelRunner = OllamaVisionRunner(),
+        runner: any VisionModelRunner,
         now: @escaping @Sendable () -> Date = Date.init,
         preScanRawSidecars: (@Sendable (String, ResolvedRunConfiguration) throws -> Set<String>)? = nil
     ) {

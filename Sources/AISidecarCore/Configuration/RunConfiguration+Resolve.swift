@@ -50,6 +50,11 @@ extension ConfigurationResolver {
             ),
             outputDir: environment["AISIDECAR_OUTPUT_DIR"],
             model: environment["AISIDECAR_MODEL"],
+            modelBackend: try enumValue(
+                ModelBackend.self,
+                from: environment["AISIDECAR_MODEL_BACKEND"],
+                key: "AISIDECAR_MODEL_BACKEND"
+            ),
             modelEndpoint: environment["AISIDECAR_MODEL_ENDPOINT"],
             modelKeepAlive: environment["AISIDECAR_MODEL_KEEP_ALIVE"],
             modelTimeoutSeconds: try doubleValue(
@@ -133,6 +138,7 @@ extension RunConfigurationOverrides {
             qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: modelEndpoint,
             modelKeepAlive: modelKeepAlive,
             modelTimeoutSeconds: modelTimeoutSeconds,

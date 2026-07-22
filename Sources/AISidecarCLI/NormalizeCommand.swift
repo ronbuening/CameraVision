@@ -51,6 +51,9 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Option(help: "Ollama model tag for analyze-and-normalize.")
     var model: String?
 
+    @Option(help: "Vision model backend for analyze-and-normalize: ollama, apple, or auto.")
+    var modelBackend: ModelBackend?
+
     @Option(help: "Ollama endpoint URL for analyze-and-normalize.")
     var modelEndpoint: String?
 
@@ -242,10 +245,11 @@ struct NormalizeCommand: AsyncParsableCommand {
         case .analyze(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
+            let selection = try await VisionModelRunnerFactory().make(for: runConfiguration)
             let result = try await withAsyncBatchInterruptionExit {
-                try await AnalyzeAndNormalizePipeline(logger: logger).run(
+                try await AnalyzeAndNormalizePipeline(logger: logger, runner: selection.runner).run(
                     inputPath: inputPath,
-                    runConfiguration: runConfiguration,
+                    runConfiguration: selection.configuration,
                     normalizationConfiguration: resolved,
                     interruptionMonitor: interruptionMonitor
                 )
@@ -289,6 +293,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             assessQuality: assessQuality,
             existing: existing,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
             modelRetryLimit: modelRetryLimit,
@@ -380,6 +385,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
             modelRetryLimit: modelRetryLimit,

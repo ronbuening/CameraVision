@@ -193,7 +193,15 @@ final class VisionTagsModelTests: XCTestCase {
             try? FileManager.default.removeItem(at: root)
         }
         let configPath = root.appendingPathComponent("config.json").path
-        let settings = SettingsModel(configPath: configPath, environment: [:], visionTagsModel: discovery)
+        // The registry must be fake: SettingsModel gates discovery on the
+        // selected descriptor's availability probe, and the live Ollama
+        // descriptor answers with real endpoint I/O (invariant 12).
+        let settings = SettingsModel(
+            configPath: configPath,
+            environment: [:],
+            visionTagsModel: discovery,
+            backendRegistry: VisionBackendRegistry(descriptors: [AvailableTestBackendDescriptor()])
+        )
         let configuredModel = settings.model
 
         let automaticLoad = Task { await settings.loadVisionTagsIfNeeded() }
@@ -326,6 +334,27 @@ final class VisionTagsModelTests: XCTestCase {
 
 private struct LocalizedLoaderError: LocalizedError, Sendable {
     var errorDescription: String? { "localized loader failure" }
+}
+
+/// Always-available Ollama-id descriptor with no availability I/O, so settings
+/// discovery reaches the injected vision-tag loader in every environment.
+private struct AvailableTestBackendDescriptor: VisionBackendDescriptor {
+    let id = ModelBackend.ollama
+    let displayName = "Ollama test"
+    let guidance = BackendGuidance(runtimeUnavailableMessage: "test guidance")
+    let supportedTuningKnobs = Set(ModelTuningKnob.allCases)
+
+    func availability(configuration _: ResolvedRunConfiguration) async -> BackendAvailability {
+        .available
+    }
+
+    func discoverModels(configuration _: ResolvedRunConfiguration) async throws -> [BackendModelChoice] {
+        []
+    }
+
+    func makeRunner() -> any VisionModelRunner {
+        OllamaVisionRunner()
+    }
 }
 
 private enum VisionTagsTestError: Error {

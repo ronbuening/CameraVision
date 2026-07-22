@@ -18,6 +18,7 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
     public var assessQuality: Bool
     public var existing: ExistingPolicy?
     public var model: String?
+    public var modelBackend: ModelBackend?
     public var modelEndpoint: String?
     public var modelTimeoutSeconds: Double?
     public var modelRetryLimit: Int?
@@ -60,6 +61,7 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
         assessQuality: Bool = false,
         existing: ExistingPolicy? = nil,
         model: String? = nil,
+        modelBackend: ModelBackend? = nil,
         modelEndpoint: String? = nil,
         modelTimeoutSeconds: Double? = nil,
         modelRetryLimit: Int? = nil,
@@ -101,6 +103,7 @@ public struct NormalizationInvocationRequest: Sendable, Equatable {
         self.assessQuality = assessQuality
         self.existing = existing
         self.model = model
+        self.modelBackend = modelBackend
         self.modelEndpoint = modelEndpoint
         self.modelTimeoutSeconds = modelTimeoutSeconds
         self.modelRetryLimit = modelRetryLimit
@@ -222,6 +225,7 @@ public enum NormalizationInvocationValidator {
             ("assess-quality", request.assessQuality),
             ("existing", request.existing != nil),
             ("model", request.model != nil),
+            ("model-backend", request.modelBackend != nil),
             ("model-endpoint", request.modelEndpoint != nil),
             ("model-timeout", request.modelTimeoutSeconds != nil),
             ("model-retry-limit", request.modelRetryLimit != nil),
