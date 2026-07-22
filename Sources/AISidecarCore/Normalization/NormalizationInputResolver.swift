@@ -141,7 +141,7 @@ public struct NormalizationInputResolver {
             fromJSONPath: path,
             configuration: exportConfiguration
         )
-        let inputURL = absoluteURL(for: path)
+        let inputURL = absoluteURL(for: path, fileManager: fileManager)
         let inputBasePath = basePath(forInput: inputURL)
         let records = buildAssets(from: batch.inputs)
         let grouped = buildGroups(for: records.assets, pairScope: configuration.pairScope)
@@ -171,7 +171,7 @@ public struct NormalizationInputResolver {
         _ path: String,
         configuration: ResolvedNormalizationConfiguration
     ) throws -> NormalizationResolvedInputBatch {
-        let listURL = absoluteURL(for: path)
+        let listURL = absoluteURL(for: path, fileManager: fileManager)
         let baseURL = listURL.deletingLastPathComponent()
         let text = try readUTF8FileList(at: listURL)
         let parsed = parseFileList(text, listURL: listURL, baseURL: baseURL)
@@ -514,7 +514,7 @@ public struct NormalizationInputResolver {
             guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else {
                 continue
             }
-            let url = resolvedFileListURL(trimmed, baseURL: baseURL)
+            let url = absoluteURL(for: trimmed, fileManager: fileManager, relativeTo: baseURL)
             // Dedupe on the physical path: symlinked and real spellings of one
             // file are one entry, not two assets writing the same sidecar.
             let key = url.resolvingSymlinksInPath().path
@@ -542,14 +542,6 @@ public struct NormalizationInputResolver {
         return (entries, warnings)
     }
 
-    private func resolvedFileListURL(_ value: String, baseURL: URL) -> URL {
-        let expanded = (value as NSString).expandingTildeInPath
-        if expanded.hasPrefix("/") {
-            return URL(fileURLWithPath: expanded).standardizedFileURL
-        }
-        return baseURL.appendingPathComponent(expanded).standardizedFileURL
-    }
-
     private func inputFailure(
         _ url: URL,
         relativePath: String?,
@@ -565,16 +557,6 @@ public struct NormalizationInputResolver {
 
     private func validationError(_ message: String) -> SidecarError {
         SidecarError(code: .validationFailed, stage: .scan, message: message, recoverable: false)
-    }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
     }
 
     private func basePath(forInput url: URL) -> String {
@@ -595,10 +577,6 @@ public struct NormalizationInputResolver {
             return path
         }
         return String(path.dropFirst(rootPath.count))
-    }
-
-    private func isRegularFile(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
     }
 
     private func fileSize(from attributes: [FileAttributeKey: Any]) -> Int64 {
@@ -630,13 +608,4 @@ private struct FileListResolvedEntry: Sendable, Equatable {
 private struct NormalizationGroupBuildKey: Hashable, Sendable {
     var identityDirectory: String
     var basename: String
-}
-
-private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
-    let lowerLHS = lhs.lowercased()
-    let lowerRHS = rhs.lowercased()
-    if lowerLHS == lowerRHS {
-        return lhs < rhs
-    }
-    return lowerLHS < lowerRHS
 }

@@ -61,7 +61,9 @@ public struct XMPNaming {
 
         let targetURL: URL
         if let outputDir = configuration.outputDir {
-            targetURL = Self.relativeComponents(for: relativePath).reduce(absoluteURL(for: outputDir)) {
+            targetURL = Self.relativeComponents(for: relativePath).reduce(
+                absoluteURL(for: outputDir, fileManager: fileManager)
+            ) {
                 url, component in
                 url.appendingPathComponent(component)
             }
@@ -100,16 +102,6 @@ public struct XMPNaming {
             return xmpFileName(for: source)
         }
         return (Array(components.dropLast()) + ["\(baseName(from: fileName)).xmp"]).joined(separator: "/")
-    }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
     }
 
     private static func baseName(from fileName: String) -> String {

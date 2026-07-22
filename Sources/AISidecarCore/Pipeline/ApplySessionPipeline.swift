@@ -599,7 +599,9 @@ public struct ApplySessionPipeline {
         configuration: ResolvedApplySessionConfiguration
     ) -> URL? {
         if let sourceRoot = configuration.sourceRoot {
-            let candidate = relativeComponents(for: asset.sourceRelativePath).reduce(absoluteURL(for: sourceRoot)) {
+            let candidate = relativeComponents(for: asset.sourceRelativePath).reduce(
+                absoluteURL(for: sourceRoot, fileManager: fileManager)
+            ) {
                 $0.appendingPathComponent($1)
             }.standardizedFileURL
             if isRegularFile(candidate) {
@@ -607,7 +609,7 @@ public struct ApplySessionPipeline {
             }
         }
         if let sourcePath = asset.sourcePath {
-            let candidate = absoluteURL(for: sourcePath)
+            let candidate = absoluteURL(for: sourcePath, fileManager: fileManager)
             if isRegularFile(candidate) {
                 return candidate
             }
@@ -723,22 +725,7 @@ public struct ApplySessionPipeline {
     }
 
     private func absolutePath(for path: String) -> String {
-        absoluteURL(for: path).path
-    }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
-    }
-
-    private func isRegularFile(_ url: URL) -> Bool {
-        var isDirectory: ObjCBool = false
-        return fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) && !isDirectory.boolValue
+        absoluteURL(for: path, fileManager: fileManager).path
     }
 
     private func relativeComponents(for path: String) -> [String] {

@@ -116,7 +116,7 @@ public struct NormalizeAndWritePipeline {
         case .analyze(let selected):
             path = selected
         }
-        return absoluteURL(for: path).path
+        return absoluteURL(for: path, fileManager: fileManager).path
     }
 
     private func xmpConfiguration(
@@ -140,16 +140,6 @@ public struct NormalizeAndWritePipeline {
             writeAIJSON: configuration.writeAIJSON,
             qualityGrading: configuration.qualityGrading
         )
-    }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
     }
 }
 

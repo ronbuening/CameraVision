@@ -83,7 +83,7 @@ public struct RawJSONSidecarInputResolver {
         fromJSONPath: String,
         configuration: ResolvedXMPExportConfiguration
     ) throws -> RawJSONSidecarInputBatch {
-        let inputURL = absoluteURL(for: fromJSONPath)
+        let inputURL = absoluteURL(for: fromJSONPath, fileManager: fileManager)
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: inputURL.path, isDirectory: &isDirectory) else {
             throw validationError("Raw sidecar input path does not exist: \(inputURL.path)", recoverable: false)
@@ -117,7 +117,7 @@ public struct RawJSONSidecarInputResolver {
     /// display surfaces (the GUI's quality panel) use the same path so what they show is
     /// what apply-time grading would consume.
     public func resolveCurrentSidecarPair(at sidecarPath: String) -> RawJSONSidecarInputBatch {
-        let referenceURL = absoluteURL(for: sidecarPath)
+        let referenceURL = absoluteURL(for: sidecarPath, fileManager: fileManager)
         guard isRawSidecar(referenceURL) else {
             return RawJSONSidecarInputBatch(
                 inputs: [],
@@ -258,7 +258,8 @@ public struct RawJSONSidecarInputResolver {
     ) throws -> URL? {
         let sourceRelativePath = sidecar.source.relativePath.trimmingCharacters(in: .whitespacesAndNewlines)
         if let sourceRoot = configuration.sourceRoot, !sourceRelativePath.isEmpty {
-            let candidate = absoluteURL(for: sourceRoot).appendingPathComponent(sourceRelativePath).standardizedFileURL
+            let candidate = absoluteURL(for: sourceRoot, fileManager: fileManager)
+                .appendingPathComponent(sourceRelativePath).standardizedFileURL
             if isRegularFile(candidate) {
                 return candidate
             }
@@ -501,14 +502,6 @@ public struct RawJSONSidecarInputResolver {
         return nil
     }
 
-    private func isRegularFile(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
-    }
-
-    private func isDirectory(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
-    }
-
     private func sorted(_ urls: [URL], root: URL) -> [URL] {
         urls.sorted {
             comparePaths(relativePath(for: $0, root: root), relativePath(for: $1, root: root))
@@ -525,16 +518,6 @@ public struct RawJSONSidecarInputResolver {
             return url.lastPathComponent
         }
         return String(path.dropFirst(rootPath.count))
-    }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
     }
 
     private func validationError(_ message: String, recoverable: Bool) -> SidecarError {
@@ -554,13 +537,4 @@ private final class SynchronousInputFailureAccumulator: @unchecked Sendable {
     func append(_ value: RawJSONSidecarInputFailure) {
         values.append(value)
     }
-}
-
-private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
-    let lowerLHS = lhs.lowercased()
-    let lowerRHS = rhs.lowercased()
-    if lowerLHS == lowerRHS {
-        return lhs < rhs
-    }
-    return lowerLHS < lowerRHS
 }

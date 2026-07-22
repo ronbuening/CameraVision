@@ -392,7 +392,9 @@ public struct NormalizedXMPChangePlanner {
     ) -> (path: String, failure: SidecarError?) {
         if let outputDir {
             return (
-                relativeComponents(for: group.targetRelativePath).reduce(absoluteURL(for: outputDir)) {
+                relativeComponents(for: group.targetRelativePath).reduce(
+                    absoluteURL(for: outputDir, fileManager: fileManager)
+                ) {
                     $0.appendingPathComponent($1)
                 }.standardizedFileURL.path,
                 nil
@@ -411,7 +413,7 @@ public struct NormalizedXMPChangePlanner {
             return (target.path, nil)
         }
         let fallback = relativeComponents(for: group.targetRelativePath)
-            .reduce(absoluteURL(for: inputBasePath)) { $0.appendingPathComponent($1) }
+            .reduce(absoluteURL(for: inputBasePath, fileManager: fileManager)) { $0.appendingPathComponent($1) }
             .standardizedFileURL
             .path
         return (
@@ -508,16 +510,6 @@ public struct NormalizedXMPChangePlanner {
             evidence: observation.evidence,
             provenance: observation.provenance
         )
-    }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
     }
 }
 
@@ -682,13 +674,4 @@ private func uniqueContextTypes(_ values: [NormalizationSessionContextType]) -> 
 
 private func relativeComponents(for relativePath: String) -> [String] {
     relativePath.split(separator: "/").map(String.init)
-}
-
-private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
-    let lowerLHS = lhs.lowercased()
-    let lowerRHS = rhs.lowercased()
-    if lowerLHS == lowerRHS {
-        return lhs < rhs
-    }
-    return lowerLHS < lowerRHS
 }

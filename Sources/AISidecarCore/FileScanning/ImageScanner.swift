@@ -222,7 +222,7 @@ public struct ImageScanner {
     }
 
     private func discover(inputPath: String, recursive: Bool) throws -> Discovery {
-        let inputURL = absoluteURL(for: inputPath)
+        let inputURL = absoluteURL(for: inputPath, fileManager: fileManager)
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: inputURL.path, isDirectory: &isDirectory) else {
             throw validationError("Input path does not exist: \(inputURL.path)")
@@ -434,16 +434,6 @@ public struct ImageScanner {
         )
     }
 
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
-    }
-
     private func isSymbolicLink(_ url: URL) -> Bool {
         (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true
     }
@@ -487,14 +477,6 @@ public struct ImageScanner {
         lowercasedName.hasPrefix(prefix) && lowercasedName.hasSuffix(".json")
     }
 
-    private func isRegularFile(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
-    }
-
-    private func isDirectory(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
-    }
-
     private func relativePath(for url: URL, root: URL) -> String {
         let path = url.standardizedFileURL.path
         var rootPath = root.standardizedFileURL.path
@@ -531,15 +513,4 @@ private final class SynchronousScanErrorAccumulator<Value>: @unchecked Sendable 
     func append(_ value: Value) {
         values.append(value)
     }
-}
-
-private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
-    // Case-folded ordering keeps dry-scan output stable on case-insensitive
-    // filesystems while preserving a deterministic tiebreaker.
-    let lowerLHS = lhs.lowercased()
-    let lowerRHS = rhs.lowercased()
-    if lowerLHS == lowerRHS {
-        return lhs < rhs
-    }
-    return lowerLHS < lowerRHS
 }

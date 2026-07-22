@@ -80,7 +80,7 @@ public struct XMPExportPipeline {
             batch,
             inputPath: absolutePath(for: fromJSONPath),
             configuration: configuration,
-            writesBatchArtifacts: isDirectory(path: absolutePath(for: fromJSONPath)),
+            writesBatchArtifacts: isDirectory(URL(fileURLWithPath: absolutePath(for: fromJSONPath))),
             interruptionMonitor: interruptionMonitor
         )
     }
@@ -938,7 +938,7 @@ public struct XMPExportPipeline {
         let directory: String
         if let outputDir {
             directory = absolutePath(for: outputDir)
-        } else if isDirectory(path: inputPath) {
+        } else if isDirectory(URL(fileURLWithPath: inputPath)) {
             directory = inputPath
         } else {
             directory = URL(fileURLWithPath: inputPath).deletingLastPathComponent().standardizedFileURL.path
@@ -954,19 +954,7 @@ public struct XMPExportPipeline {
     }
 
     private func absolutePath(for path: String) -> String {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL.path
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
-            .path
-    }
-
-    private func isDirectory(path: String) -> Bool {
-        var isDirectory: ObjCBool = false
-        return fileManager.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
+        absoluteURL(for: path, fileManager: fileManager).path
     }
 
     private func durationMs(from start: Date, to end: Date) -> Int {
@@ -1046,13 +1034,4 @@ private struct PriorStampOwnership {
         self.good = good
         self.qualityTier = qualityTier
     }
-}
-
-private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
-    let lowerLHS = lhs.lowercased()
-    let lowerRHS = rhs.lowercased()
-    if lowerLHS == lowerRHS {
-        return lhs < rhs
-    }
-    return lowerLHS < lowerRHS
 }
