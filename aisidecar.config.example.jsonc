@@ -43,8 +43,12 @@
   "output_dir": null,
 
   // Local model backend used by commands that run analysis. Options: "ollama",
-  // "apple", or "auto". The default is "ollama". The Apple backend remains
-  // unavailable until a vision-capable Apple on-device model exists.
+  // "apple", or "auto". The default is "ollama". A pinned backend fails before
+  // model work if unavailable. "auto" chooses one backend for the whole run,
+  // checking Apple first and then Ollama; it never mixes backends within a run.
+  // The Apple backend is currently a deliberately unavailable placeholder until
+  // a public vision-capable Apple on-device model API exists. Benchmark runs
+  // currently support only "ollama".
   // CLI: --model-backend. Environment: AISIDECAR_MODEL_BACKEND.
   "model_backend": "ollama",
 
