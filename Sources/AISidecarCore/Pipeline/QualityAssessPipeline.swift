@@ -12,7 +12,7 @@ public struct QualityAssessPipeline {
         fileManager: FileManager = .default,
         logger: Logger = Logger(),
         maskProvider: (any ForegroundMaskProvider)? = nil,
-        runner: any VisionModelRunner = OllamaVisionRunner(),
+        runner: any VisionModelRunner,
         now: @escaping @Sendable () -> Date = Date.init,
         filenameSuffix: @escaping @Sendable () -> String = Timestamp.randomFilenameSuffix
     ) {

@@ -87,7 +87,8 @@ struct AnalyzeCommand: AsyncParsableCommand {
             return
         }
 
-        let pipeline = AnalyzePipeline(logger: logger, runner: OllamaVisionRunner())
+        let runner = try await VisionModelRunnerFactory().make(for: resolved)
+        let pipeline = AnalyzePipeline(logger: logger, runner: runner)
         let result = try await withAsyncBatchInterruptionExit {
             try await pipeline.run(
                 inputPath: inputPath,

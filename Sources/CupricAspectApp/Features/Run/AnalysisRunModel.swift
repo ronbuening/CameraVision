@@ -83,7 +83,8 @@ final class AnalysisRunModel {
         Task {
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
-                let runtime = try await OllamaVisionRunner().prepare(configuration: configuration)
+                let runner = try await VisionModelRunnerFactory().make(for: configuration)
+                let runtime = try await runner.prepare(configuration: configuration)
                 guard generation == preflightGeneration else { return }
                 preflight = .ready(
                     model: runtime.model,
@@ -129,7 +130,8 @@ final class AnalysisRunModel {
         Task {
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
-                let pipeline = AnalyzePipeline(logger: GUILog.shared.makeLogger(), runner: OllamaVisionRunner())
+                let runner = try await VisionModelRunnerFactory().make(for: configuration)
+                let pipeline = AnalyzePipeline(logger: GUILog.shared.makeLogger(), runner: runner)
                 let result = try await Task.detached(priority: .userInitiated) {
                     try await pipeline.run(
                         inputPath: inputPath,

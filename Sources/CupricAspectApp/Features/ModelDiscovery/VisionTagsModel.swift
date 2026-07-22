@@ -21,7 +21,9 @@ enum VisionTagState: Equatable, Sendable {
 final class VisionTagsModel {
     typealias Loader = @Sendable (URL) async throws -> [String]
     static let liveLoader: Loader = { endpoint in
-        try await OllamaVisionRunner().listInstalledVisionTags(endpoint: endpoint)
+        var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.modelEndpoint = endpoint
+        return try await OllamaBackendDescriptor().discoverModels(configuration: configuration).map(\.id)
     }
 
     private enum LoadOutcome: Sendable {
