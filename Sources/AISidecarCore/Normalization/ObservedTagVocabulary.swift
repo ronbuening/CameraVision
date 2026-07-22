@@ -73,7 +73,7 @@ public enum ObservedTagVocabulary {
         return termsByObservedKey.keys.sorted().map { key in
             let terms = termsByObservedKey[key, default: []]
             let displayTerm = preferredDisplayTerm(terms)
-            let synonyms = stableUnique(terms)
+            let synonyms = stableUnique(terms.sorted())
                 .filter { $0 != displayTerm }
             return ResolvedVocabularyEntry(
                 canonicalPath: displayTerm,
@@ -115,9 +115,7 @@ public enum ObservedTagVocabulary {
     }
 
     private static func preferredDisplayTerm(_ terms: [String]) -> String {
-        let counts = terms.reduce(into: [:]) { partial, term in
-            partial[term, default: 0] += 1
-        }
+        let counts = frequencyCounts(terms)
         return terms.sorted { lhs, rhs in
             let lhsCount = counts[lhs, default: 0]
             let rhsCount = counts[rhs, default: 0]
@@ -148,15 +146,6 @@ public enum ObservedTagVocabulary {
             }
             return word.dropFirst().contains { $0.isLowercase }
         }.count
-    }
-
-    private static func stableUnique(_ values: [String]) -> [String] {
-        var seen: Set<String> = []
-        var result: [String] = []
-        for value in values.sorted() where seen.insert(value).inserted {
-            result.append(value)
-        }
-        return result
     }
 
     private static func vocabularyEntry(_ entry: ResolvedVocabularyEntry) -> VocabularyEntry {

@@ -850,9 +850,9 @@ public struct CandidateCanonicalizer {
                 supportingAssetIDs: decisions.map(\.assetID).sorted(),
                 directAssetSupportCount: decisions.count,
                 observationCount: observations.count,
-                confidenceBands: counts(observations.map { $0.confidence.rawValue }),
-                sourceFields: counts(observations.map { $0.provenance.sourceField.rawValue }),
-                inputRoles: counts(observations.map { $0.provenance.inputRole.rawValue })
+                confidenceBands: frequencyCounts(observations.map { $0.confidence.rawValue }),
+                sourceFields: frequencyCounts(observations.map { $0.provenance.sourceField.rawValue }),
+                inputRoles: frequencyCounts(observations.map { $0.provenance.inputRole.rawValue })
             )
         }
     }
@@ -861,21 +861,6 @@ public struct CandidateCanonicalizer {
         for index in decisions.indices {
             decisions[index].decisionID = String(format: "decision-%06d", index + 1)
         }
-    }
-
-    private func counts(_ values: [String]) -> [String: Int] {
-        values.reduce(into: [:]) { partial, value in
-            partial[value, default: 0] += 1
-        }
-    }
-
-    private func stableUnique(_ values: [NormalizationCandidateSkipReason]) -> [NormalizationCandidateSkipReason] {
-        var seen: Set<NormalizationCandidateSkipReason> = []
-        var result: [NormalizationCandidateSkipReason] = []
-        for value in values where seen.insert(value).inserted {
-            result.append(value)
-        }
-        return result
     }
 
     private func speciesFallbackKey(for normalizedTerm: String) -> String {
@@ -906,7 +891,7 @@ public struct CandidateCanonicalizer {
 
     private func preferredSpeciesFallbackDisplayTerm(observations: [CandidateObservation]) -> String {
         let terms = observations.map(\.normalizedTerm).filter { !$0.isEmpty }
-        let counts = counts(terms)
+        let counts = frequencyCounts(terms)
         let keyedTerms = terms.map { (term: $0, lowercased: $0.lowercased()) }
         return keyedTerms.sorted { lhs, rhs in
             let lhsCount = counts[lhs.term, default: 0]
