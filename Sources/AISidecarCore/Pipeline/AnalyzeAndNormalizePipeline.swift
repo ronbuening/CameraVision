@@ -23,6 +23,7 @@ public struct AnalyzeAndNormalizePipeline {
     private let analyzePipeline: AnalyzePipeline
     private let normalizePipeline: NormalizePipeline
     private let exportPipeline: XMPExportPipeline
+    private let invocationEngine: OwnedXMPSidecarEngine?
     private let executionRecorder: NormalizationXMPExecutionRecorder
     private let afterNormalization: @Sendable () -> Void
     private let logger: Logger
@@ -35,7 +36,7 @@ public struct AnalyzeAndNormalizePipeline {
     public init(
         fileManager: FileManager = .default,
         analyzePipeline: AnalyzePipeline? = nil,
-        normalizePipeline: NormalizePipeline = NormalizePipeline(),
+        normalizePipeline: NormalizePipeline? = nil,
         exportPipeline: XMPExportPipeline? = nil,
         logger: Logger = Logger(),
         maskProvider: (any ForegroundMaskProvider)? = nil,
@@ -54,14 +55,31 @@ public struct AnalyzeAndNormalizePipeline {
                 runner: runner,
                 now: now
             )
-        self.normalizePipeline = normalizePipeline
-        self.exportPipeline =
-            exportPipeline
-            ?? XMPExportPipeline(
+        if normalizePipeline == nil, exportPipeline == nil {
+            let invocationEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
+            self.normalizePipeline = NormalizePipeline(
+                snapshotReader: { try invocationEngine.readSnapshot(at: $0) },
+                fileManager: fileManager
+            )
+            self.exportPipeline = XMPExportPipeline(
                 fileManager: fileManager,
+                engine: invocationEngine,
                 logger: logger,
                 now: now
             )
+            self.invocationEngine = invocationEngine
+        } else {
+            self.normalizePipeline = normalizePipeline ?? NormalizePipeline(fileManager: fileManager)
+            self.exportPipeline =
+                exportPipeline
+                ?? XMPExportPipeline(
+                    fileManager: fileManager,
+                    engine: OwnedXMPSidecarEngine(fileManager: fileManager),
+                    logger: logger,
+                    now: now
+                )
+            self.invocationEngine = nil
+        }
         self.executionRecorder = NormalizationXMPExecutionRecorder(fileManager: fileManager)
         self.afterNormalization = afterNormalization
         self.logger = logger
@@ -75,11 +93,15 @@ public struct AnalyzeAndNormalizePipeline {
         normalizationConfiguration: ResolvedNormalizationConfiguration,
         interruptionMonitor: InterruptionMonitor? = nil
     ) async throws -> AnalyzeAndNormalizeResult {
+        invocationEngine?.beginPreWriteInvocation()
+        defer {
+            try? invocationEngine?.shutdown()
+        }
         var preexistingRawSidecars: Set<String> = []
         var preScanFailed = false
         if !normalizationConfiguration.writeAIJSON {
             do {
-                preexistingRawSidecars = try RawSidecarBatchHelpers.plannedRawSidecarPaths(
+                preexistingRawSidecars = try await RawSidecarBatchHelpers.plannedRawSidecarPaths(
                     inputPath: inputPath,
                     configuration: runConfiguration,
                     fileManager: fileManager,

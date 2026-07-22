@@ -317,10 +317,11 @@ public struct ModelInputExportPipeline {
         }
         let renderer = ImageRenderer(cache: cache)
         let subjectIsolationService = SubjectIsolationService(cache: cache, maskProvider: maskProvider)
-        let scanResult = try scanner.scan(
+        let scanResult = try await scanner.scan(
             inputPath: inputPath,
             recursive: configuration.recursive,
-            identityPolicy: configuration.sourceIdentityPolicy
+            identityPolicy: configuration.sourceIdentityPolicy,
+            stageConcurrency: configuration.stageConcurrency
         )
         let plan = ModelInputExportNaming.plan(
             for: scanResult.images,

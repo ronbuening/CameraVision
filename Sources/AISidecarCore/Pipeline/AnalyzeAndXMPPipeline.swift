@@ -61,7 +61,7 @@ public struct AnalyzeAndXMPPipeline {
         var preScanFailed = false
         if !exportConfiguration.writeAIJSON {
             do {
-                preexistingRawSidecars = try RawSidecarBatchHelpers.plannedRawSidecarPaths(
+                preexistingRawSidecars = try await RawSidecarBatchHelpers.plannedRawSidecarPaths(
                     inputPath: inputPath,
                     configuration: runConfiguration,
                     fileManager: fileManager,

@@ -48,6 +48,8 @@ Work strictly top to bottom inside each tranche. Tranche A first (it shrinks the
 | C1–C5 | Core dedup | Path utils; enum bridge; plan assembler; quality extractor; canonicalizer filter |
 | C6–C12 | Core structure | Tolerant-enum helper; resolver/pipeline/file splits; small factories |
 | C13–C16 | GUI structure | Core-boundary fixes; flow model; view splits; shared vision-tags model |
+| C17 | B4 handoff retention | Key alignment; `.written`-only, opt-in retention; adapters drop the map after use |
+| C18 | Normalize scan concurrency | `stage_concurrency` for the normalization domain; bounded hashing in `resolveAnalyzeInput` (after C7) |
 | D1–D8 | Backend abstraction | Config, factory, descriptors, GUI, Apple stub, provenance, docs |
 
 ---
@@ -342,6 +344,41 @@ Mechanical; no behavior change; do after C14 and D4 to avoid churn (they edit th
 
 **Acceptance.** One implementation (grep); Settings and Step 3 show consistent state; `RuntimeGuidanceModelTests`/`SettingsModelTests` pass with the injected loader seam preserved.
 
+### C17. Scope the B4 written-sidecar handoff retention ⚡
+
+- **Priority:** LOW-MEDIUM · **Effort:** Small · **Risk:** Low
+- **Files:** `Sources/AISidecarCore/Pipeline/AnalyzePipeline.swift` (document-retention sites in `run`/`finishPrepared`), `AnalyzeAndXMPPipeline.swift`, `AnalyzeAndNormalizePipeline.swift` (side-channel consumption), `Tests/AISidecarCoreTests/RawSidecarBatchHelpersTests.swift`
+
+**Problem.** Three correctness-neutral leftovers from B4's in-memory handoff (found by the Tranche B audit):
+1. Every written document is retained even when no consumer exists — standalone `analyze` holds all N decoded documents (typed struct + `JSONValue` tree, roughly 2× the JSON size each) for the whole run, and the combined pipelines keep the map alive inside their results after the export phase no longer needs it.
+2. Documents are retained even for records whose progress status is `.failed` (file written, no valid model run) — the helper never consults the side channel for `.failed` records.
+3. The retain key is the raw `entry.sidecarPath` while the lookup standardizes the path (`URL(fileURLWithPath:).standardizedFileURL.path`) — a non-standardized `output_dir` (trailing slash, `./`) silently misses the cache and falls back to disk reads, losing the optimization without any test failing.
+
+**Change.** (a) Retain under the writer's already-standardized `outcome.sidecarPath` (or standardize at retain time) so retain and lookup keys always agree; (b) gate retention on the ProgressRecord `status == .written`, not merely a non-nil written document; (c) make retention opt-in — only the combined pipelines request it — and have the adapters drop the map immediately after `rawInputBatch` so standalone analyze pays nothing and combined runs release the memory before Phase 2/3 work.
+
+**Acceptance.**
+- Existing counting-reader and exact-document/byte gates pass unchanged.
+- New tests: a non-standardized `output_dir` (trailing slash) still hits the in-memory path (zero disk reads); a standalone analyze run retains no documents (seam or memory-shape assertion); a `.failed`-status record retains nothing.
+
+### C18. Normalization `stage_concurrency` plumbing + bounded resolver hashing
+
+- **Priority:** LOW-MEDIUM · **Effort:** Medium · **Risk:** Low-Medium (session-document bytes) · **Depends:** C7 (order only — land the new resolution in the post-split normalization resolve file to avoid double churn)
+- **Files:** `Sources/AISidecarCore/Configuration/NormalizationConfiguration.swift` (`ResolvedNormalizationConfiguration`, `NormalizationConfigurationOverrides`), `Configuration/ConfigurationResolver.swift` (after C7: the normalization-domain resolve file; reuse the run domain's scalar parsing and the exact `"stage_concurrency must be greater than zero"` message), `Configuration/NormalizationInvocation.swift` (accept the existing `--stage-concurrency` for folder-scanning shapes; `validateFromJSONOnlyOptions` keeps rejecting it for `--from-json`), `Normalization/NormalizationInputResolver.swift` (`resolveAnalyzeInput` ~:194), `aisidecar.config.example.jsonc`
+
+**Problem.** B5 parallelized every run-domain scan path, but `NormalizationInputResolver.resolveAnalyzeInput` — the normalize folder-input workflow — still calls the serial 3-arg `ImageScanner.scan`, hashing SHA-256 one file at a time. `ResolvedNormalizationConfiguration` carries no concurrency field to thread through, and the pure-normalize CLI shapes reject the existing `--stage-concurrency` flag.
+
+**Change.**
+1. Add optional `stageConcurrency: Int?` to `ResolvedNormalizationConfiguration` (CodingKey `stage_concurrency`) and to the overrides type. **Encoding must stay additive and default-elided (DD-3 pattern):** the field is nil unless explicitly configured, and synthesized Codable elides nil — old session documents round-trip byte-identically, and default-run sessions gain no new bytes. Never encode the machine-dependent resolved default into a session (the run domain avoids machine-dependent golden bytes only by pinning `stage_concurrency: 1` at fixture generation; the normalization domain must not rely on that).
+2. Resolve through the standard precedence chain (invariant 9): CLI `--stage-concurrency` (already declared on `NormalizeCommand` and carried by `NormalizationInvocationRequest`) → env `AISIDECAR_STAGE_CONCURRENCY` (same name the run domain reads, per the shared-key convention) → config key `stage_concurrency` (note: config files that already set it for analyze will now also govern normalize scans — document this in the config example) → nil. Validation: explicit values must be > 0, byte-identical message to the run domain's.
+3. Consume it in `resolveAnalyzeInput`: switch to the bounded async `scan` overload with `stageConcurrency ?? ResolvedRunConfiguration.defaultStageConcurrency()` (the shared physical-P-core default). Ordering and error records stay byte-identical (B5 already proved the overload's equivalence); `inventory()` stays hash-free (CORE-5).
+4. `--from-json` shapes keep rejecting the flag with the existing message (no scan happens there); `apply-session` is untouched.
+
+**Acceptance.**
+- Precedence tests for the new key at every level (CLI/env/config/default), including the >0 validation message.
+- Session golden round-trips pass untouched (proves elision); a new fixture or unit test pins that an explicitly-set value encodes as `stage_concurrency` and round-trips.
+- A resolver-level test proves `resolveAnalyzeInput` hashes through the bounded overload (counting seam, mirroring `ScannerTests`) with unchanged output ordering and error records.
+- `--from-json` rejection message unchanged; GUI behavior unchanged (`ReviewModel.buildConfiguration` passes nil).
+
 ---
 
 ## Tranche D — vision-backend abstraction and Apple FoundationModels readiness
@@ -442,9 +479,14 @@ Implementing `analyze` against a vision-capable FoundationModels API, the schema
 | A7 | complete | 2026-07-21 | JSONL logs synchronize every 25 records, on explicit interruption flush, and on close; cadence/interruption tests, release self-test, and full suite green. The 100-image `fs_usage` count is a manual follow-up per maintainer direction. |
 | A8 | complete | 2026-07-21 | Five report writers use `WriterSupport.writeAndWrap`; exact wrapper messages are pinned per writer; report, summary, golden, and full suites green. |
 | A9 | complete | 2026-07-21 | Audited and deleted the test-only `AnalyzeShellPipeline` plus its private isolation copies; unique coverage moved to `AnalyzePipeline`; no-XMP sabotage check failed/passed as expected; full suite green; net −751 implementation/test lines. |
-| A10 | deferred | 2026-07-21 | Maintainer direction: defer until the explicit post-B2 profiling gate can be evaluated. |
-| B1–B6 | pending | | |
-| C1–C16 | pending | | |
+| A10 | deferred | 2026-07-21 | Maintainer direction after B2: keep P6 outside this tranche; live profiling remains a manual follow-up. |
+| B1 | complete | 2026-07-21 | One `ImageRenderer` and `SubjectIsolationService` are shared across serial or concurrent preparation workers per analyze pass; a counting-factory regression proves one construction of each service, the full suite and release self-test pass, and live render-stage timing is a maintainer-directed manual follow-up. |
+| B2 | complete | 2026-07-21 | Graph node/adjacency and inverted supporting-asset indexes remove hot-loop scans; one `DirectSupportIndex` is incrementally updated across context/local/global stages. Focused consensus/session suites, the R4 regression gate, the full suite, and release self-test pass; live normalization timing is a maintainer-directed manual follow-up. |
+| B3 | complete | 2026-07-21 | Invocation-local, file-identity-keyed XMP parse reuse spans Phase 2 and normalized plan → preview → apply chains; merge copies stay isolated, writes invalidate the cache, and validation reads bypass it. Counting, external-replacement, invocation-boundary, focused/golden, R4, full-suite, and release-self-test gates pass; live XMP timing is a maintainer-directed manual follow-up. |
+| B4 | complete | 2026-07-21 | Freshly written raw-sidecar documents are handed to combined pipeline adapters in memory, while skipped/pre-existing entries retain the disk-reader fallback. Counting-reader, exact-document/byte, combined-pipeline, compatibility/golden, R4, full-suite, and release-self-test gates pass; live combined-run timing is a maintainer-directed manual follow-up. |
+| B5 | complete | 2026-07-21 | Analyze, model-input export, dry-scan, and combined pre-scan paths hash source identities through a bounded task group sized by resolved `stage_concurrency`; inventory remains hash-free. A counting seam proves the bound and serial/concurrent result equality, including ordering and an identity failure. Focused pipeline, R4, full-suite, and release-self-test gates pass; live large-folder scan timing is a maintainer-directed manual follow-up. |
+| B6 | complete | 2026-07-21 | Review rows and decision indexes are materialized per adopted session; ordinary verdict changes update only the indexed chip, while edits, newly visible decisions, and asynchronous quality-only rows preserve prior behavior. A row-build counting seam proves repeated reads and a verdict toggle do not rebuild either the touched or unrelated row. Focused review/quality, R4, full-suite, and release-self-test gates pass; the large-session GUI fluidity smoke is a maintainer-directed manual follow-up. |
+| C1–C18 | pending | | |
 | D1–D7 | pending | | |
 | D8 | blocked | | awaits vision-capable FoundationModels API + test hardware |
 
@@ -497,3 +539,20 @@ Keep the raw command output, wall-clock numbers, corpus identity, cache state, a
 - Final automated verification: `swift test` passed 806 tests with 2 opt-in skips; the release benchmark self-test and `aisidecar --help` passed.
 - Formatting: all 38 changed Swift files pass `swift format lint`. The repository-wide advisory lint still reports only the pre-existing `Step3OptionsView.swift` indentation and `ModelRuntimeTests.swift` line-break findings, neither touched by this tranche.
 - Git: 20 scoped commits on `ronbuening/RefactorTrancheA`; range diff is 1,394 insertions / 1,493 deletions, with no whitespace errors.
+
+### Tranche B audit (2026-07-21)
+
+Commit-by-commit audit of B1–B6 against this plan: all six items verified complete against their acceptance criteria; the automated gates were re-run at audit time (`swift test` green, release benchmark self-test passed). The audit added coverage for four gaps — all behaviors were already implemented correctly, only the pins were missing:
+
+- B4: disk fallback for a `.written` record absent from the in-memory handoff (`RawSidecarBatchHelpersTests`).
+- B3: detection of a same-size, same-inode in-place rewrite between preview and apply, exercising the mtime component of the pre-write cache's file-identity key (`OwnedXMPScalarPreconditionTests`).
+- B6: first verdict on a withheld decision appends its chip in decision order, or creates a sorted-in row for a previously chipless asset, without rebuilding existing rows (`ReviewModelTests`).
+- B5: the scan-hashing bound choice (`stage_concurrency` over `activeProcessorCount`) is now stated in the `ImageScanner` doc comment.
+
+Follow-up dispositions (2026-07-21, maintainer-directed):
+
+1. **B3 — coarse-mtime cache-key blind spot: resolved.** The pre-write cache now hashes the target's current bytes on every lookup (SHA-256, `CryptoKit`); a hit requires the stat identity `(inode, mtime, size)` **and** the content hash to match, and a miss parses the exact bytes that were hashed. A same-size in-place rewrite is therefore detected on any filesystem's mtime granularity — pinned by `testApplyDetectsInPlaceRewriteEvenWhenModificationTimeIsRestored`, which backdates the rewrite so all three stat components match and only the hash can catch it. The read-per-lookup cost is KB-scale; the XML parse remains the saved expense. Remaining (unscheduled): cache entries for preview-only/dry-run targets persist until engine shutdown; invalidate per target after its report is built if very large export batches show memory pressure.
+2. **B4 — retention scope: scheduled as C17.** Key alignment, `.written`-only opt-in retention, and adapter map release — see the C17 item for the full spec.
+3. **B5 — remaining serial hashing path: scheduled as C18.** Full normalization-domain `stage_concurrency` plumbing plus bounded hashing in `resolveAnalyzeInput` — see the C18 item for the spec, including the default-elided session-encoding constraint.
+4. **B2 — index/snapshot coupling: resolved.** `AssetAffinityGraph.nodes`/`edges`/`clusters`/`nodeIDByAssetID` are now `let`; pruning already ran in the builder before graph init (`prune(edges:maxNeighborsPerNode:)` on the edge array), and immutability now makes builder-side pruning the only representable shape. A10/P6, if ever scheduled, changes the builder only.
+5. **B6 — per-toggle residue at M11 scale: open, maintainer will run the large-session smoke.** If the 5,000-asset smoke stutters, cache the verdict counters as stored properties and split the row list into a child view observing only `assetRows`. `ReviewScaleTests` still pins 1,500 assets, not the M11 target.

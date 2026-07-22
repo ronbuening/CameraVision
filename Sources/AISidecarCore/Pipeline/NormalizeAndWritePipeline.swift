@@ -16,6 +16,7 @@ public struct NormalizeAndWritePipeline {
     private let fileManager: FileManager
     private let normalizePipeline: NormalizePipeline
     private let exportPipeline: XMPExportPipeline
+    private let invocationEngine: OwnedXMPSidecarEngine?
     private let executionRecorder: NormalizationXMPExecutionRecorder
     private let afterNormalization: @Sendable () -> Void
 
@@ -25,21 +26,38 @@ public struct NormalizeAndWritePipeline {
     /// but before XMP export begins, so tests can assert the Milestone 9 interruption boundary.
     public init(
         fileManager: FileManager = .default,
-        normalizePipeline: NormalizePipeline = NormalizePipeline(),
+        normalizePipeline: NormalizePipeline? = nil,
         exportPipeline: XMPExportPipeline? = nil,
         logger: Logger = Logger(),
         now: @escaping @Sendable () -> Date = Date.init,
         afterNormalization: @escaping @Sendable () -> Void = {}
     ) {
         self.fileManager = fileManager
-        self.normalizePipeline = normalizePipeline
-        self.exportPipeline =
-            exportPipeline
-            ?? XMPExportPipeline(
+        if normalizePipeline == nil, exportPipeline == nil {
+            let invocationEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
+            self.normalizePipeline = NormalizePipeline(
+                snapshotReader: { try invocationEngine.readSnapshot(at: $0) },
+                fileManager: fileManager
+            )
+            self.exportPipeline = XMPExportPipeline(
                 fileManager: fileManager,
+                engine: invocationEngine,
                 logger: logger,
                 now: now
             )
+            self.invocationEngine = invocationEngine
+        } else {
+            self.normalizePipeline = normalizePipeline ?? NormalizePipeline(fileManager: fileManager)
+            self.exportPipeline =
+                exportPipeline
+                ?? XMPExportPipeline(
+                    fileManager: fileManager,
+                    engine: OwnedXMPSidecarEngine(fileManager: fileManager),
+                    logger: logger,
+                    now: now
+                )
+            self.invocationEngine = nil
+        }
         self.executionRecorder = NormalizationXMPExecutionRecorder(fileManager: fileManager)
         self.afterNormalization = afterNormalization
     }
@@ -50,6 +68,10 @@ public struct NormalizeAndWritePipeline {
         configuration: ResolvedNormalizationConfiguration,
         interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> NormalizeAndWritePipelineResult {
+        invocationEngine?.beginPreWriteInvocation()
+        defer {
+            try? invocationEngine?.shutdown()
+        }
         guard mode.isExistingInputMode else {
             throw SidecarError.configInvalid(
                 "NormalizeAndWritePipeline requires --from-json or --file-list; use AnalyzeAndNormalizePipeline for image input."

@@ -24,6 +24,7 @@ public struct NormalizePipeline {
     private let reportWriter: NormalizationReportWriter
     private let summaryWriter: NormalizationSummaryWriter
     private let snapshotReader: @Sendable (String) throws -> XMPMetadataSnapshot
+    private let snapshotEngine: OwnedXMPSidecarEngine?
 
     public init(
         inputResolver: NormalizationInputResolver = NormalizationInputResolver(),
@@ -39,9 +40,11 @@ public struct NormalizePipeline {
         self.summaryWriter = summaryWriter
         if let snapshotReader {
             self.snapshotReader = snapshotReader
+            self.snapshotEngine = nil
         } else {
             let metadataEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
             self.snapshotReader = { try metadataEngine.readSnapshot(at: $0) }
+            self.snapshotEngine = metadataEngine
         }
     }
 
@@ -108,14 +111,16 @@ public struct NormalizePipeline {
         includeXMPPlans: Bool = true,
         interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> NormalizePipelineResult {
-        return try runResolvedInput(
-            input,
-            configuration: configuration,
-            timestamp: timestamp,
-            sessionID: sessionID,
-            includeXMPPlans: includeXMPPlans,
-            interruptionMonitor: interruptionMonitor
-        )
+        try withSnapshotInvocation {
+            try runResolvedInput(
+                input,
+                configuration: configuration,
+                timestamp: timestamp,
+                sessionID: sessionID,
+                includeXMPPlans: includeXMPPlans,
+                interruptionMonitor: interruptionMonitor
+            )
+        }
     }
 
     private func run(
@@ -126,15 +131,25 @@ public struct NormalizePipeline {
         includeXMPPlans: Bool,
         interruptionMonitor: InterruptionMonitor?
     ) throws -> NormalizePipelineResult {
-        let input = try inputResolver.resolve(mode: mode, configuration: configuration)
-        return try runResolvedInput(
-            input,
-            configuration: configuration,
-            timestamp: timestamp,
-            sessionID: sessionID,
-            includeXMPPlans: includeXMPPlans,
-            interruptionMonitor: interruptionMonitor
-        )
+        try withSnapshotInvocation {
+            let input = try inputResolver.resolve(mode: mode, configuration: configuration)
+            return try runResolvedInput(
+                input,
+                configuration: configuration,
+                timestamp: timestamp,
+                sessionID: sessionID,
+                includeXMPPlans: includeXMPPlans,
+                interruptionMonitor: interruptionMonitor
+            )
+        }
+    }
+
+    private func withSnapshotInvocation<Result>(_ body: () throws -> Result) rethrows -> Result {
+        snapshotEngine?.beginPreWriteInvocation()
+        defer {
+            try? snapshotEngine?.shutdown()
+        }
+        return try body()
     }
 
     private func runResolvedInput(

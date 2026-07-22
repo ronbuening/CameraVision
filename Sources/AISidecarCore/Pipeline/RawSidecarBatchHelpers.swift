@@ -6,9 +6,11 @@ enum RawSidecarBatchHelpers {
     static func rawInputBatch(
         from analyzeResult: AnalyzeResult,
         failureContext: String,
-        fileManager: FileManager
+        fileManager: FileManager,
+        readDocument: ((URL) throws -> RawJSONSidecarDocument)? = nil
     ) -> RawJSONSidecarInputBatch {
         let reader = RawJSONSidecarReader(fileManager: fileManager)
+        let readDocument = readDocument ?? { try reader.read(from: $0) }
         var inputs: [ResolvedRawSidecarInput] = []
         var failures: [RawJSONSidecarInputFailure] = []
 
@@ -23,7 +25,14 @@ enum RawSidecarBatchHelpers {
             }
             let sidecarURL = URL(fileURLWithPath: sidecarPath).standardizedFileURL
             do {
-                let document = try reader.read(from: sidecarURL)
+                let document: RawJSONSidecarDocument
+                if record.status == .written,
+                    let writtenDocument = analyzeResult.writtenSidecarsByPath?[sidecarURL.path]
+                {
+                    document = writtenDocument
+                } else {
+                    document = try readDocument(sidecarURL)
+                }
                 inputs.append(
                     ResolvedRawSidecarInput(
                         sidecarPath: sidecarURL,
@@ -65,14 +74,15 @@ enum RawSidecarBatchHelpers {
         configuration: ResolvedRunConfiguration,
         fileManager: FileManager,
         preScanRawSidecars: (@Sendable (String, ResolvedRunConfiguration) throws -> Set<String>)?
-    ) throws -> Set<String> {
+    ) async throws -> Set<String> {
         if let preScanRawSidecars {
             return try preScanRawSidecars(inputPath, configuration)
         }
-        let scan = try ImageScanner(fileManager: fileManager).scan(
+        let scan = try await ImageScanner(fileManager: fileManager).scan(
             inputPath: inputPath,
             recursive: configuration.recursive,
-            identityPolicy: configuration.sourceIdentityPolicy
+            identityPolicy: configuration.sourceIdentityPolicy,
+            stageConcurrency: configuration.stageConcurrency
         )
         var planned = SidecarNaming.plan(for: scan.images, outputDir: configuration.outputDir)
             .entries

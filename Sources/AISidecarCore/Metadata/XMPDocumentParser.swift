@@ -38,6 +38,28 @@ struct XMPDocumentParser {
             )
         }
 
+        return try parse(document: document, targetPath: targetPath, sourceFileNames: sourceFileNames)
+    }
+
+    func copy(_ parsed: XMPParsedDocument, sourceFileNames: [String] = []) throws -> XMPParsedDocument {
+        guard let document = parsed.document.copy() as? XMLDocument else {
+            throw XMPXML.sidecarError(
+                code: .xmpParseFailed,
+                message: "Unable to copy parsed XMP sidecar \(parsed.targetPath)."
+            )
+        }
+        return try parse(
+            document: document,
+            targetPath: parsed.targetPath,
+            sourceFileNames: sourceFileNames
+        )
+    }
+
+    private func parse(
+        document: XMLDocument,
+        targetPath: String,
+        sourceFileNames: [String]
+    ) throws -> XMPParsedDocument {
         guard let root = document.rootElement() else {
             throw XMPXML.sidecarError(
                 code: .xmpParseFailed,

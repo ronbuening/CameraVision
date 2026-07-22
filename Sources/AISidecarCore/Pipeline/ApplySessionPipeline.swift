@@ -32,6 +32,7 @@ public struct ApplySessionPipeline {
     private let snapshotReader: @Sendable (String) throws -> XMPMetadataSnapshot
     private let currentSidecarPairResolver: (String) -> RawJSONSidecarInputBatch
     private let xmpPipeline: XMPExportPipeline
+    private let invocationEngine: OwnedXMPSidecarEngine?
     private let afterSourceResolution: @Sendable () -> Void
 
     /// Create an apply-session pipeline with injectable collaborators.
@@ -52,11 +53,25 @@ public struct ApplySessionPipeline {
         self.sessionReader = sessionReader ?? NormalizationSessionReader(fileManager: fileManager)
         self.reportWriter = reportWriter
         self.summaryWriter = summaryWriter
-        if let snapshotReader {
-            self.snapshotReader = snapshotReader
+        if snapshotReader == nil, xmpPipeline == nil {
+            let invocationEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
+            self.snapshotReader = { try invocationEngine.readSnapshot(at: $0) }
+            self.xmpPipeline = XMPExportPipeline(fileManager: fileManager, engine: invocationEngine)
+            self.invocationEngine = invocationEngine
         } else {
-            let metadataEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
-            self.snapshotReader = { try metadataEngine.readSnapshot(at: $0) }
+            if let snapshotReader {
+                self.snapshotReader = snapshotReader
+            } else {
+                let metadataEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
+                self.snapshotReader = { try metadataEngine.readSnapshot(at: $0) }
+            }
+            self.xmpPipeline =
+                xmpPipeline
+                ?? XMPExportPipeline(
+                    fileManager: fileManager,
+                    engine: OwnedXMPSidecarEngine(fileManager: fileManager)
+                )
+            self.invocationEngine = nil
         }
         if let currentSidecarPairResolver {
             self.currentSidecarPairResolver = currentSidecarPairResolver
@@ -64,7 +79,6 @@ public struct ApplySessionPipeline {
             let resolver = RawJSONSidecarInputResolver(fileManager: fileManager)
             self.currentSidecarPairResolver = { resolver.resolveCurrentSidecarPair(at: $0) }
         }
-        self.xmpPipeline = xmpPipeline ?? XMPExportPipeline(fileManager: fileManager)
         self.afterSourceResolution = afterSourceResolution
     }
 
@@ -75,6 +89,10 @@ public struct ApplySessionPipeline {
         timestamp: Date = Date(),
         interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> ApplySessionPipelineResult {
+        invocationEngine?.beginPreWriteInvocation()
+        defer {
+            try? invocationEngine?.shutdown()
+        }
         let absoluteSessionPath = absolutePath(for: sessionPath)
         let session = try sessionReader.read(from: absoluteSessionPath)
         let artifacts = NormalizationArtifactPlanner.planApplySession(

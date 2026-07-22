@@ -4,6 +4,35 @@ import XCTest
 @testable import AISidecarCore
 
 final class ScannerTests: XCTestCase {
+    func testConcurrentIdentityHashingIsBoundedAndMatchesSerialScan() async throws {
+        let root = try temporaryDirectory()
+        for name in ["E.NEF", "C.NEF", "A.NEF", "D.NEF", "B.NEF"] {
+            _ = try writeFile(name, data: Data(name.utf8), in: root)
+        }
+        let probe = IdentityConcurrencyProbe()
+        let scanner = ImageScanner(
+            identityCalculator: { url, policy, fileManager in
+                try probe.compute(url: url, policy: policy, fileManager: fileManager)
+            }
+        )
+
+        let serial = try scanner.scan(inputPath: root.path, recursive: false, identityPolicy: .sha256)
+        XCTAssertEqual(probe.maximumActiveCount, 1)
+        probe.reset()
+
+        let concurrent = try await scanner.scan(
+            inputPath: root.path,
+            recursive: false,
+            identityPolicy: .sha256,
+            stageConcurrency: 2
+        )
+
+        XCTAssertEqual(probe.maximumActiveCount, 2)
+        XCTAssertEqual(concurrent, serial)
+        XCTAssertEqual(concurrent.images.map(\.relativePath), ["A.NEF", "B.NEF", "D.NEF", "E.NEF"])
+        XCTAssertEqual(concurrent.errors.map(\.relativePath), ["C.NEF"])
+    }
+
     func testSupportedImageTypeMatchesExtensionsCaseInsensitively() {
         let supported = [
             "NEF", "NRW", "CR3", "CR2", "ARW", "RAF", "ORF", "RW2",
@@ -263,5 +292,52 @@ final class ScannerTests: XCTestCase {
             try? FileManager.default.removeItem(at: directory)
         }
         return directory
+    }
+}
+
+private final class IdentityConcurrencyProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var activeCount = 0
+    private var storedMaximumActiveCount = 0
+
+    var maximumActiveCount: Int {
+        lock.withLock { storedMaximumActiveCount }
+    }
+
+    func reset() {
+        lock.withLock {
+            activeCount = 0
+            storedMaximumActiveCount = 0
+        }
+    }
+
+    func compute(
+        url: URL,
+        policy: SourceIdentityPolicy,
+        fileManager _: FileManager
+    ) throws -> SourceIdentity {
+        lock.withLock {
+            activeCount += 1
+            storedMaximumActiveCount = max(storedMaximumActiveCount, activeCount)
+        }
+        defer {
+            lock.withLock {
+                activeCount -= 1
+            }
+        }
+
+        usleep(20_000)
+        if url.lastPathComponent == "C.NEF" {
+            throw IdentityProbeError.expectedFailure
+        }
+        return SourceIdentity(policy: policy, sha256: String(repeating: "a", count: 64))
+    }
+}
+
+private enum IdentityProbeError: LocalizedError {
+    case expectedFailure
+
+    var errorDescription: String? {
+        "injected identity failure"
     }
 }
