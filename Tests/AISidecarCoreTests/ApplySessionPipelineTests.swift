@@ -172,6 +172,30 @@ final class ApplySessionPipelineTests: XCTestCase {
         XCTAssertEqual(result.exportReport?.targetReports.first?.status, .dryRun)
     }
 
+    func testApplySessionResolvesSymlinkedSourceImage() async throws {
+        let fixture = try await makeSessionFixture(dryRun: true)
+        let realRoot = try temporaryDirectory()
+        let realSource = realRoot.appendingPathComponent("Bird.JPG")
+        try FileManager.default.moveItem(at: fixture.sourceURL, to: realSource)
+        try FileManager.default.createSymbolicLink(at: fixture.sourceURL, withDestinationURL: realSource)
+
+        let applyOutput = try temporaryDirectory()
+        var configuration = applyConfiguration(outputDir: applyOutput)
+        configuration.dryRun = true
+
+        let result = try applyPipeline().run(
+            sessionPath: fixture.sessionPath,
+            configuration: configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_850)
+        )
+
+        let plan = try XCTUnwrap(result.changePlan.targetPlans.first)
+        XCTAssertEqual(plan.sourceMembers.first?.sourcePath, fixture.sourceURL.path)
+        XCTAssertFalse(result.report.errors.contains { $0.code == .sourceMissing })
+        XCTAssertEqual(result.exportReport?.inputFailures.map(\.error.code), [])
+        XCTAssertEqual(result.exportReport?.targetReports.first?.status, .dryRun)
+    }
+
     func testApplySessionInterruptedAfterSourceResolutionDoesNotWriteXMP() async throws {
         let fixture = try await makeSessionFixture(dryRun: false)
         let originalSourceData = try Data(contentsOf: fixture.sourceURL)

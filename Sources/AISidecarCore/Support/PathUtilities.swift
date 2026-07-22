@@ -31,10 +31,14 @@ func absoluteURL(
     return baseURL.appendingPathComponent(expandedPath).standardizedFileURL
 }
 
+// Both predicates classify the symlink target, matching
+// `FileManager.fileExists(atPath:isDirectory:)`, so symlinked sources and
+// folder inputs behave like their targets; dangling links are neither. The
+// scanner's per-entry symlink policy is enforced upstream of these predicates.
 func isRegularFile(_ url: URL) -> Bool {
-    (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+    (try? url.resolvingSymlinksInPath().resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
 }
 
 func isDirectory(_ url: URL) -> Bool {
-    (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+    (try? url.resolvingSymlinksInPath().resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
 }

@@ -142,6 +142,26 @@ final class FileListInputResolverTests: XCTestCase {
         XCTAssertEqual(Set(plans.changePlan.targetPlans.map(\.targetXMPPath)).count, 2)
     }
 
+    func testFileListEntryThatIsASymlinkToAnImageResolves() async throws {
+        let root = try temporaryDirectory()
+        let listDirectory = root.appendingPathComponent("lists")
+        let realDirectory = root.appendingPathComponent("real")
+        try FileManager.default.createDirectory(at: listDirectory, withIntermediateDirectories: true)
+        let image = try writeTestImage("IMG_0001.JPG", in: realDirectory)
+        let link = root.appendingPathComponent("IMG_0001-link.JPG")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: image)
+        let list = listDirectory.appendingPathComponent("images.txt")
+        try "\(link.path)\n".write(to: list, atomically: true, encoding: .utf8)
+
+        let batch = try await NormalizationInputResolver().resolve(
+            mode: .fileList(path: list.path),
+            configuration: .builtInDefaults
+        )
+
+        XCTAssertEqual(batch.failures.map(\.error.code), [])
+        XCTAssertEqual(batch.sourceAssets.map(\.sourcePath), [link.path])
+    }
+
     func testSymlinkedAndRealPathsToOneFileDedupeToOneAsset() async throws {
         let root = try temporaryDirectory()
         let listDirectory = root.appendingPathComponent("lists")
