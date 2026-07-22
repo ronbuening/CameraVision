@@ -140,6 +140,89 @@ public enum SidecarNaming {
         return SidecarPlan(entries: entries, collisions: collisions)
     }
 
+    static func siblingSourceURL(for sidecarURL: URL) -> URL {
+        let sourceFileName = sidecarBaseFileName(for: sidecarURL) ?? sidecarURL.lastPathComponent
+        return sidecarURL.deletingLastPathComponent().appendingPathComponent(sourceFileName).standardizedFileURL
+    }
+
+    static func siblingSidecarURL(for sidecarURL: URL) -> URL {
+        guard let kind = sidecarKind(for: sidecarURL), let baseName = sidecarBaseFileName(for: sidecarURL) else {
+            return sidecarURL
+        }
+        let siblingSuffix: String
+        switch kind {
+        case .tagging:
+            siblingSuffix = qualitySuffix
+        case .quality:
+            siblingSuffix = taggingSuffix
+        }
+        return sidecarURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)\(siblingSuffix)")
+            .standardizedFileURL
+    }
+
+    /// Fold `.quality.ai.json` inputs into their tagging siblings.
+    ///
+    /// Internal so the analyze-and-* pipelines can apply the same pairing to
+    /// records produced by an in-process sequential quality run.
+    static func groupedSidecarInputs(_ inputs: [ResolvedRawSidecarInput]) -> [ResolvedRawSidecarInput] {
+        let grouped = Dictionary(grouping: inputs) { sidecarPairingKey(for: $0.sidecarPath) }
+        return grouped.values.compactMap { group in
+            // Existing Phase 2 consumers keep the tagging document as their
+            // primary input; quality data rides beside it for grading.
+            let tagging = group.first { sidecarKind(for: $0.sidecarPath) == .tagging }
+            let quality = group.first { sidecarKind(for: $0.sidecarPath) == .quality }
+            guard var primary = tagging ?? quality else {
+                return nil
+            }
+            if let quality {
+                primary.qualitySidecarPath = quality.sidecarPath
+                primary.qualityDocument = quality.document
+                if quality.sidecarPath != primary.sidecarPath {
+                    primary.warnings.append(contentsOf: quality.warnings)
+                    if quality.sourceIdentityStatus == .mismatched {
+                        primary.sourceIdentityStatus = .mismatched
+                    }
+                }
+            }
+            return primary
+        }
+        .sorted {
+            comparePaths($0.relativePath ?? $0.sidecarPath.path, $1.relativePath ?? $1.sidecarPath.path)
+        }
+    }
+
+    static func sidecarPairingKey(for url: URL) -> String {
+        url.deletingLastPathComponent()
+            .appendingPathComponent(sidecarBaseFileName(for: url) ?? url.lastPathComponent)
+            .standardizedFileURL.path
+    }
+
+    static func sidecarBaseFileName(for url: URL) -> String? {
+        guard let kind = sidecarKind(for: url) else {
+            return nil
+        }
+        let suffix: String
+        switch kind {
+        case .tagging:
+            suffix = taggingSuffix
+        case .quality:
+            suffix = qualitySuffix
+        }
+        return String(url.lastPathComponent.dropLast(suffix.count))
+    }
+
+    static func sidecarKind(for url: URL) -> RawSidecarKind? {
+        let fileName = url.lastPathComponent.lowercased()
+        if fileName.hasSuffix(qualitySuffix) {
+            return .quality
+        }
+        if fileName.hasSuffix(taggingSuffix) {
+            return .tagging
+        }
+        return nil
+    }
+
     private static func appendRelativeSidecarPath(
         for source: SourceImage,
         to base: URL,

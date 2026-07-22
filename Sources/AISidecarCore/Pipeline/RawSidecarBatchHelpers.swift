@@ -65,7 +65,7 @@ enum RawSidecarBatchHelpers {
 
         // Sequential quality runs emit one record per pass. Grouping here keeps the
         // adapter path aligned with the disk-scan resolver used by standalone export.
-        let grouped = RawJSONSidecarInputResolver(fileManager: fileManager).groupedSidecarInputs(inputs)
+        let grouped = SidecarNaming.groupedSidecarInputs(inputs)
         return RawJSONSidecarInputBatch(inputs: grouped, failures: failures)
     }
 
