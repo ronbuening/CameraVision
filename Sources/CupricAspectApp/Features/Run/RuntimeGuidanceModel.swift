@@ -23,30 +23,62 @@ final class RuntimeGuidanceModel {
 
     static let downloadURL = "https://ollama.com/download"
 
-    private(set) var status: Status = .unknown
-    private(set) var lastChecked: Date?
     /// The configured model tag, resolved through the standard chain — the
     /// starter suggestion when no vision model is installed.
     private(set) var configuredModel = ""
     private(set) var endpointDisplay = ""
 
-    /// Injectable tag lister so tests never need a live Ollama
-    /// (production default is CORE-8's `/api/tags` + `/api/show` probe).
-    private let listVisionTags: @Sendable (URL) async throws -> [String]
+    let visionTagsModel: VisionTagsModel
     /// Alternate config path for tests; nil uses the standard chain.
     private let configPath: String?
+    private var checkedEndpoint: URL?
 
     init(
         configPath: String? = nil,
-        listVisionTags: @escaping @Sendable (URL) async throws -> [String] = { endpoint in
-            try await OllamaVisionRunner().listInstalledVisionTags(endpoint: endpoint)
-        }
+        listVisionTags: @escaping VisionTagsModel.Loader = VisionTagsModel.liveLoader
     ) {
         self.configPath = configPath
-        self.listVisionTags = listVisionTags
+        self.visionTagsModel = VisionTagsModel(loader: listVisionTags)
     }
 
+    init(configPath: String? = nil, visionTagsModel: VisionTagsModel) {
+        self.configPath = configPath
+        self.visionTagsModel = visionTagsModel
+    }
+
+    var visionTags: VisionTagsModel { visionTagsModel }
     var pullCommand: String { "ollama pull \(configuredModel)" }
+
+    var status: Status {
+        guard let checkedEndpoint,
+            let discoveryEndpoint = visionTagsModel.endpoint,
+            checkedEndpoint.absoluteString == discoveryEndpoint.absoluteString
+        else {
+            return .unknown
+        }
+        switch visionTagsModel.state {
+        case .idle:
+            return .unknown
+        case .loading:
+            return .checking
+        case .loaded where visionTagsModel.tags.isEmpty:
+            return .noVisionModels
+        case .loaded:
+            return .ready(visionTagCount: visionTagsModel.tags.count)
+        case .failed(let message):
+            return .unreachable(message: message)
+        }
+    }
+
+    var lastChecked: Date? {
+        guard let checkedEndpoint,
+            let discoveryEndpoint = visionTagsModel.endpoint,
+            checkedEndpoint.absoluteString == discoveryEndpoint.absoluteString
+        else {
+            return nil
+        }
+        return visionTagsModel.lastChecked
+    }
 
     /// The banner renders only for the two actionable failure shapes.
     var needsAttention: Bool {
@@ -56,9 +88,17 @@ final class RuntimeGuidanceModel {
         }
     }
 
+    /// Automatic launch check; reuses discovery already started by another surface.
+    func loadIfNeeded(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        startCheck(environment: environment, forceRefresh: false)
+    }
+
+    /// Explicit user re-check; repeats a settled request without polling.
     func check(environment: [String: String] = ProcessInfo.processInfo.environment) {
-        guard status != .checking else { return }
-        status = .checking
+        startCheck(environment: environment, forceRefresh: true)
+    }
+
+    private func startCheck(environment: [String: String], forceRefresh: Bool) {
         let endpoint: URL
         do {
             let resolved = try ConfigurationResolver.resolve(
@@ -70,20 +110,16 @@ final class RuntimeGuidanceModel {
             endpointDisplay = endpoint.absoluteString
         } catch {
             // An unresolvable config never blocks launch; Settings surfaces it.
-            status = .unknown
+            checkedEndpoint = nil
             return
         }
-        let listVisionTags = listVisionTags
+        checkedEndpoint = endpoint
         Task {
-            do {
-                let tags = try await listVisionTags(endpoint)
-                status = tags.isEmpty ? .noVisionModels : .ready(visionTagCount: tags.count)
-            } catch {
-                status = .unreachable(
-                    message: (error as? SidecarError)?.message ?? error.localizedDescription
-                )
+            if forceRefresh {
+                await visionTagsModel.refresh(endpoint: endpoint)
+            } else {
+                await visionTagsModel.loadIfNeeded(endpoint: endpoint)
             }
-            lastChecked = Date()
         }
     }
 }

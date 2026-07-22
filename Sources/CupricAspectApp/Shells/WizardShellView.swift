@@ -28,7 +28,7 @@ struct WizardShellView: View {
         }
         .background(theme.winBg)
         .sheet(isPresented: $flow.showSettings) {
-            SettingsSheet()
+            SettingsSheet(visionTagsModel: flow.visionTagsModel)
         }
         .sheet(isPresented: $flow.showPlanSheet) {
             ChangePlanSheet(export: flow.exportModel)
@@ -187,7 +187,8 @@ struct WizardShellView: View {
                         options: flow.options,
                         runModel: flow.runModel,
                         importModel: flow.importModel,
-                        normalizationModel: flow.normalizationModel
+                        normalizationModel: flow.normalizationModel,
+                        visionTagsModel: flow.visionTagsModel
                     )
                 }
             }

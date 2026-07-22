@@ -14,10 +14,9 @@ struct Step3OptionsView: View {
     @Bindable var runModel: AnalysisRunModel
     var importModel: FolderImportModel
     var normalizationModel: NormalizationModel?
+    @Bindable var visionTagsModel: VisionTagsModel
 
     @Environment(\.cvTheme) private var theme
-    @State private var visionTags: [String] = []
-    @State private var visionTagState: VisionTagState = .idle
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -55,7 +54,7 @@ struct Step3OptionsView: View {
         .padding(EdgeInsets(top: 26, leading: 34, bottom: 40, trailing: 34))
         .onAppear {
             options.loadResolvedDefaults()
-            refreshVisionTags()
+            Task { await loadVisionTagsIfNeeded() }
             runPreflight()
         }
     }
@@ -229,7 +228,7 @@ struct Step3OptionsView: View {
                     }
                 }
                 Divider()
-                ForEach(visionTags, id: \.self) { tag in
+                ForEach(visionTagsModel.tags, id: \.self) { tag in
                     Button {
                         selectModelOverride(tag)
                     } label: {
@@ -240,7 +239,7 @@ struct Step3OptionsView: View {
                         }
                     }
                 }
-                if visionTags.isEmpty {
+                if visionTagsModel.tags.isEmpty {
                     Button("No vision models found") {}.disabled(true)
                 }
             } label: {
@@ -262,7 +261,7 @@ struct Step3OptionsView: View {
             .menuStyle(.borderlessButton)
 
             Button {
-                refreshVisionTags()
+                Task { await forceVisionTagRefresh() }
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 11))
@@ -274,14 +273,15 @@ struct Step3OptionsView: View {
     }
 
     private var modelStatusText: String? {
-        switch visionTagState {
+        switch visionTagsModel.state {
         case .idle:
             nil
         case .loading:
             "loading installed models…"
-        case .loaded where visionTags.isEmpty:
+        case .loaded where visionTagsModel.tags.isEmpty:
             "No installed vision models found at this endpoint."
-        case .loaded where !options.effectiveModel.isEmpty && !visionTags.contains(options.effectiveModel):
+        case .loaded
+        where !options.effectiveModel.isEmpty && !visionTagsModel.tags.contains(options.effectiveModel):
             "\(options.effectiveModel) is not installed or is not vision-capable at this endpoint."
         case .loaded:
             nil
@@ -291,9 +291,11 @@ struct Step3OptionsView: View {
     }
 
     private var modelStatusIsWarning: Bool {
-        switch visionTagState {
+        switch visionTagsModel.state {
         case .loaded:
-            !visionTags.isEmpty && !options.effectiveModel.isEmpty && !visionTags.contains(options.effectiveModel)
+            !visionTagsModel.tags.isEmpty
+                && !options.effectiveModel.isEmpty
+                && !visionTagsModel.tags.contains(options.effectiveModel)
         case .failed:
             true
         default:
@@ -359,8 +361,8 @@ struct Step3OptionsView: View {
                     Text(
                         "gps · existing .ai.json · existing xmp · concurrency · image size · context window · quality scan"
                     )
-                        .font(.system(size: 11))
-                        .foregroundStyle(theme.textFaint)
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.textFaint)
                     Spacer()
                 }
                 .padding(EdgeInsets(top: 13, leading: 17, bottom: 13, trailing: 17))
@@ -531,29 +533,20 @@ struct Step3OptionsView: View {
         )
     }
 
-    private func refreshVisionTags() {
-        guard visionTagState != .loading else { return }
+    private func loadVisionTagsIfNeeded() async {
         guard let endpoint = URL(string: options.resolvedEndpoint) else {
-            visionTags = []
-            visionTagState = .failed(message: "Invalid model endpoint.")
+            visionTagsModel.fail(message: "Invalid model endpoint.")
             return
         }
-        visionTagState = .loading
-        Task {
-            do {
-                let tags = try await VisionTagLoader.listInstalledVisionTags(endpoint: endpoint)
-                await MainActor.run {
-                    visionTags = tags
-                    visionTagState = .loaded
-                }
-            } catch {
-                let message = (error as? SidecarError)?.message ?? error.localizedDescription
-                await MainActor.run {
-                    visionTags = []
-                    visionTagState = .failed(message: message)
-                }
-            }
+        await visionTagsModel.loadIfNeeded(endpoint: endpoint)
+    }
+
+    private func forceVisionTagRefresh() async {
+        guard let endpoint = URL(string: options.resolvedEndpoint) else {
+            visionTagsModel.fail(message: "Invalid model endpoint.")
+            return
         }
+        await visionTagsModel.refresh(endpoint: endpoint)
     }
 }
 

@@ -28,7 +28,7 @@ final class WizardFlowModel {
 
         static let live = Effects(
             checkRuntime: { model, environment in
-                model.check(environment: environment)
+                model.loadIfNeeded(environment: environment)
             },
             registerTerminationFlush: { reviewModel in
                 TerminationFlush.register(id: "review") { [weak reviewModel] in
@@ -88,6 +88,8 @@ final class WizardFlowModel {
     let reviewModel: ReviewModel
     let normalizationModel: NormalizationModel
     let exportModel: ExportModel
+
+    var visionTagsModel: VisionTagsModel { runtimeGuidance.visionTagsModel }
 
     var applySession: NormalizationSessionDocument?
     var applySessionPath: String?

@@ -6,7 +6,7 @@ import SwiftUI
 /// through to the shared config.json, cache purge, appearance, and the app
 /// version card.
 struct SettingsSheet: View {
-    @State private var settings = SettingsModel()
+    @State private var settings: SettingsModel
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @AppStorage(PreferenceKeys.accent) private var accentChoice: AccentChoice = .copper
     @AppStorage(PreferenceKeys.logSizeCapMB) private var logSizeCapMB = GUILog.defaultSizeCapMB
@@ -16,6 +16,10 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var purgedCount: Int?
     @State private var confirmPurge = false
+
+    init(visionTagsModel: VisionTagsModel) {
+        _settings = State(initialValue: SettingsModel(visionTagsModel: visionTagsModel))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,7 +56,7 @@ struct SettingsSheet: View {
         }
         .frame(width: 560, height: 700)
         .background(theme.winBg)
-        .task { settings.refreshVisionTags() }
+        .task { await settings.loadVisionTagsIfNeeded() }
         .confirmationDialog(
             "Purge the derivative cache?",
             isPresented: $confirmPurge
