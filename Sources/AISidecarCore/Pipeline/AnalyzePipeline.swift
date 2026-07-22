@@ -1,4 +1,3 @@
-import CoreImage
 import Foundation
 
 /// Result of the full Phase 1 analyze pipeline.
@@ -85,13 +84,7 @@ public struct AnalyzePipeline {
         self.writer = sidecarWriter
         self.summaryWriter = BatchSummaryWriter(fileManager: fileManager)
         self.logger = logger
-        if let maskProvider {
-            self.maskProvider = maskProvider
-        } else if #available(macOS 15.0, *) {
-            self.maskProvider = AppleVisionForegroundMaskProvider()
-        } else {
-            self.maskProvider = PipelineUnavailableForegroundMaskProvider()
-        }
+        self.maskProvider = maskProvider ?? .makeDefault()
         self.runner = runner
         self.now = now
         self.filenameSuffix = filenameSuffix
@@ -679,13 +672,14 @@ public struct AnalyzePipeline {
                     subjectIsolationMs = Timestamp.durationMs(from: isolationStartedAt, to: now())
                 } catch {
                     subjectIsolationMs = Timestamp.durationMs(from: isolationStartedAt, to: now())
-                    let isolationError = subjectIsolationError(from: error)
-                    subjectIsolation = failedSubjectIsolationRecord(
+                    let failure = SubjectIsolationFailure.make(
+                        from: error,
                         prepared: prepared,
                         configuration: configuration,
                         profile: profile
                     )
-                    errors.append(isolationError)
+                    subjectIsolation = failure.record
+                    errors.append(failure.error)
                 }
             }
 
@@ -1037,18 +1031,6 @@ public struct AnalyzePipeline {
         )
     }
 
-    private static func subjectIsolationError(from error: Error) -> SidecarError {
-        if let sidecarError = error as? SidecarError, sidecarError.stage == .isolate {
-            return sidecarError
-        }
-        return SidecarError(
-            code: .subjectIsolationFailed,
-            stage: .isolate,
-            message: "Unable to isolate subject: \(error.localizedDescription)",
-            recoverable: true
-        )
-    }
-
     private static func modelPreparationError(from error: Error, role: ModelInputRole) -> SidecarError {
         if let sidecarError = error as? SidecarError {
             return sidecarError
@@ -1061,36 +1043,6 @@ public struct AnalyzePipeline {
         )
     }
 
-    private static func failedSubjectIsolationRecord(
-        prepared: PreparedSourceRender,
-        configuration: ResolvedRunConfiguration,
-        profile: ModelInputProfile
-    ) -> SubjectIsolationRecord {
-        let analysisDimensions = prepared.analysisDimensions
-        let fullDimensions = prepared.fullDimensions
-        return SubjectIsolationRecord(
-            status: .failed,
-            instanceCount: 0,
-            selectedInstanceIndices: [],
-            mergedInstances: false,
-            instances: [],
-            analysisResolution: analysisDimensions,
-            fullResolution: fullDimensions,
-            scaleFactors: SubjectIsolationScaleFactors(
-                x: Double(fullDimensions.width) / Double(analysisDimensions.width),
-                y: Double(fullDimensions.height) / Double(analysisDimensions.height)
-            ),
-            selectedBoundingBox: nil,
-            cropBoundingBox: nil,
-            cropMarginFraction: configuration.subjectCropMarginFraction,
-            cropMarginPixels: 0,
-            mergeDominanceThreshold: configuration.subjectMergeDominanceThreshold,
-            selectedToUnionAreaRatio: nil,
-            matteRGB: profile.matteRGB,
-            finalDimensions: nil,
-            upscaled: false
-        )
-    }
 }
 
 private struct PendingWork: Sendable {
@@ -1135,15 +1087,4 @@ private struct PreparedRenderedAnalysis: Sendable {
     var errors: [SidecarError]
     var renderMs: Int
     var subjectIsolationMs: Int
-}
-
-private struct PipelineUnavailableForegroundMaskProvider: ForegroundMaskProvider {
-    func foregroundMasks(in _: CIImage, dimensions _: PixelDimensions) async throws -> ForegroundMaskResult {
-        throw SidecarError(
-            code: .subjectIsolationFailed,
-            stage: .isolate,
-            message: "Apple Vision foreground masking requires macOS 15 or newer.",
-            recoverable: true
-        )
-    }
 }

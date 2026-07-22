@@ -1,4 +1,3 @@
-import CoreImage
 import Foundation
 
 /// Diagnostic pipeline that exports the exact model-input images without writing sidecars.
@@ -20,13 +19,7 @@ public struct ModelInputExportPipeline {
         self.fileManager = fileManager
         self.scanner = ImageScanner(fileManager: fileManager)
         self.logger = logger
-        if let maskProvider {
-            self.maskProvider = maskProvider
-        } else if #available(macOS 15.0, *) {
-            self.maskProvider = AppleVisionForegroundMaskProvider()
-        } else {
-            self.maskProvider = ExportUnavailableForegroundMaskProvider()
-        }
+        self.maskProvider = maskProvider ?? .makeDefault()
         self.now = now
         self.filenameSuffix = filenameSuffix
     }
@@ -263,13 +256,14 @@ public struct ModelInputExportPipeline {
                         errors.append(error)
                     }
                 } catch {
-                    let isolationError = subjectIsolationError(from: error)
-                    subjectIsolation = failedSubjectIsolationRecord(
+                    let failure = SubjectIsolationFailure.make(
+                        from: error,
                         prepared: prepared,
                         configuration: configuration,
                         profile: profile
                     )
-                    errors.append(isolationError)
+                    subjectIsolation = failure.record
+                    errors.append(failure.error)
                 }
             }
 
@@ -376,49 +370,6 @@ public struct ModelInputExportPipeline {
         )
     }
 
-    private func subjectIsolationError(from error: Error) -> SidecarError {
-        if let sidecarError = error as? SidecarError, sidecarError.stage == .isolate {
-            return sidecarError
-        }
-        return SidecarError(
-            code: .subjectIsolationFailed,
-            stage: .isolate,
-            message: "Unable to isolate subject: \(error.localizedDescription)",
-            recoverable: true
-        )
-    }
-
-    private func failedSubjectIsolationRecord(
-        prepared: PreparedSourceRender,
-        configuration: ResolvedRunConfiguration,
-        profile: ModelInputProfile
-    ) -> SubjectIsolationRecord {
-        let analysisDimensions = prepared.analysisDimensions
-        let fullDimensions = prepared.fullDimensions
-        return SubjectIsolationRecord(
-            status: .failed,
-            instanceCount: 0,
-            selectedInstanceIndices: [],
-            mergedInstances: false,
-            instances: [],
-            analysisResolution: analysisDimensions,
-            fullResolution: fullDimensions,
-            scaleFactors: SubjectIsolationScaleFactors(
-                x: Double(fullDimensions.width) / Double(analysisDimensions.width),
-                y: Double(fullDimensions.height) / Double(analysisDimensions.height)
-            ),
-            selectedBoundingBox: nil,
-            cropBoundingBox: nil,
-            cropMarginFraction: configuration.subjectCropMarginFraction,
-            cropMarginPixels: 0,
-            mergeDominanceThreshold: configuration.subjectMergeDominanceThreshold,
-            selectedToUnionAreaRatio: nil,
-            matteRGB: profile.matteRGB,
-            finalDimensions: nil,
-            upscaled: false
-        )
-    }
-
     private func logRecord(for record: ModelInputExportRecord) -> LogRecord {
         let level: LogLevel = record.status == .failed ? .error : (record.errors.isEmpty ? .info : .warn)
         let message: String
@@ -462,16 +413,5 @@ public struct ModelInputExportPipeline {
 
     private func completedSuccessfully(records: [ModelInputExportRecord], interrupted: Bool) -> Bool {
         !interrupted && records.allSatisfy { $0.status == .exported || $0.status == .skippedExisting }
-    }
-}
-
-private struct ExportUnavailableForegroundMaskProvider: ForegroundMaskProvider {
-    func foregroundMasks(in _: CIImage, dimensions _: PixelDimensions) async throws -> ForegroundMaskResult {
-        throw SidecarError(
-            code: .subjectIsolationFailed,
-            stage: .isolate,
-            message: "Apple Vision foreground masking requires macOS 15 or newer.",
-            recoverable: true
-        )
     }
 }

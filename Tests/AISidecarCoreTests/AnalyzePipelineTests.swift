@@ -300,6 +300,52 @@ final class AnalyzePipelineTests: XCTestCase {
         XCTAssertTrue(calls.isEmpty)
     }
 
+    func testSubjectModeProviderThrowWritesSharedFailurePayloadWithoutModelRun() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("IsolationFailure.JPG", width: 120, height: 80, in: root)
+        let runner = RecordingVisionModelRunner()
+
+        let result = try await pipeline(
+            maskProvider: ThrowingForegroundMaskProvider(),
+            runner: runner
+        ).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .subject,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        let expectedError = SidecarError(
+            code: .subjectIsolationFailed,
+            stage: .isolate,
+            message: "Unable to isolate subject: Injected foreground mask failure.",
+            recoverable: true
+        )
+        XCTAssertEqual(result.records.map(\.status), [.failed])
+        XCTAssertEqual(result.records.first?.errors, [expectedError])
+        let sidecar = try decodeSidecar(output.appendingPathComponent("IsolationFailure.JPG.ai.json"))
+        XCTAssertEqual(sidecar.subjectIsolation?.status, .failed)
+        XCTAssertEqual(sidecar.subjectIsolation?.analysisResolution, PixelDimensions(width: 120, height: 80))
+        XCTAssertEqual(sidecar.subjectIsolation?.fullResolution, PixelDimensions(width: 120, height: 80))
+        XCTAssertEqual(sidecar.subjectIsolation?.scaleFactors, SubjectIsolationScaleFactors(x: 1, y: 1))
+        XCTAssertEqual(sidecar.subjectIsolation?.cropMarginFraction, 0.08)
+        XCTAssertEqual(sidecar.subjectIsolation?.mergeDominanceThreshold, 0.8)
+        XCTAssertEqual(sidecar.subjectIsolation?.matteRGB, [128, 128, 128])
+        XCTAssertEqual(sidecar.errors, [expectedError])
+        XCTAssertTrue(sidecar.derivatives.isEmpty)
+        XCTAssertTrue(sidecar.modelRuns.isEmpty)
+        let calls = await runner.capturedCalls()
+        XCTAssertTrue(calls.isEmpty)
+    }
+
     func testWholeModeWritesModelRunAndProvenance() async throws {
         let root = try temporaryDirectory()
         let output = try temporaryDirectory()

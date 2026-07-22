@@ -210,6 +210,57 @@ final class ModelInputExportPipelineTests: XCTestCase {
                 atPath: export.appendingPathComponent("NoForeground.JPG.aisidecar.subject_isolated.jpg").path))
     }
 
+    func testSubjectModeProviderThrowRecordsSharedFailurePayloadWithoutOutput() async throws {
+        let root = try temporaryDirectory()
+        let export = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: export)
+        }
+        let image = try writeTestImage("IsolationFailure.JPG", width: 120, height: 80, in: root)
+
+        let result = try await pipeline(maskProvider: ThrowingForegroundMaskProvider()).run(
+            inputPath: image.path,
+            exportDirectoryPath: export.path,
+            configuration: config(
+                recursive: false,
+                mode: .subject,
+                cacheDir: root.appendingPathComponent("cache").path
+            )
+        )
+
+        let expectedError = SidecarError(
+            code: .subjectIsolationFailed,
+            stage: .isolate,
+            message: "Unable to isolate subject: Injected foreground mask failure.",
+            recoverable: true
+        )
+        let manifest = try decodeManifest(result)
+        XCTAssertEqual(manifest.records.map(\.status), [.failed])
+        XCTAssertEqual(manifest.records.first?.errors, [expectedError])
+        XCTAssertEqual(manifest.records.first?.subjectIsolation?.status, .failed)
+        XCTAssertEqual(
+            manifest.records.first?.subjectIsolation?.analysisResolution,
+            PixelDimensions(width: 120, height: 80)
+        )
+        XCTAssertEqual(
+            manifest.records.first?.subjectIsolation?.fullResolution,
+            PixelDimensions(width: 120, height: 80)
+        )
+        XCTAssertEqual(
+            manifest.records.first?.subjectIsolation?.scaleFactors,
+            SubjectIsolationScaleFactors(x: 1, y: 1)
+        )
+        XCTAssertEqual(manifest.records.first?.subjectIsolation?.cropMarginFraction, 0.08)
+        XCTAssertEqual(manifest.records.first?.subjectIsolation?.mergeDominanceThreshold, 0.8)
+        XCTAssertEqual(manifest.records.first?.subjectIsolation?.matteRGB, [128, 128, 128])
+        XCTAssertTrue(manifest.records.first?.outputs.isEmpty == true)
+        XCTAssertEqual(manifest.summary.failed, 1)
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: export.appendingPathComponent("IsolationFailure.JPG.aisidecar.subject_isolated.jpg").path))
+    }
+
     func testExportModeDoesNotCreateXMPFiles() async throws {
         let root = try temporaryDirectory()
         let export = try temporaryDirectory()
