@@ -65,17 +65,17 @@ Presentation and state orchestration only (invariant 13); all processing stays i
 | Directory | Owns | Key types |
 |---|---|---|
 | `App/` | `@main` entry, root shell switcher, root-stable workflow observation | `CupricAspectApp`, `RootShellView` |
-| `DesignSystem/` | Design tokens (doc 07 §3), aperture component (§5) | `Theme`, `ApertureView` |
+| `DesignSystem/` | Design tokens (doc 07 §3), aperture component (§5), shared flow layout and compact quality badges | `Theme`, `ApertureView`, `FlowLayout`, `QualityBadge` |
 | `Shells/` | Wizard and Studio presentation chrome; both receive the same root-owned workflow state | `WizardShellView`, `StudioShellView`, `WizardNavigation` |
 | `Features/Flow/` | Shell-independent ownership of feature models, wizard state, phase routing, and run/export intents | `WizardFlowModel` |
 | `Features/ModelDiscovery/` | Shared endpoint-aware discovery of installed vision-capable model tags, including automatic-result reuse, manual refresh, and stale-request suppression | `VisionTagsModel` |
 | `Features/Import/` | Folder import, presentation of Core-derived on-disk queue state, grid/list | `FolderImportModel`, `AssetRecord`/`AssetQueueState`, `AssetGridView`, `Step1PhotosView`, `QueueStateDeriver` (Core input) |
-| `Features/Run/` | Analysis job engine, run-scoped options (including assessment/grading), run views, runtime guidance | `AnalysisRunModel`, `AnalysisOptions`, `Step2ActionView`, `Step3OptionsView`, `RuntimeGuidanceModel` |
-| `Features/Preview/` | Thumbnail/ImageIO decoding and presentation of Core-loaded preview facts and derivative paths | `ThumbnailStore`, `AssetPreviewDetails`, `AssetPreviewSheet`, `AssetPreviewLoader` (Core input) |
-| `Features/Review/` | Candidate review, verdicts/edits, autosave/recovery, presentation of Core-loaded read-only quality rows | `ReviewModel`, `Step5ReviewView`, `ReviewQualityLoader` (Core input) |
+| `Features/Run/` | Analysis job engine, run-scoped options (including assessment/grading), composable run-option cards, run views, runtime guidance | `AnalysisRunModel`, `AnalysisOptions`, `Step2ActionView`, `Step3OptionsView`, `RunModelPickerCard`, `AdvancedOptionsCard`, `QualityGradingOptionsCard`, `RuntimeGuidanceModel` |
+| `Features/Preview/` | Thumbnail/ImageIO decoding and presentation of Core-loaded preview facts and derivative paths | `ThumbnailStore`, `RowThumbnail`, `AssetPreviewDetails`, `AssetPreviewSheet`, `AssetPreviewLoader` (Core input) |
+| `Features/Review/` | Candidate review, verdicts/edits, autosave/recovery, presentation of Core-loaded read-only quality rows | `ReviewModel`, `Step5ReviewView`, `ReviewQualityPanel`, `ReviewQualityLoader` (Core input) |
 | `Features/Normalize/` | Normalization Inspector, session context panel | `NormalizationModel`, `NormalizationInspectorView`, `SessionContextPanel` |
 | `Features/Export/` | Change-plan-fronted writes, apply-only grading controls, scalar plan/result presentation | `ExportModel`, `ChangePlanSheet`, `ExportReportView`, `Step3ApplyView` |
-| `Features/Settings/` | Settings sheet, shared config.json write-through, model picker, quality channel/confidence defaults | `SettingsModel`, `SettingsSheet` |
+| `Features/Settings/` | Settings sheet sections, shared config.json write-through, model picker, quality channel/confidence defaults | `SettingsModel`, `SettingsSheet`, `SettingsControls` |
 | `Support/` | File logging (5 MB cap + rotation), state-dir housekeeping, hidden `CUPRIC_*` feature-flag gates | `FileLogSink` (`GUILog.swift`), `StateHousekeeping`, `FeatureFlags` |
 
 GUI model tests live in `Tests/CupricAspectAppTests` (offline, deterministic — same rules as Core tests).
