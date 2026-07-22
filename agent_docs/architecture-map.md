@@ -44,14 +44,14 @@ All results are `Sendable`; no `@MainActor` coupling; Core never prints directly
 
 | Pipeline | Entry | Async | Purpose |
 |---|---|---|---|
-| `AnalyzePipeline` | `run(inputPath:configuration:interruptionMonitor:writesBatchArtifacts:progressHandler:)` | yes | Phase 1 full analyze → `.ai.json`; resolves one task profile for prompt/schema provenance; per-asset `ProgressRecord` callback (CORE-1/2). For `taggingWithQuality` + `qualityScanMode == .sequential` it internally orchestrates two passes (tagging, then quality-only), emitting one record per pass per asset, keeping cache clear-on-start before pass 1 / clear-after-success after pass 2, and skipping pass 2 on interruption |
+| `AnalyzePipeline` | `run(inputPath:configuration:interruptionMonitor:writesBatchArtifacts:progressHandler:)` | yes | Phase 1 full analyze → `.ai.json`; resolves one task profile for prompt/schema provenance; per-asset `ProgressRecord` callback (CORE-1/2). Standalone callers do not retain decoded written documents. For `taggingWithQuality` + `qualityScanMode == .sequential` it internally orchestrates two passes (tagging, then quality-only), emitting one record per pass per asset, keeping cache clear-on-start before pass 1 / clear-after-success after pass 2, and skipping pass 2 on interruption |
 | `QualityAssessPipeline` | `run(inputPath:configuration:interruptionMonitor:progressHandler:)` | yes | Quality-only adapter over `AnalyzePipeline` → `.quality.ai.json`; forces the standalone contract and suppresses GPS/model-input context |
 | `XMPExportPipeline` | `runFromJSON(...)` / `runResolvedInputs(...)` | no | Phase 2 export; `writesBatchArtifacts: false` suppresses batch artifact files |
 | `NormalizePipeline` | `runSessionOnly(...)` / `runDryRun(...)` / `runWritePlan(...)` | no | Phase 3 session, dry-run plan, or write plan; when grading is enabled, applies the shared grader after keyword normalization (session-only omits unresolved scalar rows) |
 | `NormalizeAndWritePipeline` | `run(...)` | no | Normalize → shared export composition, carrying the resolved grading block unchanged |
 | `ApplySessionPipeline` | `run(...)` | no | Re-apply stored keyword decisions, no model runs; opt-in grading re-resolves current assessment contributors and current XMP |
-| `AnalyzeAndXMPPipeline` | `run(...)` | yes | analyze + write-xmp in one command |
-| `AnalyzeAndNormalizePipeline` | `run(...)` | yes | analyze + normalize (+ export) in one command; carries the selected tagging/combined task profile and grading configuration |
+| `AnalyzeAndXMPPipeline` | `run(...)` | yes | analyze + write-xmp in one command; opts into the written-document handoff, consumes it without rereading fresh sidecars, then drops the result map before export |
+| `AnalyzeAndNormalizePipeline` | `run(...)` | yes | analyze + normalize (+ export) in one command; carries the selected tagging/combined task profile and grading configuration, consumes the opt-in written-document handoff, and drops the result map before normalization |
 | `ModelInputExportPipeline` | `run(...)` | yes | Diagnostic only: rendered model inputs + manifest, no sidecars/model calls |
 
 ## CLI Layer (Sources/AISidecarCLI)
