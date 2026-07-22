@@ -111,11 +111,14 @@ public struct NormalizationClusterRecord: Codable, Sendable, Equatable {
 }
 
 /// Complete graph result used by consensus code and persisted sessions.
+/// All stored fields are immutable because `nodeByID`/`neighborsByNodeID`
+/// are built once at init; pruning or reshaping must happen in the builder
+/// before construction, never on a built graph.
 public struct AssetAffinityGraph: Sendable, Equatable {
-    public var nodes: [NormalizationAffinityNodeRecord]
-    public var edges: [AssetAffinityEdgeRecord]
-    public var clusters: [NormalizationClusterRecord]
-    public var nodeIDByAssetID: [String: String]
+    public let nodes: [NormalizationAffinityNodeRecord]
+    public let edges: [AssetAffinityEdgeRecord]
+    public let clusters: [NormalizationClusterRecord]
+    public let nodeIDByAssetID: [String: String]
     let nodeByID: [String: NormalizationAffinityNodeRecord]
     private let neighborsByNodeID: [String: [IndexedAffinityNeighbor]]
 

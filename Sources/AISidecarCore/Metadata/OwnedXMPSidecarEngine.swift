@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Project-owned XMP sidecar engine for Phase 2 managed keyword fields.
@@ -370,8 +371,8 @@ enum XMPDocumentParsePurpose: Hashable, Sendable {
 }
 
 /// Retains immutable parse bases only while an engine invocation is active.
-/// Each merge receives a deep copy, while file identity changes force a fresh
-/// parse before any mutation can use the cached snapshot.
+/// Each merge receives a deep copy, while a file identity or content change
+/// forces a fresh parse before any mutation can use the cached snapshot.
 private final class XMPPreWriteCache: @unchecked Sendable {
     private struct FileIdentity: Equatable {
         let inode: UInt64
@@ -381,6 +382,7 @@ private final class XMPPreWriteCache: @unchecked Sendable {
 
     private struct Entry {
         let identity: FileIdentity
+        let contentSHA256: Data
         let parsed: XMPParsedDocument
         let snapshot: XMPMetadataSnapshot
     }
@@ -429,14 +431,25 @@ private final class XMPPreWriteCache: @unchecked Sendable {
             let shouldCache = invocationDepth > 0
             for _ in 0..<2 {
                 let identityBeforeParse = try fileIdentity(at: targetPath)
+                // mtime granularity is filesystem-dependent (1-2 s on SMB and
+                // FAT volumes), so a same-size in-place rewrite can slip past
+                // the stat identity alone. Hashing the current bytes on every
+                // lookup closes that hole while still skipping the XML parse —
+                // the expensive part — on a hit.
+                let data = try fileData(at: targetPath)
+                let contentSHA256 = Data(SHA256.hash(data: data))
                 let entry: Entry
                 if shouldCache,
                     let cached = entriesByPath[targetPath],
-                    cached.identity == identityBeforeParse
+                    cached.identity == identityBeforeParse,
+                    cached.contentSHA256 == contentSHA256
                 {
                     entry = cached
                 } else {
-                    let parsed = try XMPDocumentParser(fileManager: fileManagerBox.value).parseFile(at: targetPath)
+                    let parsed = try XMPDocumentParser(fileManager: fileManagerBox.value).parse(
+                        data: data,
+                        targetPath: targetPath
+                    )
                     parseObserver?(.preWrite)
                     let identityAfterParse = try fileIdentity(at: targetPath)
                     guard identityBeforeParse == identityAfterParse else {
@@ -445,6 +458,7 @@ private final class XMPPreWriteCache: @unchecked Sendable {
                     }
                     entry = Entry(
                         identity: identityAfterParse,
+                        contentSHA256: contentSHA256,
                         parsed: parsed,
                         snapshot: try XMPMetadataSnapshot.make(
                             targetPath: targetPath,
@@ -476,6 +490,17 @@ private final class XMPPreWriteCache: @unchecked Sendable {
     func invalidate(targetPath: String) {
         _ = lock.withLock {
             entriesByPath.removeValue(forKey: targetPath)
+        }
+    }
+
+    private func fileData(at targetPath: String) throws -> Data {
+        do {
+            return try Data(contentsOf: URL(fileURLWithPath: targetPath))
+        } catch {
+            throw XMPXML.sidecarError(
+                code: .xmpParseFailed,
+                message: "Unable to read XMP sidecar \(targetPath): \(error.localizedDescription)"
+            )
         }
     }
 

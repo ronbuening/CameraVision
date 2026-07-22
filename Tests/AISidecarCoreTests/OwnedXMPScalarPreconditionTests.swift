@@ -67,9 +67,9 @@ final class OwnedXMPScalarPreconditionTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let target = root.appendingPathComponent("Rewritten-In-Place.xmp")
         try Data(existingRatingThreeXMP.utf8).write(to: target)
-        // Same byte count as the original, rewritten through the existing file:
-        // inode and size stay identical, so only the mtime component of the
-        // pre-write cache's file-identity key can catch this mutation.
+        // Same byte count as the original, rewritten through the existing
+        // file: inode and size stay identical, so only the mtime component of
+        // the identity key or the content hash can catch this mutation.
         let rewrittenData = Data(existingRatingFiveXMP.utf8)
         XCTAssertEqual(rewrittenData.count, Data(existingRatingThreeXMP.utf8).count)
         let engine = OwnedXMPSidecarEngine()
@@ -89,6 +89,54 @@ final class OwnedXMPScalarPreconditionTests: XCTestCase {
         let handle = try FileHandle(forWritingTo: target)
         try handle.write(contentsOf: rewrittenData)
         try handle.close()
+
+        XCTAssertThrowsError(try engine.apply(request)) { error in
+            XCTAssertTrue(error is XMPScalarWritePreconditionFailure)
+        }
+        XCTAssertEqual(try Data(contentsOf: target), rewrittenData)
+    }
+
+    func testApplyDetectsInPlaceRewriteEvenWhenModificationTimeIsRestored() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Backdated-Rewrite.xmp")
+        try Data(existingRatingThreeXMP.utf8).write(to: target)
+        let pinnedModificationDate = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes(
+            [.modificationDate: pinnedModificationDate], ofItemAtPath: target.path
+        )
+        let cachedModificationDate = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: target.path)[.modificationDate] as? Date
+        )
+        let rewrittenData = Data(existingRatingFiveXMP.utf8)
+        XCTAssertEqual(rewrittenData.count, Data(existingRatingThreeXMP.utf8).count)
+        let engine = OwnedXMPSidecarEngine()
+        _ = try engine.prepare(configuration: .builtInDefaults)
+        defer { try? engine.shutdown() }
+        let request = XMPWriteRequest(
+            plan: changePlan(
+                targetPath: target.path,
+                scalar: .rating,
+                plannedValue: "4",
+                existingValue: "3",
+                action: .overwrite
+            )
+        )
+
+        XCTAssertEqual(try engine.preview(request).resultingRating, "4")
+        let handle = try FileHandle(forWritingTo: target)
+        try handle.write(contentsOf: rewrittenData)
+        try handle.close()
+        // Backdating the rewrite to the pinned mtime makes inode, size, and
+        // mtime all match the cached identity: only the content hash can
+        // expose this mutation, on any filesystem's mtime granularity.
+        try FileManager.default.setAttributes(
+            [.modificationDate: pinnedModificationDate], ofItemAtPath: target.path
+        )
+        XCTAssertEqual(
+            try FileManager.default.attributesOfItem(atPath: target.path)[.modificationDate] as? Date,
+            cachedModificationDate
+        )
 
         XCTAssertThrowsError(try engine.apply(request)) { error in
             XCTAssertTrue(error is XMPScalarWritePreconditionFailure)
