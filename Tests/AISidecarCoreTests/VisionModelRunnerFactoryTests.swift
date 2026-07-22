@@ -25,7 +25,7 @@ final class VisionModelRunnerFactoryTests: XCTestCase {
         configuration.modelBackend = .apple
 
         do {
-            _ = try await factory.make(for: configuration)
+            _ = try await factory.resolveBackend(for: configuration)
             XCTFail("expected unavailable backend failure")
         } catch let error as SidecarError {
             XCTAssertEqual(error.code, .modelBackendUnavailable)
@@ -33,6 +33,52 @@ final class VisionModelRunnerFactoryTests: XCTestCase {
             XCTAssertEqual(
                 error.message,
                 "Model backend 'apple' is unavailable: vision input is unavailable"
+            )
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
+    /// A pinned backend is chosen by configuration alone, so constructing its
+    /// runner must not touch the network: runs whose images are all skipped
+    /// never prepare a model and must keep working with the backend down.
+    func testPinnedBackendConstructionPerformsNoAvailabilityProbe() async throws {
+        let probe = FactoryAvailabilityProbe()
+        let ollama = FactoryTestDescriptor(
+            id: .ollama,
+            availability: .unavailable(reason: "connection refused", guidance: .test),
+            probe: probe
+        )
+        let factory = VisionModelRunnerFactory(registry: VisionBackendRegistry(descriptors: [ollama]))
+        var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.modelBackend = .ollama
+
+        let runner = try await factory.make(for: configuration)
+        let probeCount = await probe.count()
+
+        XCTAssertEqual((runner as? FactoryTestRunner)?.backend, .ollama)
+        XCTAssertEqual(probeCount, 0)
+    }
+
+    /// The pinned Apple backend still fails closed — from its own runner, with
+    /// the additive code and the descriptor's reason.
+    func testPinnedAppleRunnerRefusesInsidePrepare() async {
+        let factory = VisionModelRunnerFactory(
+            registry: VisionBackendRegistry(descriptors: [AppleFoundationModelsDescriptor()])
+        )
+        var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.modelBackend = .apple
+
+        do {
+            let runner = try await factory.make(for: configuration)
+            _ = try await runner.prepare(configuration: configuration)
+            XCTFail("expected unavailable backend failure")
+        } catch let error as SidecarError {
+            XCTAssertEqual(error.code, .modelBackendUnavailable)
+            XCTAssertEqual(error.stage, .model)
+            XCTAssertEqual(
+                error.message,
+                "Model backend 'apple' is unavailable: \(AppleFoundationModelsDescriptor.unavailableReason)"
             )
         } catch {
             XCTFail("unexpected error: \(error)")
@@ -102,6 +148,7 @@ final class VisionModelRunnerFactoryTests: XCTestCase {
         )
         let factory = VisionModelRunnerFactory(registry: VisionBackendRegistry(descriptors: [ollama]))
         var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.modelBackend = .auto
         configuration.dryRun = true
 
         let runner = try await factory.make(for: configuration)

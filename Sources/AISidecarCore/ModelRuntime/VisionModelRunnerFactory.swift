@@ -8,15 +8,28 @@ public struct VisionModelRunnerFactory: Sendable {
         self.registry = registry
     }
 
-    /// Resolve and preflight the configured backend before model work begins.
+    /// Construct the runner this run will use.
     ///
-    /// Analysis planning (`dry_run`) never prepares or calls a runner, so it
-    /// preserves its existing offline behavior and skips backend availability I/O.
+    /// A pinned backend needs no availability probe here: the descriptor is
+    /// chosen by configuration alone, and the runner's own `prepare` is the
+    /// fail-closed gate the pipelines already run before any model work. Probing
+    /// eagerly would move that gate earlier than it has ever been, so runs that
+    /// never prepare a model — planning (`dry_run`) and fully skipped reruns —
+    /// would start failing offline, and a pinned Ollama would report the backend
+    /// code for failures that have always been `E_MODEL_ENDPOINT_UNREACHABLE`.
+    ///
+    /// `auto` is the one shape that cannot pick a descriptor without probing, so
+    /// it resolves eagerly (still skipping availability I/O for planning runs).
     public func make(for configuration: ResolvedRunConfiguration) async throws -> any VisionModelRunner {
-        if configuration.dryRun {
-            return try planningDescriptor(for: configuration.modelBackend).makeRunner()
+        switch configuration.modelBackend {
+        case .ollama, .apple:
+            return try registeredDescriptor(for: configuration.modelBackend).makeRunner()
+        case .auto:
+            if configuration.dryRun {
+                return try registeredDescriptor(for: .auto).makeRunner()
+            }
+            return try await resolveBackend(for: configuration).makeRunner()
         }
-        return try await resolveBackend(for: configuration).makeRunner()
     }
 
     /// Resolve a pinned backend, or the first available backend in registry order for `auto`.
@@ -55,7 +68,8 @@ public struct VisionModelRunnerFactory: Sendable {
         }
     }
 
-    private func planningDescriptor(for backend: ModelBackend) throws -> any VisionBackendDescriptor {
+    /// Look up a descriptor without probing it; `auto` takes registry order.
+    private func registeredDescriptor(for backend: ModelBackend) throws -> any VisionBackendDescriptor {
         if backend == .auto, let descriptor = registry.descriptors.first {
             return descriptor
         }

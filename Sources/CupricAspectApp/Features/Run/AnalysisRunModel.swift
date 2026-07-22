@@ -156,9 +156,10 @@ final class AnalysisRunModel {
             var descriptor: (any VisionBackendDescriptor)?
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
-                let resolvedDescriptor = try await runnerFactory.resolveBackend(for: configuration)
-                descriptor = resolvedDescriptor
-                let runner = resolvedDescriptor.makeRunner()
+                descriptor = displayDescriptor(for: configuration.modelBackend)
+                // The factory gates a pinned backend inside `prepare`, so a run
+                // whose images are all skipped still needs no backend I/O.
+                let runner = try await runnerFactory.make(for: configuration)
                 let pipeline = AnalyzePipeline(logger: GUILog.shared.makeLogger(), runner: runner)
                 let result = try await Task.detached(priority: .userInitiated) {
                     try await pipeline.run(
