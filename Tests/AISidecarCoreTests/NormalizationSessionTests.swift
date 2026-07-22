@@ -191,7 +191,13 @@ final class NormalizationSessionTests: XCTestCase {
         decisions[0]["context_type"] = "future_context"
         decisions[0]["namespace"] = "Future Namespace"
         decisions[0]["direct_apply_policy"] = "future_policy"
-        decisions[0]["skip_reasons"] = ["some_future_reason", "direct_apply_flat_only"]
+        decisions[0]["skip_reasons"] = [
+            "direct_apply_flat_only",
+            "some_future_reason",
+            "duplicate",
+            "direct_apply_flat_only",
+            "another_future_reason",
+        ]
         decisions[0]["future_decision_field"] = ["kept": true]
         object["per_asset_decisions"] = decisions
         try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: sessionURL)
@@ -202,7 +208,7 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(decision.status, .withheld)
         XCTAssertFalse(decision.exportFlatKeyword)
         XCTAssertFalse(decision.exportHierarchicalKeyword)
-        XCTAssertEqual(decision.skipReasons, [.directApplyFlatOnly])
+        XCTAssertEqual(decision.skipReasons, [.directApplyFlatOnly, .duplicate, .directApplyFlatOnly])
         XCTAssertNil(decision.contextType)
         XCTAssertNil(decision.namespace)
         XCTAssertNil(decision.directApplyPolicy)
@@ -233,7 +239,13 @@ final class NormalizationSessionTests: XCTestCase {
         XCTAssertEqual(rewrittenDecisions[0]["direct_apply_policy"] as? String, "future_policy")
         XCTAssertEqual(
             rewrittenDecisions[0]["skip_reasons"] as? [String],
-            ["some_future_reason", "direct_apply_flat_only"]
+            [
+                "direct_apply_flat_only",
+                "some_future_reason",
+                "duplicate",
+                "direct_apply_flat_only",
+                "another_future_reason",
+            ]
         )
         XCTAssertEqual(
             (rewrittenDecisions[0]["future_decision_field"] as? [String: Any])?["kept"] as? Bool,
