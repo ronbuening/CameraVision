@@ -3,6 +3,20 @@ import XCTest
 @testable import AISidecarCore
 
 final class XMPExportConfigurationTranslatorTests: XCTestCase {
+    func testTranslatorSentinelsCoverEveryResolvedExportField() {
+        let fieldCount = Mirror(reflecting: ResolvedXMPExportConfiguration.builtInDefaults).children.count
+
+        XCTAssertEqual(
+            fieldCount, 16,
+            """
+            ResolvedXMPExportConfiguration gained or lost a stored field. A field added \
+            with a memberwise default compiles through every translator while staying \
+            unmapped: map it in all three translator inits, extend the sentinel tests \
+            in this file, then update this count.
+            """
+        )
+    }
+
     func testNormalizationTranslatorMapsEveryExportField() {
         let grading = qualityGrading(keywordRoot: "Normalization grading", conflictPolicy: .overwrite)
         var configuration = ResolvedNormalizationConfiguration.builtInDefaults
