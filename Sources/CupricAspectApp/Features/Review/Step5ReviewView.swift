@@ -212,9 +212,9 @@ struct Step5ReviewView: View {
                         .background(theme.accent.soft)
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                     if let tier = row.quality?.tier {
-                        qualityBadge(tier.rawValue, color: qualityTierColor(tier))
+                        QualityBadge(text: tier.rawValue, color: qualityTierColor(tier))
                     } else if row.quality?.ungradedReason != nil {
-                        qualityBadge("ungraded", color: theme.accent.accent)
+                        QualityBadge(text: "ungraded", color: theme.accent.accent)
                     }
                     Text("\(row.chips.count { $0.verdict == .approved }) of \(row.chips.count) approved")
                         .font(.system(size: 11.5, weight: .medium))
@@ -241,7 +241,7 @@ struct Step5ReviewView: View {
                     }
                 }
                 if let quality = row.quality {
-                    qualityAssessmentPanel(quality)
+                    ReviewQualityPanel(quality: quality)
                 }
             }
         }
@@ -250,74 +250,6 @@ struct Step5ReviewView: View {
         .background(theme.panel)
         .clipShape(RoundedRectangle(cornerRadius: 11))
         .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(theme.border))
-    }
-
-    @ViewBuilder
-    private func qualityAssessmentPanel(_ quality: ReviewAssetQualityPresentation) -> some View {
-        if !quality.records.isEmpty || !quality.issueDiagnostics.isEmpty || quality.ungradedReason != nil {
-            Divider().overlay(theme.border)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("QUALITY ASSESSMENT · READ ONLY")
-                    .font(.system(size: 10, weight: .semibold))
-                    .kerning(0.5)
-                    .foregroundStyle(theme.textFaint)
-                ForEach(Array(quality.records.enumerated()), id: \.offset) { _, record in
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(
-                            "\(record.role.rawValue) · overall \(record.overall.rawValue) · confidence \(record.confidence.rawValue)"
-                        )
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(theme.text)
-                        FlowLayout(spacing: 6) {
-                            ForEach(
-                                QualityAssessmentRecord.Criterion.allCases.filter { record.criteria[$0] != nil },
-                                id: \.rawValue
-                            ) { criterion in
-                                if let level = record.criteria[criterion] {
-                                    Text("\(criterion.rawValue): \(level.rawValue)")
-                                        .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                                        .foregroundStyle(theme.textDim)
-                                        .padding(.vertical, 3)
-                                        .padding(.horizontal, 6)
-                                        .background(theme.panel2)
-                                        .clipShape(Capsule())
-                                }
-                            }
-                        }
-                        if !record.strengths.isEmpty {
-                            Text("strengths: " + record.strengths.joined(separator: " · "))
-                                .font(.system(size: 10.5))
-                                .foregroundStyle(theme.green)
-                        }
-                        if !record.concerns.isEmpty {
-                            Text("concerns: " + record.concerns.joined(separator: " · "))
-                                .font(.system(size: 10.5))
-                                .foregroundStyle(theme.accent.accent)
-                        }
-                    }
-                }
-                if let ungradedReason = quality.ungradedReason {
-                    Text(ungradedReason)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(theme.accent.accent)
-                }
-                ForEach(Array(quality.issueDiagnostics.enumerated()), id: \.offset) { _, diagnostic in
-                    Text("diagnostic: \(diagnostic)")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(theme.accent.accent)
-                }
-            }
-        }
-    }
-
-    private func qualityBadge(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-            .foregroundStyle(color)
-            .padding(.vertical, 2)
-            .padding(.horizontal, 6)
-            .background(color.opacity(0.12))
-            .clipShape(Capsule())
     }
 
     private func qualityTierColor(_ tier: QualityTier) -> Color {
@@ -399,82 +331,5 @@ struct Step5ReviewView: View {
                 review.clearFileError()
             } catch { review.reportFileError("Import session", error) }
         }
-    }
-}
-
-/// Thumbnail cell reusing the M3 store; falls back to the extension label.
-private struct RowThumbnail: View {
-    let path: String?
-    let fallback: String
-    let thumbnails: ThumbnailStore
-
-    @Environment(\.cvTheme) private var theme
-    @State private var thumbnail: Thumbnail?
-
-    var body: some View {
-        Group {
-            if let thumbnail {
-                Image(decorative: thumbnail.image, scale: 1)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                Rectangle()
-                    .fill(theme.panel2)
-                    .overlay(
-                        Text(fallback)
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(theme.textFaint)
-                    )
-            }
-        }
-        .frame(width: 70, height: 54)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
-        .task(id: path) {
-            guard let path else { return }
-            thumbnail = await thumbnails.thumbnail(for: path)
-        }
-    }
-}
-
-/// Minimal wrapping layout for keyword chips.
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 7
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        arrange(proposal: proposal, subviews: subviews).size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let arrangement = arrange(proposal: proposal, subviews: subviews)
-        for (subview, position) in zip(subviews, arrangement.positions) {
-            subview.place(
-                at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
-                proposal: .unspecified
-            )
-        }
-    }
-
-    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
-        let maxWidth = proposal.width ?? .infinity
-        var positions: [CGPoint] = []
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var totalWidth: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > 0, x + size.width > maxWidth {
-                x = 0
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            positions.append(CGPoint(x: x, y: y))
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-            totalWidth = max(totalWidth, x - spacing)
-        }
-        return (CGSize(width: totalWidth, height: y + rowHeight), positions)
     }
 }
