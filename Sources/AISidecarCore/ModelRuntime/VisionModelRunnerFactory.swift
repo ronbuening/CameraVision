@@ -2,6 +2,14 @@ import Foundation
 
 /// Resolves one backend for an entire run and constructs its model runner.
 public struct VisionModelRunnerFactory: Sendable {
+    /// The runner a run will use, paired with the configuration the pipelines
+    /// must receive: `model_backend` names the concrete backend the factory
+    /// selected, so an `auto` request can never reach sidecar provenance.
+    public struct Selection: Sendable {
+        public let configuration: ResolvedRunConfiguration
+        public let runner: any VisionModelRunner
+    }
+
     private let registry: VisionBackendRegistry
 
     public init(registry: VisionBackendRegistry = .live) {
@@ -19,16 +27,26 @@ public struct VisionModelRunnerFactory: Sendable {
     /// code for failures that have always been `E_MODEL_ENDPOINT_UNREACHABLE`.
     ///
     /// `auto` is the one shape that cannot pick a descriptor without probing, so
-    /// it resolves eagerly (still skipping availability I/O for planning runs).
-    public func make(for configuration: ResolvedRunConfiguration) async throws -> any VisionModelRunner {
+    /// it resolves eagerly. A planning run (`dry_run`) performs no backend I/O
+    /// and never touches the runner, so `auto` falls back to the default backend
+    /// there instead of probing.
+    public func make(for configuration: ResolvedRunConfiguration) async throws -> Selection {
         switch configuration.modelBackend {
         case .ollama, .apple:
-            return try registeredDescriptor(for: configuration.modelBackend).makeRunner()
+            return Selection(
+                configuration: configuration,
+                runner: try registeredDescriptor(for: configuration.modelBackend).makeRunner()
+            )
         case .auto:
+            let descriptor: any VisionBackendDescriptor
             if configuration.dryRun {
-                return try registeredDescriptor(for: .auto).makeRunner()
+                descriptor = try defaultDescriptor()
+            } else {
+                descriptor = try await resolveBackend(for: configuration)
             }
-            return try await resolveBackend(for: configuration).makeRunner()
+            var stamped = configuration
+            stamped.modelBackend = descriptor.id
+            return Selection(configuration: stamped, runner: descriptor.makeRunner())
         }
     }
 
@@ -68,15 +86,24 @@ public struct VisionModelRunnerFactory: Sendable {
         }
     }
 
-    /// Look up a descriptor without probing it; `auto` takes registry order.
+    /// Look up a pinned descriptor without probing it.
     private func registeredDescriptor(for backend: ModelBackend) throws -> any VisionBackendDescriptor {
-        if backend == .auto, let descriptor = registry.descriptors.first {
-            return descriptor
-        }
         guard let descriptor = registry.descriptor(for: backend) else {
             throw unavailableError(id: backend, reason: "Backend is not registered in this build.")
         }
         return descriptor
+    }
+
+    /// The descriptor `auto` uses when probing is deliberately skipped (planning
+    /// runs). Prefers the built-in default backend so the inert runner a dry run
+    /// carries is the one a default run would construct, regardless of registry
+    /// order; falls back to registry order only when the default is absent.
+    private func defaultDescriptor() throws -> any VisionBackendDescriptor {
+        let defaultBackend = ResolvedRunConfiguration.builtInDefaults.modelBackend
+        if let descriptor = registry.descriptor(for: defaultBackend) ?? registry.descriptors.first {
+            return descriptor
+        }
+        throw unavailableError(id: .auto, reason: "No vision backends are registered in this build.")
     }
 
     private func unavailableError(id: ModelBackend, reason: String) -> SidecarError {

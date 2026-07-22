@@ -10,9 +10,10 @@ final class VisionModelRunnerFactoryTests: XCTestCase {
         var configuration = ResolvedRunConfiguration.builtInDefaults
         configuration.modelBackend = .apple
 
-        let runner = try await factory.make(for: configuration)
+        let selection = try await factory.make(for: configuration)
 
-        XCTAssertEqual((runner as? FactoryTestRunner)?.backend, .apple)
+        XCTAssertEqual((selection.runner as? FactoryTestRunner)?.backend, .apple)
+        XCTAssertEqual(selection.configuration, configuration)
     }
 
     func testPinnedUnavailableBackendFailsWithAdditiveError() async {
@@ -53,10 +54,11 @@ final class VisionModelRunnerFactoryTests: XCTestCase {
         var configuration = ResolvedRunConfiguration.builtInDefaults
         configuration.modelBackend = .ollama
 
-        let runner = try await factory.make(for: configuration)
+        let selection = try await factory.make(for: configuration)
         let probeCount = await probe.count()
 
-        XCTAssertEqual((runner as? FactoryTestRunner)?.backend, .ollama)
+        XCTAssertEqual((selection.runner as? FactoryTestRunner)?.backend, .ollama)
+        XCTAssertEqual(selection.configuration, configuration)
         XCTAssertEqual(probeCount, 0)
     }
 
@@ -70,8 +72,8 @@ final class VisionModelRunnerFactoryTests: XCTestCase {
         configuration.modelBackend = .apple
 
         do {
-            let runner = try await factory.make(for: configuration)
-            _ = try await runner.prepare(configuration: configuration)
+            let selection = try await factory.make(for: configuration)
+            _ = try await selection.runner.prepare(configuration: selection.configuration)
             XCTFail("expected unavailable backend failure")
         } catch let error as SidecarError {
             XCTAssertEqual(error.code, .modelBackendUnavailable)
@@ -92,9 +94,10 @@ final class VisionModelRunnerFactoryTests: XCTestCase {
         var configuration = ResolvedRunConfiguration.builtInDefaults
         configuration.modelBackend = .auto
 
-        let runner = try await factory.make(for: configuration)
+        let selection = try await factory.make(for: configuration)
 
-        XCTAssertEqual((runner as? FactoryTestRunner)?.backend, .apple)
+        XCTAssertEqual((selection.runner as? FactoryTestRunner)?.backend, .apple)
+        XCTAssertEqual(selection.configuration.modelBackend, .apple)
     }
 
     func testAutoFallsBackAfterUnavailableAppleBackend() async throws {
@@ -151,11 +154,66 @@ final class VisionModelRunnerFactoryTests: XCTestCase {
         configuration.modelBackend = .auto
         configuration.dryRun = true
 
-        let runner = try await factory.make(for: configuration)
+        let selection = try await factory.make(for: configuration)
         let probeCount = await probe.count()
 
-        XCTAssertEqual((runner as? FactoryTestRunner)?.backend, .ollama)
+        XCTAssertEqual((selection.runner as? FactoryTestRunner)?.backend, .ollama)
+        XCTAssertEqual(selection.configuration.modelBackend, .ollama)
         XCTAssertEqual(probeCount, 0)
+    }
+
+    /// With the live Apple-first registry order, an `auto` planning run must
+    /// still carry the default backend's inert runner — not the Apple stub —
+    /// and must not probe anyone.
+    func testAutoDryRunPrefersDefaultBackendRegardlessOfRegistryOrder() async throws {
+        let probe = FactoryAvailabilityProbe()
+        let apple = FactoryTestDescriptor(id: .apple, availability: .available, probe: probe)
+        let ollama = FactoryTestDescriptor(
+            id: .ollama,
+            availability: .unavailable(reason: "connection refused", guidance: .test),
+            probe: probe
+        )
+        let factory = VisionModelRunnerFactory(registry: VisionBackendRegistry(descriptors: [apple, ollama]))
+        var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.modelBackend = .auto
+        configuration.dryRun = true
+
+        let selection = try await factory.make(for: configuration)
+        let probeCount = await probe.count()
+
+        XCTAssertEqual((selection.runner as? FactoryTestRunner)?.backend, .ollama)
+        XCTAssertEqual(selection.configuration.modelBackend, .ollama)
+        XCTAssertEqual(probeCount, 0)
+    }
+
+    /// The D8-B1 guarantee, reachable half: an `auto` request that resolves the
+    /// default backend hands the pipelines a configuration that is byte-identical
+    /// to a pinned-Ollama run, so `"auto"` can never reach sidecar provenance.
+    func testAutoResolvingOllamaStampsConfigurationByteIdenticalToPinnedRun() async throws {
+        let apple = FactoryTestDescriptor(
+            id: .apple,
+            availability: .unavailable(reason: "no vision API", guidance: .test)
+        )
+        let ollama = FactoryTestDescriptor(id: .ollama, availability: .available)
+        let factory = VisionModelRunnerFactory(registry: VisionBackendRegistry(descriptors: [apple, ollama]))
+        var autoConfiguration = ResolvedRunConfiguration.builtInDefaults
+        autoConfiguration.modelBackend = .auto
+        var pinnedConfiguration = autoConfiguration
+        pinnedConfiguration.modelBackend = .ollama
+
+        let selection = try await factory.make(for: autoConfiguration)
+
+        XCTAssertEqual(selection.configuration.modelBackend, .ollama)
+        XCTAssertEqual(selection.configuration, pinnedConfiguration)
+        let encoder = JSONCoding.documentEncoder()
+        XCTAssertEqual(
+            try encoder.encode(selection.configuration),
+            try encoder.encode(pinnedConfiguration)
+        )
+        XCTAssertFalse(
+            String(decoding: try encoder.encode(selection.configuration), as: UTF8.self)
+                .contains("model_backend")
+        )
     }
 }
 

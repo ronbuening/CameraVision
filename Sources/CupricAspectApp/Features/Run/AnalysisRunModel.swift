@@ -159,12 +159,12 @@ final class AnalysisRunModel {
                 descriptor = displayDescriptor(for: configuration.modelBackend)
                 // The factory gates a pinned backend inside `prepare`, so a run
                 // whose images are all skipped still needs no backend I/O.
-                let runner = try await runnerFactory.make(for: configuration)
-                let pipeline = AnalyzePipeline(logger: GUILog.shared.makeLogger(), runner: runner)
+                let selection = try await runnerFactory.make(for: configuration)
+                let pipeline = AnalyzePipeline(logger: GUILog.shared.makeLogger(), runner: selection.runner)
                 let result = try await Task.detached(priority: .userInitiated) {
                     try await pipeline.run(
                         inputPath: inputPath,
-                        configuration: configuration,
+                        configuration: selection.configuration,
                         interruptionMonitor: monitor,
                         writesBatchArtifacts: false,
                         progressHandler: { continuation.yield($0) }

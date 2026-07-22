@@ -176,11 +176,11 @@ struct WriteXMPCommand: AsyncParsableCommand {
             )
         case .analyzeAndWrite(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
-            let runner = try await VisionModelRunnerFactory().make(for: runConfiguration)
+            let selection = try await VisionModelRunnerFactory().make(for: runConfiguration)
             let result = try await withAsyncBatchInterruptionExit {
-                try await AnalyzeAndXMPPipeline(logger: logger, runner: runner).run(
+                try await AnalyzeAndXMPPipeline(logger: logger, runner: selection.runner).run(
                     inputPath: inputPath,
-                    runConfiguration: runConfiguration,
+                    runConfiguration: selection.configuration,
                     exportConfiguration: exportConfiguration,
                     interruptionMonitor: interruptionMonitor
                 )

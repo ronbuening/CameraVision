@@ -245,11 +245,11 @@ struct NormalizeCommand: AsyncParsableCommand {
         case .analyze(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
-            let runner = try await VisionModelRunnerFactory().make(for: runConfiguration)
+            let selection = try await VisionModelRunnerFactory().make(for: runConfiguration)
             let result = try await withAsyncBatchInterruptionExit {
-                try await AnalyzeAndNormalizePipeline(logger: logger, runner: runner).run(
+                try await AnalyzeAndNormalizePipeline(logger: logger, runner: selection.runner).run(
                     inputPath: inputPath,
-                    runConfiguration: runConfiguration,
+                    runConfiguration: selection.configuration,
                     normalizationConfiguration: resolved,
                     interruptionMonitor: interruptionMonitor
                 )
