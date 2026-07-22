@@ -169,6 +169,10 @@ final class CandidateCanonicalizerTests: XCTestCase {
                 "unknown subject",
                 "45.1, -122.7",
             ])
+        XCTAssertEqual(
+            result.skips.map(\.skipID),
+            ["skip-000001", "skip-000002", "skip-000003", "skip-000004"]
+        )
     }
 
     func testUnmatchedSpeciesFallbackCollapsesAcrossBatchToFlatDirectModelDecisions() throws {
@@ -308,6 +312,52 @@ final class CandidateCanonicalizerTests: XCTestCase {
         XCTAssertEqual(result.skips.first?.sourceField, .species)
     }
 
+    func testSpecificPolicySkipOnlyBlocksUnmatchedControlledCandidate() throws {
+        let vocabulary = try loadedVocabulary(entries: [
+            subjectRoot(),
+            VocabularyEntry(
+                canonicalPath: "Subject|Great Blue Heron",
+                flatKeyword: "Great Blue Heron",
+                namespace: .subject,
+                parentPath: "Subject",
+                synonyms: ["Ardea herodias"],
+                requiresReview: false,
+                directApplyPolicy: .allow
+            ),
+        ])
+        let extraction = try extractionResult(
+            allowSpecificTags: false,
+            responses: [
+                (
+                    .wholeImage,
+                    response([
+                        .proposedKeywords: .array([
+                            candidate("Ardea herodias", confidence: "high")
+                        ])
+                    ])
+                )
+            ]
+        )
+
+        let controlled = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+            extractionResults: [extraction],
+            input: inputBatch(),
+            configuration: normalizationConfiguration()
+        )
+        var observedConfiguration = normalizationConfiguration()
+        observedConfiguration.vocabularyMode = .observedTags
+        let observed = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+            extractionResults: [extraction],
+            input: inputBatch(),
+            configuration: observedConfiguration
+        )
+
+        XCTAssertEqual(controlled.perAssetDecisions.map(\.canonicalPath), ["Subject|Great Blue Heron"])
+        XCTAssertTrue(controlled.skips.isEmpty)
+        XCTAssertTrue(observed.perAssetDecisions.isEmpty)
+        XCTAssertEqual(observed.skips.map(\.reason), [.specificTagPolicy])
+    }
+
     func testOffModeUsesPhase2FallbackWithoutVocabularyMapping() throws {
         let vocabulary = try loadedVocabulary()
         let extraction = try extractionResult(responses: [
@@ -425,6 +475,24 @@ final class CandidateCanonicalizerTests: XCTestCase {
         XCTAssertEqual(decision.flatKeyword, "Folder Mystery")
         XCTAssertNil(decision.hierarchicalKeyword)
         XCTAssertEqual(decision.skipReasons, [.unknownSessionContextFlatOnly])
+    }
+
+    func testUnknownPipeSessionContextPreservesVocabularyRejectionPrecedence() throws {
+        let vocabulary = try loadedVocabulary()
+        var configuration = normalizationConfiguration()
+        configuration.sessionSubject = "Unknown|Path"
+
+        XCTAssertThrowsError(
+            try CandidateCanonicalizer.preflightSessionContext(
+                configuration: configuration,
+                vocabulary: vocabulary
+            )
+        ) { error in
+            XCTAssertEqual(
+                (error as? SidecarError)?.message,
+                "Unknown subject session context does not match vocabulary: Unknown|Path"
+            )
+        }
     }
 
     func testWriteUnnormalizedSessionContextHonorsDisabledGlobalFlatExport() throws {
