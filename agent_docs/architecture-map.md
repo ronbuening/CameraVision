@@ -64,9 +64,10 @@ Presentation and state orchestration only (invariant 13); all processing stays i
 
 | Directory | Owns | Key types |
 |---|---|---|
-| `App/` | `@main` entry, root shell switcher | `CupricAspectApp`, `RootShellView` |
+| `App/` | `@main` entry, root shell switcher, root-stable workflow observation | `CupricAspectApp`, `RootShellView` |
 | `DesignSystem/` | Design tokens (doc 07 §3), aperture component (§5) | `Theme`, `ApertureView` |
-| `Shells/` | Wizard chrome (step rail, footer nav); Studio chrome is M9 | `WizardShellView`, `StudioShellView` |
+| `Shells/` | Wizard and Studio presentation chrome; both receive the same root-owned workflow state | `WizardShellView`, `StudioShellView`, `WizardNavigation` |
+| `Features/Flow/` | Shell-independent ownership of feature models, wizard state, phase routing, and run/export intents | `WizardFlowModel` |
 | `Features/Import/` | Folder import, presentation of Core-derived on-disk queue state, grid/list | `FolderImportModel`, `AssetRecord`/`AssetQueueState`, `AssetGridView`, `Step1PhotosView`, `QueueStateDeriver` (Core input) |
 | `Features/Run/` | Analysis job engine, run-scoped options (including assessment/grading), run views, runtime guidance | `AnalysisRunModel`, `AnalysisOptions`, `Step2ActionView`, `Step3OptionsView`, `RuntimeGuidanceModel` |
 | `Features/Preview/` | Thumbnail/ImageIO decoding and presentation of Core-loaded preview facts and derivative paths | `ThumbnailStore`, `AssetPreviewDetails`, `AssetPreviewSheet`, `AssetPreviewLoader` (Core input) |
