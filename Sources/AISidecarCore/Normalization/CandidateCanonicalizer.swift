@@ -318,7 +318,7 @@ public struct CandidateCanonicalizer {
                         }
                         let fallbackKey = SpeciesFallbackDecisionKey(
                             assetID: assetID,
-                            speciesKey: speciesFallbackKey(for: candidate.normalizedTerm)
+                            speciesKey: VocabularyTextFolder.variantKey(for: candidate.normalizedTerm)
                         )
                         if speciesFallbackAccumulators[fallbackKey] == nil {
                             speciesFallbackAccumulators[fallbackKey] = SpeciesFallbackDecisionAccumulator(
@@ -857,19 +857,6 @@ public struct CandidateCanonicalizer {
         }
     }
 
-    private func speciesFallbackKey(for normalizedTerm: String) -> String {
-        let separatorFolded = VocabularyTextFolder.separatorInsensitiveFold(normalizedTerm)
-        let variants =
-            [separatorFolded]
-            + VocabularyTextFolder
-            .finalTokenVariantSeparatorInsensitiveFolds(separatorFolded)
-        return
-            variants
-            .filter { !$0.isEmpty }
-            .sorted()
-            .first ?? separatorFolded
-    }
-
     private func speciesFallbackDisplayTerms(
         from accumulators: [SpeciesFallbackDecisionKey: SpeciesFallbackDecisionAccumulator]
     ) -> [String: String] {
@@ -877,44 +864,10 @@ public struct CandidateCanonicalizer {
             entry.key.speciesKey
         }
         return observationsBySpeciesKey.mapValues { entries in
-            preferredSpeciesFallbackDisplayTerm(
-                observations: entries.flatMap { $0.value.observations }
+            DisplayTermRanking.preferredTerm(
+                in: entries.flatMap { $0.value.observations }.map(\.normalizedTerm).filter { !$0.isEmpty }
             )
         }
-    }
-
-    private func preferredSpeciesFallbackDisplayTerm(observations: [CandidateObservation]) -> String {
-        let terms = observations.map(\.normalizedTerm).filter { !$0.isEmpty }
-        let counts = frequencyCounts(terms)
-        let keyedTerms = terms.map { (term: $0, lowercased: $0.lowercased()) }
-        return keyedTerms.sorted { lhs, rhs in
-            let lhsCount = counts[lhs.term, default: 0]
-            let rhsCount = counts[rhs.term, default: 0]
-            if lhsCount != rhsCount {
-                return lhsCount > rhsCount
-            }
-            let lhsTitleScore = titleCaseWordCount(lhs.term)
-            let rhsTitleScore = titleCaseWordCount(rhs.term)
-            if lhsTitleScore != rhsTitleScore {
-                return lhsTitleScore > rhsTitleScore
-            }
-            if lhs.term.count != rhs.term.count {
-                return lhs.term.count < rhs.term.count
-            }
-            if lhs.lowercased != rhs.lowercased {
-                return lhs.lowercased < rhs.lowercased
-            }
-            return lhs.term < rhs.term
-        }.first?.term ?? ""
-    }
-
-    private func titleCaseWordCount(_ value: String) -> Int {
-        value.split(whereSeparator: \.isWhitespace).filter { word in
-            guard let first = word.first, first.isUppercase else {
-                return false
-            }
-            return word.dropFirst().contains { $0.isLowercase }
-        }.count
     }
 
     private static func convert(reason: SkippedCandidateReason) -> NormalizationCandidateSkipReason {

@@ -12,6 +12,13 @@ public enum VocabularyTextFolder {
             .joined(separator: " ")
     }
 
+    /// Collapse separator and simple final-token number variants to one deterministic key.
+    static func variantKey(for value: String) -> String {
+        let separatorFolded = separatorInsensitiveFold(value)
+        let variants = [separatorFolded] + finalTokenVariantSeparatorInsensitiveFolds(separatorFolded)
+        return variants.filter { !$0.isEmpty }.sorted().first ?? separatorFolded
+    }
+
     /// Build the guarded fallback lookup key for model-style punctuation variants.
     static func separatorInsensitiveFold(_ value: String) -> String {
         let scalars = Array(
