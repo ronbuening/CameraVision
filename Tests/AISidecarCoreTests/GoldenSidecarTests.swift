@@ -89,6 +89,61 @@ final class GoldenSidecarTests: XCTestCase {
         try assertNoXMPFiles(in: [root, output, cacheDir])
     }
 
+    func testAppleBackendRecordedFixtureMatchesAdditiveProvenanceGolden() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Bird.JPG", width: 120, height: 80, in: root)
+        let cacheDir = output.appendingPathComponent("cache")
+        let maskProvider = StaticForegroundMaskProvider([
+            StaticMaskSpec(index: 1, rect: CGRect(x: 45, y: 20, width: 30, height: 25))
+        ])
+        let configuration = config(
+            outputDir: output.path,
+            cacheDir: cacheDir.path,
+            modelBackend: .apple
+        )
+        let fixture = try await recordedFixture(
+            image: image,
+            configuration: configuration,
+            maskProvider: maskProvider
+        )
+
+        let result = try await AnalyzePipeline(
+            logger: Logger(sink: { _ in }),
+            maskProvider: maskProvider,
+            runner: RecordedFixtureRunner(fixture: fixture),
+            now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_003_000))
+        ).run(inputPath: image.path, configuration: configuration)
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        let sidecarURL = output.appendingPathComponent("Bird.JPG.ai.json")
+        let sidecarData = try Data(contentsOf: sidecarURL)
+        let actual = try normalizedJSONString(for: try JSONDecoder().decode(JSONValue.self, from: sidecarData))
+        let expected = try normalizedJSONString(
+            for: try fixtureJSON(
+                name: "phase1-apple-backend-normalized",
+                extension: "json",
+                subdirectory: "golden-sidecars"
+            ))
+
+        XCTAssertEqual(actual, expected)
+        let decoded = try JSONCoding.decoder().decode(RawJSONSidecar.self, from: sidecarData)
+        XCTAssertEqual(decoded.runConfiguration.modelBackend, .apple)
+        XCTAssertEqual(decoded.modelRuns.map(\.runtime), ["apple-foundation-models", "apple-foundation-models"])
+        XCTAssertEqual(decoded.modelRuns.map(\.modelDigest), ["system:25A123", "system:25A123"])
+        let firstRun = try XCTUnwrap(decoded.modelRuns.first)
+        let roundTrip = try JSONCoding.decoder().decode(
+            ModelRunRecord.self,
+            from: JSONCoding.documentEncoder().encode(firstRun)
+        )
+        XCTAssertEqual(roundTrip, firstRun)
+        try assertNoXMPFiles(in: [root, output, cacheDir])
+    }
+
     private func recordedFixture(
         image: URL,
         configuration: ResolvedRunConfiguration,
@@ -122,13 +177,7 @@ final class GoldenSidecarTests: XCTestCase {
             configuration: configuration
         )
         let subject = try XCTUnwrap(isolation.derivative)
-        let context = ModelRuntimeContext(
-            model: "gemma4:26b-a4b-it-qat",
-            modelDigest: "sha256:goldenmodeldigest",
-            runtimeVersion: "0.12.6",
-            endpoint: URL(string: "http://localhost:11434")!,
-            installedVisionTags: ["gemma4:26b-a4b-it-qat"]
-        )
+        let context = runtimeContext(for: configuration.modelBackend)
 
         return RecordedModelFixture(
             context: context,
@@ -193,9 +242,10 @@ final class GoldenSidecarTests: XCTestCase {
     private func config(
         outputDir: String,
         cacheDir: String,
-        taskProfile: ModelTaskProfile = .tagging
+        taskProfile: ModelTaskProfile = .tagging,
+        modelBackend: ModelBackend = .ollama
     ) -> ResolvedRunConfiguration {
-        ResolvedRunConfiguration(
+        var configuration = ResolvedRunConfiguration(
             mode: .both,
             existing: .overwrite,
             recursive: false,
@@ -212,6 +262,28 @@ final class GoldenSidecarTests: XCTestCase {
             derivativeCacheDir: cacheDir,
             derivativeCacheSizeBytes: 20 * 1024 * 1024,
             stageConcurrency: 1
+        )
+        configuration.modelBackend = modelBackend
+        return configuration
+    }
+
+    private func runtimeContext(for backend: ModelBackend) -> ModelRuntimeContext {
+        if backend == .apple {
+            return ModelRuntimeContext(
+                model: AppleFoundationModelsRunner.modelIdentifier,
+                modelDigest: AppleFoundationModelsRunner.modelDigest(osBuild: "25A123"),
+                runtime: AppleFoundationModelsRunner.runtimeIdentifier,
+                runtimeVersion: "26.0",
+                endpoint: URL(string: "apple-foundation-models://system")!,
+                installedVisionTags: [AppleFoundationModelsRunner.modelIdentifier]
+            )
+        }
+        return ModelRuntimeContext(
+            model: "gemma4:26b-a4b-it-qat",
+            modelDigest: "sha256:goldenmodeldigest",
+            runtimeVersion: "0.12.6",
+            endpoint: URL(string: "http://localhost:11434")!,
+            installedVisionTags: ["gemma4:26b-a4b-it-qat"]
         )
     }
 
