@@ -42,6 +42,12 @@
   // Use null to write beside source inputs where the command supports that.
   "output_dir": null,
 
+  // Local model backend used by commands that run analysis. Options: "ollama",
+  // "apple", or "auto". The default is "ollama". The Apple backend remains
+  // unavailable until a vision-capable Apple on-device model exists.
+  // CLI: --model-backend. Environment: AISIDECAR_MODEL_BACKEND.
+  "model_backend": "ollama",
+
   // Ollama model tag used by analyze, analyze-and-write, and analyze-and-normalize.
   "model": "gemma4:26b-a4b-it-qat",
 
