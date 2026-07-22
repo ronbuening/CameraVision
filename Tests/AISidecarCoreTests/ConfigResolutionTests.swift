@@ -813,6 +813,7 @@ final class ConfigResolutionTests: XCTestCase {
 
     func testResolvedNormalizationConfigurationRoundTripsAndDefaultsLegacyQualityBlock() throws {
         var current = ResolvedNormalizationConfiguration.builtInDefaults
+        current.stageConcurrency = 3
         current.qualityGrading = ResolvedQualityGradingConfiguration(
             enabled: true,
             conflictPolicy: .refresh,
@@ -823,16 +824,20 @@ final class ConfigResolutionTests: XCTestCase {
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let qualityObject = try XCTUnwrap(object["quality_grading"] as? [String: Any])
         XCTAssertEqual(qualityObject["conflict_policy"] as? String, "refresh")
+        XCTAssertEqual(object["stage_concurrency"] as? Int, 3)
         XCTAssertEqual(try JSONDecoder().decode(ResolvedNormalizationConfiguration.self, from: data), current)
 
         object.removeValue(forKey: "quality_grading")
+        object.removeValue(forKey: "stage_concurrency")
         let legacyData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         let legacy = try JSONDecoder().decode(ResolvedNormalizationConfiguration.self, from: legacyData)
         XCTAssertEqual(legacy.qualityGrading, .builtInDefaults)
+        XCTAssertNil(legacy.stageConcurrency)
 
         let defaultData = try JSONEncoder().encode(ResolvedNormalizationConfiguration.builtInDefaults)
         let defaultObject = try XCTUnwrap(JSONSerialization.jsonObject(with: defaultData) as? [String: Any])
         XCTAssertNil(defaultObject["quality_grading"])
+        XCTAssertNil(defaultObject["stage_concurrency"])
     }
 
     func testResolvedApplySessionConfigurationRoundTripsAndDefaultsLegacyQualityBlock() throws {

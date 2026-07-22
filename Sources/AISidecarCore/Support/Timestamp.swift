@@ -28,4 +28,8 @@ public enum Timestamp {
     public static func filenameToken(_ date: Date, suffix: String) -> String {
         "\(filenameSafe(date))-\(suffix)"
     }
+
+    static func durationMs(from start: Date, to end: Date) -> Int {
+        max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
+    }
 }

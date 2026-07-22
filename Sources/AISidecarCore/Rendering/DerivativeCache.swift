@@ -635,17 +635,6 @@ private enum ArtifactRemovalResult {
     case failed(Error)
 }
 
-extension DerivativeFormat {
-    fileprivate var fileExtension: String {
-        switch self {
-        case .jpeg:
-            return "jpg"
-        case .tiff:
-            return "tiff"
-        }
-    }
-}
-
 private struct CacheManifest: Codable {
     var schemaVersion = "aisidecar-derivative-cache/1.0"
     var entries: [String: CacheManifestEntry] = [:]

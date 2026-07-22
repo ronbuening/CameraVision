@@ -3,19 +3,6 @@ import AppKit
 import Foundation
 import Observation
 
-enum VisionTagState: Equatable {
-    case idle
-    case loading
-    case loaded
-    case failed(message: String)
-}
-
-enum VisionTagLoader {
-    static func listInstalledVisionTags(endpoint: URL) async throws -> [String] {
-        try await OllamaVisionRunner().listInstalledVisionTags(endpoint: endpoint)
-    }
-}
-
 /// Settings state (FR4-056/057): reads through the same resolver chain as
 /// every run (CLI flag > env > config.json > defaults) and writes user
 /// changes back to the shared `config.json` via `ConfigFileEditor`, so CLI
@@ -27,6 +14,7 @@ enum VisionTagLoader {
 final class SettingsModel {
     private let configPath: String
     private let environment: [String: String]
+    let visionTagsModel: VisionTagsModel
 
     private(set) var model = ""
     private(set) var endpoint = ""
@@ -52,21 +40,22 @@ final class SettingsModel {
     /// AISIDECAR_* variables present in the environment (precedence notice).
     private(set) var environmentOverrides: [String] = []
 
-    private(set) var visionTags: [String] = []
-    private(set) var visionTagState: VisionTagState = .idle
-
     var endpointDraft = ""
 
     init(
         configPath: String = ConfigurationResolver.defaultConfigPath(),
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        visionTagsModel: VisionTagsModel = VisionTagsModel()
     ) {
         self.configPath = configPath
         self.environment = environment
+        self.visionTagsModel = visionTagsModel
         reload()
     }
 
     var configPathDisplay: String { configPath }
+    var visionTags: [String] { visionTagsModel.tags }
+    var visionTagState: VisionTagState { visionTagsModel.state }
 
     func reload() {
         do {
@@ -170,20 +159,15 @@ final class SettingsModel {
     // MARK: - Model picker (FR4-057, CORE-8)
 
     func refreshVisionTags() {
-        guard visionTagState != .loading else { return }
         guard let url = URL(string: endpoint) else { return }
-        visionTagState = .loading
         Task {
-            do {
-                let tags = try await VisionTagLoader.listInstalledVisionTags(endpoint: url)
-                visionTags = tags
-                visionTagState = .loaded
-            } catch {
-                visionTags = []
-                let message = (error as? SidecarError)?.message ?? error.localizedDescription
-                visionTagState = .failed(message: message)
-            }
+            await visionTagsModel.refresh(endpoint: url)
         }
+    }
+
+    func loadVisionTagsIfNeeded() async {
+        guard let url = URL(string: endpoint) else { return }
+        await visionTagsModel.loadIfNeeded(endpoint: url)
     }
 
     /// The configured model is missing or lost its vision capability.

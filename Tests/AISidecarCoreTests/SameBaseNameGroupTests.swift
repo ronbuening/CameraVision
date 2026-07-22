@@ -29,6 +29,35 @@ final class SameBaseNameGroupTests: XCTestCase {
         XCTAssertEqual(plan.groupWarnings.count, 1)
     }
 
+    func testRawJPEGPairKeywordPlanMatchesPostC3FixtureBytes() throws {
+        let raw = try input(fileName: "Bird.NEF", type: .nef)
+        let jpeg = try input(fileName: "Bird.JPG", type: .jpg)
+        let document = XMPChangePlanner().plan(
+            inputBatch: RawJSONSidecarInputBatch(inputs: [raw, jpeg], failures: []),
+            extractionResults: [
+                extraction(for: raw, terms: ["bird", "wetland"]),
+                extraction(for: jpeg, terms: ["Bird", "portrait"]),
+            ],
+            configuration: .builtInDefaults
+        )
+
+        let encoded = try JSONCoding.documentEncoder().encode(document)
+        let fixtureURL = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: "keyword-pair-plan-post-c3",
+                withExtension: "json",
+                subdirectory: "xmp-plans"
+            )
+                ?? Bundle.module.url(forResource: "keyword-pair-plan-post-c3", withExtension: "json")
+        )
+        var expected = try Data(contentsOf: fixtureURL)
+        if expected.last == UInt8(ascii: "\n") {
+            expected.removeLast()
+        }
+
+        XCTAssertEqual(encoded, expected)
+    }
+
     func testRawOnlyPairScopeSelectsOnlyRawLikeMembers() throws {
         let raw = try input(fileName: "Bird.NEF", type: .nef)
         let jpeg = try input(fileName: "Bird.JPG", type: .jpg)

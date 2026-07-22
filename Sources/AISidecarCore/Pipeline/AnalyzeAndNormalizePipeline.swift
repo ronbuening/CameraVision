@@ -120,16 +120,18 @@ public struct AnalyzeAndNormalizePipeline {
         let shouldClearDerivativeCacheAfterOverallSuccess = analyzeConfiguration.clearDerivativeCacheAfterSuccess
         analyzeConfiguration.clearDerivativeCacheAfterSuccess = false
 
-        let analyzeResult = try await analyzePipeline.run(
+        var analyzeResult = try await analyzePipeline.run(
             inputPath: inputPath,
             configuration: analyzeConfiguration,
-            interruptionMonitor: interruptionMonitor
+            interruptionMonitor: interruptionMonitor,
+            retainsWrittenSidecars: true
         )
         let rawBatch = RawSidecarBatchHelpers.rawInputBatch(
             from: analyzeResult,
             failureContext: "normalization",
             fileManager: fileManager
         )
+        analyzeResult.writtenSidecarsByPath = nil
         let resolvedInput = NormalizationInputResolver(fileManager: fileManager).resolve(
             rawSidecarBatch: rawBatch,
             workflow: .analyze,
@@ -196,24 +198,7 @@ public struct AnalyzeAndNormalizePipeline {
     private func xmpConfiguration(
         from configuration: ResolvedNormalizationConfiguration
     ) -> ResolvedXMPExportConfiguration {
-        ResolvedXMPExportConfiguration(
-            recursive: configuration.recursive,
-            outputDir: configuration.outputDir,
-            logLevel: configuration.logLevel,
-            logFormat: configuration.logFormat,
-            dryRun: configuration.dryRun,
-            sourceRoot: configuration.sourceRoot,
-            sourceVerification: configuration.sourceVerification,
-            writeFlatKeywords: configuration.writeFlatKeywords,
-            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
-            backupSidecars: configuration.backupSidecars,
-            xmpConflictPolicy: configuration.xmpConflictPolicy,
-            minConfidence: configuration.minConfidence,
-            allowSpecificTags: configuration.allowSpecificTags,
-            pairScope: configuration.pairScope,
-            writeAIJSON: configuration.writeAIJSON,
-            qualityGrading: configuration.qualityGrading
-        )
+        ResolvedXMPExportConfiguration(from: configuration)
     }
 
 }

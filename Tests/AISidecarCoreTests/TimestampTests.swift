@@ -34,6 +34,20 @@ final class TimestampTests: XCTestCase {
         XCTAssertTrue(suffix.allSatisfy { $0.isNumber || ("a"..."f").contains(String($0)) })
     }
 
+    func testDurationMillisecondsRoundsToNearestMillisecond() {
+        let start = Date(timeIntervalSince1970: 100)
+
+        XCTAssertEqual(Timestamp.durationMs(from: start, to: start.addingTimeInterval(0.0014)), 1)
+        XCTAssertEqual(Timestamp.durationMs(from: start, to: start.addingTimeInterval(0.0016)), 2)
+    }
+
+    func testDurationMillisecondsIsZeroForZeroAndNegativeIntervals() {
+        let start = Date(timeIntervalSince1970: 100)
+
+        XCTAssertEqual(Timestamp.durationMs(from: start, to: start), 0)
+        XCTAssertEqual(Timestamp.durationMs(from: start, to: start.addingTimeInterval(-1)), 0)
+    }
+
     func testCleanupClassifiesLegacyAndFilesystemSafeArtifactNames() {
         XCTAssertEqual(
             ArtifactCleanup.classify(fileName: "batch-progress-2026-07-07T18:00:00Z.jsonl"),

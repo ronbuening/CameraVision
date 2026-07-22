@@ -14,6 +14,7 @@ enum PreferenceKeys {
 /// shells (FR4-040). Both shells bind to the same persisted state, so
 /// switching loses nothing.
 struct RootShellView: View {
+    @State private var flow = WizardFlowModel()
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @AppStorage(PreferenceKeys.accent) private var accentChoice: AccentChoice = .copper
     @AppStorage(PreferenceKeys.nonlinear) private var nonlinear = false
@@ -25,13 +26,31 @@ struct RootShellView: View {
         // preference is never consulted, so the window is always the Wizard.
         ThemedContainer(accent: accentChoice) {
             if FeatureFlags.studioUI, nonlinear {
-                StudioShellView()
+                StudioShellView(flow: flow)
             } else {
-                WizardShellView()
+                WizardShellView(flow: flow)
             }
         }
         .preferredColorScheme(themeChoice.preferredColorScheme)
         .frame(minWidth: 1040, minHeight: 720)
+        .task {
+            await flow.activate()
+        }
+        .onChange(of: flow.runModel.phase) { _, phase in
+            flow.handleRunPhase(phase)
+        }
+        .onChange(of: flow.normalizationModel.phase) { _, phase in
+            flow.handleNormalizationPhase(phase)
+        }
+        .onChange(of: flow.exportModel.phase) { _, phase in
+            flow.handleExportPhase(phase)
+        }
+        .onChange(of: flow.reviewModel.session?.session.sessionID) { _, _ in
+            flow.handleReviewSessionChange()
+        }
+        .onChange(of: flow.importModel.sourceFolder?.path) { oldPath, newPath in
+            flow.handleSourcePathChange(oldPath: oldPath, newPath: newPath)
+        }
     }
 }
 

@@ -5,7 +5,7 @@ import XCTest
 /// CORE-7 (M4): review verdicts stored in the session document, and the
 /// apply-session guarantee that only the approved set is written (AC4-013).
 final class SessionReviewTests: XCTestCase {
-    private func makeSession(terms: [String], assets: [String] = ["A.JPG"]) throws -> (
+    private func makeSession(terms: [String], assets: [String] = ["A.JPG"]) async throws -> (
         session: NormalizationSessionDocument, root: URL, sourceRoot: URL
     ) {
         let root = try temporaryDirectory()
@@ -36,7 +36,7 @@ final class SessionReviewTests: XCTestCase {
         configuration.sourceRoot = sourceRoot.path
         configuration.outputDir = root.appendingPathComponent("out").path
 
-        let result = try NormalizePipeline().runSessionOnly(
+        let result = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_400),
@@ -82,8 +82,8 @@ final class SessionReviewTests: XCTestCase {
             })
     }
 
-    func testVerdictsApplyAndRoundTripThroughTheDocument() throws {
-        let (session, root, _) = try makeSession(terms: ["bird", "tree", "water"])
+    func testVerdictsApplyAndRoundTripThroughTheDocument() async throws {
+        let (session, root, _) = try await makeSession(terms: ["bird", "tree", "water"])
         _ = root
         let bird = try acceptedDecision(for: "bird", in: session)
         let tree = try acceptedDecision(for: "tree", in: session)
@@ -112,8 +112,8 @@ final class SessionReviewTests: XCTestCase {
         XCTAssertFalse(restored.skipReasons.contains(.userReviewRejected))
     }
 
-    func testEditReplacesKeywordAndPreservesOriginal() throws {
-        let (session, _, _) = try makeSession(terms: ["bird"])
+    func testEditReplacesKeywordAndPreservesOriginal() async throws {
+        let (session, _, _) = try await makeSession(terms: ["bird"])
         let bird = try acceptedDecision(for: "bird", in: session)
 
         let reviewed = SessionReview.applying(
@@ -130,8 +130,8 @@ final class SessionReviewTests: XCTestCase {
         XCTAssertEqual(SessionReview.edits(in: reviewed)[bird.decisionID], "Great Horned Owl")
     }
 
-    func testEditContainingHierarchySeparatorIsRejected() throws {
-        let (session, _, _) = try makeSession(terms: ["bird"])
+    func testEditContainingHierarchySeparatorIsRejected() async throws {
+        let (session, _, _) = try await makeSession(terms: ["bird"])
         let bird = try acceptedDecision(for: "bird", in: session)
 
         let reviewed = SessionReview.applying(
@@ -146,8 +146,8 @@ final class SessionReviewTests: XCTestCase {
         XCTAssertEqual(SessionReview.sanitizedEdit("  Great Egret  "), "Great Egret")
     }
 
-    func testEditContainingCoordinateSyntaxIsRejected() throws {
-        let (session, _, _) = try makeSession(terms: ["bird"])
+    func testEditContainingCoordinateSyntaxIsRejected() async throws {
+        let (session, _, _) = try await makeSession(terms: ["bird"])
         let bird = try acceptedDecision(for: "bird", in: session)
 
         let reviewed = SessionReview.applying(
@@ -165,8 +165,8 @@ final class SessionReviewTests: XCTestCase {
         XCTAssertEqual(SessionReview.sanitizedEdit("visible GPS receiver"), "visible GPS receiver")
     }
 
-    func testReviewedSessionSurvivesWriterReaderRoundTrip() throws {
-        let (session, root, _) = try makeSession(terms: ["bird", "tree"])
+    func testReviewedSessionSurvivesWriterReaderRoundTrip() async throws {
+        let (session, root, _) = try await makeSession(terms: ["bird", "tree"])
         let bird = try acceptedDecision(for: "bird", in: session)
         let reviewed = SessionReview.applying(verdicts: [bird.decisionID: .rejected], to: session)
 
@@ -178,8 +178,8 @@ final class SessionReviewTests: XCTestCase {
         XCTAssertEqual(reloaded.perAssetDecisions, reviewed.perAssetDecisions)
     }
 
-    func testApplySessionWritesOnlyApprovedKeywords() throws {
-        let (session, root, sourceRoot) = try makeSession(terms: ["bird", "tree"])
+    func testApplySessionWritesOnlyApprovedKeywords() async throws {
+        let (session, root, sourceRoot) = try await makeSession(terms: ["bird", "tree"])
         let bird = try acceptedDecision(for: "bird", in: session)
         let reviewed = SessionReview.applying(verdicts: [bird.decisionID: .rejected], to: session)
 
@@ -214,8 +214,8 @@ final class SessionReviewTests: XCTestCase {
 
     // MARK: - CORE-4: xmp_export stamp (FR4-049, AC4-028)
 
-    func testSuccessfulExportStampsContributingRawSidecars() throws {
-        let (session, root, sourceRoot) = try makeSession(terms: ["bird"])
+    func testSuccessfulExportStampsContributingRawSidecars() async throws {
+        let (session, root, sourceRoot) = try await makeSession(terms: ["bird"])
         let sessionPath = root.appendingPathComponent("session.json").path
         try NormalizationSessionWriter().write(session, to: sessionPath)
         let rawSidecarPath = root.appendingPathComponent("json").appendingPathComponent("A.JPG.ai.json").path

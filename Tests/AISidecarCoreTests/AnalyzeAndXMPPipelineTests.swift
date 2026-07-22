@@ -20,6 +20,7 @@ final class AnalyzeAndXMPPipelineTests: XCTestCase {
         )
 
         XCTAssertEqual(result.analyzeResult.records.map(\.status), [.written])
+        XCTAssertNil(result.analyzeResult.writtenSidecarsByPath)
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.JPG.ai.json").path))
         let snapshot = try OwnedXMPSidecarEngine().readSnapshot(at: output.appendingPathComponent("Bird.xmp").path)
         XCTAssertEqual(snapshot.flatKeywords, ["wading bird"])

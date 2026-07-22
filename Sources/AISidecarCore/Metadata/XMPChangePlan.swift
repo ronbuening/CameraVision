@@ -350,6 +350,7 @@ public struct XMPChangePlanDocument: Codable, Sendable, Equatable {
 public struct XMPChangePlanner {
     private let naming: XMPNaming
     private let groupResolver: SameBaseNameGroupResolver
+    private let assembler = XMPChangePlanAssembler()
 
     public init(
         naming: XMPNaming = XMPNaming(),
@@ -449,11 +450,27 @@ public struct XMPChangePlanner {
     ) -> XMPChangePlan {
         let selectedSidecars = Set(selectedGroup.selectedMembers.map { $0.input.sidecarPath.standardizedFileURL.path })
         let sourceMembers = selectedGroup.group.members.map { member in
-            sourceMemberPlan(
-                for: member,
-                selected: selectedSidecars.contains(member.input.sidecarPath.standardizedFileURL.path),
-                pairScope: configuration.pairScope,
-                includesQualityProvenance: configuration.qualityGrading.enabled
+            let selected = selectedSidecars.contains(member.input.sidecarPath.standardizedFileURL.path)
+            let source = member.input.document.sidecar.source
+            return assembler.sourceMemberPlan(
+                XMPChangePlanAssembler.SourceMemberContent(
+                    sourcePath: member.input.sourcePath?.standardizedFileURL.path,
+                    sourceRelativePath: source.relativePath,
+                    sourceFileName: source.fileName,
+                    sourceType: source.detectedType,
+                    sourceSidecarPath: member.input.sidecarPath.standardizedFileURL.path,
+                    sourceSidecarRelativePath: member.input.relativePath,
+                    sourceIdentityStatus: member.input.sourceIdentityStatus,
+                    pairKind: member.pairKind,
+                    selected: selected,
+                    flatKeywordContributionCount: selected ? member.extractionResult.flatKeywords.count : 0,
+                    hierarchicalKeywordContributionCount: selected
+                        ? member.extractionResult.hierarchicalKeywords.count
+                        : 0,
+                    qualityInput: member.input,
+                    includesQualityProvenance: configuration.qualityGrading.enabled
+                ),
+                pairScope: configuration.pairScope
             )
         }
         let flatKeywords = plannedKeywords(from: selectedGroup.selectedMembers, keyPath: \.flatKeywords)
@@ -461,120 +478,42 @@ public struct XMPChangePlanner {
         let selectedResults = selectedGroup.selectedMembers.map(\.extractionResult)
         let sourceVerificationWarnings = selectedGroup.group.members.flatMap(\.input.warnings)
 
-        var plan = XMPChangePlan(
-            status: selectedGroup.failures.isEmpty ? .planned : .failed,
-            targetXMPPath: selectedGroup.group.targetXMPPath,
-            targetRelativePath: selectedGroup.group.targetRelativePath,
-            pairScope: configuration.pairScope,
-            sourceMembers: sourceMembers,
-            flatKeywordsToAdd: flatKeywords,
-            hierarchicalKeywordsToAdd: hierarchicalKeywords,
-            skippedCandidates: selectedResults.flatMap(\.skippedCandidates),
-            candidateExtractionIssues: selectedResults.flatMap(\.issues),
-            sourceVerificationWarnings: sourceVerificationWarnings,
-            groupWarnings: selectedGroup.warnings,
-            existingPolicy: configuration.xmpConflictPolicy,
-            backupPlan: BackupPlan(
-                backupSidecars: configuration.backupSidecars,
-                backupRequiredBeforeMerge: configuration.xmpConflictPolicy == .backupAndMerge,
-                conflictPolicy: configuration.xmpConflictPolicy
+        return assembler.assemble(
+            XMPChangePlanAssembler.TargetContent(
+                targetXMPPath: selectedGroup.group.targetXMPPath,
+                targetRelativePath: selectedGroup.group.targetRelativePath,
+                sourceMembers: sourceMembers,
+                flatKeywords: flatKeywords,
+                hierarchicalKeywords: hierarchicalKeywords,
+                skippedCandidates: selectedResults.flatMap(\.skippedCandidates),
+                candidateExtractionIssues: selectedResults.flatMap(\.issues),
+                sourceVerificationWarnings: sourceVerificationWarnings,
+                groupWarnings: selectedGroup.warnings,
+                failures: selectedGroup.failures,
+                gradingInputs: selectedGroup.selectedMembers.map(\.input)
             ),
-            // The planner records validation intent; the export pipeline turns
-            // these flags into post-write snapshot and fingerprint checks.
-            validationPlan: .phase2Default,
-            failures: selectedGroup.failures
-        )
-
-        QualityGradingPlanApplier().apply(
-            to: &plan,
-            inputs: selectedGroup.selectedMembers.map(\.input),
-            grading: configuration.qualityGrading,
-            writeFlatKeywords: configuration.writeFlatKeywords,
-            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
+            settings: XMPChangePlanAssembler.Settings(
+                pairScope: configuration.pairScope,
+                conflictPolicy: configuration.xmpConflictPolicy,
+                backupSidecars: configuration.backupSidecars,
+                writeFlatKeywords: configuration.writeFlatKeywords,
+                writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
+                qualityGrading: configuration.qualityGrading
+            ),
             snapshotReader: snapshotReader
         )
-        return plan
-    }
-
-    private func sourceMemberPlan(
-        for member: SameBaseNameGroupMember,
-        selected: Bool,
-        pairScope: XMPPairScope,
-        includesQualityProvenance: Bool
-    ) -> SourceMemberPlan {
-        let source = member.input.document.sidecar.source
-        return SourceMemberPlan(
-            sourcePath: member.input.sourcePath?.standardizedFileURL.path,
-            sourceRelativePath: source.relativePath,
-            sourceFileName: source.fileName,
-            sourceType: source.detectedType,
-            sourceSidecarPath: member.input.sidecarPath.standardizedFileURL.path,
-            sourceSidecarRelativePath: member.input.relativePath,
-            sourceIdentityStatus: member.input.sourceIdentityStatus,
-            pairKind: member.pairKind,
-            selected: selected,
-            skipReason: selected ? nil : skipReason(pairScope: pairScope),
-            flatKeywordContributionCount: selected ? member.extractionResult.flatKeywords.count : 0,
-            hierarchicalKeywordContributionCount: selected ? member.extractionResult.hierarchicalKeywords.count : 0,
-            qualitySidecarPath: selected && includesQualityProvenance
-                ? distinctQualitySidecarPath(for: member.input)
-                : nil
-        )
-    }
-
-    private func skipReason(pairScope: XMPPairScope) -> XMPSourceMemberSkipReason? {
-        switch pairScope {
-        case .union:
-            return nil
-        case .rawOnly:
-            return .pairScopeRawOnly
-        case .jpegOnly:
-            return .pairScopeJPEGOnly
-        }
-    }
-
-    private func distinctQualitySidecarPath(for input: ResolvedRawSidecarInput) -> String? {
-        guard let qualitySidecarPath = input.qualitySidecarPath?.standardizedFileURL.path,
-            qualitySidecarPath != input.sidecarPath.standardizedFileURL.path
-        else {
-            return nil
-        }
-        return qualitySidecarPath
     }
 
     private func plannedKeywords(
         from members: [SameBaseNameGroupMember],
         keyPath: KeyPath<CandidateExtractionResult, [ExportableKeyword]>
     ) -> [PlannedKeyword] {
-        var keywords: [PlannedKeyword] = []
-        var indexByKey: [String: Int] = [:]
-
-        for member in members {
-            for keyword in member.extractionResult[keyPath: keyPath] {
-                if let index = indexByKey[keyword.normalizedKey] {
-                    keywords[index].candidates.append(contentsOf: keyword.candidates)
-                } else {
-                    indexByKey[keyword.normalizedKey] = keywords.count
-                    keywords.append(
-                        PlannedKeyword(
-                            term: keyword.term,
-                            normalizedKey: keyword.normalizedKey,
-                            candidates: keyword.candidates
-                        )
-                    )
+        assembler.mergeKeywords(
+            members.flatMap { member in
+                member.extractionResult[keyPath: keyPath].map {
+                    PlannedKeyword(term: $0.term, normalizedKey: $0.normalizedKey, candidates: $0.candidates)
                 }
             }
-        }
-
-        return keywords
+        )
     }
-}
-
-private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
-    let lowerLHS = lhs.lowercased()
-    let lowerRHS = rhs.lowercased()
-    if lowerLHS == lowerRHS {
-        return lhs < rhs
-    }
-    return lowerLHS < lowerRHS
 }

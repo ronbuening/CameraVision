@@ -162,7 +162,64 @@ final class RawSidecarBatchHelpersTests: XCTestCase {
         )
     }
 
-    private func sidecarDocument(sourceName: String) throws -> RawJSONSidecarDocument {
+    func testRawInputBatchPairsSequentialQualityRecordWithTaggingPrimary() throws {
+        let taggingPath = "/output/Bird.jpg.ai.json"
+        let qualityPath = "/output/Bird.jpg.quality.ai.json"
+        let taggingDocument = try sidecarDocument(sourceName: "Bird.jpg")
+        let qualityDocument = try sidecarDocument(sourceName: "Bird.jpg", taskProfile: .qualityOnly)
+        let result = AnalyzeResult(
+            scanResult: ScanResult(
+                inputPath: "/input",
+                scanRoot: "/input",
+                recursive: false,
+                identityPolicy: .sha256,
+                images: [taggingDocument.sidecar.source],
+                errors: []
+            ),
+            records: [
+                ProgressRecord(
+                    sourcePath: qualityDocument.sidecar.source.path,
+                    relativePath: qualityDocument.sidecar.source.relativePath,
+                    sidecarPath: qualityPath,
+                    status: .written,
+                    durationMs: 1
+                ),
+                ProgressRecord(
+                    sourcePath: taggingDocument.sidecar.source.path,
+                    relativePath: taggingDocument.sidecar.source.relativePath,
+                    sidecarPath: taggingPath,
+                    status: .written,
+                    durationMs: 1
+                ),
+            ],
+            progressLogPath: nil,
+            summaryPath: nil,
+            summary: nil,
+            interrupted: false,
+            writtenSidecarsByPath: [
+                taggingPath: taggingDocument,
+                qualityPath: qualityDocument,
+            ]
+        )
+
+        let batch = RawSidecarBatchHelpers.rawInputBatch(
+            from: result,
+            failureContext: "XMP export",
+            fileManager: .default
+        )
+
+        XCTAssertEqual(batch.inputs.count, 1)
+        XCTAssertEqual(batch.inputs.first?.sidecarPath.path, taggingPath)
+        XCTAssertEqual(batch.inputs.first?.document, taggingDocument)
+        XCTAssertEqual(batch.inputs.first?.qualitySidecarPath?.path, qualityPath)
+        XCTAssertEqual(batch.inputs.first?.qualityDocument, qualityDocument)
+        XCTAssertEqual(batch.inputs.first?.sourceIdentityStatus, .matched)
+    }
+
+    private func sidecarDocument(
+        sourceName: String,
+        taskProfile: ModelTaskProfile = .tagging
+    ) throws -> RawJSONSidecarDocument {
         let source = SourceImage(
             path: "/input/\(sourceName)",
             relativePath: sourceName,
@@ -176,7 +233,7 @@ final class RawSidecarBatchHelpersTests: XCTestCase {
         return try RawJSONSidecarDocument(
             sidecar: RawJSONSidecar(
                 source: source,
-                runConfiguration: .builtInDefaults,
+                runConfiguration: ResolvedRunConfiguration.builtInDefaults.with(taskProfile: taskProfile),
                 createdAt: Date(timeIntervalSince1970: 1_700_000_001)
             )
         )

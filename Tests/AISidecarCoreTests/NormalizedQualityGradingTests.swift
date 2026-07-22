@@ -73,6 +73,33 @@ final class NormalizedQualityGradingTests: XCTestCase {
         XCTAssertTrue(plan.qualityExplanation?.contains("confidence=low") == true)
     }
 
+    func testEnabledGradingMatchesPreC3NormalizedPlanFixtureBytes() throws {
+        let asset = phase3Asset(index: 1, relativePath: "Bird.JPG")
+        var input = phase3InputBatch(assets: [asset])
+        input.rawSidecarInputs = [
+            try rawInput(for: asset, assessment: goodAssessment(), createdAt: 1_700_000_000)
+        ]
+        let result = try plan(input: input, selectedAssetID: asset.assetID)
+        let encoded = try JSONCoding.documentEncoder().encode(result.changePlan)
+        let fixtureURL = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: "normalized-quality-grading-enabled-pre-c3",
+                withExtension: "json",
+                subdirectory: "xmp-plans"
+            )
+                ?? Bundle.module.url(
+                    forResource: "normalized-quality-grading-enabled-pre-c3",
+                    withExtension: "json"
+                )
+        )
+        var expected = try Data(contentsOf: fixtureURL)
+        if expected.last == UInt8(ascii: "\n") {
+            expected.removeLast()
+        }
+
+        XCTAssertEqual(encoded, expected)
+    }
+
     func testDisabledGradingMatchesPreQN3NormalizedPlanFixtureBytes() throws {
         let input = phase3InputBatch(["Bird.JPG"])
         var configuration = phase3Configuration(normalizationMode: .singleImage)

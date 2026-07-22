@@ -46,6 +46,7 @@ public struct NormalizationConfigurationOverrides: Sendable, Equatable {
     public var logLevel: LogLevel?
     public var logFormat: LogFormat?
     public var dryRun: Bool?
+    public var stageConcurrency: Int?
     public var sourceRoot: String?
     public var sourceVerification: XMPSourceVerificationPolicy?
     public var writeFlatKeywords: Bool?
@@ -82,6 +83,7 @@ public struct NormalizationConfigurationOverrides: Sendable, Equatable {
         logLevel: LogLevel? = nil,
         logFormat: LogFormat? = nil,
         dryRun: Bool? = nil,
+        stageConcurrency: Int? = nil,
         sourceRoot: String? = nil,
         sourceVerification: XMPSourceVerificationPolicy? = nil,
         writeFlatKeywords: Bool? = nil,
@@ -117,6 +119,7 @@ public struct NormalizationConfigurationOverrides: Sendable, Equatable {
         self.logLevel = logLevel
         self.logFormat = logFormat
         self.dryRun = dryRun
+        self.stageConcurrency = stageConcurrency
         self.sourceRoot = sourceRoot
         self.sourceVerification = sourceVerification
         self.writeFlatKeywords = writeFlatKeywords
@@ -155,6 +158,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
     public var logLevel: LogLevel
     public var logFormat: LogFormat
     public var dryRun: Bool
+    public var stageConcurrency: Int?
     public var sourceRoot: String?
     public var sourceVerification: XMPSourceVerificationPolicy
     public var writeFlatKeywords: Bool
@@ -190,6 +194,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         case logLevel = "log_level"
         case logFormat = "log_format"
         case dryRun = "dry_run"
+        case stageConcurrency = "stage_concurrency"
         case sourceRoot = "source_root"
         case sourceVerification = "source_verification"
         case writeFlatKeywords = "write_flat_keywords"
@@ -226,6 +231,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         logLevel: LogLevel,
         logFormat: LogFormat,
         dryRun: Bool,
+        stageConcurrency: Int? = nil,
         sourceRoot: String?,
         sourceVerification: XMPSourceVerificationPolicy,
         writeFlatKeywords: Bool,
@@ -260,6 +266,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         self.logLevel = logLevel
         self.logFormat = logFormat
         self.dryRun = dryRun
+        self.stageConcurrency = stageConcurrency
         self.sourceRoot = sourceRoot
         self.sourceVerification = sourceVerification
         self.writeFlatKeywords = writeFlatKeywords
@@ -297,6 +304,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         logLevel = try container.decode(LogLevel.self, forKey: .logLevel)
         logFormat = try container.decode(LogFormat.self, forKey: .logFormat)
         dryRun = try container.decode(Bool.self, forKey: .dryRun)
+        stageConcurrency = try container.decodeIfPresent(Int.self, forKey: .stageConcurrency)
         sourceRoot = try container.decodeIfPresent(String.self, forKey: .sourceRoot)
         sourceVerification = try container.decode(XMPSourceVerificationPolicy.self, forKey: .sourceVerification)
         writeFlatKeywords = try container.decode(Bool.self, forKey: .writeFlatKeywords)
@@ -339,6 +347,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         try container.encode(logLevel, forKey: .logLevel)
         try container.encode(logFormat, forKey: .logFormat)
         try container.encode(dryRun, forKey: .dryRun)
+        try container.encodeIfPresent(stageConcurrency, forKey: .stageConcurrency)
         try container.encodeIfPresent(sourceRoot, forKey: .sourceRoot)
         try container.encode(sourceVerification, forKey: .sourceVerification)
         try container.encode(writeFlatKeywords, forKey: .writeFlatKeywords)
@@ -377,6 +386,7 @@ public struct ResolvedNormalizationConfiguration: Codable, Sendable, Equatable {
         logLevel: .info,
         logFormat: .text,
         dryRun: false,
+        stageConcurrency: nil,
         sourceRoot: nil,
         sourceVerification: .fail,
         writeFlatKeywords: true,

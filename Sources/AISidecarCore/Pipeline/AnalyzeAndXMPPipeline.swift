@@ -80,16 +80,18 @@ public struct AnalyzeAndXMPPipeline {
         let shouldClearDerivativeCacheAfterOverallSuccess = analyzeConfiguration.clearDerivativeCacheAfterSuccess
         analyzeConfiguration.clearDerivativeCacheAfterSuccess = false
 
-        let analyzeResult = try await analyzePipeline.run(
+        var analyzeResult = try await analyzePipeline.run(
             inputPath: inputPath,
             configuration: analyzeConfiguration,
-            interruptionMonitor: interruptionMonitor
+            interruptionMonitor: interruptionMonitor,
+            retainsWrittenSidecars: true
         )
         let batch = RawSidecarBatchHelpers.rawInputBatch(
             from: analyzeResult,
             failureContext: "XMP export",
             fileManager: fileManager
         )
+        analyzeResult.writtenSidecarsByPath = nil
 
         if !exportConfiguration.writeAIJSON, !preScanFailed {
             RawSidecarBatchHelpers.removeNewRawSidecars(

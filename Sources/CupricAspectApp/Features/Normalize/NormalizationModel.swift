@@ -122,7 +122,7 @@ final class NormalizationModel {
                     qualityGrading: qualityGrading
                 )
                 let result = try await Task.detached(priority: .userInitiated) {
-                    try NormalizePipeline().runSessionOnly(
+                    try await NormalizePipeline().runSessionOnly(
                         mode: .fromJSON(path: jsonRoot),
                         configuration: configuration
                     )

@@ -1,4 +1,3 @@
-import CoreImage
 import Foundation
 
 /// Result of the full Phase 1 analyze pipeline.
@@ -9,7 +8,7 @@ public struct AnalyzeResult: Sendable, Equatable {
     public var summaryPath: String?
     public var summary: BatchSummary?
     public var interrupted: Bool
-    /// Newly written documents available to same-process pipeline adapters.
+    /// Newly written documents available when a same-process pipeline adapter explicitly requests them.
     public var writtenSidecarsByPath: [String: RawJSONSidecarDocument]?
 
     public init(
@@ -85,13 +84,7 @@ public struct AnalyzePipeline {
         self.writer = sidecarWriter
         self.summaryWriter = BatchSummaryWriter(fileManager: fileManager)
         self.logger = logger
-        if let maskProvider {
-            self.maskProvider = maskProvider
-        } else if #available(macOS 15.0, *) {
-            self.maskProvider = AppleVisionForegroundMaskProvider()
-        } else {
-            self.maskProvider = PipelineUnavailableForegroundMaskProvider()
-        }
+        self.maskProvider = maskProvider ?? .makeDefault()
         self.runner = runner
         self.now = now
         self.filenameSuffix = filenameSuffix
@@ -116,13 +109,32 @@ public struct AnalyzePipeline {
         writesBatchArtifacts: Bool = true,
         progressHandler: (@Sendable (ProgressRecord) -> Void)? = nil
     ) async throws -> AnalyzeResult {
+        try await run(
+            inputPath: inputPath,
+            configuration: configuration,
+            interruptionMonitor: interruptionMonitor,
+            writesBatchArtifacts: writesBatchArtifacts,
+            progressHandler: progressHandler,
+            retainsWrittenSidecars: false
+        )
+    }
+
+    func run(
+        inputPath: String,
+        configuration: ResolvedRunConfiguration,
+        interruptionMonitor: InterruptionMonitor? = nil,
+        writesBatchArtifacts: Bool = true,
+        progressHandler: (@Sendable (ProgressRecord) -> Void)? = nil,
+        retainsWrittenSidecars: Bool
+    ) async throws -> AnalyzeResult {
         if configuration.taskProfile == .taggingWithQuality, configuration.qualityScanMode == .sequential {
             return try await runSequentialScanAndAssess(
                 inputPath: inputPath,
                 configuration: configuration,
                 interruptionMonitor: interruptionMonitor,
                 writesBatchArtifacts: writesBatchArtifacts,
-                progressHandler: progressHandler
+                progressHandler: progressHandler,
+                retainsWrittenSidecars: retainsWrittenSidecars
             )
         }
         let runStartedAt = now()
@@ -245,6 +257,7 @@ public struct AnalyzePipeline {
                 runtime: runtime!,
                 cache: lifecycleCache,
                 interruptionMonitor: interruptionMonitor,
+                retainsWrittenSidecars: retainsWrittenSidecars,
                 retainWrittenSidecar: { path, document in
                     writtenSidecarsByPath[path] = document
                 },
@@ -301,7 +314,8 @@ public struct AnalyzePipeline {
         configuration: ResolvedRunConfiguration,
         interruptionMonitor: InterruptionMonitor?,
         writesBatchArtifacts: Bool,
-        progressHandler: (@Sendable (ProgressRecord) -> Void)?
+        progressHandler: (@Sendable (ProgressRecord) -> Void)?,
+        retainsWrittenSidecars: Bool
     ) async throws -> AnalyzeResult {
         var taggingConfiguration = configuration.with(taskProfile: .tagging)
         taggingConfiguration.clearDerivativeCacheAfterSuccess = false
@@ -310,7 +324,8 @@ public struct AnalyzePipeline {
             configuration: taggingConfiguration,
             interruptionMonitor: interruptionMonitor,
             writesBatchArtifacts: writesBatchArtifacts,
-            progressHandler: progressHandler
+            progressHandler: progressHandler,
+            retainsWrittenSidecars: retainsWrittenSidecars
         )
         if tagging.interrupted {
             return tagging
@@ -323,7 +338,8 @@ public struct AnalyzePipeline {
             configuration: qualityConfiguration,
             interruptionMonitor: interruptionMonitor,
             writesBatchArtifacts: writesBatchArtifacts,
-            progressHandler: progressHandler
+            progressHandler: progressHandler,
+            retainsWrittenSidecars: retainsWrittenSidecars
         )
         var writtenSidecarsByPath = tagging.writtenSidecarsByPath ?? [:]
         writtenSidecarsByPath.merge(quality.writtenSidecarsByPath ?? [:]) { _, qualityDocument in
@@ -362,6 +378,7 @@ public struct AnalyzePipeline {
         runtime: ModelRuntimeContext,
         cache: DerivativeCache,
         interruptionMonitor: InterruptionMonitor?,
+        retainsWrittenSidecars: Bool,
         retainWrittenSidecar: (String, RawJSONSidecarDocument) -> Void,
         emit: (ProgressRecord) throws -> Void
     ) async throws -> Bool {
@@ -384,6 +401,7 @@ public struct AnalyzePipeline {
                 renderer: renderer,
                 subjectIsolationService: subjectIsolationService,
                 now: now,
+                retainsWrittenSidecars: retainsWrittenSidecars,
                 retainWrittenSidecar: retainWrittenSidecar,
                 emit: emit
             )
@@ -462,13 +480,14 @@ public struct AnalyzePipeline {
                         profile: profile,
                         runtime: runtime,
                         interruptionMonitor: interruptionMonitor,
+                        retainsWrittenSidecars: retainsWrittenSidecars,
                         startedAt: startedAt
                     )
                     cache.release(prepared.derivatives)
                     switch outcome {
-                    case .completed(let record, let document):
-                        if let document, let sidecarPath = record.sidecarPath {
-                            retainWrittenSidecar(sidecarPath, document)
+                    case .completed(let record, let writtenSidecar):
+                        if record.status == .written, let writtenSidecar {
+                            retainWrittenSidecar(writtenSidecar.sidecarPath, writtenSidecar.document)
                         }
                         try emit(record)
                     case .interrupted:
@@ -501,6 +520,7 @@ public struct AnalyzePipeline {
         renderer: ImageRenderer,
         subjectIsolationService: SubjectIsolationService,
         now: @escaping @Sendable () -> Date,
+        retainsWrittenSidecars: Bool,
         retainWrittenSidecar: (String, RawJSONSidecarDocument) -> Void,
         emit: (ProgressRecord) throws -> Void
     ) async throws -> Bool {
@@ -536,13 +556,14 @@ public struct AnalyzePipeline {
                     profile: profile,
                     runtime: runtime,
                     interruptionMonitor: interruptionMonitor,
+                    retainsWrittenSidecars: retainsWrittenSidecars,
                     startedAt: startedAt
                 )
                 cache.release(prepared.derivatives)
                 switch outcome {
-                case .completed(let record, let document):
-                    if let document, let sidecarPath = record.sidecarPath {
-                        retainWrittenSidecar(sidecarPath, document)
+                case .completed(let record, let writtenSidecar):
+                    if record.status == .written, let writtenSidecar {
+                        retainWrittenSidecar(writtenSidecar.sidecarPath, writtenSidecar.document)
                     }
                     try emit(record)
                 case .interrupted:
@@ -597,7 +618,7 @@ public struct AnalyzePipeline {
                 relativePath: entry.source.relativePath,
                 sidecarPath: entry.sidecarPath,
                 status: .dryRun,
-                durationMs: durationMs(from: startedAt, to: now())
+                durationMs: Timestamp.durationMs(from: startedAt, to: now())
             )
         case .existingSkip(let startedAt):
             return ProgressRecord(
@@ -606,7 +627,7 @@ public struct AnalyzePipeline {
                 relativePath: entry.source.relativePath,
                 sidecarPath: entry.sidecarPath,
                 status: .skippedExisting,
-                durationMs: durationMs(from: startedAt, to: now())
+                durationMs: Timestamp.durationMs(from: startedAt, to: now())
             )
         case .existingFailure(let error, let startedAt):
             return ProgressRecord(
@@ -616,7 +637,7 @@ public struct AnalyzePipeline {
                 sidecarPath: entry.sidecarPath,
                 status: .failed,
                 errors: [error],
-                durationMs: durationMs(from: startedAt, to: now())
+                durationMs: Timestamp.durationMs(from: startedAt, to: now())
             )
         case .pending:
             return nil
@@ -647,7 +668,7 @@ public struct AnalyzePipeline {
                     debugDerivatives: configuration.debugDerivatives
                 )
                 derivatives = rendered.derivatives
-                renderMs = Self.durationMs(from: renderStartedAt, to: now())
+                renderMs = Timestamp.durationMs(from: renderStartedAt, to: now())
             case .subject, .both:
                 let prepared = try renderer.prepareSourceRender(source: entry.source, profile: profile)
                 if configuration.mode == .both {
@@ -659,7 +680,7 @@ public struct AnalyzePipeline {
                     )
                     derivatives.append(whole)
                 }
-                renderMs = Self.durationMs(from: renderStartedAt, to: now())
+                renderMs = Timestamp.durationMs(from: renderStartedAt, to: now())
 
                 let isolationStartedAt = now()
                 do {
@@ -676,16 +697,17 @@ public struct AnalyzePipeline {
                     if let error = isolation.error {
                         errors.append(error)
                     }
-                    subjectIsolationMs = Self.durationMs(from: isolationStartedAt, to: now())
+                    subjectIsolationMs = Timestamp.durationMs(from: isolationStartedAt, to: now())
                 } catch {
-                    subjectIsolationMs = Self.durationMs(from: isolationStartedAt, to: now())
-                    let isolationError = subjectIsolationError(from: error)
-                    subjectIsolation = failedSubjectIsolationRecord(
+                    subjectIsolationMs = Timestamp.durationMs(from: isolationStartedAt, to: now())
+                    let failure = SubjectIsolationFailure.make(
+                        from: error,
                         prepared: prepared,
                         configuration: configuration,
                         profile: profile
                     )
-                    errors.append(isolationError)
+                    subjectIsolation = failure.record
+                    errors.append(failure.error)
                 }
             }
 
@@ -707,7 +729,7 @@ public struct AnalyzePipeline {
         } catch {
             return .renderFailed(
                 sidecarError(from: error, sidecarPath: entry.sidecarPath),
-                renderMs: Self.durationMs(from: renderStartedAt, to: now())
+                renderMs: Timestamp.durationMs(from: renderStartedAt, to: now())
             )
         }
     }
@@ -719,6 +741,7 @@ public struct AnalyzePipeline {
         profile: ModelInputProfile,
         runtime: ModelRuntimeContext,
         interruptionMonitor: InterruptionMonitor?,
+        retainsWrittenSidecars: Bool,
         startedAt: Date
     ) async -> FinishPreparedOutcome {
         switch prepared {
@@ -744,14 +767,14 @@ public struct AnalyzePipeline {
                 runtime: runtime,
                 interruptionMonitor: interruptionMonitor
             )
-            let modelMs = durationMs(from: modelStartedAt, to: now())
+            let modelMs = Timestamp.durationMs(from: modelStartedAt, to: now())
             guard case .completed(let modelRuns) = modelOutcome,
                 interruptionMonitor?.isInterrupted != true
             else {
                 return .interrupted
             }
             let errors = prepared.errors + modelRuns.compactMap(\.error)
-            let pipelineElapsedMs = durationMs(from: startedAt, to: now())
+            let pipelineElapsedMs = Timestamp.durationMs(from: startedAt, to: now())
             let sidecar = Self.canonicalizedForSidecarEncoding(
                 RawJSONSidecar(
                     source: entry.source,
@@ -773,21 +796,29 @@ public struct AnalyzePipeline {
             )
 
             do {
-                let document = try RawJSONSidecarDocument(sidecar: sidecar)
+                let writtenStatus: ProgressStatus =
+                    modelRuns.contains { $0.error == nil && $0.jsonValid } ? .written : .failed
+                let document =
+                    retainsWrittenSidecars && writtenStatus == .written
+                    ? try RawJSONSidecarDocument(sidecar: sidecar) : nil
                 let writeStartedAt = now()
                 let outcome = try writer.write(
                     sidecar,
                     to: entry.sidecarPath,
                     existingPolicy: configuration.existing
                 )
-                let writeMs = durationMs(from: writeStartedAt, to: now())
+                let writeMs = Timestamp.durationMs(from: writeStartedAt, to: now())
                 let status: ProgressStatus
                 switch outcome.status {
                 case .skippedExisting:
                     status = .skippedExisting
                 case .written:
-                    status = modelRuns.contains { $0.error == nil && $0.jsonValid } ? .written : .failed
+                    status = writtenStatus
                 }
+                let writtenSidecar =
+                    outcome.status == .written && status == .written
+                    ? document.map { WrittenSidecarHandoff(sidecarPath: outcome.sidecarPath, document: $0) }
+                    : nil
                 return .completed(
                     ProgressRecord(
                         timestamp: now(),
@@ -796,10 +827,10 @@ public struct AnalyzePipeline {
                         sidecarPath: entry.sidecarPath,
                         status: status,
                         errors: errors,
-                        durationMs: durationMs(from: startedAt, to: now()),
+                        durationMs: Timestamp.durationMs(from: startedAt, to: now()),
                         writeMs: outcome.status == .written ? writeMs : nil
                     ),
-                    outcome.status == .written ? document : nil
+                    writtenSidecar
                 )
             } catch {
                 return .completed(
@@ -810,7 +841,7 @@ public struct AnalyzePipeline {
                         sidecarPath: entry.sidecarPath,
                         status: .failed,
                         errors: errors + [Self.sidecarError(from: error, sidecarPath: entry.sidecarPath)],
-                        durationMs: durationMs(from: startedAt, to: now())
+                        durationMs: Timestamp.durationMs(from: startedAt, to: now())
                     ),
                     nil
                 )
@@ -827,7 +858,7 @@ public struct AnalyzePipeline {
         renderMs: Int,
         startedAt: Date
     ) -> ProgressRecord {
-        let pipelineElapsedMs = durationMs(from: startedAt, to: now())
+        let pipelineElapsedMs = Timestamp.durationMs(from: startedAt, to: now())
         let errorSidecar = RawJSONSidecar(
             source: source,
             runConfiguration: configuration,
@@ -849,7 +880,7 @@ public struct AnalyzePipeline {
             let outcome = try writer.write(
                 errorSidecar, to: sidecarPath, existingPolicy: configuration.existing)
             if outcome.status == .written {
-                writeMs = durationMs(from: writeStartedAt, to: now())
+                writeMs = Timestamp.durationMs(from: writeStartedAt, to: now())
             }
         } catch {
             progressErrors.append(Self.sidecarError(from: error, sidecarPath: sidecarPath))
@@ -862,7 +893,7 @@ public struct AnalyzePipeline {
             sidecarPath: sidecarPath,
             status: .failed,
             errors: progressErrors,
-            durationMs: durationMs(from: startedAt, to: now()),
+            durationMs: Timestamp.durationMs(from: startedAt, to: now()),
             writeMs: writeMs
         )
     }
@@ -999,14 +1030,6 @@ public struct AnalyzePipeline {
         return URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path
     }
 
-    private func durationMs(from start: Date, to end: Date) -> Int {
-        Self.durationMs(from: start, to: end)
-    }
-
-    private static func durationMs(from start: Date, to end: Date) -> Int {
-        max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
-    }
-
     private func logRecord(for record: ProgressRecord) -> LogRecord {
         let level: LogLevel = record.status == .failed ? .error : (record.errors.isEmpty ? .info : .warn)
         let message: String
@@ -1045,18 +1068,6 @@ public struct AnalyzePipeline {
         )
     }
 
-    private static func subjectIsolationError(from error: Error) -> SidecarError {
-        if let sidecarError = error as? SidecarError, sidecarError.stage == .isolate {
-            return sidecarError
-        }
-        return SidecarError(
-            code: .subjectIsolationFailed,
-            stage: .isolate,
-            message: "Unable to isolate subject: \(error.localizedDescription)",
-            recoverable: true
-        )
-    }
-
     private static func modelPreparationError(from error: Error, role: ModelInputRole) -> SidecarError {
         if let sidecarError = error as? SidecarError {
             return sidecarError
@@ -1069,36 +1080,6 @@ public struct AnalyzePipeline {
         )
     }
 
-    private static func failedSubjectIsolationRecord(
-        prepared: PreparedSourceRender,
-        configuration: ResolvedRunConfiguration,
-        profile: ModelInputProfile
-    ) -> SubjectIsolationRecord {
-        let analysisDimensions = prepared.analysisDimensions
-        let fullDimensions = prepared.fullDimensions
-        return SubjectIsolationRecord(
-            status: .failed,
-            instanceCount: 0,
-            selectedInstanceIndices: [],
-            mergedInstances: false,
-            instances: [],
-            analysisResolution: analysisDimensions,
-            fullResolution: fullDimensions,
-            scaleFactors: SubjectIsolationScaleFactors(
-                x: Double(fullDimensions.width) / Double(analysisDimensions.width),
-                y: Double(fullDimensions.height) / Double(analysisDimensions.height)
-            ),
-            selectedBoundingBox: nil,
-            cropBoundingBox: nil,
-            cropMarginFraction: configuration.subjectCropMarginFraction,
-            cropMarginPixels: 0,
-            mergeDominanceThreshold: configuration.subjectMergeDominanceThreshold,
-            selectedToUnionAreaRatio: nil,
-            matteRGB: profile.matteRGB,
-            finalDimensions: nil,
-            upscaled: false
-        )
-    }
 }
 
 private struct PendingWork: Sendable {
@@ -1127,8 +1108,13 @@ private enum PreparedAnalysis: Sendable {
 }
 
 private enum FinishPreparedOutcome: Sendable {
-    case completed(ProgressRecord, RawJSONSidecarDocument?)
+    case completed(ProgressRecord, WrittenSidecarHandoff?)
     case interrupted
+}
+
+private struct WrittenSidecarHandoff: Sendable {
+    var sidecarPath: String
+    var document: RawJSONSidecarDocument
 }
 
 private enum ModelRunsOutcome: Sendable {
@@ -1143,15 +1129,4 @@ private struct PreparedRenderedAnalysis: Sendable {
     var errors: [SidecarError]
     var renderMs: Int
     var subjectIsolationMs: Int
-}
-
-private struct PipelineUnavailableForegroundMaskProvider: ForegroundMaskProvider {
-    func foregroundMasks(in _: CIImage, dimensions _: PixelDimensions) async throws -> ForegroundMaskResult {
-        throw SidecarError(
-            code: .subjectIsolationFailed,
-            stage: .isolate,
-            message: "Apple Vision foreground masking requires macOS 15 or newer.",
-            recoverable: true
-        )
-    }
 }

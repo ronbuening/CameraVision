@@ -1,4 +1,3 @@
-import AISidecarCore
 import AppKit
 import SwiftUI
 
@@ -7,21 +6,7 @@ import SwiftUI
 /// labeled placeholders that arrive with their milestones (M2 · M4 · M6 · M7).
 struct WizardShellView: View {
     @Environment(\.cvTheme) private var theme
-    @State private var importModel = FolderImportModel()
-    @State private var options = AnalysisOptions()
-    @State private var runModel = AnalysisRunModel()
-    @State private var runtimeGuidance = RuntimeGuidanceModel()
-    @State private var reviewModel = ReviewModel()
-    @State private var normalizationModel = NormalizationModel()
-    @State private var exportModel = ExportModel()
-    @State private var applySession: NormalizationSessionDocument?
-    @State private var applySessionPath: String?
-    @State private var showPlanSheet = false
-    @State private var selectedAction: WizardAction?
-    @State private var step = 1
-    @State private var showAbout = false
-    @State private var showRerunConfirmation = false
-    @State private var showDiscardRestoredReviewConfirmation = false
+    @Bindable var flow: WizardFlowModel
     @AppStorage(PreferenceKeys.theme) private var themeChoice: ThemeChoice = .light
     @Environment(\.colorScheme) private var colorScheme
 
@@ -32,7 +17,7 @@ struct WizardShellView: View {
             titleBar
             Divider().overlay(theme.border)
             stepRail
-            RuntimeGuidanceBanner(guidance: runtimeGuidance)
+            RuntimeGuidanceBanner(guidance: flow.runtimeGuidance)
             ScrollView {
                 content
             }
@@ -42,139 +27,38 @@ struct WizardShellView: View {
             footerBar
         }
         .background(theme.winBg)
-        .sheet(isPresented: $showAbout) {
-            SettingsSheet()
+        .sheet(isPresented: $flow.showSettings) {
+            SettingsSheet(visionTagsModel: flow.visionTagsModel)
         }
-        .task {
-            // FR4-058: one launch-time runtime check (no polling — FR4-051).
-            runtimeGuidance.check()
-            runModel.onRecord = { [weak importModel] record in
-                importModel?.apply(record)
-            }
-            TerminationFlush.register(id: "review") { [weak reviewModel] in
-                reviewModel?.autosaveNow()
-            }
-            // Dev/UI-test hooks: auto-import a folder / jump to a step via
-            // environment. No effect in normal launches; not preferences.
-            let env = ProcessInfo.processInfo.environment
-            if let path = env["CUPRIC_IMPORT_PATH"] {
-                importModel.chooseSource(URL(fileURLWithPath: path, isDirectory: true))
-            }
-            if let rawStep = env["CUPRIC_DEBUG_STEP"], let debugStep = Int(rawStep), (1...5).contains(debugStep) {
-                selectedAction = .analyze
-                step = debugStep
-            }
-            if env["CUPRIC_DEBUG_SETTINGS"] == "1" {
-                showAbout = true
-            }
-            // FR4-046a: offer recovery of an interrupted review on launch.
-            if reviewModel.recoveryAvailable {
-                selectedAction = .write
-                step = 5
-            }
-            if env["CUPRIC_DEBUG_AUTORUN"] == "1" {
-                selectedAction = env["CUPRIC_DEBUG_ACTION"].flatMap(WizardAction.init(rawValue:)) ?? .analyze
-                while importModel.scanning || importModel.assets.isEmpty {
-                    try? await Task.sleep(for: .milliseconds(200))
-                }
-                step = 3
-                try? await Task.sleep(for: .seconds(2))
-                primaryAction()
-            }
-        }
-        .onChange(of: runModel.phase) { _, phase in
-            switch phase {
-            case .finished(let outcome):
-                if outcome.interrupted {
-                    // Design §6 Step 4: cancel returns to the options step.
-                    runModel.reset()
-                    step = 3
-                } else if selectedAction == .normalize {
-                    // Stay on the working step; the model-free normalization
-                    // run advances to the Inspector when ready.
-                    if let source = importModel.sourceFolder {
-                        normalizationModel.run(
-                            jsonRoot: importModel.outputFolder?.path ?? source.path,
-                            sourceRoot: source.path,
-                            qualityGrading: effectiveQualityGradingOverrides
-                        )
-                    }
-                } else {
-                    step = 5
-                    if let source = importModel.sourceFolder {
-                        reviewModel.buildSession(
-                            jsonRoot: importModel.outputFolder?.path ?? source.path,
-                            sourceRoot: source.path,
-                            qualityGrading: effectiveQualityGradingOverrides
-                        )
-                    }
-                }
-                Task { await importModel.rescan() }
-            case .failed:
-                // Surface the failure on the options screen (banner there).
-                step = 3
-            default:
-                break
-            }
-        }
-        .onChange(of: normalizationModel.phase) { _, phase in
-            switch phase {
-            case .ready where step == 4:
-                step = 5
-            case .failed where step == 4:
-                step = 3
-            default:
-                break
-            }
-        }
-        .onChange(of: exportModel.phase) { _, phase in
-            switch phase {
-            case .planReady:
-                showPlanSheet = true
-            case .written:
-                step = 5
-                Task { await importModel.rescan() }
-            default:
-                break
-            }
-        }
-        .onChange(of: reviewModel.session?.session.sessionID) { _, _ in
-            rehydrateImportContextFromReviewSession()
-        }
-        .onChange(of: importModel.sourceFolder?.path) { oldPath, newPath in
-            guard newPath != nil, newPath != oldPath else { return }
-            options.resetToResolvedDefaults()
-            options.modelOverride = nil
-        }
-        .sheet(isPresented: $showPlanSheet) {
-            ChangePlanSheet(export: exportModel)
+        .sheet(isPresented: $flow.showPlanSheet) {
+            ChangePlanSheet(export: flow.exportModel)
         }
         .confirmationDialog(
-            rerunConfirmationTitle,
-            isPresented: $showRerunConfirmation,
+            flow.rerunConfirmationTitle,
+            isPresented: $flow.showRerunConfirmation,
             titleVisibility: .visible
         ) {
             Button("Re-run", role: .destructive) {
-                startRun()
+                flow.startRun()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text(rerunConfirmationMessage)
+            Text(flow.rerunConfirmationMessage)
         }
         .confirmationDialog(
             "Discard the restored review?",
-            isPresented: $showDiscardRestoredReviewConfirmation,
+            isPresented: $flow.showDiscardRestoredReviewConfirmation,
             titleVisibility: .visible
         ) {
             Button("Save session first...") {
                 saveRestoredReviewSessionThenFinish()
             }
             Button("Discard review", role: .destructive) {
-                finishCleanly()
+                flow.finishCleanly()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Discard the restored review? \(reviewModel.verdicts.count) decisions will be lost.")
+            Text("Discard the restored review? \(flow.reviewModel.verdicts.count) decisions will be lost.")
         }
     }
 
@@ -182,7 +66,7 @@ struct WizardShellView: View {
 
     private var titleBar: some View {
         HStack(spacing: 9) {
-            ApertureView(size: 20, running: importModel.scanning || runModel.isRunning, spin: true)
+            ApertureView(size: 20, running: flow.importModel.scanning || flow.runModel.isRunning, spin: true)
             Text("CupricAspect")
                 .font(.system(size: 13, weight: .bold))
                 .kerning(-0.1)
@@ -202,7 +86,7 @@ struct WizardShellView: View {
             .buttonStyle(.plain)
             .help("Toggle appearance")
             Button {
-                showAbout = true
+                flow.showSettings = true
             } label: {
                 Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 12))
@@ -239,8 +123,8 @@ struct WizardShellView: View {
     }
 
     private func railItem(_ index: Int) -> some View {
-        let done = step > index
-        let current = step == index
+        let done = flow.step > index
+        let current = flow.step == index
         return HStack(spacing: 9) {
             ZStack {
                 Circle()
@@ -260,176 +144,89 @@ struct WizardShellView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch step {
+        switch flow.step {
         case 1:
-            Step1PhotosView(model: importModel)
+            Step1PhotosView(model: flow.importModel)
         case 2:
             Step2ActionView(
-                selection: $selectedAction,
+                selection: $flow.selectedAction,
                 assessQuality: Binding(
-                    get: { options.assessQuality },
-                    set: { options.assessQuality = $0 }
+                    get: { flow.options.assessQuality },
+                    set: { flow.options.assessQuality = $0 }
                 ),
                 onApplySession: {
-                    selectedAction = .apply
-                    step = 3
+                    flow.selectApplySessionAction()
                 })
         case 3:
             VStack(spacing: 0) {
-                if case .failed(let message) = runModel.phase {
+                if case .failed(let message) = flow.runModel.phase {
                     failureBanner(message)
                 }
-                if case .failed(let message) = exportModel.phase {
+                if case .failed(let message) = flow.exportModel.phase {
                     failureBanner(message)
                 }
-                if case .failed(let message) = normalizationModel.phase {
+                if case .failed(let message) = flow.normalizationModel.phase {
                     failureBanner(message)
                 }
-                if selectedAction == .apply {
+                if flow.selectedAction == .apply {
                     Step3ApplyView(
-                        session: $applySession,
-                        sessionPath: $applySessionPath,
+                        session: $flow.applySession,
+                        sessionPath: $flow.applySessionPath,
                         qualityGradingEnabled: Binding(
-                            get: { exportModel.applyQualityGradingEnabled },
-                            set: { exportModel.applyQualityGradingEnabled = $0 }
+                            get: { flow.exportModel.applyQualityGradingEnabled },
+                            set: { flow.exportModel.applyQualityGradingEnabled = $0 }
                         ),
                         qualityConflictPolicy: Binding(
-                            get: { exportModel.applyQualityConflictPolicy },
-                            set: { exportModel.applyQualityConflictPolicy = $0 }
+                            get: { flow.exportModel.applyQualityConflictPolicy },
+                            set: { flow.exportModel.applyQualityConflictPolicy = $0 }
                         )
                     )
                 } else {
                     Step3OptionsView(
-                        action: selectedAction ?? .analyze,
-                        options: options,
-                        runModel: runModel,
-                        importModel: importModel,
-                        normalizationModel: normalizationModel
+                        action: flow.selectedAction ?? .analyze,
+                        options: flow.options,
+                        runModel: flow.runModel,
+                        importModel: flow.importModel,
+                        normalizationModel: flow.normalizationModel,
+                        visionTagsModel: flow.visionTagsModel
                     )
                 }
             }
         case 4:
-            Step4WorkingView(action: selectedAction ?? .analyze, runModel: runModel)
+            Step4WorkingView(action: flow.selectedAction ?? .analyze, runModel: flow.runModel)
         default:
             VStack(spacing: 0) {
-                if case .finished(let outcome) = runModel.phase, outcome.failed > 0 {
+                if case .finished(let outcome) = flow.runModel.phase, outcome.failed > 0 {
                     Step5SummaryView(outcome: outcome)
                 }
-                if case .failed(let message) = exportModel.phase {
+                if case .failed(let message) = flow.exportModel.phase {
                     failureBanner(message)
                 }
-                if let warning = exportModel.cleanupWarning {
+                if let warning = flow.exportModel.cleanupWarning {
                     failureBanner(warning)
                 }
-                if exportModel.phase == .written, let report = exportModel.exportReport {
+                if flow.exportModel.phase == .written, let report = flow.exportModel.exportReport {
                     writtenBanner(
                         WizardNavigation.writtenBanner(
                             written: report.writtenCount,
                             failed: report.failedCount,
-                            cleanupRemoved: exportModel.cleanupRemovedCount
+                            cleanupRemoved: flow.exportModel.cleanupRemovedCount
                         ))
                     ExportReportView(report: report)
                         .padding(EdgeInsets(top: 12, leading: 34, bottom: 0, trailing: 34))
                 }
-                switch selectedAction {
+                switch flow.selectedAction {
                 case .normalize:
-                    NormalizationInspectorView(model: normalizationModel) {
-                        startExport()
+                    NormalizationInspectorView(model: flow.normalizationModel) {
+                        flow.startExport()
                     }
                 case .apply:
                     EmptyView()
                 default:
-                    Step5ReviewView(review: reviewModel, runOutcome: finishedOutcome)
+                    Step5ReviewView(review: flow.reviewModel, runOutcome: flow.finishedOutcome)
                 }
             }
         }
-    }
-
-    /// Route every write through the FR4-029 dry-run gate (M7): the plan
-    /// sheet opens when the dry run completes.
-    private func startExport() {
-        guard let source = importModel.sourceFolder else {
-            let error = exportReadinessError("No source folder is loaded; choose a folder before writing XMP.")
-            reportStartExportError(error)
-            assertionFailure(error.message)
-            return
-        }
-        let session: NormalizationSessionDocument? =
-            switch selectedAction {
-            case .normalize: normalizationModel.session
-            case .apply: applySession
-            default: reviewModel.reviewedSession
-            }
-        guard let session else {
-            let error = exportReadinessError(missingExportSessionMessage)
-            reportStartExportError(error)
-            assertionFailure(error.message)
-            return
-        }
-        exportModel.plan(
-            session: session,
-            sourceRoot: source.path,
-            outputDir: importModel.outputFolder?.path,
-            recursive: importModel.recursive,
-            xmpConflictPolicy: options.xmpConflictPolicy,
-            qualityGrading: selectedAction == .apply
-                ? exportModel.applyQualityGradingOverrides : effectiveQualityGradingOverrides
-        )
-    }
-
-    private var effectiveQualityGradingOverrides: QualityGradingConfigurationOverrides {
-        let availability = Step3OptionsView.qualityGradingAvailability(
-            action: selectedAction ?? .analyze,
-            assessQuality: options.assessQuality
-        )
-        return options.qualityGradingOverrides(controlsEnabled: availability.controlsEnabled)
-    }
-
-    private var missingExportSessionMessage: String {
-        switch selectedAction {
-        case .normalize:
-            "No normalization session is loaded; nothing to write."
-        case .apply:
-            "No apply-session document is loaded; nothing to write."
-        default:
-            "No review session is loaded; nothing to write."
-        }
-    }
-
-    private func exportReadinessError(_ message: String) -> SidecarError {
-        SidecarError(
-            code: .validationFailed,
-            stage: .write,
-            message: message,
-            recoverable: true
-        )
-    }
-
-    private func reportStartExportError(_ error: SidecarError) {
-        switch selectedAction {
-        case .normalize:
-            normalizationModel.reportFileError("Write normalized XMP", error)
-        case .apply:
-            exportModel.reportValidationFailure(error)
-        default:
-            reviewModel.reportFileError("Write XMP", error)
-        }
-    }
-
-    private func rehydrateImportContextFromReviewSession() {
-        guard reviewModel.restoredFromRecovery || selectedAction == .write else {
-            return
-        }
-        guard let root = reviewModel.session?.session.sourceRoot,
-            FileManager.default.fileExists(atPath: root)
-        else {
-            return
-        }
-        if reviewModel.restoredFromRecovery {
-            selectedAction = .write
-        }
-        guard importModel.sourceFolder?.path != root else { return }
-        importModel.chooseSource(URL(fileURLWithPath: root, isDirectory: true))
     }
 
     private func writtenBanner(_ content: WrittenBannerContent) -> some View {
@@ -455,11 +252,6 @@ struct WizardShellView: View {
         .padding(EdgeInsets(top: 20, leading: 34, bottom: 0, trailing: 34))
     }
 
-    private var finishedOutcome: RunOutcome? {
-        if case .finished(let outcome) = runModel.phase { return outcome }
-        return nil
-    }
-
     private func failureBanner(_ message: String) -> some View {
         HStack(spacing: 10) {
             Text("!")
@@ -482,149 +274,15 @@ struct WizardShellView: View {
 
     // MARK: - Footer
 
-    private var backEnabled: Bool {
-        WizardNavigation.backTarget(from: step, phase: runModel.phase) != nil
-    }
-
-    private var primaryEnabled: Bool {
-        switch step {
-        case 1: importModel.sourceFolder != nil
-        case 2: selectedAction != nil
-        case 3 where selectedAction == .apply: applySession != nil && exportModel.phase != .planning
-        case 3: importModel.sourceFolder != nil && !runModel.isRunning
-        case 4: false
-        case 5 where step5WriteAvailable: exportModel.phase != .planning && exportModel.phase != .writing
-        default: true
-        }
-    }
-
-    /// True when Step 5's primary should be a write, not Done (M7).
-    private var step5WriteAvailable: Bool {
-        guard exportModel.phase != .written else { return false }
-        guard importModel.sourceFolder != nil else { return false }
-        switch selectedAction {
-        case .write: return reviewModel.session != nil
-        case .normalize: return normalizationModel.session != nil
-        default: return false
-        }
-    }
-
-    private var primaryLabel: String {
-        switch step {
-        case 3 where selectedAction == .apply: "Apply session"
-        case 3: "Start"
-        case 4: "Working…"
-        case 5 where step5WriteAvailable:
-            selectedAction == .normalize ? "Write normalized XMP" : "Write XMP"
-        case 5: "Done"
-        default: "Continue"
-        }
-    }
-
-    private var footerHint: String {
-        switch step {
-        case 1:
-            return importModel.sourceFolder == nil ? "Choose a folder to continue" : importModel.summary
-        case 2:
-            return selectedAction.map { "\($0.title) selected" } ?? "Pick an action"
-        case 3:
-            return "\(selectedAction?.title ?? "") · \(importModel.assets.count) images"
-        case 4:
-            return "Processing locally"
-        default:
-            if selectedAction == .normalize {
-                return "\(normalizationModel.acceptedTotal) accepted · Done clears the session"
-            }
-            return "\(reviewModel.approvedCount) approved · Done clears the review"
-        }
-    }
-
-    private func primaryAction() {
-        switch step {
-        case 1, 2:
-            step += 1
-        case 3 where selectedAction == .apply:
-            startExport()
-        case 3:
-            if WizardNavigation.needsRerunConfirmation(
-                phase: runModel.phase,
-                hasReview: reviewModel.session != nil,
-                hasNormalizationSession: normalizationModel.session != nil
-            ) {
-                showRerunConfirmation = true
-            } else {
-                startRun()
-            }
-        case 5 where step5WriteAvailable:
-            startExport()
-        case 5:
-            requestFinish()
-        default:
-            break
-        }
-    }
-
-    /// Finish the current run and reset to a fresh Step 1 — shared by Step 5's
-    /// "Done" primary and the "Restart" button (issue #27). Both discard the
-    /// same state, so both route through the unsaved-restored-review guard.
-    private func requestFinish() {
-        if WizardNavigation.doneNeedsConfirmation(
-            hasSession: reviewModel.session != nil,
-            restoredRecoveryDirty: reviewModel.restoredRecoveryDirty,
-            exported: exportModel.phase == .written
-        ) {
-            showDiscardRestoredReviewConfirmation = true
-        } else {
-            finishCleanly()
-        }
-    }
-
-    private var rerunConfirmationTitle: String {
-        selectedAction == .normalize ? "Re-run normalization?" : "Re-run the analysis?"
-    }
-
-    private var rerunConfirmationMessage: String {
-        if selectedAction == .normalize {
-            return "This discards the current normalization session and Inspector outcomes."
-        }
-        return "This discards the current results and \(reviewModel.verdicts.count) review decisions."
-    }
-
-    private func startRun() {
-        guard let source = importModel.sourceFolder else { return }
-        runModel.start(
-            options: options,
-            inputPath: source.path,
-            recursive: importModel.recursive,
-            outputDir: importModel.outputFolder?.path,
-            expectedTotal: importModel.assets.count
-        )
-        step = 4
-    }
-
-    private func finishCleanly() {
-        reviewModel.completeCleanly()
-        normalizationModel.reset()
-        exportModel.reset()
-        applySession = nil
-        applySessionPath = nil
-        runModel.reset()
-        options.modelOverride = nil
-        selectedAction = nil
-        step = 1
-    }
-
     private func saveRestoredReviewSessionThenFinish() {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "review-session.json"
         panel.allowedContentTypes = [.json]
         if panel.runModal() == .OK, let url = panel.url {
             do {
-                try reviewModel.saveSession(to: url)
-                reviewModel.clearFileError()
-                finishCleanly()
+                try flow.saveRestoredReviewSession(to: url)
             } catch {
-                reviewModel.reportFileError("Save session", error)
+                flow.reviewModel.reportFileError("Save session", error)
             }
         }
     }
@@ -632,9 +290,7 @@ struct WizardShellView: View {
     private var footerBar: some View {
         HStack(spacing: 14) {
             Button {
-                if let target = WizardNavigation.backTarget(from: step, phase: runModel.phase) {
-                    step = target
-                }
+                flow.goBack()
             } label: {
                 Text("‹ Back")
                     .font(.system(size: 12.5, weight: .semibold))
@@ -644,11 +300,11 @@ struct WizardShellView: View {
                     .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(theme.borderStrong))
             }
             .buttonStyle(.plain)
-            .opacity(backEnabled ? 1 : 0.35)
-            .disabled(!backEnabled)
+            .opacity(flow.backEnabled ? 1 : 0.35)
+            .disabled(!flow.backEnabled)
 
-            if step == 5 {
-                Button(action: requestFinish) {
+            if flow.step == 5 {
+                Button(action: flow.requestFinish) {
                     Text("↺ Restart")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(theme.text)
@@ -660,14 +316,14 @@ struct WizardShellView: View {
                 .help("Discard this run and start over from Step 1")
             }
 
-            Text(footerHint)
+            Text(flow.footerHint)
                 .font(.system(size: 12))
                 .foregroundStyle(theme.textFaint)
 
             Spacer()
 
-            Button(action: primaryAction) {
-                Text(primaryLabel)
+            Button(action: flow.primaryAction) {
+                Text(flow.primaryLabel)
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.vertical, 10)
@@ -676,8 +332,8 @@ struct WizardShellView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 9))
             }
             .buttonStyle(.plain)
-            .opacity(primaryEnabled ? 1 : 0.4)
-            .disabled(!primaryEnabled)
+            .opacity(flow.primaryEnabled ? 1 : 0.4)
+            .disabled(!flow.primaryEnabled)
         }
         .padding(.horizontal, 34)
         .padding(.vertical, 13)

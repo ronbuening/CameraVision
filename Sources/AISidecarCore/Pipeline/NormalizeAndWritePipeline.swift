@@ -67,7 +67,7 @@ public struct NormalizeAndWritePipeline {
         mode: NormalizationInvocationMode,
         configuration: ResolvedNormalizationConfiguration,
         interruptionMonitor: InterruptionMonitor? = nil
-    ) throws -> NormalizeAndWritePipelineResult {
+    ) async throws -> NormalizeAndWritePipelineResult {
         invocationEngine?.beginPreWriteInvocation()
         defer {
             try? invocationEngine?.shutdown()
@@ -77,7 +77,7 @@ public struct NormalizeAndWritePipeline {
                 "NormalizeAndWritePipeline requires --from-json or --file-list; use AnalyzeAndNormalizePipeline for image input."
             )
         }
-        let normalizeResult = try normalizePipeline.runWritePlan(
+        let normalizeResult = try await normalizePipeline.runWritePlan(
             mode: mode,
             configuration: configuration,
             interruptionMonitor: interruptionMonitor
@@ -116,40 +116,13 @@ public struct NormalizeAndWritePipeline {
         case .analyze(let selected):
             path = selected
         }
-        return absoluteURL(for: path).path
+        return absoluteURL(for: path, fileManager: fileManager).path
     }
 
     private func xmpConfiguration(
         from configuration: ResolvedNormalizationConfiguration
     ) -> ResolvedXMPExportConfiguration {
-        ResolvedXMPExportConfiguration(
-            recursive: configuration.recursive,
-            outputDir: configuration.outputDir,
-            logLevel: configuration.logLevel,
-            logFormat: configuration.logFormat,
-            dryRun: configuration.dryRun,
-            sourceRoot: configuration.sourceRoot,
-            sourceVerification: configuration.sourceVerification,
-            writeFlatKeywords: configuration.writeFlatKeywords,
-            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
-            backupSidecars: configuration.backupSidecars,
-            xmpConflictPolicy: configuration.xmpConflictPolicy,
-            minConfidence: configuration.minConfidence,
-            allowSpecificTags: configuration.allowSpecificTags,
-            pairScope: configuration.pairScope,
-            writeAIJSON: configuration.writeAIJSON,
-            qualityGrading: configuration.qualityGrading
-        )
-    }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
+        ResolvedXMPExportConfiguration(from: configuration)
     }
 }
 

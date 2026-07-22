@@ -588,7 +588,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
             rawResponseText: rawResponseText,
             parsedResponseJSON: evaluation.parsedResponseJSON,
             jsonValid: evaluation.jsonValid,
-            durationMs: durationMs(from: startedAt, to: now()),
+            durationMs: Timestamp.durationMs(from: startedAt, to: now()),
             runtimeMetrics: runtimeMetrics,
             error: evaluation.error
         )
@@ -681,7 +681,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
             rawResponseText: rawResponseText,
             parsedResponseJSON: parsedResponseJSON,
             jsonValid: jsonValid,
-            durationMs: durationMs(from: startedAt, to: now()),
+            durationMs: Timestamp.durationMs(from: startedAt, to: now()),
             runtimeMetrics: runtimeMetrics,
             error: error,
             responseAttempts: responseAttempts
@@ -714,10 +714,6 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 "Ollama model tag not found or not vision-capable: \(model). Installed vision-capable tags: \(installed)\(probeDetail)",
             recoverable: false
         )
-    }
-
-    private func durationMs(from start: Date, to end: Date) -> Int {
-        max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
     }
 
     private static func normalizedDigest(_ digest: String) -> String {

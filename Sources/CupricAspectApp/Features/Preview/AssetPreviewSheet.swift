@@ -53,13 +53,14 @@ struct AssetPreviewSheet: View {
         .background(theme.winBg)
         .task {
             let sourcePath = record.path
-            let sidecarPath = AssetQueueDerivation.rawSidecarPath(
-                sourcePath: record.path,
-                relativePath: record.relativePath,
-                outputDir: outputDir
-            )
+            let relativePath = record.relativePath
+            let previewOutputDir = outputDir
             details = await Task.detached(priority: .userInitiated) {
-                AssetPreviewDetails.load(sourcePath: sourcePath, rawSidecarPath: sidecarPath)
+                AssetPreviewDetails.load(
+                    sourcePath: sourcePath,
+                    relativePath: relativePath,
+                    outputDir: previewOutputDir
+                )
             }.value
         }
     }

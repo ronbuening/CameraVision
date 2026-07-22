@@ -6,6 +6,7 @@ import SwiftUI
 /// views behind the nav arrive with the feature milestones.
 struct StudioShellView: View {
     @Environment(\.cvTheme) private var theme
+    let flow: WizardFlowModel
 
     var body: some View {
         VStack(spacing: 0) {

@@ -349,6 +349,42 @@ final class ConfigValidationTests: XCTestCase {
         }
     }
 
+    func testStableConfigLoaderAndScalarParserMessages() throws {
+        let missingPath = missingConfigPath()
+        try assertConfigInvalidMessage("Configuration file does not exist: \(missingPath)") {
+            _ = try ConfigurationResolver.resolve(
+                cli: RunConfigurationOverrides(configPath: missingPath),
+                environment: [:],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+
+        let derivativeMissingPath = missingConfigPath()
+        try assertConfigInvalidMessage("Configuration file does not exist: \(derivativeMissingPath)") {
+            _ = try ConfigurationResolver.resolveDerivativeCache(
+                cli: DerivativeCacheConfigurationOverrides(configPath: derivativeMissingPath),
+                environment: [:],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+
+        let yamlPath = "\(NSTemporaryDirectory())config.YML"
+        try assertConfigInvalidMessage("YAML configuration is not supported: \(yamlPath)") {
+            _ = try ConfigurationResolver.resolve(
+                cli: RunConfigurationOverrides(configPath: yamlPath),
+                environment: [:],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+
+        try assertConfigInvalidMessage("Invalid boolean value for AISIDECAR_RECURSIVE: maybe") {
+            _ = try ConfigurationResolver.resolve(
+                environment: ["AISIDECAR_RECURSIVE": "maybe"],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     private func assertConfigInvalid(_ operation: () throws -> Void) throws {
         do {
             try operation()
@@ -356,6 +392,18 @@ final class ConfigValidationTests: XCTestCase {
         } catch let error as SidecarError {
             XCTAssertEqual(error.code, .configInvalid)
             XCTAssertEqual(error.stage, .configuration)
+            XCTAssertFalse(error.recoverable)
+        }
+    }
+
+    private func assertConfigInvalidMessage(_ message: String, _ operation: () throws -> Void) throws {
+        do {
+            try operation()
+            XCTFail("Expected E_CONFIG_INVALID")
+        } catch let error as SidecarError {
+            XCTAssertEqual(error.code, .configInvalid)
+            XCTAssertEqual(error.stage, .configuration)
+            XCTAssertEqual(error.message, message)
             XCTAssertFalse(error.recoverable)
         }
     }

@@ -5,134 +5,6 @@ import XCTest
 @testable import CupricAspectApp
 
 final class QualityPresentationTests: XCTestCase {
-    func testCoreExtractionMapsCombinedAndQualitySiblingFixturesToExactAssetRows() throws {
-        let combinedSource = sourceImage(path: "/photos/Combined.JPG")
-        let qualityOnlySource = sourceImage(path: "/photos/Quality.JPG")
-        let combined = try resolvedInput(
-            source: combinedSource,
-            primaryRuns: [
-                modelRun(
-                    role: .wholeImage,
-                    assessment: wholeAssessment(
-                        overall: "acceptable",
-                        focus: "strong",
-                        confidence: "high",
-                        strengths: ["sharp eye detail"],
-                        concerns: []
-                    )
-                ),
-                modelRun(
-                    role: .subjectIsolated,
-                    assessment: subjectAssessment(
-                        overall: "strong",
-                        focus: "acceptable",
-                        confidence: "medium",
-                        strengths: ["clear subject detail"],
-                        concerns: ["minor edge artifact"]
-                    )
-                ),
-            ],
-            primaryProfile: .taggingWithQuality
-        )
-        let qualitySibling = try resolvedInput(
-            source: qualityOnlySource,
-            primaryRuns: [],
-            primaryProfile: .tagging,
-            qualityRuns: [
-                modelRun(
-                    role: .wholeImage,
-                    assessment: wholeAssessment(
-                        overall: "problem",
-                        focus: "problem",
-                        confidence: "medium",
-                        strengths: [],
-                        concerns: ["focus misses the subject"]
-                    )
-                )
-            ]
-        )
-        let assets = [
-            sourceAsset(id: "combined", source: combinedSource),
-            sourceAsset(id: "quality", source: qualityOnlySource),
-        ]
-        let writePlans = [
-            normalizedPlan(
-                plan(
-                    source: combinedSource,
-                    target: "Combined.xmp",
-                    tier: .good,
-                    explanations: ["tier=good"]
-                )
-            ),
-            normalizedPlan(
-                plan(
-                    source: qualityOnlySource,
-                    target: "Quality.xmp",
-                    tier: nil,
-                    explanations: ["ungraded reason=below_minimum_confidence", "confidence=medium"]
-                )
-            ),
-        ]
-
-        let rows = ReviewModel.qualityPresentation(
-            sourceAssets: assets,
-            xmpWritePlans: writePlans,
-            extractionByAssetID: [
-                "combined": QualityAssessmentExtractor.extract(from: combined),
-                "quality": QualityAssessmentExtractor.extract(from: qualitySibling),
-            ]
-        )
-
-        XCTAssertEqual(rows["combined"]?.records.map(\.role), [.wholeImage, .subjectIsolated])
-        XCTAssertEqual(rows["combined"]?.records.first?.overall, .acceptable)
-        XCTAssertEqual(rows["combined"]?.records.first?.criteria[.focus], .strong)
-        XCTAssertEqual(rows["combined"]?.records.first?.strengths, ["sharp eye detail"])
-        XCTAssertEqual(rows["combined"]?.tier, .good)
-        XCTAssertEqual(rows["quality"]?.records.map(\.role), [.wholeImage])
-        XCTAssertEqual(rows["quality"]?.records.first?.concerns, ["focus misses the subject"])
-        XCTAssertNil(rows["quality"]?.tier)
-        XCTAssertEqual(rows["quality"]?.ungradedReason, "ungraded reason=below_minimum_confidence")
-
-        let summary = ReviewModel.qualitySummary(for: rows)
-        XCTAssertEqual(summary.assessedAssetCount, 2)
-        XCTAssertEqual(summary.tierCounts, [.good: 1])
-        XCTAssertEqual(summary.ungradedAssetCount, 1)
-        XCTAssertEqual(summary.issueCount, 0)
-    }
-
-    func testTolerantExtractionIssuesMapToNonFatalDiagnostics() throws {
-        let source = sourceImage(path: "/photos/Issue.JPG")
-        var assessment = wholeAssessment(
-            overall: "acceptable",
-            focus: "excellent",
-            confidence: "high",
-            strengths: [],
-            concerns: []
-        )
-        assessment["future_aesthetic_signal"] = .string("strong")
-        let input = try resolvedInput(
-            source: source,
-            primaryRuns: [modelRun(role: .wholeImage, assessment: assessment)],
-            primaryProfile: .qualityOnly
-        )
-
-        let rows = ReviewModel.qualityPresentation(
-            sourceAssets: [sourceAsset(id: "issue", source: source)],
-            xmpWritePlans: [],
-            extractionByAssetID: ["issue": QualityAssessmentExtractor.extract(from: input)]
-        )
-
-        XCTAssertEqual(rows["issue"]?.records.count, 1)
-        XCTAssertEqual(
-            rows["issue"]?.issueDiagnostics,
-            [
-                "invalid_level: focus=excellent",
-                "unknown_criterion: future_aesthetic_signal",
-            ]
-        )
-        XCTAssertEqual(ReviewModel.qualitySummary(for: rows).issueCount, 2)
-    }
-
     func testPlanAndReportPresentationUsesCoreScalarActionsAndResultValues() throws {
         let source = sourceImage(path: "/photos/Graded.JPG")
         var graded = plan(
@@ -218,7 +90,7 @@ final class QualityPresentationTests: XCTestCase {
         )
     }
 
-    func testLegacyPlanAndAssessmentFreeRunHaveNoQualityPresentation() throws {
+    func testLegacyPlanHasNoQualityPresentation() throws {
         let source = sourceImage(path: "/photos/Legacy.JPG")
         let legacyPlan = plan(source: source, target: "Legacy.xmp", tier: nil, explanations: nil)
         let document = XMPChangePlanDocument(
@@ -233,12 +105,50 @@ final class QualityPresentationTests: XCTestCase {
         )
 
         XCTAssertNil(ExportModel.qualityPresentation(for: try XCTUnwrap(decoded.targetPlans.first)))
-        XCTAssertTrue(
-            ReviewModel.qualityPresentation(
-                sourceAssets: [sourceAsset(id: "legacy", source: source)],
-                xmpWritePlans: [],
-                extractionByAssetID: [:]
-            ).isEmpty
+    }
+
+    func testReviewQualitySummaryCountsCorePresentationRows() {
+        let record = QualityAssessmentRecord(
+            role: .wholeImage,
+            promptVersion: "prompt/quality",
+            criteria: [.focus: .strong],
+            overall: .strong,
+            strengths: ["sharp detail"],
+            concerns: [],
+            confidence: .high
+        )
+        let rows = [
+            "good": ReviewAssetQualityPresentation(
+                records: [record],
+                issueDiagnostics: ["malformed_block"],
+                tier: .good,
+                explanations: ["tier=good"],
+                ungradedReason: nil
+            ),
+            "ungraded": ReviewAssetQualityPresentation(
+                records: [record],
+                issueDiagnostics: ["missing_overall", "unknown_criterion: future"],
+                tier: nil,
+                explanations: ["ungraded reason=below_minimum_confidence"],
+                ungradedReason: "ungraded reason=below_minimum_confidence"
+            ),
+            "reject": ReviewAssetQualityPresentation(
+                records: [],
+                issueDiagnostics: [],
+                tier: .reject,
+                explanations: ["tier=reject"],
+                ungradedReason: nil
+            ),
+        ]
+
+        XCTAssertEqual(
+            ReviewModel.qualitySummary(for: rows),
+            ReviewModel.QualitySummary(
+                assessedAssetCount: 2,
+                tierCounts: [.good: 1, .reject: 1],
+                ungradedAssetCount: 1,
+                issueCount: 3
+            )
         )
     }
 
@@ -254,115 +164,6 @@ final class QualityPresentationTests: XCTestCase {
             detectedType: .jpg,
             identity: SourceIdentity(policy: .sha256, sha256: String(repeating: "a", count: 64))
         )
-    }
-
-    private func sourceAsset(id: String, source: SourceImage) -> NormalizationSourceAsset {
-        NormalizationSourceAsset(
-            assetID: id,
-            sourcePath: source.path,
-            sourceRelativePath: source.relativePath,
-            fileName: source.fileName,
-            sourceType: source.detectedType,
-            sourceIdentity: source.identity,
-            sourceSidecarPath: nil,
-            sourceSidecarRelativePath: nil,
-            sourceIdentityStatus: .matched,
-            fileListIndex: nil,
-            affinityInputs: AssetAffinityInputBuilder.make(assetID: id, source: source)
-        )
-    }
-
-    private func resolvedInput(
-        source: SourceImage,
-        primaryRuns: [ModelRunRecord],
-        primaryProfile: ModelTaskProfile,
-        qualityRuns: [ModelRunRecord]? = nil
-    ) throws -> ResolvedRawSidecarInput {
-        let primary = RawJSONSidecar(
-            source: source,
-            runConfiguration: ResolvedRunConfiguration.builtInDefaults.with(taskProfile: primaryProfile),
-            modelRuns: primaryRuns,
-            createdAt: Date(timeIntervalSince1970: 100)
-        )
-        let primaryPath = URL(fileURLWithPath: "/sidecars/\(source.fileName).ai.json")
-        if let qualityRuns {
-            let quality = RawJSONSidecar(
-                source: source,
-                runConfiguration: ResolvedRunConfiguration.builtInDefaults.with(taskProfile: .qualityOnly),
-                modelRuns: qualityRuns,
-                createdAt: Date(timeIntervalSince1970: 200)
-            )
-            return ResolvedRawSidecarInput(
-                sidecarPath: primaryPath,
-                document: try RawJSONSidecarDocument(sidecar: primary),
-                qualitySidecarPath: URL(fileURLWithPath: "/sidecars/\(source.fileName).quality.ai.json"),
-                qualityDocument: try RawJSONSidecarDocument(sidecar: quality),
-                sourcePath: URL(fileURLWithPath: source.path),
-                sourceIdentityStatus: .matched,
-                relativePath: primaryPath.lastPathComponent,
-                warnings: []
-            )
-        }
-        return ResolvedRawSidecarInput(
-            sidecarPath: primaryPath,
-            document: try RawJSONSidecarDocument(sidecar: primary),
-            sourcePath: URL(fileURLWithPath: source.path),
-            sourceIdentityStatus: .matched,
-            relativePath: primaryPath.lastPathComponent,
-            warnings: []
-        )
-    }
-
-    private func modelRun(role: ModelInputRole, assessment: [String: JSONValue]) -> ModelRunRecord {
-        ModelRunRecord(
-            inputRole: role,
-            model: "test:model",
-            modelDigest: "sha256:test",
-            runtime: "test",
-            runtimeVersion: "1",
-            promptVersion: "prompt.\(role.rawValue)",
-            promptSHA256: String(repeating: "b", count: 64),
-            responseSchemaVersion: "schema.test",
-            requestOptions: .default,
-            inputDerivativeSHA256: String(repeating: "c", count: 64),
-            rawResponseText: "fixture",
-            parsedResponseJSON: .object(["quality_assessment": .object(assessment)]),
-            jsonValid: true,
-            durationMs: 1,
-            error: nil
-        )
-    }
-
-    private func wholeAssessment(
-        overall: String,
-        focus: String,
-        confidence: String,
-        strengths: [String],
-        concerns: [String]
-    ) -> [String: JSONValue] {
-        [
-            "focus": .string(focus),
-            "overall_effectiveness": .string(overall),
-            "strengths": .array(strengths.map(JSONValue.string)),
-            "concerns": .array(concerns.map(JSONValue.string)),
-            "confidence": .string(confidence),
-        ]
-    }
-
-    private func subjectAssessment(
-        overall: String,
-        focus: String,
-        confidence: String,
-        strengths: [String],
-        concerns: [String]
-    ) -> [String: JSONValue] {
-        [
-            "focus": .string(focus),
-            "overall_subject_quality": .string(overall),
-            "strengths": .array(strengths.map(JSONValue.string)),
-            "concerns": .array(concerns.map(JSONValue.string)),
-            "confidence": .string(confidence),
-        ]
     }
 
     private func plan(
@@ -411,12 +212,4 @@ final class QualityPresentationTests: XCTestCase {
         )
     }
 
-    private func normalizedPlan(_ plan: XMPChangePlan) -> NormalizedXMPWritePlan {
-        NormalizedXMPWritePlan(
-            xmpChangePlan: plan,
-            flatKeywordProvenance: [],
-            hierarchicalKeywordProvenance: [],
-            normalizationSkips: []
-        )
-    }
 }

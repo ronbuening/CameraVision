@@ -4,7 +4,7 @@ import XCTest
 @testable import AISidecarCore
 
 final class NormalizeAndWritePipelineTests: XCTestCase {
-    func testFromJSONNormalWriteCreatesNormalizationArtifactsAndXMP() throws {
+    func testFromJSONNormalWriteCreatesNormalizationArtifactsAndXMP() async throws {
         let jsonRoot = try temporaryDirectory()
         let sourceRoot = try temporaryDirectory()
         let output = try temporaryDirectory()
@@ -27,7 +27,7 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
         configuration.vocabularyPath = vocabularyPath
         configuration.normalizationMode = .singleImage
 
-        let result = try NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
+        let result = try await NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration
         )
@@ -52,7 +52,7 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
             })
     }
 
-    func testNormalizeAndWriteCarriesQualityGradingIntoExportConfiguration() throws {
+    func testNormalizeAndWriteCarriesQualityGradingIntoExportConfiguration() async throws {
         var fixture = try makeFixture()
         let grading = ResolvedQualityGradingConfiguration(
             enabled: true,
@@ -65,7 +65,7 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
         )
         fixture.configuration.qualityGrading = grading
 
-        let result = try NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
+        let result = try await NormalizeAndWritePipeline(logger: Logger(sink: { _ in })).run(
             mode: .fromJSON(path: fixture.jsonRoot.path),
             configuration: fixture.configuration
         )
@@ -73,28 +73,29 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
         XCTAssertEqual(result.exportResult.report?.configuration.qualityGrading, grading)
     }
 
-    func testInterruptedBeforeSessionWriteLeavesNoNormalizationArtifacts() throws {
+    func testInterruptedBeforeSessionWriteLeavesNoNormalizationArtifacts() async throws {
         let fixture = try makeFixture()
         let monitor = InterruptionMonitor()
         monitor.requestInterruption()
 
-        XCTAssertThrowsError(
-            try NormalizePipeline().runSessionOnly(
+        do {
+            _ = try await NormalizePipeline().runSessionOnly(
                 mode: .fromJSON(path: fixture.jsonRoot.path),
                 configuration: fixture.configuration,
                 interruptionMonitor: monitor
             )
-        ) { error in
+            XCTFail("Expected interruption")
+        } catch {
             XCTAssertEqual((error as? SidecarError)?.code, .interrupted)
         }
 
         XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: fixture.output.path).isEmpty)
     }
 
-    func testInterruptedAfterSessionWriteBeforeXMPWriteRecordsFailureWithoutSidecar() throws {
+    func testInterruptedAfterSessionWriteBeforeXMPWriteRecordsFailureWithoutSidecar() async throws {
         let fixture = try makeFixture()
         let monitor = InterruptionMonitor()
-        let result = try NormalizeAndWritePipeline(
+        let result = try await NormalizeAndWritePipeline(
             logger: Logger(sink: { _ in }),
             afterNormalization: { monitor.requestInterruption() }
         ).run(
@@ -117,11 +118,11 @@ final class NormalizeAndWritePipelineTests: XCTestCase {
             })
     }
 
-    func testInterruptedDuringXMPBackupRestoresExistingSidecarAndLeavesSourceUnchanged() throws {
+    func testInterruptedDuringXMPBackupRestoresExistingSidecarAndLeavesSourceUnchanged() async throws {
         let fixture = try makeFixture(existingXMP: existingDevelopSettingsXMPForNormalizeWrite)
         let originalSourceData = try Data(contentsOf: fixture.sourceURL)
         let monitor = InterruptionMonitor()
-        let result = try NormalizeAndWritePipeline(
+        let result = try await NormalizeAndWritePipeline(
             exportPipeline: XMPExportPipeline(
                 logger: Logger(sink: { _ in }),
                 afterBackup: { monitor.requestInterruption() }

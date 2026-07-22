@@ -221,9 +221,9 @@ public struct BatchConsensusEngine {
                         ? AffinityScoreFormatter.rounded(Double(supporting.count) / Double(eligibleCount))
                         : nil,
                     observationCount: observations.count,
-                    confidenceBands: counts(observations.map { $0.confidence.rawValue }),
-                    sourceFields: counts(observations.map { $0.provenance.sourceField.rawValue }),
-                    inputRoles: counts(observations.map { $0.provenance.inputRole.rawValue })
+                    confidenceBands: frequencyCounts(observations.map { $0.confidence.rawValue }),
+                    sourceFields: frequencyCounts(observations.map { $0.provenance.sourceField.rawValue }),
+                    inputRoles: frequencyCounts(observations.map { $0.provenance.inputRole.rawValue })
                 )
             )
         }
@@ -248,9 +248,9 @@ public struct BatchConsensusEngine {
                         ? AffinityScoreFormatter.rounded(Double(grouped.count) / Double(eligibleCount))
                         : nil,
                     observationCount: observations.count,
-                    confidenceBands: counts(observations.map { $0.confidence.rawValue }),
-                    sourceFields: counts(observations.map { $0.provenance.sourceField.rawValue }),
-                    inputRoles: counts(observations.map { $0.provenance.inputRole.rawValue })
+                    confidenceBands: frequencyCounts(observations.map { $0.confidence.rawValue }),
+                    sourceFields: frequencyCounts(observations.map { $0.provenance.sourceField.rawValue }),
+                    inputRoles: frequencyCounts(observations.map { $0.provenance.inputRole.rawValue })
                 )
             })
 
@@ -747,26 +747,6 @@ public struct BatchConsensusEngine {
         }
     }
 
-    private func counts(_ values: [String]) -> [String: Int] {
-        values.reduce(into: [:]) { partial, value in
-            partial[value, default: 0] += 1
-        }
-    }
-
-    private func stableUnique(_ values: [NormalizationCandidateSkipReason]) -> [NormalizationCandidateSkipReason] {
-        var seen: Set<NormalizationCandidateSkipReason> = []
-        var result: [NormalizationCandidateSkipReason] = []
-        for value in values where seen.insert(value).inserted {
-            result.append(value)
-        }
-        return result
-    }
-
-    private func assignDecisionIDs(_ decisions: inout [PerAssetNormalizationDecision]) {
-        for index in decisions.indices {
-            decisions[index].decisionID = String(format: "decision-%06d", index + 1)
-        }
-    }
 }
 
 private struct AssetCanonicalPathKey: Hashable {

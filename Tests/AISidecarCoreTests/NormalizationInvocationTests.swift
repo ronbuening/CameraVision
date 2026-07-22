@@ -46,6 +46,14 @@ final class NormalizationInvocationTests: XCTestCase {
         }
     }
 
+    func testNormalizeFromJSONStageConcurrencyRejectionMessageIsStable() throws {
+        try assertConfigInvalid("--stage-concurrency is invalid with --from-json.") {
+            _ = try NormalizationInvocationValidator.validate(
+                NormalizationInvocationRequest(fromJSONPath: "A.ai.json", stageConcurrency: 1)
+            )
+        }
+    }
+
     func testNormalizeRejectsSourceRootOutsideFromJSON() throws {
         try assertConfigInvalid {
             _ = try NormalizationInvocationValidator.validate(
@@ -254,6 +262,45 @@ final class NormalizationInvocationTests: XCTestCase {
         XCTAssertEqual(ResolvedNormalizationConfiguration.builtInDefaults.unknownSessionContextPolicy, .reject)
     }
 
+    func testNormalizationStageConcurrencyUsesStandardPrecedenceAndDefaultsToNil() throws {
+        let missingConfig = missingConfigPath()
+        let defaults = try ConfigurationResolver.resolveNormalization(
+            environment: [:],
+            defaultConfigPath: missingConfig
+        )
+        XCTAssertNil(defaults.stageConcurrency)
+
+        let configPath = try writeConfig(#"{ "stage_concurrency": 2 }"#)
+        let configured = try ConfigurationResolver.resolveNormalization(
+            environment: [:],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(configured.stageConcurrency, 2)
+
+        let environment = try ConfigurationResolver.resolveNormalization(
+            environment: ["AISIDECAR_STAGE_CONCURRENCY": "3"],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(environment.stageConcurrency, 3)
+
+        let commandLine = try ConfigurationResolver.resolveNormalization(
+            cli: NormalizationConfigurationOverrides(stageConcurrency: 4),
+            environment: ["AISIDECAR_STAGE_CONCURRENCY": "3"],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(commandLine.stageConcurrency, 4)
+    }
+
+    func testNormalizationStageConcurrencyMustBeGreaterThanZero() throws {
+        try assertConfigInvalid("stage_concurrency must be greater than zero") {
+            _ = try ConfigurationResolver.resolveNormalization(
+                cli: NormalizationConfigurationOverrides(stageConcurrency: 0),
+                environment: [:],
+                defaultConfigPath: missingConfigPath()
+            )
+        }
+    }
+
     func testNormalizationVocabularyModeResolution() throws {
         let defaultResolved = try ConfigurationResolver.resolveNormalization(
             environment: [:],
@@ -334,7 +381,10 @@ final class NormalizationInvocationTests: XCTestCase {
         }
     }
 
-    private func assertConfigInvalid(_ operation: () throws -> Void) throws {
+    private func assertConfigInvalid(
+        _ expectedMessage: String? = nil,
+        operation: () throws -> Void
+    ) throws {
         do {
             try operation()
             XCTFail("Expected E_CONFIG_INVALID")
@@ -342,6 +392,9 @@ final class NormalizationInvocationTests: XCTestCase {
             XCTAssertEqual(error.code, .configInvalid)
             XCTAssertEqual(error.stage, .configuration)
             XCTAssertFalse(error.recoverable)
+            if let expectedMessage {
+                XCTAssertEqual(error.message, expectedMessage)
+            }
         }
     }
 

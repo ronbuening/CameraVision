@@ -145,6 +145,7 @@ final class FolderImportModel {
         let inventoryProvider = inventoryProvider
 
         let outcome: RescanOutcome = await Task.detached(priority: .userInitiated) {
+            let stateDeriver = QueueStateDeriver()
             do {
                 let inventory = try inventoryProvider(inputPath, recursive)
                 let records = inventory.entries.map { entry in
@@ -154,10 +155,8 @@ final class FolderImportModel {
                         fileName: entry.fileName,
                         fileExtension: entry.fileExtension,
                         fileSize: entry.fileSize,
-                        stateKind: AssetQueueDerivation.deriveState(
-                            sourcePath: entry.path,
-                            relativePath: entry.relativePath,
-                            outputDir: outputDir
+                        stateKind: AssetRecord.StateKind(
+                            derivedState: stateDeriver.derive(for: entry, outputDir: outputDir)
                         ),
                         failureCode: nil,
                         failureMessage: nil

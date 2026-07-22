@@ -122,7 +122,8 @@
   // There is no current CLI flag for this key.
   "subject_merge_dominance_threshold": 0.8,
 
-  // Maximum concurrent render/isolation preparation workers. Must be greater than zero.
+  // Maximum concurrent render/isolation workers and normalize folder-scan hash workers.
+  // This shared setting governs both analyze and normalize scans. Must be greater than zero.
   // Use null for the hardware-derived default.
   "stage_concurrency": null,
 

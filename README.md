@@ -468,7 +468,7 @@ Frequently used knobs:
 - `--model-timeout <seconds>` / `"model_timeout_seconds"` — allow slower model requests or cold starts.
 - `--model-retry-limit <n>` / `"model_retry_limit"` — set additional attempts for retryable failures.
 - `--mode whole|subject|both` / `"mode"` — analysis input role.
-- `--stage-concurrency 1` / `"stage_concurrency"` — lower memory pressure by preparing renders serially.
+- `--stage-concurrency 1` / `"stage_concurrency"` — lower memory pressure by serializing render preparation and normalize-folder source hashing.
 - `--gps-context off|coarse|exact` / `"gps_context"` — prompt-only GPS context. Coordinates and GPS-derived location metadata are never exported as keywords.
 - `--existing skip|overwrite|fail` / `"existing"` — how raw `.ai.json` collisions are handled.
 - `--quality-scan-mode combined|sequential` / `"quality_scan_mode"` — with `--assess-quality`: assess in the tagging call, or as a dedicated second pass that keeps tagging output identical to a run without assessment.

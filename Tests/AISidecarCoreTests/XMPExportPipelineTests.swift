@@ -42,6 +42,27 @@ final class XMPExportPipelineTests: XCTestCase {
         XCTAssertTrue(summary.contains("Capture One"))
     }
 
+    func testFolderArtifactsResolveInsideSymlinkedInputFolder() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("xmp-artifacts-\(UUID().uuidString)", isDirectory: true)
+        let realFolder = root.appendingPathComponent("real", isDirectory: true)
+        let link = root.appendingPathComponent("link")
+        try fileManager.createDirectory(at: realFolder, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+        try fileManager.createSymbolicLink(at: link, withDestinationURL: realFolder)
+
+        let artifacts = ExportArtifactPaths.resolve(
+            inputPath: link.path,
+            outputDir: nil,
+            startedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            runSuffix: "symlink",
+            fileManager: fileManager
+        )
+
+        XCTAssertEqual(artifacts.directory, link.path)
+    }
+
     func testStampSkipsMembersWithoutRawSidecarAndNeverWritesToImagePaths() throws {
         let root = try temporaryDirectory()
         let source = root.appendingPathComponent("Bird.JPG")
