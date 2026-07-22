@@ -68,6 +68,57 @@ final class ReviewModelTests: XCTestCase {
         )
     }
 
+    private func qualityPlan(
+        for asset: NormalizationSourceAsset,
+        tier: QualityTier,
+        explanations: [String]
+    ) -> NormalizedXMPWritePlan {
+        let plan = XMPChangePlan(
+            status: .planned,
+            targetXMPPath: "/photos/A.xmp",
+            targetRelativePath: "A.xmp",
+            pairScope: .union,
+            sourceMembers: [
+                SourceMemberPlan(
+                    sourcePath: asset.sourcePath,
+                    sourceRelativePath: asset.sourceRelativePath,
+                    sourceFileName: asset.fileName,
+                    sourceType: asset.sourceType,
+                    sourceSidecarPath: asset.sourceSidecarPath,
+                    sourceSidecarRelativePath: asset.sourceSidecarRelativePath,
+                    sourceIdentityStatus: asset.sourceIdentityStatus ?? .matched,
+                    pairKind: .jpeg,
+                    selected: true,
+                    skipReason: nil,
+                    flatKeywordContributionCount: 0,
+                    hierarchicalKeywordContributionCount: 0
+                )
+            ],
+            flatKeywordsToAdd: [],
+            hierarchicalKeywordsToAdd: [],
+            skippedCandidates: [],
+            candidateExtractionIssues: [],
+            sourceVerificationWarnings: [],
+            groupWarnings: [],
+            existingPolicy: .backupAndMerge,
+            backupPlan: BackupPlan(
+                backupSidecars: true,
+                backupRequiredBeforeMerge: true,
+                conflictPolicy: .backupAndMerge
+            ),
+            validationPlan: .phase2Default,
+            failures: [],
+            qualityExplanation: explanations,
+            qualityTier: tier
+        )
+        return NormalizedXMPWritePlan(
+            xmpChangePlan: plan,
+            flatKeywordProvenance: [],
+            hierarchicalKeywordProvenance: [],
+            normalizationSkips: []
+        )
+    }
+
     private func makeBaseSession(terms: [String]) throws -> NormalizationSessionDocument {
         let sourceRoot = root.appendingPathComponent("source")
         let jsonRoot = root.appendingPathComponent("json")
@@ -102,15 +153,36 @@ final class ReviewModelTests: XCTestCase {
     private func makeModel(
         clock: @escaping () -> Date = Date.init,
         decisionLimit: Int = 25,
-        onAssetRowBuilt: @escaping (String) -> Void = { _ in }
+        onAssetRowBuilt: @escaping (String) -> Void = { _ in },
+        loadReviewQuality: @escaping @Sendable (NormalizationSessionDocument) -> ReviewQualityLoadResult = {
+            ReviewQualityLoader().load(for: $0)
+        }
     ) -> ReviewModel {
         ReviewModel(
             stateDirectory: root.appendingPathComponent("state"),
             autosaveDecisionLimit: decisionLimit,
             autosaveInterval: 300,
             now: clock,
-            onAssetRowBuilt: onAssetRowBuilt
+            onAssetRowBuilt: onAssetRowBuilt,
+            loadReviewQuality: loadReviewQuality
         )
+    }
+
+    @MainActor
+    private func waitUntil(
+        _ label: String,
+        timeout: Duration = .seconds(2),
+        condition: () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !condition() {
+            guard clock.now < deadline else {
+                XCTFail("Timed out waiting for \(label)")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     // MARK: - Tests
@@ -286,7 +358,7 @@ final class ReviewModelTests: XCTestCase {
         XCTAssertEqual(configuration, expected)
     }
 
-    func testLoadQualityExtractionReadsCurrentSidecarPairWithoutIdentityGate() throws {
+    func testReviewQualityLoaderReadsCurrentSidecarPairWithoutIdentityGate() throws {
         let session = try makeBaseSession(terms: ["bird"])
         let assetID = try XCTUnwrap(session.sourceAssets.first?.assetID)
         XCTAssertFalse(session.sourceAISidecars.isEmpty)
@@ -332,27 +404,83 @@ final class ReviewModelTests: XCTestCase {
             .write(to: jsonRoot.appendingPathComponent("A.JPG.quality.ai.json"))
         try Data("modified after analysis".utf8).write(to: root.appendingPathComponent("source/A.JPG"))
 
-        let loaded = ReviewModel.loadQualityExtraction(for: session)
+        let loaded = ReviewQualityLoader().load(for: session)
 
         XCTAssertEqual(loaded.diagnostics, [])
-        XCTAssertEqual(loaded.resultsByAssetID[assetID]?.records.map(\.role), [.wholeImage])
-        XCTAssertEqual(loaded.resultsByAssetID[assetID]?.records.first?.overall, .problem)
+        XCTAssertEqual(loaded.presentationByAssetID[assetID]?.records.map(\.role), [.wholeImage])
+        XCTAssertEqual(loaded.presentationByAssetID[assetID]?.records.first?.overall, .problem)
         XCTAssertEqual(
-            loaded.resultsByAssetID[assetID]?.records.first?.concerns,
+            loaded.presentationByAssetID[assetID]?.records.first?.concerns,
             ["focus misses the subject"]
         )
     }
 
-    func testLoadQualityExtractionSurfacesUnreadableSidecarAsDiagnostic() throws {
+    func testReviewQualityLoaderSurfacesUnreadableSidecarAsDiagnostic() throws {
         var session = try makeBaseSession(terms: ["bird"])
         let missing = root.appendingPathComponent("json/Gone.JPG.ai.json").path
         session.sourceAISidecars[0].sidecarPath = missing
 
-        let loaded = ReviewModel.loadQualityExtraction(for: session)
+        let loaded = ReviewQualityLoader().load(for: session)
 
-        XCTAssertTrue(loaded.resultsByAssetID.isEmpty)
+        XCTAssertTrue(loaded.presentationByAssetID.isEmpty)
         XCTAssertEqual(loaded.diagnostics.count, 1)
         XCTAssertTrue(loaded.diagnostics[0].hasPrefix(SidecarErrorCode.validationFailed.rawValue))
+    }
+
+    @MainActor
+    func testAdoptPublishesPlanOnlyQualityBeforeAsyncReplacement() async throws {
+        var session = try makeBaseSession(terms: ["bird"])
+        let assetID = try XCTUnwrap(session.sourceAssets.first?.assetID)
+        let asset = try XCTUnwrap(session.sourceAssets.first)
+        session.xmpWritePlans = [qualityPlan(for: asset, tier: .good, explanations: ["tier=good"])]
+        let model = makeModel(loadReviewQuality: { _ in
+            Thread.sleep(forTimeInterval: 0.1)
+            return ReviewQualityLoadResult(
+                presentationByAssetID: [:],
+                diagnostics: ["current contributors loaded"]
+            )
+        })
+
+        model.adopt(session: session)
+
+        XCTAssertEqual(model.qualityByAssetID[assetID]?.tier, .good)
+        XCTAssertEqual(model.qualityDiagnostics, [])
+        try await waitUntil("current quality replacement") {
+            model.qualityDiagnostics == ["current contributors loaded"]
+        }
+        XCTAssertNil(model.qualityByAssetID[assetID])
+    }
+
+    @MainActor
+    func testLaterAdoptionRejectsStaleAsyncQualityLoadByTokenAndSessionID() async throws {
+        let first = try makeBaseSession(terms: ["bird"])
+        let firstID = first.session.sessionID
+        var second = first
+        second.session.sessionID = "\(firstID)-second"
+        XCTAssertNotEqual(firstID, second.session.sessionID)
+        let model = makeModel(loadReviewQuality: { session in
+            if session.session.sessionID == firstID {
+                Thread.sleep(forTimeInterval: 0.2)
+                return ReviewQualityLoadResult(
+                    presentationByAssetID: [:],
+                    diagnostics: ["stale first load"]
+                )
+            }
+            return ReviewQualityLoadResult(
+                presentationByAssetID: [:],
+                diagnostics: ["current second load"]
+            )
+        })
+
+        model.adopt(session: first)
+        model.adopt(session: second)
+
+        try await waitUntil("second session quality") {
+            model.qualityDiagnostics == ["current second load"]
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(model.session?.session.sessionID, second.session.sessionID)
+        XCTAssertEqual(model.qualityDiagnostics, ["current second load"])
     }
 
     @MainActor

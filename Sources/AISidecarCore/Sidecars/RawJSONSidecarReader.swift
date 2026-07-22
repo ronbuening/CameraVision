@@ -34,6 +34,13 @@ public struct RawJSONSidecarReader {
         }
     }
 
+    // Preview presentation historically decoded the typed sidecar without the
+    // export reader's schema-envelope gate. Keep that tolerant behavior while
+    // moving the decoding boundary into Core.
+    func decodeForPreview(from data: Data) throws -> RawJSONSidecar {
+        try JSONCoding.decoder().decode(RawJSONSidecar.self, from: data)
+    }
+
     private func validateRawSidecarEnvelope(data: Data, path: String) throws {
         let json: JSONValue
         do {

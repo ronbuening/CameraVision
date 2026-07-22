@@ -56,7 +56,7 @@ public enum SidecarNaming {
         for source: SourceImage,
         kind: RawSidecarKind = .tagging
     ) -> String {
-        "\(source.fileName)\(suffix(for: kind))"
+        sidecarFileName(fileName: source.fileName, kind: kind)
     }
 
     /// Return the mirrored relative path used under `--output-dir`.
@@ -64,11 +64,7 @@ public enum SidecarNaming {
         for source: SourceImage,
         kind: RawSidecarKind = .tagging
     ) -> String {
-        let components = relativeComponents(for: source.relativePath)
-        guard let fileName = components.last else {
-            return sidecarFileName(for: source, kind: kind)
-        }
-        return (Array(components.dropLast()) + ["\(fileName)\(suffix(for: kind))"]).joined(separator: "/")
+        sidecarRelativePath(relativePath: source.relativePath, fileName: source.fileName, kind: kind)
     }
 
     /// Resolve the concrete sidecar path for beside-source or mirrored output.
@@ -77,17 +73,65 @@ public enum SidecarNaming {
         outputDir: String?,
         kind: RawSidecarKind = .tagging
     ) -> String {
+        destinationPath(
+            sourcePath: source.path,
+            relativePath: source.relativePath,
+            fileName: source.fileName,
+            outputDir: outputDir,
+            kind: kind
+        )
+    }
+
+    /// Resolve a sidecar without forcing discovery-only callers to hash the source.
+    static func destinationPath(
+        for source: ScanInventoryEntry,
+        outputDir: String?,
+        kind: RawSidecarKind = .tagging
+    ) -> String {
+        destinationPath(
+            sourcePath: source.path,
+            relativePath: source.relativePath,
+            fileName: source.fileName,
+            outputDir: outputDir,
+            kind: kind
+        )
+    }
+
+    /// Resolve a sidecar when a Core presentation boundary has only source location data.
+    static func destinationPath(
+        sourcePath: String,
+        relativePath: String,
+        outputDir: String?,
+        kind: RawSidecarKind = .tagging
+    ) -> String {
+        destinationPath(
+            sourcePath: sourcePath,
+            relativePath: relativePath,
+            fileName: URL(fileURLWithPath: sourcePath).lastPathComponent,
+            outputDir: outputDir,
+            kind: kind
+        )
+    }
+
+    private static func destinationPath(
+        sourcePath: String,
+        relativePath: String,
+        fileName: String,
+        outputDir: String?,
+        kind: RawSidecarKind
+    ) -> String {
         let destination: URL
         if let outputDir {
             destination = appendRelativeSidecarPath(
-                for: source,
+                relativePath: relativePath,
+                fileName: fileName,
                 to: URL(fileURLWithPath: (outputDir as NSString).expandingTildeInPath),
                 kind: kind
             )
         } else {
-            destination = URL(fileURLWithPath: source.path)
+            destination = URL(fileURLWithPath: sourcePath)
                 .deletingLastPathComponent()
-                .appendingPathComponent(sidecarFileName(for: source, kind: kind))
+                .appendingPathComponent(sidecarFileName(fileName: fileName, kind: kind))
         }
         return destination.standardizedFileURL.path
     }
@@ -224,13 +268,31 @@ public enum SidecarNaming {
     }
 
     private static func appendRelativeSidecarPath(
-        for source: SourceImage,
+        relativePath: String,
+        fileName: String,
         to base: URL,
         kind: RawSidecarKind
     ) -> URL {
-        relativeComponents(for: sidecarRelativePath(for: source, kind: kind)).reduce(base) { url, component in
-            url.appendingPathComponent(component)
+        relativeComponents(for: sidecarRelativePath(relativePath: relativePath, fileName: fileName, kind: kind))
+            .reduce(base) { url, component in
+                url.appendingPathComponent(component)
+            }
+    }
+
+    private static func sidecarFileName(fileName: String, kind: RawSidecarKind) -> String {
+        "\(fileName)\(suffix(for: kind))"
+    }
+
+    private static func sidecarRelativePath(
+        relativePath: String,
+        fileName: String,
+        kind: RawSidecarKind
+    ) -> String {
+        let components = relativeComponents(for: relativePath)
+        guard let relativeFileName = components.last else {
+            return sidecarFileName(fileName: fileName, kind: kind)
         }
+        return (Array(components.dropLast()) + ["\(relativeFileName)\(suffix(for: kind))"]).joined(separator: "/")
     }
 
     private static func suffix(for kind: RawSidecarKind) -> String {

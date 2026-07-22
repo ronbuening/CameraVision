@@ -253,7 +253,7 @@ struct Step5ReviewView: View {
     }
 
     @ViewBuilder
-    private func qualityAssessmentPanel(_ quality: ReviewModel.AssetQuality) -> some View {
+    private func qualityAssessmentPanel(_ quality: ReviewAssetQualityPresentation) -> some View {
         if !quality.records.isEmpty || !quality.issueDiagnostics.isEmpty || quality.ungradedReason != nil {
             Divider().overlay(theme.border)
             VStack(alignment: .leading, spacing: 8) {

@@ -13,14 +13,6 @@ import Observation
 @MainActor
 @Observable
 final class ReviewModel {
-    struct AssetQuality: Equatable {
-        var records: [QualityAssessmentRecord]
-        var issueDiagnostics: [String]
-        var tier: QualityTier?
-        var explanations: [String]
-        var ungradedReason: String?
-    }
-
     struct QualitySummary: Equatable {
         var assessedAssetCount: Int
         var tierCounts: [QualityTier: Int]
@@ -50,7 +42,7 @@ final class ReviewModel {
         var fileName: String
         var fileExtension: String
         var chips: [Chip]
-        var quality: AssetQuality? = nil
+        var quality: ReviewAssetQualityPresentation? = nil
         var id: String { assetID }
     }
 
@@ -63,7 +55,7 @@ final class ReviewModel {
     private(set) var restoredFromRecovery = false
     private(set) var restoredRecoveryDirty = false
     private(set) var editError: String?
-    private(set) var qualityByAssetID: [String: AssetQuality] = [:]
+    private(set) var qualityByAssetID: [String: ReviewAssetQualityPresentation] = [:]
     private(set) var qualityDiagnostics: [String] = []
     private(set) var assetRows: [AssetRow] = []
 
@@ -75,6 +67,7 @@ final class ReviewModel {
     private let defaultConfigPath: String?
     private let now: () -> Date
     private let onAssetRowBuilt: (String) -> Void
+    private let loadReviewQuality: @Sendable (NormalizationSessionDocument) -> ReviewQualityLoadResult
     private var changesSinceAutosave = 0
     private var lastAutosaveAt: Date
     private var qualityLoadToken = UUID()
@@ -91,7 +84,10 @@ final class ReviewModel {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         defaultConfigPath: String? = nil,
         now: @escaping () -> Date = Date.init,
-        onAssetRowBuilt: @escaping (String) -> Void = { _ in }
+        onAssetRowBuilt: @escaping (String) -> Void = { _ in },
+        loadReviewQuality: @escaping @Sendable (NormalizationSessionDocument) -> ReviewQualityLoadResult = {
+            ReviewQualityLoader().load(for: $0)
+        }
     ) {
         self.stateDirectory = stateDirectory
         self.autosaveDecisionLimit = autosaveDecisionLimit
@@ -100,6 +96,7 @@ final class ReviewModel {
         self.defaultConfigPath = defaultConfigPath
         self.now = now
         self.onAssetRowBuilt = onAssetRowBuilt
+        self.loadReviewQuality = loadReviewQuality
         self.lastAutosaveAt = now()
         recoveryAvailable = FileManager.default.fileExists(atPath: recoveryURL.path)
     }
@@ -284,7 +281,9 @@ final class ReviewModel {
         Self.qualitySummary(for: qualityByAssetID)
     }
 
-    nonisolated static func qualitySummary(for presentation: [String: AssetQuality]) -> QualitySummary {
+    nonisolated static func qualitySummary(
+        for presentation: [String: ReviewAssetQualityPresentation]
+    ) -> QualitySummary {
         var summary = QualitySummary(
             assessedAssetCount: 0,
             tierCounts: [:],
@@ -379,129 +378,27 @@ final class ReviewModel {
         restoredRecoveryDirty = false
         editError = nil
         qualityDiagnostics = []
-        qualityByAssetID = Self.qualityPresentation(
-            sourceAssets: sessionDocument.sourceAssets,
-            xmpWritePlans: sessionDocument.xmpWritePlans,
-            extractionByAssetID: [:]
-        )
+        qualityByAssetID = ReviewQualityLoader().plannedPresentation(for: sessionDocument)
         rebuildAssetRows(for: sessionDocument)
         loadQualityAssessments(for: sessionDocument)
-    }
-
-    nonisolated static func qualityPresentation(
-        sourceAssets: [NormalizationSourceAsset],
-        xmpWritePlans: [NormalizedXMPWritePlan],
-        extractionByAssetID: [String: QualityExtractionResult]
-    ) -> [String: AssetQuality] {
-        struct PlannedQuality {
-            var tier: QualityTier?
-            var explanations: [String]
-            var ungradedReason: String?
-        }
-
-        var planBySource: [String: PlannedQuality] = [:]
-        for writePlan in xmpWritePlans {
-            let plan = writePlan.xmpChangePlan
-            let explanations = plan.qualityExplanation ?? []
-            let ungradedReason = plan.ungradedReasonExplanation
-            guard plan.qualityTier != nil || ungradedReason != nil || !explanations.isEmpty else { continue }
-            let planned = PlannedQuality(
-                tier: plan.qualityTier,
-                explanations: explanations,
-                ungradedReason: ungradedReason
-            )
-            for member in plan.sourceMembers {
-                planBySource[
-                    qualitySourceKey(path: member.sourcePath, relativePath: member.sourceRelativePath)
-                ] = planned
-            }
-        }
-
-        var presentation: [String: AssetQuality] = [:]
-        for asset in sourceAssets {
-            let key = qualitySourceKey(path: asset.sourcePath, relativePath: asset.sourceRelativePath)
-            let extraction = extractionByAssetID[asset.assetID]
-            let planned = planBySource[key]
-            let records = extraction?.records ?? []
-            let issues = extraction?.issues.map(qualityIssueDiagnostic) ?? []
-            guard !records.isEmpty || !issues.isEmpty || planned != nil else { continue }
-            presentation[asset.assetID] = AssetQuality(
-                records: records,
-                issueDiagnostics: issues,
-                tier: planned?.tier,
-                explanations: planned?.explanations ?? [],
-                ungradedReason: planned?.ungradedReason
-            )
-        }
-        return presentation
-    }
-
-    private nonisolated static func qualitySourceKey(path: String?, relativePath: String) -> String {
-        guard let path, !path.isEmpty else { return "relative:\(relativePath)" }
-        return URL(fileURLWithPath: path).standardizedFileURL.path
-    }
-
-    private nonisolated static func qualityIssueDiagnostic(_ issue: QualityExtractionIssue) -> String {
-        switch issue {
-        case .malformedBlock:
-            QualityExtractionIssueCode.malformedBlock.rawValue
-        case .unknownCriterion(let criterion):
-            "\(QualityExtractionIssueCode.unknownCriterion.rawValue): \(criterion)"
-        case .missingOverall:
-            QualityExtractionIssueCode.missingOverall.rawValue
-        case .invalidLevel(let field, let value):
-            "\(QualityExtractionIssueCode.invalidLevel.rawValue): \(field)=\(value)"
-        }
     }
 
     /// Re-resolve current contributor documents and extract assessments away from the UI actor.
     private func loadQualityAssessments(for sessionDocument: NormalizationSessionDocument) {
         let token = UUID()
         qualityLoadToken = token
+        let loadReviewQuality = loadReviewQuality
         Task {
             let loaded = await Task.detached(priority: .utility) {
-                Self.loadQualityExtraction(for: sessionDocument)
+                loadReviewQuality(sessionDocument)
             }.value
             guard qualityLoadToken == token, session?.session.sessionID == sessionDocument.session.sessionID else {
                 return
             }
-            qualityByAssetID = Self.qualityPresentation(
-                sourceAssets: sessionDocument.sourceAssets,
-                xmpWritePlans: sessionDocument.xmpWritePlans,
-                extractionByAssetID: loaded.resultsByAssetID
-            )
+            qualityByAssetID = loaded.presentationByAssetID
             qualityDiagnostics = loaded.diagnostics
             synchronizeQualityRows(for: sessionDocument)
         }
-    }
-
-    /// Re-read the session's stored sidecar references through the same
-    /// current-pair resolver apply-session grading uses (QN6), so the panel
-    /// shows exactly the contributor documents an apply-time grade would
-    /// consume — no source re-hashing and no second identity gate.
-    nonisolated static func loadQualityExtraction(
-        for sessionDocument: NormalizationSessionDocument
-    ) -> (resultsByAssetID: [String: QualityExtractionResult], diagnostics: [String]) {
-        let resolver = RawJSONSidecarInputResolver()
-        var resultsByAssetID: [String: QualityExtractionResult] = [:]
-        var diagnostics: [String] = []
-        var consumedSidecarPaths: Set<String> = []
-        for record in sessionDocument.sourceAISidecars {
-            let referencePath = URL(fileURLWithPath: record.sidecarPath).standardizedFileURL.path
-            guard !consumedSidecarPaths.contains(referencePath) else { continue }
-            let batch = resolver.resolveCurrentSidecarPair(at: record.sidecarPath)
-            diagnostics.append(contentsOf: batch.failures.map { "\($0.error.code.rawValue): \($0.error.message)" })
-            for input in batch.inputs {
-                consumedSidecarPaths.insert(input.sidecarPath.standardizedFileURL.path)
-                if let qualityPath = input.qualitySidecarPath {
-                    consumedSidecarPaths.insert(qualityPath.standardizedFileURL.path)
-                }
-                if resultsByAssetID[record.sourceAssetID] == nil {
-                    resultsByAssetID[record.sourceAssetID] = QualityAssessmentExtractor.extract(from: input)
-                }
-            }
-        }
-        return (resultsByAssetID, diagnostics)
     }
 
     /// FR4-059: user-initiated file operations surface failures instead of

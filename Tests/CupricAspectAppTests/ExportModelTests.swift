@@ -112,16 +112,27 @@ final class ExportModelTests: XCTestCase {
         }
     }
 
+    private func queueState(for sourcePath: String) -> QueueDerivedState {
+        let sourceURL = URL(fileURLWithPath: sourcePath)
+        let entry = ScanInventoryEntry(
+            path: sourcePath,
+            relativePath: sourceURL.lastPathComponent,
+            fileName: sourceURL.lastPathComponent,
+            fileExtension: sourceURL.pathExtension.lowercased(),
+            fileSize: 1,
+            modifiedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            detectedType: .jpg
+        )
+        return QueueStateDeriver().derive(for: entry, outputDir: nil)
+    }
+
     @MainActor
     func testPlanThenWriteFlipsQueueDerivationToExported() async throws {
         let (session, sourceRoot) = try makeSession()
         let sourcePath = sourceRoot.appendingPathComponent("A.JPG").path
 
         // Before export: analyzed (sidecar present, no stamp, no XMP).
-        XCTAssertEqual(
-            AssetQueueDerivation.deriveState(sourcePath: sourcePath, relativePath: "A.JPG", outputDir: nil),
-            .analyzed
-        )
+        XCTAssertEqual(queueState(for: sourcePath), .analyzed)
 
         let export = ExportModel(stateDirectory: root.appendingPathComponent("state"))
         export.plan(session: session, sourceRoot: sourceRoot.path, outputDir: nil, qualityGrading: noQualityGrading)
@@ -130,10 +141,7 @@ final class ExportModelTests: XCTestCase {
         XCTAssertEqual(export.writableTargets.count, 1)
         XCTAssertTrue(export.failedTargets.isEmpty)
         // The dry run wrote nothing.
-        XCTAssertEqual(
-            AssetQueueDerivation.deriveState(sourcePath: sourcePath, relativePath: "A.JPG", outputDir: nil),
-            .analyzed
-        )
+        XCTAssertEqual(queueState(for: sourcePath), .analyzed)
 
         export.confirmWrite()
         try await waitUntil("write") {
@@ -151,19 +159,13 @@ final class ExportModelTests: XCTestCase {
         XCTAssertTrue(report.targetReports.allSatisfy { $0.validation?.valid == true })
 
         // AC4-028 full loop: stamp + XMP present → exported.
-        XCTAssertEqual(
-            AssetQueueDerivation.deriveState(sourcePath: sourcePath, relativePath: "A.JPG", outputDir: nil),
-            .exported
-        )
+        XCTAssertEqual(queueState(for: sourcePath), .exported)
 
         // Deleting the exported XMP → "XMP missing (was exported)".
         let xmpPath = sourceRoot.appendingPathComponent("A.xmp").path
         XCTAssertTrue(FileManager.default.fileExists(atPath: xmpPath))
         try FileManager.default.removeItem(atPath: xmpPath)
-        XCTAssertEqual(
-            AssetQueueDerivation.deriveState(sourcePath: sourcePath, relativePath: "A.JPG", outputDir: nil),
-            .xmpMissingWasExported
-        )
+        XCTAssertEqual(queueState(for: sourcePath), .xmpMissingWasExported)
     }
 
     func testApplyConfigurationCarriesSelectedXMPConflictPolicy() throws {

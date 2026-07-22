@@ -3,9 +3,7 @@ import CoreGraphics
 import Foundation
 import ImageIO
 
-/// Everything the preview surface needs about one asset, loaded off the main
-/// actor from the raw sidecar and the shared derivative cache (M3; FR4-013/014
-/// groundwork — the M4 review screen builds on the same loader).
+/// Decoded images plus Core-provided preview facts for one asset.
 struct AssetPreviewDetails: @unchecked Sendable, Equatable {
     var fullImage: CGImage?
     var subjectImage: CGImage?
@@ -25,49 +23,33 @@ struct AssetPreviewDetails: @unchecked Sendable, Equatable {
     /// derivative still exists in the cache.
     static func load(
         sourcePath: String,
-        rawSidecarPath: String,
+        relativePath: String,
+        outputDir: String?,
         maxPixel: Int = 1600,
         fileManager: FileManager = .default
     ) -> AssetPreviewDetails {
-        var details = AssetPreviewDetails()
-
-        var wholeDerivativePath: String?
-        if fileManager.fileExists(atPath: rawSidecarPath) {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            guard let data = fileManager.contents(atPath: rawSidecarPath) else {
-                details.sidecarErrors.append(
-                    "sidecar unreadable: \(URL(fileURLWithPath: rawSidecarPath).lastPathComponent)")
-                details.fullImage = decodeImage(path: sourcePath, maxPixel: maxPixel)
-                return details
-            }
-            do {
-                let sidecar = try decoder.decode(RawJSONSidecar.self, from: data)
-                details.modelRunCount = sidecar.modelRuns.count
-                details.sidecarErrors = sidecar.errors.map { "\($0.code.rawValue): \($0.message)" }
-                if let isolation = sidecar.subjectIsolation {
-                    details.instanceCount = isolation.instanceCount
-                    details.selectedInstanceIndices = isolation.selectedInstanceIndices
-                    details.isolationStatus = isolation.status.rawValue
-                }
-                for derivative in sidecar.derivatives {
-                    switch derivative.role {
-                    case .wholeImage where fileManager.fileExists(atPath: derivative.cachePath):
-                        wholeDerivativePath = derivative.cachePath
-                    case .subjectIsolated where fileManager.fileExists(atPath: derivative.cachePath):
-                        details.subjectImage = decodeImage(path: derivative.cachePath, maxPixel: maxPixel)
-                    default:
-                        break
-                    }
-                }
-            } catch {
-                details.sidecarErrors.append("sidecar malformed: \(error.localizedDescription)")
-            }
+        let presentation = AssetPreviewLoader(fileManager: fileManager).load(
+            sourcePath: sourcePath,
+            relativePath: relativePath,
+            outputDir: outputDir
+        )
+        var details = AssetPreviewDetails(
+            instanceCount: presentation.instanceCount,
+            selectedInstanceIndices: presentation.selectedInstanceIndices,
+            isolationStatus: presentation.isolationStatus,
+            modelRunCount: presentation.modelRunCount,
+            keywordCandidateCount: presentation.keywordCandidateCount,
+            sidecarErrors: presentation.sidecarErrors
+        )
+        if let subjectPath = presentation.subjectImageDerivativePath {
+            details.subjectImage = decodeImage(path: subjectPath, maxPixel: maxPixel)
         }
-
-        details.fullImage = decodeImage(path: wholeDerivativePath ?? sourcePath, maxPixel: maxPixel)
-        if details.fullImage == nil, wholeDerivativePath != nil {
-            details.fullImage = decodeImage(path: sourcePath, maxPixel: maxPixel)
+        details.fullImage = decodeImage(
+            path: presentation.wholeImageDerivativePath ?? presentation.sourcePath,
+            maxPixel: maxPixel
+        )
+        if details.fullImage == nil, presentation.wholeImageDerivativePath != nil {
+            details.fullImage = decodeImage(path: presentation.sourcePath, maxPixel: maxPixel)
         }
         return details
     }
