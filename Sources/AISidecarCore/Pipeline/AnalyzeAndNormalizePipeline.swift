@@ -120,16 +120,18 @@ public struct AnalyzeAndNormalizePipeline {
         let shouldClearDerivativeCacheAfterOverallSuccess = analyzeConfiguration.clearDerivativeCacheAfterSuccess
         analyzeConfiguration.clearDerivativeCacheAfterSuccess = false
 
-        let analyzeResult = try await analyzePipeline.run(
+        var analyzeResult = try await analyzePipeline.run(
             inputPath: inputPath,
             configuration: analyzeConfiguration,
-            interruptionMonitor: interruptionMonitor
+            interruptionMonitor: interruptionMonitor,
+            retainsWrittenSidecars: true
         )
         let rawBatch = RawSidecarBatchHelpers.rawInputBatch(
             from: analyzeResult,
             failureContext: "normalization",
             fileManager: fileManager
         )
+        analyzeResult.writtenSidecarsByPath = nil
         let resolvedInput = NormalizationInputResolver(fileManager: fileManager).resolve(
             rawSidecarBatch: rawBatch,
             workflow: .analyze,

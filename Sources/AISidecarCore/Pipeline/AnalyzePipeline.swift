@@ -8,7 +8,7 @@ public struct AnalyzeResult: Sendable, Equatable {
     public var summaryPath: String?
     public var summary: BatchSummary?
     public var interrupted: Bool
-    /// Newly written documents available to same-process pipeline adapters.
+    /// Newly written documents available when a same-process pipeline adapter explicitly requests them.
     public var writtenSidecarsByPath: [String: RawJSONSidecarDocument]?
 
     public init(
@@ -109,13 +109,32 @@ public struct AnalyzePipeline {
         writesBatchArtifacts: Bool = true,
         progressHandler: (@Sendable (ProgressRecord) -> Void)? = nil
     ) async throws -> AnalyzeResult {
+        try await run(
+            inputPath: inputPath,
+            configuration: configuration,
+            interruptionMonitor: interruptionMonitor,
+            writesBatchArtifacts: writesBatchArtifacts,
+            progressHandler: progressHandler,
+            retainsWrittenSidecars: false
+        )
+    }
+
+    func run(
+        inputPath: String,
+        configuration: ResolvedRunConfiguration,
+        interruptionMonitor: InterruptionMonitor? = nil,
+        writesBatchArtifacts: Bool = true,
+        progressHandler: (@Sendable (ProgressRecord) -> Void)? = nil,
+        retainsWrittenSidecars: Bool
+    ) async throws -> AnalyzeResult {
         if configuration.taskProfile == .taggingWithQuality, configuration.qualityScanMode == .sequential {
             return try await runSequentialScanAndAssess(
                 inputPath: inputPath,
                 configuration: configuration,
                 interruptionMonitor: interruptionMonitor,
                 writesBatchArtifacts: writesBatchArtifacts,
-                progressHandler: progressHandler
+                progressHandler: progressHandler,
+                retainsWrittenSidecars: retainsWrittenSidecars
             )
         }
         let runStartedAt = now()
@@ -238,6 +257,7 @@ public struct AnalyzePipeline {
                 runtime: runtime!,
                 cache: lifecycleCache,
                 interruptionMonitor: interruptionMonitor,
+                retainsWrittenSidecars: retainsWrittenSidecars,
                 retainWrittenSidecar: { path, document in
                     writtenSidecarsByPath[path] = document
                 },
@@ -294,7 +314,8 @@ public struct AnalyzePipeline {
         configuration: ResolvedRunConfiguration,
         interruptionMonitor: InterruptionMonitor?,
         writesBatchArtifacts: Bool,
-        progressHandler: (@Sendable (ProgressRecord) -> Void)?
+        progressHandler: (@Sendable (ProgressRecord) -> Void)?,
+        retainsWrittenSidecars: Bool
     ) async throws -> AnalyzeResult {
         var taggingConfiguration = configuration.with(taskProfile: .tagging)
         taggingConfiguration.clearDerivativeCacheAfterSuccess = false
@@ -303,7 +324,8 @@ public struct AnalyzePipeline {
             configuration: taggingConfiguration,
             interruptionMonitor: interruptionMonitor,
             writesBatchArtifacts: writesBatchArtifacts,
-            progressHandler: progressHandler
+            progressHandler: progressHandler,
+            retainsWrittenSidecars: retainsWrittenSidecars
         )
         if tagging.interrupted {
             return tagging
@@ -316,7 +338,8 @@ public struct AnalyzePipeline {
             configuration: qualityConfiguration,
             interruptionMonitor: interruptionMonitor,
             writesBatchArtifacts: writesBatchArtifacts,
-            progressHandler: progressHandler
+            progressHandler: progressHandler,
+            retainsWrittenSidecars: retainsWrittenSidecars
         )
         var writtenSidecarsByPath = tagging.writtenSidecarsByPath ?? [:]
         writtenSidecarsByPath.merge(quality.writtenSidecarsByPath ?? [:]) { _, qualityDocument in
@@ -355,6 +378,7 @@ public struct AnalyzePipeline {
         runtime: ModelRuntimeContext,
         cache: DerivativeCache,
         interruptionMonitor: InterruptionMonitor?,
+        retainsWrittenSidecars: Bool,
         retainWrittenSidecar: (String, RawJSONSidecarDocument) -> Void,
         emit: (ProgressRecord) throws -> Void
     ) async throws -> Bool {
@@ -377,6 +401,7 @@ public struct AnalyzePipeline {
                 renderer: renderer,
                 subjectIsolationService: subjectIsolationService,
                 now: now,
+                retainsWrittenSidecars: retainsWrittenSidecars,
                 retainWrittenSidecar: retainWrittenSidecar,
                 emit: emit
             )
@@ -455,13 +480,14 @@ public struct AnalyzePipeline {
                         profile: profile,
                         runtime: runtime,
                         interruptionMonitor: interruptionMonitor,
+                        retainsWrittenSidecars: retainsWrittenSidecars,
                         startedAt: startedAt
                     )
                     cache.release(prepared.derivatives)
                     switch outcome {
-                    case .completed(let record, let document):
-                        if let document, let sidecarPath = record.sidecarPath {
-                            retainWrittenSidecar(sidecarPath, document)
+                    case .completed(let record, let writtenSidecar):
+                        if record.status == .written, let writtenSidecar {
+                            retainWrittenSidecar(writtenSidecar.sidecarPath, writtenSidecar.document)
                         }
                         try emit(record)
                     case .interrupted:
@@ -494,6 +520,7 @@ public struct AnalyzePipeline {
         renderer: ImageRenderer,
         subjectIsolationService: SubjectIsolationService,
         now: @escaping @Sendable () -> Date,
+        retainsWrittenSidecars: Bool,
         retainWrittenSidecar: (String, RawJSONSidecarDocument) -> Void,
         emit: (ProgressRecord) throws -> Void
     ) async throws -> Bool {
@@ -529,13 +556,14 @@ public struct AnalyzePipeline {
                     profile: profile,
                     runtime: runtime,
                     interruptionMonitor: interruptionMonitor,
+                    retainsWrittenSidecars: retainsWrittenSidecars,
                     startedAt: startedAt
                 )
                 cache.release(prepared.derivatives)
                 switch outcome {
-                case .completed(let record, let document):
-                    if let document, let sidecarPath = record.sidecarPath {
-                        retainWrittenSidecar(sidecarPath, document)
+                case .completed(let record, let writtenSidecar):
+                    if record.status == .written, let writtenSidecar {
+                        retainWrittenSidecar(writtenSidecar.sidecarPath, writtenSidecar.document)
                     }
                     try emit(record)
                 case .interrupted:
@@ -713,6 +741,7 @@ public struct AnalyzePipeline {
         profile: ModelInputProfile,
         runtime: ModelRuntimeContext,
         interruptionMonitor: InterruptionMonitor?,
+        retainsWrittenSidecars: Bool,
         startedAt: Date
     ) async -> FinishPreparedOutcome {
         switch prepared {
@@ -767,7 +796,11 @@ public struct AnalyzePipeline {
             )
 
             do {
-                let document = try RawJSONSidecarDocument(sidecar: sidecar)
+                let writtenStatus: ProgressStatus =
+                    modelRuns.contains { $0.error == nil && $0.jsonValid } ? .written : .failed
+                let document =
+                    retainsWrittenSidecars && writtenStatus == .written
+                    ? try RawJSONSidecarDocument(sidecar: sidecar) : nil
                 let writeStartedAt = now()
                 let outcome = try writer.write(
                     sidecar,
@@ -780,8 +813,12 @@ public struct AnalyzePipeline {
                 case .skippedExisting:
                     status = .skippedExisting
                 case .written:
-                    status = modelRuns.contains { $0.error == nil && $0.jsonValid } ? .written : .failed
+                    status = writtenStatus
                 }
+                let writtenSidecar =
+                    outcome.status == .written && status == .written
+                    ? document.map { WrittenSidecarHandoff(sidecarPath: outcome.sidecarPath, document: $0) }
+                    : nil
                 return .completed(
                     ProgressRecord(
                         timestamp: now(),
@@ -793,7 +830,7 @@ public struct AnalyzePipeline {
                         durationMs: Timestamp.durationMs(from: startedAt, to: now()),
                         writeMs: outcome.status == .written ? writeMs : nil
                     ),
-                    outcome.status == .written ? document : nil
+                    writtenSidecar
                 )
             } catch {
                 return .completed(
@@ -1071,8 +1108,13 @@ private enum PreparedAnalysis: Sendable {
 }
 
 private enum FinishPreparedOutcome: Sendable {
-    case completed(ProgressRecord, RawJSONSidecarDocument?)
+    case completed(ProgressRecord, WrittenSidecarHandoff?)
     case interrupted
+}
+
+private struct WrittenSidecarHandoff: Sendable {
+    var sidecarPath: String
+    var document: RawJSONSidecarDocument
 }
 
 private enum ModelRunsOutcome: Sendable {

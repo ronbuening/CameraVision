@@ -64,7 +64,8 @@ final class AnalyzePipelineTests: XCTestCase {
                 outputDir: output.path,
                 mode: .whole,
                 cacheDir: output.appendingPathComponent("cache").path
-            )
+            ),
+            retainsWrittenSidecars: true
         )
 
         XCTAssertEqual(result.records.map(\.status), [.written])
@@ -84,6 +85,116 @@ final class AnalyzePipelineTests: XCTestCase {
                 .filter { $0.hasPrefix("batch-") }
                 .isEmpty
         )
+    }
+
+    func testStandaloneAnalysisDoesNotRetainWrittenSidecars() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Standalone.JPG", in: root)
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path
+            )
+        )
+
+        XCTAssertEqual(result.records.map(\.status), [.written])
+        XCTAssertNil(result.writtenSidecarsByPath)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: output.appendingPathComponent("Standalone.JPG.ai.json").path)
+        )
+    }
+
+    func testNonstandardOutputDirectoryStillUsesRetainedHandoffWithoutDiskRead() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        let image = try writeTestImage("Retained.JPG", in: root)
+        let nonstandardOutputDirectory = output.path + "/./"
+
+        let result = try await pipeline(runner: RecordingVisionModelRunner()).run(
+            inputPath: image.path,
+            configuration: config(
+                recursive: false,
+                outputDir: nonstandardOutputDirectory,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path
+            ),
+            retainsWrittenSidecars: true
+        )
+        let record = try XCTUnwrap(result.records.first)
+        let sidecarPath = try XCTUnwrap(record.sidecarPath)
+        let standardizedPath = URL(fileURLWithPath: sidecarPath).standardizedFileURL.path
+        let retainedDocument = try XCTUnwrap(result.writtenSidecarsByPath?[standardizedPath])
+        var readPaths: [String] = []
+
+        let batch = RawSidecarBatchHelpers.rawInputBatch(
+            from: result,
+            failureContext: "XMP export",
+            fileManager: .default,
+            readDocument: { url in
+                readPaths.append(url.path)
+                return retainedDocument
+            }
+        )
+
+        XCTAssertEqual(record.status, .written)
+        XCTAssertEqual(Set(result.writtenSidecarsByPath?.keys.map { $0 } ?? []), [standardizedPath])
+        XCTAssertEqual(readPaths, [])
+        XCTAssertEqual(batch.failures, [])
+        XCTAssertEqual(batch.inputs.map(\.document), [retainedDocument])
+    }
+
+    func testConcurrentWorkersRetainOnlyWrittenDocumentAndPreserveRecordOrder() async throws {
+        let root = try temporaryDirectory()
+        let output = try temporaryDirectory()
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: output)
+        }
+        _ = try writeTestImage("A.JPG", in: root)
+        _ = try writeTestImage("B.JPG", in: root)
+        let modelError = SidecarError(
+            code: .modelInvalidJSON,
+            stage: .model,
+            message: "fixture second call invalid JSON",
+            recoverable: true
+        )
+        let runner = RecordingVisionModelRunner(callFailures: [1: modelError])
+
+        let result = try await pipeline(runner: runner).run(
+            inputPath: root.path,
+            configuration: config(
+                recursive: false,
+                outputDir: output.path,
+                mode: .whole,
+                cacheDir: output.appendingPathComponent("cache").path,
+                stageConcurrency: 2
+            ),
+            retainsWrittenSidecars: true
+        )
+
+        XCTAssertEqual(result.records.map(\.relativePath), ["A.JPG", "B.JPG"])
+        XCTAssertEqual(result.records.map(\.status), [.written, .failed])
+        XCTAssertEqual(result.records.last?.errors.map(\.code), [.modelInvalidJSON])
+        let writtenPath = try XCTUnwrap(result.records.first?.sidecarPath)
+        let standardizedWrittenPath = URL(fileURLWithPath: writtenPath).standardizedFileURL.path
+        let retained = try XCTUnwrap(result.writtenSidecarsByPath)
+        XCTAssertEqual(Set(retained.keys), [standardizedWrittenPath])
+        XCTAssertEqual(retained[standardizedWrittenPath]?.sidecar.source.fileName, "A.JPG")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.appendingPathComponent("A.JPG.ai.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.appendingPathComponent("B.JPG.ai.json").path))
     }
 
     func testRenderFailureWritesFailureSidecarExactlyOnce() async throws {
@@ -508,7 +619,8 @@ final class AnalyzePipelineTests: XCTestCase {
                 cacheDir: output.appendingPathComponent("cache").path,
                 taskProfile: .taggingWithQuality,
                 qualityScanMode: .sequential
-            )
+            ),
+            retainsWrittenSidecars: true
         )
 
         // Pass 1 uses the plain tagging contract — not the 1.6.0 combined
@@ -901,10 +1013,12 @@ final class AnalyzePipelineTests: XCTestCase {
                 outputDir: output.path,
                 mode: .whole,
                 cacheDir: output.appendingPathComponent("cache").path
-            )
+            ),
+            retainsWrittenSidecars: true
         )
 
         XCTAssertEqual(result.records.map(\.status), [.failed])
+        XCTAssertNil(result.writtenSidecarsByPath)
         XCTAssertEqual(result.records.first?.errors.map(\.code), [.modelInvalidJSON])
         let sidecar = try decodeSidecar(output.appendingPathComponent("BrokenModel.JPG.ai.json"))
         XCTAssertEqual(sidecar.modelRuns.first?.error?.code, .modelInvalidJSON)
@@ -1546,6 +1660,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
     private let context: ModelRuntimeContext
     private let prepareError: SidecarError?
     private let failures: [RoleFailure]
+    private let callFailures: [Int: SidecarError]
     private let repairs: [RoleRepair]
     private let delayNanoseconds: UInt64
     private let onAnalyze: (@Sendable (ModelInputRole) async -> Void)?
@@ -1558,6 +1673,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
     init(
         prepareError: SidecarError? = nil,
         failures: [RoleFailure] = [],
+        callFailures: [Int: SidecarError] = [:],
         repairs: [RoleRepair] = [],
         delayNanoseconds: UInt64 = 0,
         onAnalyze: (@Sendable (ModelInputRole) async -> Void)? = nil
@@ -1572,6 +1688,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
         )
         self.prepareError = prepareError
         self.failures = failures
+        self.callFailures = callFailures
         self.repairs = repairs
         self.delayNanoseconds = delayNanoseconds
         self.onAnalyze = onAnalyze
@@ -1594,6 +1711,7 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
         runtime: ModelRuntimeContext,
         isInterrupted _: (@Sendable () -> Bool)? = nil
     ) async -> ModelRunRecord {
+        let callIndex = calls.count
         inFlight += 1
         maxInFlight = max(maxInFlight, inFlight)
         calls.append(
@@ -1618,6 +1736,20 @@ private actor RecordingVisionModelRunner: VisionModelRunner {
             try? await Task.sleep(nanoseconds: delayNanoseconds)
         }
         inFlight -= 1
+
+        if let failure = callFailures[callIndex] {
+            return record(
+                image: image,
+                inputRole: inputRole,
+                prompt: prompt,
+                schema: schema,
+                options: options,
+                runtime: runtime,
+                parsed: nil,
+                jsonValid: false,
+                error: failure
+            )
+        }
 
         if let failure = failures.first(where: { $0.role == inputRole }) {
             return record(
