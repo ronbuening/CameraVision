@@ -122,24 +122,7 @@ public struct NormalizeAndWritePipeline {
     private func xmpConfiguration(
         from configuration: ResolvedNormalizationConfiguration
     ) -> ResolvedXMPExportConfiguration {
-        ResolvedXMPExportConfiguration(
-            recursive: configuration.recursive,
-            outputDir: configuration.outputDir,
-            logLevel: configuration.logLevel,
-            logFormat: configuration.logFormat,
-            dryRun: configuration.dryRun,
-            sourceRoot: configuration.sourceRoot,
-            sourceVerification: configuration.sourceVerification,
-            writeFlatKeywords: configuration.writeFlatKeywords,
-            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
-            backupSidecars: configuration.backupSidecars,
-            xmpConflictPolicy: configuration.xmpConflictPolicy,
-            minConfidence: configuration.minConfidence,
-            allowSpecificTags: configuration.allowSpecificTags,
-            pairScope: configuration.pairScope,
-            writeAIJSON: configuration.writeAIJSON,
-            qualityGrading: configuration.qualityGrading
-        )
+        ResolvedXMPExportConfiguration(from: configuration)
     }
 }
 

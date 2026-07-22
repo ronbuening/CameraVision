@@ -574,22 +574,8 @@ public struct ApplySessionPipeline {
         applyConfiguration: ResolvedApplySessionConfiguration
     ) -> ResolvedXMPExportConfiguration {
         ResolvedXMPExportConfiguration(
-            recursive: false,
-            outputDir: applyConfiguration.outputDir,
-            logLevel: applyConfiguration.logLevel,
-            logFormat: applyConfiguration.logFormat,
-            dryRun: applyConfiguration.dryRun,
-            sourceRoot: applyConfiguration.sourceRoot,
-            sourceVerification: applyConfiguration.sourceVerification,
-            writeFlatKeywords: session.resolvedConfiguration.writeFlatKeywords,
-            writeHierarchicalKeywords: session.resolvedConfiguration.writeHierarchicalKeywords,
-            backupSidecars: applyConfiguration.backupSidecars,
-            xmpConflictPolicy: applyConfiguration.xmpConflictPolicy,
-            minConfidence: session.resolvedConfiguration.minConfidence,
-            allowSpecificTags: session.resolvedConfiguration.allowSpecificTags,
-            pairScope: session.resolvedConfiguration.pairScope,
-            writeAIJSON: false,
-            qualityGrading: applyConfiguration.qualityGrading
+            from: applyConfiguration,
+            sessionConfiguration: session.resolvedConfiguration
         )
     }
 

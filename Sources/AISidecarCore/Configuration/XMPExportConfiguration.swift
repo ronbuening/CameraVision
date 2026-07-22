@@ -270,6 +270,60 @@ public struct ResolvedXMPExportConfiguration: Codable, Sendable, Equatable {
         self.qualityGrading = qualityGrading
     }
 
+    init(from configuration: ResolvedNormalizationConfiguration) {
+        self.init(
+            recursive: configuration.recursive,
+            outputDir: configuration.outputDir,
+            logLevel: configuration.logLevel,
+            logFormat: configuration.logFormat,
+            dryRun: configuration.dryRun,
+            sourceRoot: configuration.sourceRoot,
+            sourceVerification: configuration.sourceVerification,
+            writeFlatKeywords: configuration.writeFlatKeywords,
+            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
+            backupSidecars: configuration.backupSidecars,
+            xmpConflictPolicy: configuration.xmpConflictPolicy,
+            minConfidence: configuration.minConfidence,
+            allowSpecificTags: configuration.allowSpecificTags,
+            pairScope: configuration.pairScope,
+            writeAIJSON: configuration.writeAIJSON,
+            qualityGrading: configuration.qualityGrading
+        )
+    }
+
+    init(resolvingRawSidecarInputFrom configuration: ResolvedNormalizationConfiguration) {
+        self.init(from: configuration)
+        // This adapter historically supplied no grading block because raw-sidecar
+        // discovery consumes only source/input policy. Preserve that exact shape.
+        qualityGrading = .builtInDefaults
+    }
+
+    init(
+        from applyConfiguration: ResolvedApplySessionConfiguration,
+        sessionConfiguration: ResolvedNormalizationConfiguration
+    ) {
+        // Apply-session keeps output and write-safety controls live while replaying
+        // the keyword-selection policy frozen into the reviewed session.
+        self.init(
+            recursive: false,
+            outputDir: applyConfiguration.outputDir,
+            logLevel: applyConfiguration.logLevel,
+            logFormat: applyConfiguration.logFormat,
+            dryRun: applyConfiguration.dryRun,
+            sourceRoot: applyConfiguration.sourceRoot,
+            sourceVerification: applyConfiguration.sourceVerification,
+            writeFlatKeywords: sessionConfiguration.writeFlatKeywords,
+            writeHierarchicalKeywords: sessionConfiguration.writeHierarchicalKeywords,
+            backupSidecars: applyConfiguration.backupSidecars,
+            xmpConflictPolicy: applyConfiguration.xmpConflictPolicy,
+            minConfidence: sessionConfiguration.minConfidence,
+            allowSpecificTags: sessionConfiguration.allowSpecificTags,
+            pairScope: sessionConfiguration.pairScope,
+            writeAIJSON: false,
+            qualityGrading: applyConfiguration.qualityGrading
+        )
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         recursive = try container.decode(Bool.self, forKey: .recursive)

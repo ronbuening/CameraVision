@@ -120,23 +120,7 @@ public struct NormalizationInputResolver {
         _ path: String,
         configuration: ResolvedNormalizationConfiguration
     ) throws -> NormalizationResolvedInputBatch {
-        let exportConfiguration = ResolvedXMPExportConfiguration(
-            recursive: configuration.recursive,
-            outputDir: configuration.outputDir,
-            logLevel: configuration.logLevel,
-            logFormat: configuration.logFormat,
-            dryRun: configuration.dryRun,
-            sourceRoot: configuration.sourceRoot,
-            sourceVerification: configuration.sourceVerification,
-            writeFlatKeywords: configuration.writeFlatKeywords,
-            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
-            backupSidecars: configuration.backupSidecars,
-            xmpConflictPolicy: configuration.xmpConflictPolicy,
-            minConfidence: configuration.minConfidence,
-            allowSpecificTags: configuration.allowSpecificTags,
-            pairScope: configuration.pairScope,
-            writeAIJSON: configuration.writeAIJSON
-        )
+        let exportConfiguration = ResolvedXMPExportConfiguration(resolvingRawSidecarInputFrom: configuration)
         let batch = try RawJSONSidecarInputResolver(fileManager: fileManager).resolve(
             fromJSONPath: path,
             configuration: exportConfiguration
