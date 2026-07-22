@@ -3,7 +3,7 @@ import XCTest
 
 @testable import AISidecarCore
 
-final class CandidateSkipReasonBridgeTests: XCTestCase {
+final class CandidateSkipReasonParityTests: XCTestCase {
     private let expectedRawValues: Set<String> = [
         "below_confidence_threshold",
         "blocked_direct_conflict",
@@ -34,33 +34,23 @@ final class CandidateSkipReasonBridgeTests: XCTestCase {
         "weak_local_agreement",
     ]
 
+    func testSkipReasonNamesShareOneEnum() {
+        XCTAssertTrue(
+            SkippedCandidateReason.self == NormalizationCandidateSkipReason.self,
+            "the Phase 2 and Phase 3 skip-reason names must stay one shared enum"
+        )
+    }
+
     func testReasonRawValuesMatchPinnedContract() {
-        XCTAssertEqual(SkippedCandidateReason.allCases.count, 27)
         XCTAssertEqual(NormalizationCandidateSkipReason.allCases.count, 27)
-        XCTAssertEqual(Set(SkippedCandidateReason.allCases.map(\.rawValue)), expectedRawValues)
         XCTAssertEqual(Set(NormalizationCandidateSkipReason.allCases.map(\.rawValue)), expectedRawValues)
     }
 
-    func testEveryReasonRoundTripsThroughSharedBridge() {
-        for reason in SkippedCandidateReason.allCases {
-            let normalizationReason = CandidateSkipReasonBridge.normalizationReason(for: reason)
-            XCTAssertEqual(normalizationReason.rawValue, reason.rawValue)
-            XCTAssertEqual(CandidateSkipReasonBridge.skippedCandidateReason(for: normalizationReason), reason)
-        }
-
-        for reason in NormalizationCandidateSkipReason.allCases {
-            let skippedReason = CandidateSkipReasonBridge.skippedCandidateReason(for: reason)
-            XCTAssertEqual(skippedReason.rawValue, reason.rawValue)
-            XCTAssertEqual(CandidateSkipReasonBridge.normalizationReason(for: skippedReason), reason)
-        }
-    }
-
-    func testCorrespondingReasonsEncodeToIdenticalBytes() throws {
+    func testReasonsEncodeAsPinnedRawStrings() throws {
         let encoder = JSONEncoder()
 
-        for reason in SkippedCandidateReason.allCases {
-            let normalizationReason = CandidateSkipReasonBridge.normalizationReason(for: reason)
-            XCTAssertEqual(try encoder.encode(reason), try encoder.encode(normalizationReason))
+        for reason in NormalizationCandidateSkipReason.allCases {
+            XCTAssertEqual(try encoder.encode([reason]), Data("[\"\(reason.rawValue)\"]".utf8))
         }
     }
 }

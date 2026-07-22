@@ -497,7 +497,7 @@ public struct NormalizedXMPChangePlanner {
 
     private func skippedCandidate(_ skip: NormalizationCandidateSkip) -> SkippedCandidate {
         SkippedCandidate(
-            reason: CandidateSkipReasonBridge.skippedCandidateReason(for: skip.reason),
+            reason: skip.reason,
             candidate: nil,
             term: skip.term ?? skip.canonicalPath,
             normalizedTerm: skip.normalizedTerm

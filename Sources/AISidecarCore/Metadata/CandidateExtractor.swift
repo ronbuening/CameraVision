@@ -133,43 +133,12 @@ public struct ExportableKeyword: Codable, Sendable, Equatable {
 }
 
 /// Machine-readable reason a candidate or accepted keyword is absent from an output set.
-public enum SkippedCandidateReason: String, Codable, CaseIterable, Equatable, Sendable {
-    case belowConfidenceThreshold = "below_confidence_threshold"
-    case unmatchedVocabulary = "unmatched_vocabulary"
-    case directApplyWithheld = "direct_apply_withheld"
-    case directApplyFlatOnly = "direct_apply_flat_only"
-    case requiresReview = "requires_review"
-    case specificTagPolicy = "specific_tag_policy"
-    case containsHierarchySeparator = "contains_hierarchy_separator"
-    case emptyAfterNormalization = "empty_after_normalization"
-    case duplicate
-    case disabledFlatExport = "disabled_flat_export"
-    case disabledHierarchicalExport = "disabled_hierarchical_export"
-    /// The model produced coordinates or GPS-label terms, which are never XMP keywords.
-    case coordinateLikeTerm = "coordinate_like_term"
-    /// The model cited GPS/location context as evidence instead of visible image evidence.
-    case gpsOnlyEvidence = "gps_only_evidence"
-    /// The model listed species candidates in a run whose genres include no
-    /// wildlife, bird_photography, or plant_botanical entry. Schema 1.5.0
-    /// requires `species` unconditionally so Ollama's grammar can guarantee
-    /// the field; the genre precondition is enforced here instead.
-    case speciesWithoutBiologicalGenre = "species_without_biological_genre"
-    case unknownSessionContextRejected = "unknown_session_context_rejected"
-    case unknownSessionContextFlatOnly = "unknown_session_context_flat_only"
-    case weakLocalAgreement = "weak_local_agreement"
-    case lowSupportMass = "low_support_mass"
-    case lowSupportingNeighborCount = "low_supporting_neighbor_count"
-    case lowMaxSupportingAffinity = "low_max_supporting_affinity"
-    case blockedDirectConflict = "blocked_direct_conflict"
-    case blockedLocalConflictMass = "blocked_local_conflict_mass"
-    case gearOnlyAffinity = "gear_only_affinity"
-    case globalBackstopThreshold = "global_backstop_threshold"
-    case sessionContextConflict = "session_context_conflict"
-    // Additive (Phase 4 review, invariant 7): mirrored from
-    // NormalizationCandidateSkipReason for report parity.
-    case userReviewRejected = "user_review_rejected"
-    case userReviewDeferred = "user_review_deferred"
-}
+///
+/// One shared enum serves both the Phase 2 change-plan diagnostics and the
+/// Phase 3 session schema: the documents pin byte-identical raw strings
+/// (invariant 7), and a single type makes a one-sided case addition
+/// unrepresentable. The alias preserves the Phase 2 name.
+public typealias SkippedCandidateReason = NormalizationCandidateSkipReason
 
 /// Diagnostic for a candidate or keyword that Milestone 2 did not export.
 public struct SkippedCandidate: Codable, Sendable, Equatable {

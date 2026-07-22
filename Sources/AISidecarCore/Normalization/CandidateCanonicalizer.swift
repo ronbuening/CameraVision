@@ -710,7 +710,7 @@ public struct CandidateCanonicalizer {
         let assetID = observation?.assetID ?? observationExtraction.sourceAssetIDBySidecarPath[result.sourceSidecar]
         appendSkip(
             &skips,
-            reason: CandidateSkipReasonBridge.normalizationReason(for: skipped.reason),
+            reason: skipped.reason,
             observation: observation,
             assetID: assetID,
             groupID: assetID.flatMap { observationExtraction.groupIDByAssetID[$0] },
