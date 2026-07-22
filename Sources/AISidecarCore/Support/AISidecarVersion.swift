@@ -5,5 +5,5 @@
 /// bundle's Info.plist. Distinct from schema/engine/recipe versions, which
 /// track document formats, not the product.
 public enum AISidecarVersion {
-    public static let current = "0.2.0"
+    public static let current = "0.2.1"
 }
