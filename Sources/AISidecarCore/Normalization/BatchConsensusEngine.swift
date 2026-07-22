@@ -747,11 +747,6 @@ public struct BatchConsensusEngine {
         }
     }
 
-    private func assignDecisionIDs(_ decisions: inout [PerAssetNormalizationDecision]) {
-        for index in decisions.indices {
-            decisions[index].decisionID = String(format: "decision-%06d", index + 1)
-        }
-    }
 }
 
 private struct AssetCanonicalPathKey: Hashable {

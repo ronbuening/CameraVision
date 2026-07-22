@@ -857,12 +857,6 @@ public struct CandidateCanonicalizer {
         }
     }
 
-    private func assignDecisionIDs(_ decisions: inout [PerAssetNormalizationDecision]) {
-        for index in decisions.indices {
-            decisions[index].decisionID = String(format: "decision-%06d", index + 1)
-        }
-    }
-
     private func speciesFallbackKey(for normalizedTerm: String) -> String {
         let separatorFolded = VocabularyTextFolder.separatorInsensitiveFold(normalizedTerm)
         let variants =
