@@ -14,6 +14,7 @@ public struct BackendModelChoice: Identifiable, Sendable, Hashable {
 /// User-facing remediation supplied by a backend instead of a GUI call site.
 public struct BackendGuidance: Sendable, Equatable {
     public var runtimeUnavailableMessage: String
+    public var preflightUnavailableMessage: String
     public var downloadButtonTitle: String?
     public var downloadURL: URL?
     public var serveCommand: String?
@@ -23,6 +24,7 @@ public struct BackendGuidance: Sendable, Equatable {
 
     public init(
         runtimeUnavailableMessage: String,
+        preflightUnavailableMessage: String? = nil,
         downloadButtonTitle: String? = nil,
         downloadURL: URL? = nil,
         serveCommand: String? = nil,
@@ -31,6 +33,7 @@ public struct BackendGuidance: Sendable, Equatable {
         modelNotFoundHelp: String? = nil
     ) {
         self.runtimeUnavailableMessage = runtimeUnavailableMessage
+        self.preflightUnavailableMessage = preflightUnavailableMessage ?? runtimeUnavailableMessage
         self.downloadButtonTitle = downloadButtonTitle
         self.downloadURL = downloadURL
         self.serveCommand = serveCommand

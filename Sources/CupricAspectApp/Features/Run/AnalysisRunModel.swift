@@ -2,13 +2,19 @@ import AISidecarCore
 import Foundation
 import Observation
 
-/// Ollama connectivity per FR4-051: checked on demand (launch, entering
+/// Backend connectivity per FR4-051: checked on demand (launch, entering
 /// options, pre-run, manual refresh) — never polled.
 enum PreflightState: Equatable {
     case unknown
     case checking
-    case ready(model: String, digest: String, runtimeVersion: String)
-    case failed(message: String)
+    case ready(
+        backendID: ModelBackend,
+        backendDisplayName: String,
+        model: String,
+        digest: String,
+        runtimeVersion: String
+    )
+    case failed(backendID: ModelBackend, backendDisplayName: String, message: String)
 }
 
 /// Outcome summary of a completed analysis run (Wizard Step 5 until M4's
@@ -54,6 +60,13 @@ final class AnalysisRunModel {
 
     private var monitor: InterruptionMonitor?
     private var preflightGeneration = 0
+    private let backendRegistry: VisionBackendRegistry
+    private let runnerFactory: VisionModelRunnerFactory
+
+    init(backendRegistry: VisionBackendRegistry = .live) {
+        self.backendRegistry = backendRegistry
+        self.runnerFactory = VisionModelRunnerFactory(registry: backendRegistry)
+    }
 
     var progressFraction: Double {
         total > 0 ? min(1, Double(done) / Double(total)) : 0
@@ -81,19 +94,31 @@ final class AnalysisRunModel {
         let generation = preflightGeneration
         preflight = .checking
         Task {
+            var requestedBackend = options.resolvedBackend
+            var descriptor: (any VisionBackendDescriptor)?
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
-                let runner = try await VisionModelRunnerFactory().make(for: configuration)
+                requestedBackend = configuration.modelBackend
+                let resolvedDescriptor = try await runnerFactory.resolveBackend(for: configuration)
+                descriptor = resolvedDescriptor
+                let runner = resolvedDescriptor.makeRunner()
                 let runtime = try await runner.prepare(configuration: configuration)
                 guard generation == preflightGeneration else { return }
                 preflight = .ready(
+                    backendID: resolvedDescriptor.id,
+                    backendDisplayName: resolvedDescriptor.displayName,
                     model: runtime.model,
                     digest: runtime.modelDigest,
                     runtimeVersion: runtime.runtimeVersion
                 )
             } catch {
                 guard generation == preflightGeneration else { return }
-                preflight = .failed(message: Self.guidance(for: error))
+                let failedDescriptor = descriptor ?? displayDescriptor(for: requestedBackend)
+                preflight = .failed(
+                    backendID: failedDescriptor?.id ?? requestedBackend,
+                    backendDisplayName: failedDescriptor?.displayName ?? requestedBackend.displayName,
+                    message: Self.guidance(for: error, descriptor: failedDescriptor)
+                )
             }
         }
     }
@@ -128,9 +153,12 @@ final class AnalysisRunModel {
         }
 
         Task {
+            var descriptor: (any VisionBackendDescriptor)?
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
-                let runner = try await VisionModelRunnerFactory().make(for: configuration)
+                let resolvedDescriptor = try await runnerFactory.resolveBackend(for: configuration)
+                descriptor = resolvedDescriptor
+                let runner = resolvedDescriptor.makeRunner()
                 let pipeline = AnalyzePipeline(logger: GUILog.shared.makeLogger(), runner: runner)
                 let result = try await Task.detached(priority: .userInitiated) {
                     try await pipeline.run(
@@ -146,7 +174,7 @@ final class AnalysisRunModel {
                 phase = .finished(Self.outcome(from: result.records, interrupted: result.interrupted))
             } catch {
                 continuation.finish()
-                phase = .failed(message: Self.guidance(for: error))
+                phase = .failed(message: Self.guidance(for: error, descriptor: descriptor))
             }
         }
     }
@@ -247,18 +275,42 @@ final class AnalysisRunModel {
         return rank(rhs) > rank(lhs) ? rhs : lhs
     }
 
-    /// User-facing message for preflight/run failures; mirrors the README's
-    /// Ollama troubleshooting guidance for the common cases.
-    private static func guidance(for error: Error) -> String {
+    func descriptor(for backend: ModelBackend) -> (any VisionBackendDescriptor)? {
+        displayDescriptor(for: backend)
+    }
+
+    func resolveBackend(for configuration: ResolvedRunConfiguration) async throws -> any VisionBackendDescriptor {
+        try await runnerFactory.resolveBackend(for: configuration)
+    }
+
+    func supportedTuningKnobs(for backend: ModelBackend) -> Set<ModelTuningKnob> {
+        displayDescriptor(for: backend)?.supportedTuningKnobs ?? []
+    }
+
+    private func displayDescriptor(for backend: ModelBackend) -> (any VisionBackendDescriptor)? {
+        if case .ready(let backendID, _, _, _, _) = preflight,
+            backend == .auto || backend == backendID,
+            let descriptor = backendRegistry.descriptor(for: backendID)
+        {
+            return descriptor
+        }
+        if backend != .auto {
+            return backendRegistry.descriptor(for: backend)
+        }
+        return backendRegistry.descriptor(for: .ollama) ?? backendRegistry.descriptors.first
+    }
+
+    /// User-facing preflight/run remediation comes from the selected backend descriptor.
+    private static func guidance(for error: Error, descriptor: (any VisionBackendDescriptor)?) -> String {
         guard let sidecarError = error as? SidecarError else {
             return error.localizedDescription
         }
         switch sidecarError.code {
-        case .modelEndpointUnreachable:
-            return
-                "Ollama isn't reachable. If it's installed, open the Ollama app (or run `ollama serve`); if not, download it from \(RuntimeGuidanceModel.downloadURL). Then retry."
+        case .modelEndpointUnreachable, .modelBackendUnavailable:
+            return descriptor?.guidance.preflightUnavailableMessage ?? sidecarError.message
         case .modelTagNotFound:
-            return sidecarError.message + " Pull it with `ollama pull <tag>` or pick an installed vision model."
+            guard let help = descriptor?.guidance.modelNotFoundHelp else { return sidecarError.message }
+            return sidecarError.message + " " + help
         default:
             return sidecarError.message
         }

@@ -129,7 +129,7 @@ struct Step4WorkingView: View {
     }
 
     private var modelText: String {
-        if case .ready(let model, _, _) = runModel.preflight { return model }
+        if case .ready(_, _, let model, _, _) = runModel.preflight { return model }
         return "—"
     }
 

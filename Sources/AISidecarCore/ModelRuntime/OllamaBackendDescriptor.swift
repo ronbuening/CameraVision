@@ -8,6 +8,8 @@ public struct OllamaBackendDescriptor: VisionBackendDescriptor {
     public let guidance = BackendGuidance(
         runtimeUnavailableMessage:
             "Analysis needs Ollama running locally. If it's installed, open the Ollama app (or run `ollama serve` in Terminal). If not, download it first — reviewing and exporting already-analyzed photos works without it.",
+        preflightUnavailableMessage:
+            "Ollama isn't reachable. If it's installed, open the Ollama app (or run `ollama serve`); if not, download it from https://ollama.com/download. Then retry.",
         downloadButtonTitle: "Download Ollama",
         downloadURL: URL(string: "https://ollama.com/download"),
         serveCommand: "ollama serve",

@@ -1,9 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// FR4-058 banner: shown under the step rail when Ollama is unreachable or
-/// has no vision-capable model. Everything except analysis works without
-/// Ollama by design, so this guides rather than blocks.
+/// FR4-058 banner: backend-provided remediation guides without blocking non-analysis work.
 struct RuntimeGuidanceBanner: View {
     @Bindable var guidance: RuntimeGuidanceModel
 
@@ -18,52 +16,55 @@ struct RuntimeGuidanceBanner: View {
                 VStack(alignment: .leading, spacing: 4) {
                     switch guidance.status {
                     case .unreachable:
-                        Text("Ollama isn't reachable at \(guidance.endpointDisplay)")
+                        Text("\(guidance.backendDisplayName) isn't reachable at \(guidance.endpointDisplay)")
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundStyle(theme.text)
-                        Text(
-                            "Analysis needs Ollama running locally. If it's installed, open the Ollama app (or run `ollama serve` in Terminal). If not, download it first — reviewing and exporting already-analyzed photos works without it."
-                        )
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(theme.textDim)
+                        Text(guidance.backendGuidance.runtimeUnavailableMessage)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(theme.textDim)
                         HStack(spacing: 12) {
-                            Button("Download Ollama") {
-                                if let url = URL(string: RuntimeGuidanceModel.downloadURL) {
+                            if let title = guidance.backendGuidance.downloadButtonTitle,
+                                let url = guidance.downloadURL
+                            {
+                                Button(title) {
                                     NSWorkspace.shared.open(url)
                                 }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundStyle(theme.accent.accent)
                             }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundStyle(theme.accent.accent)
                             recheckButton
                         }
                     case .noVisionModels:
-                        Text("Ollama is running, but no installed model supports vision")
+                        Text("\(guidance.backendDisplayName) is running, but no installed model supports vision")
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundStyle(theme.text)
                         Text(
-                            "Analysis needs a vision-capable model. Install the starter model in Terminal, then re-check:"
+                            guidance.backendGuidance.noModelsMessage
+                                ?? "Analysis needs a vision-capable model before it can start."
                         )
                         .font(.system(size: 11.5))
                         .foregroundStyle(theme.textDim)
                         HStack(spacing: 10) {
-                            Text(guidance.pullCommand)
-                                .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(theme.text)
-                                .padding(.vertical, 3)
-                                .padding(.horizontal, 8)
-                                .background(theme.panel2)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                            Button {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(guidance.pullCommand, forType: .string)
-                            } label: {
-                                Image(systemName: "doc.on.doc")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(theme.textDim)
+                            if !guidance.pullCommand.isEmpty {
+                                Text(guidance.pullCommand)
+                                    .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(theme.text)
+                                    .padding(.vertical, 3)
+                                    .padding(.horizontal, 8)
+                                    .background(theme.panel2)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                                Button {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(guidance.pullCommand, forType: .string)
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(theme.textDim)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Copy pull command")
                             }
-                            .buttonStyle(.plain)
-                            .help("Copy pull command")
                             recheckButton
                         }
                     case .unknown, .checking, .ready:

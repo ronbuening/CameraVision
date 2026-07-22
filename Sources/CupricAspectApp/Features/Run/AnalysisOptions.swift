@@ -25,11 +25,12 @@ final class AnalysisOptions {
     var qualityConflictPolicy = ResolvedQualityGradingConfiguration.builtInDefaults.conflictPolicy
     /// Rendering profile name controlling the image size sent to the model.
     var profile: String = ModelInputProfile.defaultProfile.name
-    /// Ollama num_ctx token window requested per model call.
+    /// Context-window value recorded for every run and ignored by backends that do not support it.
     var contextWindow: Int = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
 
     /// Resolved display values (model tag, endpoint) from the config chain.
     private(set) var resolvedModel = ""
+    private(set) var resolvedBackend = ModelBackend.ollama
     private(set) var resolvedEndpoint = ""
     private(set) var defaultsLoaded = false
 
@@ -53,6 +54,7 @@ final class AnalysisOptions {
             )
         else { return }
         resolvedModel = resolved.model
+        resolvedBackend = resolved.modelBackend
         resolvedEndpoint = resolved.modelEndpoint.absoluteString
         guard !defaultsLoaded else { return }
         defaultsLoaded = true

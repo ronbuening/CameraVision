@@ -9,7 +9,7 @@ struct QualityGradingOptionsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("QUALITY")
+            WizardSectionLabel(text: "QUALITY", color: theme.textFaint)
             if !availability.controlsEnabled {
                 Text(Step3OptionsView.gradingRequiresAssessmentExplanation)
                     .font(.system(size: 11.5, weight: .medium))
@@ -57,10 +57,4 @@ struct QualityGradingOptionsCard: View {
         .fixedSize()
     }
 
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10.5, weight: .semibold))
-            .kerning(0.5)
-            .foregroundStyle(theme.textFaint)
-    }
 }

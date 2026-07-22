@@ -28,7 +28,7 @@ public enum QualityScanMode: String, Codable, CaseIterable, Sendable {
 }
 
 /// Vision runtime selected once for an analysis run.
-public enum ModelBackend: String, Codable, CaseIterable, Sendable {
+public enum ModelBackend: String, Codable, CaseIterable, Hashable, Sendable {
     case ollama
     case apple
     case auto

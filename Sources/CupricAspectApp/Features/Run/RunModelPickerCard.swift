@@ -1,3 +1,4 @@
+import AISidecarCore
 import SwiftUI
 
 struct RunModelPickerCard: View {
@@ -51,14 +52,14 @@ struct RunModelPickerCard: View {
                     }
                 }
                 Divider()
-                ForEach(visionTagsModel.tags, id: \.self) { tag in
+                ForEach(visionTagsModel.models) { model in
                     Button {
-                        selectModelOverride(tag)
+                        selectModelOverride(model.id)
                     } label: {
-                        if tag == options.effectiveModel {
-                            Label(tag, systemImage: "checkmark")
+                        if model.id == options.effectiveModel {
+                            Label(model.displayName, systemImage: "checkmark")
                         } else {
-                            Text(tag)
+                            Text(model.displayName)
                         }
                     }
                 }
@@ -136,19 +137,19 @@ struct RunModelPickerCard: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(theme.textDim)
             }
-        case .ready:
+        case .ready(let backendID, let backendDisplayName, _, _, _):
             HStack(spacing: 5) {
                 Circle().fill(theme.green).frame(width: 7, height: 7)
-                Text("ready")
+                Text(backendID == .ollama ? "ready" : "\(backendDisplayName) ready")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(theme.green)
             }
-        case .failed(let message):
+        case .failed(let backendID, let backendDisplayName, let message):
             HStack(spacing: 8) {
                 VStack(alignment: .trailing, spacing: 2) {
                     HStack(spacing: 5) {
                         Circle().fill(theme.danger).frame(width: 7, height: 7)
-                        Text("unavailable")
+                        Text(backendID == .ollama ? "unavailable" : "\(backendDisplayName) unavailable")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(theme.danger)
                     }
@@ -182,10 +183,15 @@ struct RunModelPickerCard: View {
     }
 
     private func forceVisionTagRefresh() async {
-        guard let endpoint = URL(string: options.resolvedEndpoint) else {
-            visionTagsModel.fail(message: "Invalid model endpoint.")
-            return
+        do {
+            let configuration = try options.buildConfiguration(
+                recursive: importModel.recursive,
+                outputDir: importModel.outputFolder?.path
+            )
+            let descriptor = try await runModel.resolveBackend(for: configuration)
+            await visionTagsModel.refresh(descriptor: descriptor, configuration: configuration)
+        } catch {
+            visionTagsModel.fail(message: (error as? SidecarError)?.message ?? error.localizedDescription)
         }
-        await visionTagsModel.refresh(endpoint: endpoint)
     }
 }

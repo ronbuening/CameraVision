@@ -33,7 +33,7 @@ struct Step1PhotosView: View {
                 .font(.system(size: 22, weight: .bold))
                 .kerning(-0.4)
                 .foregroundStyle(theme.text)
-            Text("Everything runs locally through Ollama — your images never leave the machine.")
+            Text("Everything runs locally on your Mac — your images never leave the machine.")
                 .font(.system(size: 14))
                 .foregroundStyle(theme.textDim)
                 .padding(.top, 5)

@@ -52,8 +52,12 @@ struct Step3OptionsView: View {
                     .padding(.top, 14)
             }
 
-            AdvancedOptionsCard(options: options)
-                .padding(.top, 14)
+            AdvancedOptionsCard(
+                options: options,
+                backendID: runModel.descriptor(for: options.resolvedBackend)?.id,
+                supportedTuningKnobs: runModel.supportedTuningKnobs(for: options.resolvedBackend)
+            )
+            .padding(.top, 14)
 
             if action == .normalize, let normalizationModel {
                 SessionContextPanel(model: normalizationModel)
@@ -124,7 +128,7 @@ struct Step3OptionsView: View {
 
     private var renderModeCard: some View {
         VStack(alignment: .leading, spacing: 9) {
-            sectionLabel("RENDER MODE")
+            WizardSectionLabel(text: "RENDER MODE", color: theme.textFaint)
             CVSegmentedControl(
                 options: AnalysisMode.allCases,
                 selection: $options.mode,
@@ -143,13 +147,6 @@ struct Step3OptionsView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
     }
 
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10.5, weight: .semibold))
-            .kerning(0.5)
-            .foregroundStyle(theme.textFaint)
-    }
-
     private func runPreflight() {
         runModel.checkPreflight(
             options: options,
@@ -159,11 +156,15 @@ struct Step3OptionsView: View {
     }
 
     private func loadVisionTagsIfNeeded() async {
-        guard let endpoint = URL(string: options.resolvedEndpoint) else {
-            visionTagsModel.fail(message: "Invalid model endpoint.")
-            return
+        do {
+            let configuration = try options.buildConfiguration(
+                recursive: importModel.recursive,
+                outputDir: importModel.outputFolder?.path
+            )
+            let descriptor = try await runModel.resolveBackend(for: configuration)
+            await visionTagsModel.loadIfNeeded(descriptor: descriptor, configuration: configuration)
+        } catch {
+            visionTagsModel.fail(message: (error as? SidecarError)?.message ?? error.localizedDescription)
         }
-        await visionTagsModel.loadIfNeeded(endpoint: endpoint)
     }
-
 }

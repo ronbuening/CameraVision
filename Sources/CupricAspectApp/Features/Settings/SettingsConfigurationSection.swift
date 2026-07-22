@@ -136,62 +136,74 @@ struct SettingsConfigurationSection: View {
                 label: { ModelTuning.imageSizeLabel(forProfileNamed: $0) }
             )
         }
-        Divider().overlay(theme.border)
-        controls.settingRow(
-            "Model context window",
-            caption: "Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
-        ) {
-            contextWindowMenu
+        if settings.supportedTuningKnobs.contains(.contextWindow) {
+            Divider().overlay(theme.border)
+            controls.settingRow(
+                "Model context window",
+                caption: settings.selectedBackendID == .ollama
+                    ? "Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
+                    : "Context-window tokens per call — Default lets the selected backend decide."
+            ) {
+                contextWindowMenu
+            }
         }
     }
 
     @ViewBuilder
     private var modelExecutionDefaults: some View {
-        controls.settingRow(
-            "Model request timeout",
-            caption: "Seconds allowed for each Ollama request; increase this for slower cold starts."
-        ) {
-            HStack(spacing: 0) {
-                controls.settingsStepButton("−") {
-                    settings.setModelTimeoutSeconds(max(1, settings.modelTimeoutSeconds - 30))
-                }
-                Text(modelTimeoutLabel)
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(theme.text)
-                    .frame(width: 62)
-                controls.settingsStepButton("+") {
-                    settings.setModelTimeoutSeconds(settings.modelTimeoutSeconds + 30)
-                }
-            }
-            .background(theme.panel2)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
-        }
-        Divider().overlay(theme.border)
-        controls.settingRow(
-            "Model retry limit",
-            caption: "Additional attempts for timeouts, transport errors, and HTTP 5xx responses."
-        ) {
-            HStack(spacing: 0) {
-                controls.settingsStepButton("−") {
-                    settings.setModelRetryLimit(max(0, settings.modelRetryLimit - 1))
-                }
-                Text("\(settings.modelRetryLimit)")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(theme.text)
-                    .frame(width: 32)
-                controls.settingsStepButton("+") {
-                    let (next, overflowed) = settings.modelRetryLimit.addingReportingOverflow(1)
-                    if !overflowed {
-                        settings.setModelRetryLimit(next)
+        if settings.supportedTuningKnobs.contains(.timeout) {
+            controls.settingRow(
+                "Model request timeout",
+                caption: settings.selectedBackendID == .ollama
+                    ? "Seconds allowed for each Ollama request; increase this for slower cold starts."
+                    : "Seconds allowed for each backend request; increase this for slower cold starts."
+            ) {
+                HStack(spacing: 0) {
+                    controls.settingsStepButton("−") {
+                        settings.setModelTimeoutSeconds(max(1, settings.modelTimeoutSeconds - 30))
+                    }
+                    Text(modelTimeoutLabel)
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(theme.text)
+                        .frame(width: 62)
+                    controls.settingsStepButton("+") {
+                        settings.setModelTimeoutSeconds(settings.modelTimeoutSeconds + 30)
                     }
                 }
+                .background(theme.panel2)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
             }
-            .background(theme.panel2)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
+            Divider().overlay(theme.border)
         }
-        Divider().overlay(theme.border)
+        if settings.supportedTuningKnobs.contains(.retryLimit) {
+            controls.settingRow(
+                "Model retry limit",
+                caption: settings.selectedBackendID == .ollama
+                    ? "Additional attempts for timeouts, transport errors, and HTTP 5xx responses."
+                    : "Additional attempts for timeout and transient backend failures."
+            ) {
+                HStack(spacing: 0) {
+                    controls.settingsStepButton("−") {
+                        settings.setModelRetryLimit(max(0, settings.modelRetryLimit - 1))
+                    }
+                    Text("\(settings.modelRetryLimit)")
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(theme.text)
+                        .frame(width: 32)
+                    controls.settingsStepButton("+") {
+                        let (next, overflowed) = settings.modelRetryLimit.addingReportingOverflow(1)
+                        if !overflowed {
+                            settings.setModelRetryLimit(next)
+                        }
+                    }
+                }
+                .background(theme.panel2)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
+            }
+            Divider().overlay(theme.border)
+        }
         controls.settingRow("Concurrency", caption: "Lower = less memory pressure.") {
             HStack(spacing: 0) {
                 controls.settingsStepButton("−") { settings.setConcurrency(settings.stageConcurrency - 1) }
@@ -255,7 +267,11 @@ struct SettingsConfigurationSection: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Ollama num_ctx tokens requested per model call")
+        .help(
+            settings.selectedBackendID == .ollama
+                ? "Ollama num_ctx tokens requested per model call"
+                : "Context-window tokens requested per model call"
+        )
     }
 
     private func xmpPolicyLabel(_ policy: XMPConflictPolicy) -> String {
