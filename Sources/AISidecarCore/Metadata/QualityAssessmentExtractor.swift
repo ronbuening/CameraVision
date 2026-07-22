@@ -108,6 +108,17 @@ public struct QualityExtractionResult: Sendable, Equatable {
     }
 }
 
+struct QualityDocumentContributor: Sendable {
+    var path: String
+    var document: RawJSONSidecarDocument
+}
+
+struct QualityAssessmentSelection: Sendable {
+    var contributors: [QualityDocumentContributor]
+    var recordsByRole: [ModelInputRole: QualityAssessmentRecord]
+    var issues: [QualityExtractionIssue]
+}
+
 /// Tolerantly decodes stored `quality_assessment` blocks without performing model or filesystem work.
 public enum QualityAssessmentExtractor {
     public static func extract(from inputs: [ResolvedRawSidecarInput]) -> [QualityExtractionResult] {
@@ -116,54 +127,84 @@ public enum QualityAssessmentExtractor {
 
     public static func extract(from input: ResolvedRawSidecarInput) -> QualityExtractionResult {
         let sourceImagePath = input.sourcePath?.standardizedFileURL.path ?? input.document.sidecar.source.path
-        var documents = [(path: input.sidecarPath, document: input.document)]
-        if let qualityPath = input.qualitySidecarPath,
-            let qualityDocument = input.qualityDocument,
-            qualityPath.standardizedFileURL != input.sidecarPath.standardizedFileURL
-        {
-            documents.append((qualityPath, qualityDocument))
+        let selection = extractBatch(from: [input])
+        return QualityExtractionResult(
+            sourceImagePath: sourceImagePath,
+            records: ModelInputRole.allCases.compactMap { selection.recordsByRole[$0] },
+            issues: selection.issues
+        )
+    }
+
+    static func extractBatch(from inputs: [ResolvedRawSidecarInput]) -> QualityAssessmentSelection {
+        var contributorByPath: [String: QualityDocumentContributor] = [:]
+        for input in inputs {
+            let primaryPath = input.sidecarPath.standardizedFileURL.path
+            contributorByPath[primaryPath] = QualityDocumentContributor(
+                path: primaryPath,
+                document: input.document
+            )
+            if let qualityPath = input.qualitySidecarPath?.standardizedFileURL.path,
+                let qualityDocument = input.qualityDocument
+            {
+                contributorByPath[qualityPath] = QualityDocumentContributor(
+                    path: qualityPath,
+                    document: qualityDocument
+                )
+            }
         }
-        documents.sort {
+
+        let contributors = contributorByPath.values.sorted {
             if $0.document.sidecar.createdAt == $1.document.sidecar.createdAt {
-                return $0.path.standardizedFileURL.path < $1.path.standardizedFileURL.path
+                return comparePaths($0.path, $1.path)
             }
             return $0.document.sidecar.createdAt < $1.document.sidecar.createdAt
         }
-
-        var newestByRole: [ModelInputRole: QualityAssessmentRecord] = [:]
+        var recordsByRole: [ModelInputRole: QualityAssessmentRecord] = [:]
         var issues: [QualityExtractionIssue] = []
-        for (_, document) in documents {
-            let requiresAssessment = document.sidecar.runConfiguration.taskProfile != .tagging
+        for contributor in contributors {
+            let document = contributor.document
+            let assessmentRequired = document.sidecar.runConfiguration.taskProfile != .tagging
             for run in document.sidecar.modelRuns {
                 guard let response = run.parsedResponseJSON?.objectValue else {
-                    if requiresAssessment {
-                        issues.append(.malformedBlock)
+                    if assessmentRequired {
+                        appendUnique(.malformedBlock, to: &issues)
                     }
                     continue
                 }
                 guard let assessmentValue = response["quality_assessment"] else {
-                    if requiresAssessment {
-                        issues.append(.malformedBlock)
+                    if assessmentRequired {
+                        appendUnique(.malformedBlock, to: &issues)
                     }
                     continue
                 }
                 guard let assessment = assessmentValue.objectValue else {
-                    issues.append(.malformedBlock)
+                    appendUnique(.malformedBlock, to: &issues)
                     continue
                 }
                 let decoded = decode(assessment, role: run.inputRole, promptVersion: run.promptVersion)
-                issues.append(contentsOf: decoded.issues)
+                for issue in decoded.issues {
+                    appendUnique(issue, to: &issues)
+                }
                 if let record = decoded.record {
-                    newestByRole[run.inputRole] = record
+                    recordsByRole[run.inputRole] = record
                 }
             }
         }
 
-        return QualityExtractionResult(
-            sourceImagePath: sourceImagePath,
-            records: ModelInputRole.allCases.compactMap { newestByRole[$0] },
+        return QualityAssessmentSelection(
+            contributors: contributors,
+            recordsByRole: recordsByRole,
             issues: issues
         )
+    }
+
+    private static func appendUnique(
+        _ issue: QualityExtractionIssue,
+        to issues: inout [QualityExtractionIssue]
+    ) {
+        if !issues.contains(issue) {
+            issues.append(issue)
+        }
     }
 
     private static let nonCriterionFields: Set<String> = [

@@ -266,6 +266,40 @@ final class XMPQualityConflictMatrixTests: XCTestCase {
         XCTAssertEqual(encoded, expected)
     }
 
+    func testGradingEnabledPlainTaggingPlanMatchesPreC4FixtureBytes() throws {
+        let input = try plainTaggingInput()
+        var configuration = ResolvedXMPExportConfiguration.builtInDefaults
+        configuration.qualityGrading = ResolvedQualityGradingConfiguration(
+            enabled: true,
+            conflictPolicy: .preserve,
+            policy: .builtInDefaults
+        )
+
+        let document = XMPChangePlanner().plan(
+            inputBatch: RawJSONSidecarInputBatch(inputs: [input], failures: []),
+            extractionResults: [emptyExtraction(for: input)],
+            configuration: configuration
+        )
+        let encoded = try JSONCoding.documentEncoder().encode(document)
+        let fixtureURL = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: "quality-grading-plain-tagging-pre-c4",
+                withExtension: "json",
+                subdirectory: "xmp-plans"
+            )
+                ?? Bundle.module.url(
+                    forResource: "quality-grading-plain-tagging-pre-c4",
+                    withExtension: "json"
+                )
+        )
+        var expected = try Data(contentsOf: fixtureURL)
+        if expected.last == UInt8(ascii: "\n") {
+            expected.removeLast()
+        }
+
+        XCTAssertEqual(encoded, expected)
+    }
+
     func testPreservedForeignLabelSuppressesCorrespondingUrgencyWrite() throws {
         let input = try qualityInput(stampedRating: nil)
         var policy = QualityGradingPolicy(
@@ -543,6 +577,42 @@ final class XMPQualityConflictMatrixTests: XCTestCase {
             sourcePath: URL(fileURLWithPath: source.path),
             sourceIdentityStatus: .matched,
             relativePath: "Bird.JPG.quality.ai.json",
+            warnings: []
+        )
+    }
+
+    private func plainTaggingInput() throws -> ResolvedRawSidecarInput {
+        let base = try qualityInput(stampedRating: nil)
+        let sidecarPath = URL(fileURLWithPath: "/sidecars/Bird.JPG.ai.json")
+        let run = ModelRunRecord(
+            inputRole: .wholeImage,
+            model: "test:model",
+            modelDigest: "sha256:test",
+            runtime: "test",
+            runtimeVersion: "1",
+            promptVersion: "prompt.whole_image.tagging",
+            promptSHA256: String(repeating: "b", count: 64),
+            responseSchemaVersion: "schema.test",
+            requestOptions: .default,
+            inputDerivativeSHA256: String(repeating: "c", count: 64),
+            rawResponseText: "fixture",
+            parsedResponseJSON: .object(["main_subjects": .array([])]),
+            jsonValid: true,
+            durationMs: 1,
+            error: nil
+        )
+        let sidecar = RawJSONSidecar(
+            source: base.document.sidecar.source,
+            runConfiguration: ResolvedRunConfiguration.builtInDefaults.with(taskProfile: .tagging),
+            modelRuns: [run],
+            createdAt: Date(timeIntervalSince1970: 1_700_000_100)
+        )
+        return ResolvedRawSidecarInput(
+            sidecarPath: sidecarPath,
+            document: try RawJSONSidecarDocument(sidecar: sidecar),
+            sourcePath: base.sourcePath,
+            sourceIdentityStatus: .matched,
+            relativePath: sidecarPath.lastPathComponent,
             warnings: []
         )
     }
