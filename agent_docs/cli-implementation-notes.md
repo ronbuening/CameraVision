@@ -78,7 +78,11 @@ D1–D8 stage-ledger rows. The shipped selection behavior is:
   closed with `E_MODEL_BACKEND_UNAVAILABLE`. `auto` is the one shape that must
   probe: it checks the deterministic production registry in Apple-then-Ollama
   order, chooses the first available backend, and reports every reason when none
-  is available (still skipping availability I/O for dry-run planning).
+  is available. A dry-run `auto` skips availability I/O and carries the default
+  backend's untouched runner. The factory stamps the backend it selected into
+  the configuration the pipelines receive, so `run_configuration.model_backend`
+  always names a concrete backend — never `auto` — and an `auto` run that
+  resolves Ollama is byte-identical to a pinned Ollama run.
 - Ollama is the only usable backend today. The Apple descriptor is compiled in,
   appears in the GUI, and always reports unavailable because current public
   FoundationModels APIs do not accept image input for this workload. The
@@ -123,11 +127,12 @@ If the public API cannot fit these existing seams, that is a new design change,
 not permission to bypass the factory, schema validator, or provenance contract.
 
 Three refinements outside that directory are scheduled to land with the adapter
-rather than being required by it — plan 16's D8 items B1–B3: stamping the
-resolved backend into `run_configuration.model_backend` so an `auto` run never
-records `"auto"`, declaring the tuning knobs Apple actually honors instead of
-today's empty set, and the DD-6 notice for CLI flags a backend ignores. Each
-becomes verifiable only once a second backend can be selected.
+rather than being required by it — plan 16's D8 items B1–B3: a recorded-run
+golden pinning the Apple-via-auto sidecar shape (the resolved-backend stamping
+itself already shipped, so `"auto"` can never reach provenance), declaring the
+tuning knobs Apple actually honors instead of today's empty set, and the DD-6
+notice for CLI flags a backend ignores. Each becomes verifiable only once a
+second backend can be selected.
 
 ## Image-quality assessment contract
 

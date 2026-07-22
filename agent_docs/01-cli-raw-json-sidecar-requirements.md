@@ -390,8 +390,10 @@ The example above shows Ollama provenance. Runtime, model, and digest strings ar
 be normalized into Ollama-shaped values for another backend.
 
 FR1-040a - `run_configuration.model_backend` shall be additive and default-elided: omit it for the `ollama` default,
-encode it for `apple` or `auto`, and decode an absent value as `ollama`. Existing sidecar bytes therefore remain
-unchanged when backend selection is not used. Apple provenance identifiers are reserved as runtime
+encode the concrete non-default backend, and decode an absent value as `ollama`. The runner factory stamps a
+requested `auto` to the backend it resolved before the pipelines receive the configuration, so `"auto"` shall never
+appear in a sidecar and an `auto` run resolving `ollama` is byte-identical to a pinned `ollama` run. Existing sidecar
+bytes therefore remain unchanged when backend selection is not used. Apple provenance identifiers are reserved as runtime
 `apple-foundation-models`, model `system-language-model`, and digest `system:<macOS build>`; reserving these values
 does not imply that the dark Apple adapter can perform inference.
 
