@@ -35,7 +35,10 @@ public struct OllamaBackendDescriptor: VisionBackendDescriptor {
 
     public func availability(configuration: ResolvedRunConfiguration) async -> BackendAvailability {
         do {
-            _ = try await discoverModels(configuration: configuration)
+            try await runner.probeReachability(
+                endpoint: configuration.modelEndpoint,
+                timeoutSeconds: configuration.modelTimeoutSeconds
+            )
             return .available
         } catch is CancellationError {
             return .unavailable(reason: "Ollama availability check was cancelled.", guidance: guidance)
@@ -50,8 +53,11 @@ public struct OllamaBackendDescriptor: VisionBackendDescriptor {
     }
 
     public func discoverModels(configuration: ResolvedRunConfiguration) async throws -> [BackendModelChoice] {
-        try await runner.listInstalledVisionTags(endpoint: configuration.modelEndpoint)
-            .map { BackendModelChoice(id: $0, displayName: $0) }
+        try await runner.listInstalledVisionTags(
+            endpoint: configuration.modelEndpoint,
+            timeoutSeconds: configuration.modelTimeoutSeconds
+        )
+        .map { BackendModelChoice(id: $0, displayName: $0) }
     }
 
     public func makeRunner() -> any VisionModelRunner {

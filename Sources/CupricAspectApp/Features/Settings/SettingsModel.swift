@@ -259,26 +259,21 @@ final class SettingsModel {
             return
         }
 
+        // Every backend's annotation comes from its own descriptor probe — the
+        // same answer the factory acts on — so the picker and a run can never
+        // disagree. Discovery below answers the separate question of which
+        // models the selected backend offers.
         var availability = backendAvailability
-        if configuration.modelBackend == .auto {
-            for descriptor in backendRegistry.descriptors {
-                availability[descriptor.id] = await descriptor.availability(configuration: configuration)
-            }
-            backendAvailability = availability
-        } else {
-            for descriptor in backendRegistry.descriptors where descriptor.id != configuration.modelBackend {
-                availability[descriptor.id] = await descriptor.availability(configuration: configuration)
-            }
-            backendAvailability = availability
+        for descriptor in backendRegistry.descriptors {
+            availability[descriptor.id] = await descriptor.availability(configuration: configuration)
         }
+        backendAvailability = availability
 
         guard let descriptor = selectedBackendDescriptor else {
             loadError = "No vision backend is registered for \(configuration.modelBackend.rawValue)."
             return
         }
-        if configuration.modelBackend == .auto,
-            case .unavailable(let reason, _) = backendAvailability[descriptor.id]
-        {
+        if case .unavailable(let reason, _) = backendAvailability[descriptor.id] {
             visionTagsModel.fail(descriptor: descriptor, configuration: configuration, message: reason)
             return
         }
@@ -286,14 +281,6 @@ final class SettingsModel {
             await visionTagsModel.refresh(descriptor: descriptor, configuration: configuration)
         } else {
             await visionTagsModel.loadIfNeeded(descriptor: descriptor, configuration: configuration)
-        }
-        switch visionTagsModel.state {
-        case .loaded:
-            backendAvailability[descriptor.id] = .available
-        case .failed(let message):
-            backendAvailability[descriptor.id] = .unavailable(reason: message, guidance: descriptor.guidance)
-        case .idle, .loading:
-            break
         }
     }
 

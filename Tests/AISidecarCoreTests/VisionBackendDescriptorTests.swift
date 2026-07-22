@@ -25,15 +25,42 @@ final class VisionBackendDescriptorTests: XCTestCase {
     }
 
     func testOllamaAvailabilityTreatsReachableEmptyInventoryAsAvailable() async {
-        let descriptor = OllamaBackendDescriptor(
-            runner: OllamaVisionRunner(
-                transport: DescriptorOllamaTransport([
-                    .success(response(#"{"models":[]}"#))
-                ])))
+        let transport = DescriptorOllamaTransport([.success(response(#"{"version":"0.12.0"}"#))])
+        let descriptor = OllamaBackendDescriptor(runner: OllamaVisionRunner(transport: transport))
 
         let availability = await descriptor.availability(configuration: .builtInDefaults)
 
         XCTAssertEqual(availability, .available)
+    }
+
+    /// Availability asks whether the endpoint serves Ollama, so it must cost one
+    /// request — not `/api/tags` plus an `/api/show` per installed model, which
+    /// `prepare` issues again before any model work.
+    func testOllamaAvailabilityIssuesOneVersionRequest() async {
+        let transport = DescriptorOllamaTransport([.success(response(#"{"version":"0.12.0"}"#))])
+        let descriptor = OllamaBackendDescriptor(runner: OllamaVisionRunner(transport: transport))
+
+        _ = await descriptor.availability(configuration: .builtInDefaults)
+        let paths = await transport.requestedPaths()
+
+        XCTAssertEqual(paths, ["/api/version"])
+    }
+
+    func testOllamaProbesHonorTheConfiguredModelTimeout() async throws {
+        let transport = DescriptorOllamaTransport([
+            .success(response(#"{"version":"0.12.0"}"#)),
+            .success(response(#"{"models":[{"name":"v:latest","model":"v:latest","digest":"a"}]}"#)),
+            .success(response(#"{"capabilities":["vision"]}"#)),
+        ])
+        let descriptor = OllamaBackendDescriptor(runner: OllamaVisionRunner(transport: transport))
+        var configuration = ResolvedRunConfiguration.builtInDefaults
+        configuration.modelTimeoutSeconds = 12
+
+        _ = await descriptor.availability(configuration: configuration)
+        _ = try await descriptor.discoverModels(configuration: configuration)
+        let timeouts = await transport.requestedTimeouts()
+
+        XCTAssertEqual(timeouts, [12, 12, 12])
     }
 
     func testOllamaDiscoveryPassesThroughSortedVisionChoices() async throws {
@@ -90,15 +117,22 @@ final class VisionBackendDescriptorTests: XCTestCase {
 
 private actor DescriptorOllamaTransport: OllamaHTTPTransport {
     private var responses: [Result<OllamaHTTPResponse, Error>]
+    private var paths: [String] = []
+    private var timeouts: [Double] = []
 
     init(_ responses: [Result<OllamaHTTPResponse, Error>]) {
         self.responses = responses
     }
 
     func send(_ request: OllamaHTTPRequest, endpoint: URL) async throws -> OllamaHTTPResponse {
+        paths.append(request.path)
+        timeouts.append(request.timeoutSeconds)
         guard !responses.isEmpty else {
             throw OllamaHTTPTransportError.unreachable("No stubbed response for \(request.path) at \(endpoint).")
         }
         return try responses.removeFirst().get()
     }
+
+    func requestedPaths() -> [String] { paths }
+    func requestedTimeouts() -> [Double] { timeouts }
 }

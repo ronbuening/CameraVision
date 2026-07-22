@@ -79,6 +79,35 @@ final class BackendAwareGUITests: XCTestCase {
         )
     }
 
+    /// The picker annotation is the descriptor's own answer — the one the
+    /// factory acts on — so a reachable backend whose model discovery fails
+    /// stays "available" while the model list reports the discovery error.
+    func testPickerAnnotationComesFromTheDescriptorNotDiscovery() async throws {
+        let fixture = try ConfigFixture()
+        addTeardownBlock { fixture.remove() }
+        let ollama = GUIBackendDescriptor(
+            id: .ollama,
+            displayName: "Ollama",
+            guidance: OllamaBackendDescriptor().guidance,
+            supportedTuningKnobs: Set(ModelTuningKnob.allCases),
+            availability: .available,
+            discovery: .failure(.backendUnavailable("model inventory unreadable"))
+        )
+        let settings = SettingsModel(
+            configPath: fixture.path,
+            environment: [:],
+            backendRegistry: VisionBackendRegistry(descriptors: [ollama])
+        )
+
+        await settings.loadBackendDataIfNeeded()
+
+        XCTAssertEqual(
+            settings.backendOptions.first(where: { $0.id == .ollama })?.availabilityText,
+            "available"
+        )
+        XCTAssertEqual(settings.visionTagState, .failed(message: "model inventory unreadable"))
+    }
+
     func testVisionDiscoveryFailureIsScopedByBackendAtTheSameEndpoint() async {
         let calls = BackendDiscoveryCalls()
         let model = VisionTagsModel(backendLoader: { descriptor, _ in
