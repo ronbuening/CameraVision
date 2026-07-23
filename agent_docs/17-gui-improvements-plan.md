@@ -44,6 +44,10 @@ enabled grading configuration to persist preview tiers, explanations, and qualit
 `xmpWritePlans`. Apply-time grading already re-resolves the current raw-sidecar contributors and current XMP, so
 this preview dependency is not a reason to make the user commit to writing quality metadata in Step 3.
 
+**Interim behavior (2026-07-23).** Until I7 lands, turning on Step 2 assessment defaults the separate Step 3
+grading switch to on. Turning assessment off does not clear the retained grading choice, and the effective
+configuration still forces grading off while assessment is disabled.
+
 **Change.**
 1. Keep Step 2 **Assess image quality** and Step 3 Advanced **Quality scan** (`Normal` / `High quality`) unchanged:
    they control model work. Remove the **Quality grading** group from Step 3 for analyze/write/normalize runs.

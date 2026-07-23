@@ -200,10 +200,11 @@ assesses in the same model call, while **High quality** runs a second dedicated
 pass per image, slower but keeping keywords identical to a run without
 assessment. For **Analyze & write XMP** and
 **Normalize**, the experimental **Quality grading** group becomes available when
-assessment is enabled in Step 2. It controls grading for this run, offers opt-in star
-ratings, and lets you preserve, refresh, or overwrite existing culling metadata. While
-assessment is off, grading stays off for that run even if `config.json` enables it by
-default — the wizard never grades a run it did not assess. The
+assessment is enabled in Step 2 and is selected by default when you turn assessment
+on. You can turn grading off independently. It controls grading for this run, offers
+opt-in star ratings, and lets you preserve, refresh, or overwrite existing culling
+metadata. While assessment is off, grading stays off for that run even if `config.json`
+enables it by default — the wizard never grades a run it did not assess. The
 Apply Prior Session path has its own grading switch and always re-grades from the
 current contributor sidecars, never from the saved session preview.
 

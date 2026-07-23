@@ -16,6 +16,8 @@ backend in this release.
 - Added a compile-gated Apple FoundationModels descriptor and defensive runner stub. It is intentionally shown as
   unavailable because current public FoundationModels APIs do not accept image input; no live Apple inference is
   included.
+- Updated the Wizard so enabling **Assess image quality** in Step 2 selects **Quality grading** by default in Step 3
+  for write-capable runs. Grading remains independently switchable and remains ineffective when assessment is off.
 
 ### Performance and reliability
 

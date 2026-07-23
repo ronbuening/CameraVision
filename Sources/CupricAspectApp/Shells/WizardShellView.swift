@@ -152,7 +152,7 @@ struct WizardShellView: View {
                 selection: $flow.selectedAction,
                 assessQuality: Binding(
                     get: { flow.options.assessQuality },
-                    set: { flow.options.assessQuality = $0 }
+                    set: { flow.setQualityAssessmentEnabled($0) }
                 ),
                 onApplySession: {
                     flow.selectApplySessionAction()

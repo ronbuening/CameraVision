@@ -229,6 +229,7 @@ final class WizardFlowModel {
     func handleSourcePathChange(oldPath: String?, newPath: String?) {
         guard newPath != nil, newPath != oldPath else { return }
         options.resetToResolvedDefaults()
+        setQualityAssessmentEnabled(options.assessQuality)
         options.modelOverride = nil
     }
 
@@ -309,6 +310,15 @@ final class WizardFlowModel {
             return "This discards the current normalization session and Inspector outcomes."
         }
         return "This discards the current results and \(reviewModel.verdicts.count) review decisions."
+    }
+
+    /// Until I7 moves grading to the Step 5 write boundary, opting into an
+    /// assessment also supplies the Step 3 grading default for this run.
+    func setQualityAssessmentEnabled(_ enabled: Bool) {
+        options.assessQuality = enabled
+        if enabled {
+            options.qualityGradingEnabled = true
+        }
     }
 
     func selectApplySessionAction() {

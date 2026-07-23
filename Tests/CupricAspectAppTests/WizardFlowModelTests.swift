@@ -220,6 +220,29 @@ final class WizardFlowModelTests: XCTestCase {
     }
 
     @MainActor
+    func testStep2AssessmentDefaultsGradingOnAndAssessmentOffPreservesTheChoice() {
+        let flow = makeFlow(recorder: EffectRecorder())
+        flow.options.assessQuality = false
+        flow.options.qualityGradingEnabled = false
+
+        flow.setQualityAssessmentEnabled(true)
+
+        XCTAssertTrue(flow.options.assessQuality)
+        XCTAssertTrue(flow.options.qualityGradingEnabled)
+
+        flow.setQualityAssessmentEnabled(false)
+
+        XCTAssertFalse(flow.options.assessQuality)
+        XCTAssertTrue(flow.options.qualityGradingEnabled)
+
+        flow.options.qualityGradingEnabled = false
+        flow.setQualityAssessmentEnabled(true)
+
+        XCTAssertTrue(flow.options.assessQuality)
+        XCTAssertTrue(flow.options.qualityGradingEnabled)
+    }
+
+    @MainActor
     func testRunPhaseRoutesInterruptedFailedAnalyzeAndNormalizeOutcomes() {
         let source = root.appendingPathComponent("source", isDirectory: true)
         let output = root.appendingPathComponent("output", isDirectory: true)
@@ -593,7 +616,16 @@ final class WizardFlowModelTests: XCTestCase {
     @MainActor
     func testSourceChangeReseedsOptionsOnlyForANewNonNilPath() throws {
         let config = root.appendingPathComponent("config.json")
-        try Data(#"{"existing":"fail","model":"configured:model"}"#.utf8).write(to: config)
+        try Data(
+            #"""
+            {
+              "existing": "fail",
+              "model": "configured:model",
+              "quality_assessment": true,
+              "xmp_quality_grading": false
+            }
+            """#.utf8
+        ).write(to: config)
         let options = AnalysisOptions(environment: [:], defaultConfigPath: config.path)
         options.loadResolvedDefaults()
         options.existing = .overwrite
@@ -603,16 +635,21 @@ final class WizardFlowModelTests: XCTestCase {
         flow.handleSourcePathChange(oldPath: nil, newPath: "/photos")
         XCTAssertEqual(flow.options.existing, .fail)
         XCTAssertNil(flow.options.modelOverride)
+        XCTAssertTrue(flow.options.assessQuality)
+        XCTAssertTrue(flow.options.qualityGradingEnabled)
 
         flow.options.existing = .overwrite
         flow.options.modelOverride = "keep:model"
+        flow.options.qualityGradingEnabled = false
         flow.handleSourcePathChange(oldPath: "/photos", newPath: "/photos")
         XCTAssertEqual(flow.options.existing, .overwrite)
         XCTAssertEqual(flow.options.modelOverride, "keep:model")
+        XCTAssertFalse(flow.options.qualityGradingEnabled)
 
         flow.handleSourcePathChange(oldPath: "/photos", newPath: nil)
         XCTAssertEqual(flow.options.existing, .overwrite)
         XCTAssertEqual(flow.options.modelOverride, "keep:model")
+        XCTAssertFalse(flow.options.qualityGradingEnabled)
     }
 
     @MainActor
