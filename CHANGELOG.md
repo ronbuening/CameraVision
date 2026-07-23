@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.2.1 — 2026-07-23
+
+`0.2.1` improves throughput and maintainability across the analyze, normalize, XMP, and GUI paths, and introduces the
+backend-selection architecture needed for future local vision runtimes. Ollama remains the only usable inference
+backend in this release.
+
+### Highlights
+
+- Added first-class `model_backend` selection through CLI flags, environment variables, `config.json`, and the
+  CupricAspect Settings and run-options interfaces. Supported values are `ollama`, `apple`, and `auto`; `auto`
+  resolves one backend for the whole run and records the concrete backend in provenance.
+- Added backend-aware availability, model discovery, setup guidance, preflight reporting, and tuning-control
+  presentation. Model-discovery results are cached and isolated by backend and endpoint.
+- Added a compile-gated Apple FoundationModels descriptor and defensive runner stub. It is intentionally shown as
+  unavailable because current public FoundationModels APIs do not accept image input; no live Apple inference is
+  included.
+
+### Performance and reliability
+
+- Shared render and subject-isolation services across each analysis pass, parallelized source-identity hashing with
+  the configured concurrency bound, indexed normalization consensus lookups, reused XMP parses within an export, and
+  passed freshly written raw sidecars directly into combined pipelines.
+- Cached GUI review rows and decision indexes so ordinary verdict changes update only the affected item.
+- Reduced avoidable disk work by writing analysis sidecars once, skipping unchanged debug-derivative copies, and
+  batching progress-log synchronization while still flushing explicitly on interruption and close.
+- Extended `stage_concurrency` to positional normalization scans, including CLI, environment, config, and GUI
+  plumbing, while preserving deterministic result and error ordering.
+- Hardened concurrent lookup caching, symlink-aware file-kind checks, resolved-backend availability probing, and
+  timeout propagation without changing the existing Ollama error behavior.
+
+### Architecture and maintainability
+
+- Split configuration resolution, XMP safeguards, model-input export, raw-sidecar pairing, quality extraction, and
+  shared change-plan assembly into focused Core components while preserving artifact bytes and ordering.
+- Moved sidecar interpretation out of the GUI and into Core, introduced a shell-independent wizard flow coordinator,
+  shared model discovery across GUI surfaces, and split oversized Settings, options, review, and export views.
+- Consolidated path, timing, collection, callback, decision-ID, display-ranking, forward-compatible enum, CLI output,
+  subject-isolation, and report-writing helpers.
+
+### Compatibility and release boundary
+
+- Default Ollama runs keep the existing sidecar and artifact bytes: `model_backend` is omitted for the default, and
+  `auto` resolving to Ollama is byte-identical to an explicitly selected Ollama run.
+- Existing raw sidecars, normalization sessions, error codes, command shapes, and XMP safety guarantees remain
+  compatible. Analyze and quality-only paths remain XMP-silent, and source images are never modified.
+- Live Apple inference remains explicitly deferred until Apple ships a public vision-capable FoundationModels API
+  and suitable test hardware is available.
+- Distribution remains ad-hoc signed and not notarized under the current release policy.
+
 ## 0.2.0 — 2026-07-20
 
 `0.2.0` is the first full, non-prerelease CupricAspect release.
