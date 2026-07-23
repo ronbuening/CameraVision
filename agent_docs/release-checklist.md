@@ -71,3 +71,10 @@ This section activates plan W5. Until Developer ID is adopted, skip it entirely.
 - Stable smoke test replaces step 4 above: there should be **no** Gatekeeper prompt. Verify with `spctl --assess --type execute` on the app copied out of the mounted DMG and `xcrun stapler validate` on the DMG.
 
 Full runbook: `agent_docs/06-packaging-single-app-plan.md` §4.
+
+## Addendum — one-time beta compatibility evidence (B0-5, still open)
+
+Extracted from the archived hardening companion (`archive/10-hardening-implementation-plan.md` §2); plan 08's manual release step remains the tracking authority.
+
+- From the GUI, write real XMP for a small real batch; import the results in Lightroom Classic and Capture One; record the outcome as a new file in `agent_docs/release-evidence/` following the existing pattern there (name the current writer recipe).
+- Record Phase 1 M9 calibration evidence or the explicit deferral note per `agent_docs/cli-implementation-notes.md` ("Open item"). (The 2026-07-20 M9 calibration signoff in `release-evidence/` covers the calibration half.)

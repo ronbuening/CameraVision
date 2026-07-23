@@ -7,7 +7,7 @@ Audience: junior engineer or Sonnet-level coding agent executing one work item a
 
 This plan covers two tracks: **performance** (P items — remove wasted runtime work) and **reusability** (R items — eliminate duplicated code). Every item is self-contained: files, exact problem, exact change, acceptance criteria.
 
-**Scheduling:** this plan runs in its slot in `agent_docs/08-post-review-hardening-plan.md` §1.1 (after R4, before M9) — it is not a parallel active track. Two items are pinned there: P2/P3 execute *as part of* plan-08 R4-6 (one `DerivativeCache` manifest redesign, not two), and P4 must wait until plan-08 R1-3 has landed (it rewrites the same `JSONLWriter` lines). File/line anchors below were captured 2026-07-06; expect line drift after plan-08 items touch `JSONLWriter.swift` and `AnalyzePipeline.swift` — the file + symbol references remain authoritative.
+**Scheduling (updated 2026-07-21):** this plan's remaining items now execute as **Tranche A of `agent_docs/16-refactor-and-optimization-plan.md`**, which supersedes this plan's standalone slot in plan 08 §1.1 step 7. Plan 16 is the execution-order authority; the item text below remains the authoritative spec for each absorbed item (plan 16 references, it does not duplicate). It is not a parallel active track. Two items are pinned there: P2/P3 execute *as part of* plan-08 R4-6 (one `DerivativeCache` manifest redesign, not two), and P4 must wait until plan-08 R1-3 has landed (it rewrites the same `JSONLWriter` lines). File/line anchors below were captured 2026-07-06; expect line drift after plan-08 items touch `JSONLWriter.swift` and `AnalyzePipeline.swift` — the file + symbol references remain authoritative.
 
 ## Ground Rules (read first)
 
@@ -102,7 +102,7 @@ Record wall-clock time and, if available, `fs_usage` sync counts. Repeat after t
 **Problem.** Every cache read/write loads the manifest JSON from disk and writes it back. Additionally, `AnalyzePipeline.prepare()` constructs a *separate* `DerivativeCache` instance per worker (line 465-470), so nothing amortizes.
 
 **Change (as built).**
-1. Share **one** `DerivativeCache` instance across workers and pass it through every owning pipeline (`AnalyzePipeline`, `AnalyzeShellPipeline`, and `ModelInputExportPipeline`). The final class uses locked state and remains valid under Swift 6 strict concurrency.
+1. Share **one** `DerivativeCache` instance across workers and pass it through every owning pipeline (`AnalyzePipeline`, `AnalyzeShellPipeline` — since deleted by R4, and `ModelInputExportPipeline`). The final class uses locked state and remains valid under Swift 6 strict concurrency.
 2. Keep the parsed manifest in memory and re-read only when the on-disk signature changes. The signature is `(inode, modification time, byte count)`, because atomic replacement can preserve time and size while changing content. Keep every mutation write-through; do not batch manifest writes across process boundaries.
 
 **Acceptance criteria.**

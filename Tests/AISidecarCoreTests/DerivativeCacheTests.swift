@@ -117,6 +117,53 @@ final class DerivativeCacheTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: copied.debugPath!)), Data("debug".utf8))
     }
 
+    func testDebugCopySkipsMatchingDestinationAtLeastAsNewAsArtifact() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let sourceURL = try writeTestImage("Bird.JPG", in: root)
+        let cache = DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 1_024)
+        let source = makeSource(fileName: "Bird.JPG", relativePath: "Bird.JPG", path: sourceURL.path)
+        let record = try Self.store(Data("debug".utf8), in: cache, source: source)
+        let first = try cache.copyDebugArtifact(record: record, source: source)
+        let debugPath = try XCTUnwrap(first.debugPath)
+        let futureSentinel = Date(timeIntervalSince1970: 4_000_000_000)
+        try FileManager.default.setAttributes([.modificationDate: futureSentinel], ofItemAtPath: debugPath)
+
+        let second = try cache.copyDebugArtifact(record: record, source: source)
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: debugPath)
+        XCTAssertEqual(second.debugPath, debugPath)
+        XCTAssertEqual(
+            attributes[.modificationDate] as? Date,
+            futureSentinel,
+            "A matching destination newer than the artifact must not be rewritten."
+        )
+    }
+
+    func testDebugCopyRewritesStaleDestinationOlderThanArtifact() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let sourceURL = try writeTestImage("Bird.JPG", in: root)
+        let cache = DerivativeCache(directoryPath: root.appendingPathComponent("cache").path, sizeCapBytes: 1_024)
+        let source = makeSource(fileName: "Bird.JPG", relativePath: "Bird.JPG", path: sourceURL.path)
+        let record = try Self.store(Data("debug".utf8), in: cache, source: source)
+        let first = try cache.copyDebugArtifact(record: record, source: source)
+        let debugPath = try XCTUnwrap(first.debugPath)
+        let staleSentinel = Date(timeIntervalSince1970: 100)
+        try FileManager.default.setAttributes([.modificationDate: staleSentinel], ofItemAtPath: debugPath)
+
+        let second = try cache.copyDebugArtifact(record: record, source: source)
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: debugPath)
+        XCTAssertEqual(second.debugPath, debugPath)
+        XCTAssertNotEqual(
+            attributes[.modificationDate] as? Date,
+            staleSentinel,
+            "A same-size destination predating the artifact may be a stale prior render and must be recopied."
+        )
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: debugPath)), Data("debug".utf8))
+    }
+
     func testConcurrentStoresForDistinctDerivativesAllLandInManifest() throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }

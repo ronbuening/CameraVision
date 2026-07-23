@@ -46,6 +46,16 @@ struct AssetRecord: Identifiable, Equatable, Sendable {
         case xmpPresentExternal
         case xmpMissingWasExported
         case failed
+
+        init(derivedState: QueueDerivedState) {
+            switch derivedState {
+            case .discovered: self = .discovered
+            case .analyzed: self = .analyzed
+            case .exported: self = .exported
+            case .xmpPresentExternal: self = .xmpPresentExternal
+            case .xmpMissingWasExported: self = .xmpMissingWasExported
+            }
+        }
     }
 
     var state: AssetQueueState {
@@ -57,89 +67,5 @@ struct AssetRecord: Identifiable, Equatable, Sendable {
         case .xmpMissingWasExported: .xmpMissingWasExported
         case .failed: .failed(code: failureCode ?? "unknown")
         }
-    }
-}
-
-/// Pure file→state derivation. Mirrors Core's naming rules —
-/// `SidecarNaming` (`<file-name>.ai.json`, mirrored under an output dir) and
-/// `XMPNaming` (image extension replaced by `.xmp`) — so the GUI never
-/// invents artifact paths Core would not produce.
-enum AssetQueueDerivation {
-    /// Raw-sidecar path for a source image (beside source, or mirrored under
-    /// `outputDir` exactly like `SidecarNaming.destinationPath`).
-    static func rawSidecarPath(sourcePath: String, relativePath: String, outputDir: String?) -> String {
-        if let outputDir {
-            return URL(fileURLWithPath: (outputDir as NSString).expandingTildeInPath)
-                .appendingPathComponent(relativePath + ".ai.json")
-                .standardizedFileURL.path
-        }
-        return sourcePath + ".ai.json"
-    }
-
-    /// XMP target path for a source image (image extension replaced by
-    /// `.xmp`, beside source or mirrored under `outputDir` like `XMPNaming`).
-    static func xmpTargetPath(sourcePath: String, relativePath: String, outputDir: String?) -> String {
-        if let outputDir {
-            return URL(fileURLWithPath: (outputDir as NSString).expandingTildeInPath)
-                .appendingPathComponent(replacingExtensionWithXMP(relativePath))
-                .standardizedFileURL.path
-        }
-        let url = URL(fileURLWithPath: sourcePath)
-        return url.deletingLastPathComponent()
-            .appendingPathComponent(replacingExtensionWithXMP(url.lastPathComponent))
-            .path
-    }
-
-    private static func replacingExtensionWithXMP(_ path: String) -> String {
-        let url = URL(fileURLWithPath: path)
-        if url.pathExtension.isEmpty {
-            return path + ".xmp"
-        }
-        return url.deletingPathExtension().appendingPathExtension("xmp").relativePath
-    }
-
-    /// True when the raw sidecar carries the FR4-049 `xmp_export` block.
-    /// Until CORE-4 lands no file has it, so XMP presence derives
-    /// "XMP present (external)" — correct by construction.
-    static func hasXMPExportBlock(rawSidecarPath: String, fileManager: FileManager = .default) -> Bool {
-        guard let data = fileManager.contents(atPath: rawSidecarPath),
-            let probe = try? JSONDecoder().decode(XMPExportProbe.self, from: data)
-        else {
-            return false
-        }
-        return probe.xmpExport != nil
-    }
-
-    private struct XMPExportProbe: Decodable {
-        struct Present: Decodable {
-            init(from decoder: Decoder) throws {}
-        }
-
-        var xmpExport: Present?
-
-        enum CodingKeys: String, CodingKey {
-            case xmpExport = "xmp_export"
-        }
-    }
-
-    /// Derive the between-launch state for one asset from disk (plan M1 table).
-    static func deriveState(
-        sourcePath: String,
-        relativePath: String,
-        outputDir: String?,
-        fileManager: FileManager = .default
-    ) -> AssetRecord.StateKind {
-        let sidecar = rawSidecarPath(sourcePath: sourcePath, relativePath: relativePath, outputDir: outputDir)
-        let xmpTarget = xmpTargetPath(sourcePath: sourcePath, relativePath: relativePath, outputDir: outputDir)
-        let hasSidecar = fileManager.fileExists(atPath: sidecar)
-        let hasXMP = fileManager.fileExists(atPath: xmpTarget)
-
-        guard hasSidecar else {
-            return hasXMP ? .xmpPresentExternal : .discovered
-        }
-        guard hasXMPExportBlock(rawSidecarPath: sidecar, fileManager: fileManager) else {
-            return hasXMP ? .xmpPresentExternal : .analyzed
-        }
-        return hasXMP ? .exported : .xmpMissingWasExported
     }
 }

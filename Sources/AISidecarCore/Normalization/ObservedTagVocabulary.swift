@@ -37,16 +37,7 @@ public enum ObservedTagVocabulary {
 
     /// Return the separator-insensitive key used to collapse singular/plural and punctuation variants.
     public static func observedKey(for normalizedTerm: String) -> String {
-        let separatorFolded = VocabularyTextFolder.separatorInsensitiveFold(normalizedTerm)
-        let variants =
-            [separatorFolded]
-            + VocabularyTextFolder
-            .finalTokenVariantSeparatorInsensitiveFolds(separatorFolded)
-        return
-            variants
-            .filter { !$0.isEmpty }
-            .sorted()
-            .first ?? separatorFolded
+        VocabularyTextFolder.variantKey(for: normalizedTerm)
     }
 
     private static func resolvedEntries(
@@ -72,8 +63,8 @@ public enum ObservedTagVocabulary {
 
         return termsByObservedKey.keys.sorted().map { key in
             let terms = termsByObservedKey[key, default: []]
-            let displayTerm = preferredDisplayTerm(terms)
-            let synonyms = stableUnique(terms)
+            let displayTerm = DisplayTermRanking.preferredTerm(in: terms)
+            let synonyms = stableUnique(terms.sorted())
                 .filter { $0 != displayTerm }
             return ResolvedVocabularyEntry(
                 canonicalPath: displayTerm,
@@ -112,51 +103,6 @@ public enum ObservedTagVocabulary {
             }
         }
         return blocked
-    }
-
-    private static func preferredDisplayTerm(_ terms: [String]) -> String {
-        let counts = terms.reduce(into: [:]) { partial, term in
-            partial[term, default: 0] += 1
-        }
-        return terms.sorted { lhs, rhs in
-            let lhsCount = counts[lhs, default: 0]
-            let rhsCount = counts[rhs, default: 0]
-            if lhsCount != rhsCount {
-                return lhsCount > rhsCount
-            }
-            let lhsTitleScore = titleCaseWordCount(lhs)
-            let rhsTitleScore = titleCaseWordCount(rhs)
-            if lhsTitleScore != rhsTitleScore {
-                return lhsTitleScore > rhsTitleScore
-            }
-            if lhs.count != rhs.count {
-                return lhs.count < rhs.count
-            }
-            let lhsLowercased = lhs.lowercased()
-            let rhsLowercased = rhs.lowercased()
-            if lhsLowercased != rhsLowercased {
-                return lhsLowercased < rhsLowercased
-            }
-            return lhs < rhs
-        }.first ?? ""
-    }
-
-    private static func titleCaseWordCount(_ value: String) -> Int {
-        value.split(whereSeparator: \.isWhitespace).filter { word in
-            guard let first = word.first, first.isUppercase else {
-                return false
-            }
-            return word.dropFirst().contains { $0.isLowercase }
-        }.count
-    }
-
-    private static func stableUnique(_ values: [String]) -> [String] {
-        var seen: Set<String> = []
-        var result: [String] = []
-        for value in values.sorted() where seen.insert(value).inserted {
-            result.append(value)
-        }
-        return result
     }
 
     private static func vocabularyEntry(_ entry: ResolvedVocabularyEntry) -> VocabularyEntry {

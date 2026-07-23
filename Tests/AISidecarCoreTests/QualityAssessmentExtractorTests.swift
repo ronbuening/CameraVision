@@ -56,6 +56,54 @@ final class QualityAssessmentExtractorTests: XCTestCase {
         XCTAssertEqual(result.issues.map(\.code), [.malformedBlock])
     }
 
+    func testBatchExtractionDeduplicatesRepeatedMalformedBlockIssue() throws {
+        let response: JSONValue = .object(["quality_assessment": .string("bad")])
+        let input = try makeInput(
+            primaryRuns: [modelRun(role: .wholeImage, response: response)],
+            primaryProfile: .taggingWithQuality,
+            qualityRuns: [modelRun(role: .wholeImage, response: response)]
+        )
+
+        let selection = QualityAssessmentExtractor.extractBatch(from: [input])
+
+        XCTAssertTrue(selection.recordsByRole.isEmpty)
+        XCTAssertEqual(selection.issues, [.malformedBlock])
+    }
+
+    func testPresentMalformedBlockUnderTaggingProfileIsReported() throws {
+        let input = try makeInput(
+            primaryRuns: [
+                modelRun(
+                    role: .wholeImage,
+                    response: .object(["quality_assessment": .string("bad")])
+                )
+            ],
+            primaryProfile: .tagging
+        )
+
+        let result = QualityAssessmentExtractor.extract(from: input)
+
+        XCTAssertTrue(result.records.isEmpty)
+        XCTAssertEqual(result.issues, [.malformedBlock])
+    }
+
+    func testPlainTaggingResponseWithoutQualityBlockRemainsSilent() throws {
+        let input = try makeInput(
+            primaryRuns: [
+                modelRun(
+                    role: .wholeImage,
+                    response: .object(["main_subjects": .array([])])
+                )
+            ],
+            primaryProfile: .tagging
+        )
+
+        let result = QualityAssessmentExtractor.extract(from: input)
+
+        XCTAssertTrue(result.records.isEmpty)
+        XCTAssertTrue(result.issues.isEmpty)
+    }
+
     func testUnknownCriterionIsDroppedAndReported() throws {
         var assessment = try qualityObject(from: try fixture("whole_image_quality_only_valid"))
         assessment["future_aesthetic_signal"] = .string("strong")
@@ -119,6 +167,40 @@ final class QualityAssessmentExtractorTests: XCTestCase {
         XCTAssertEqual(result.records.first?.promptVersion, "new")
     }
 
+    func testBatchExtractionUsesDeterministicPathTieBreakForEqualCreationDates() throws {
+        var earlierPathAssessment = try qualityObject(from: try fixture("whole_image_quality_only_valid"))
+        earlierPathAssessment["overall_effectiveness"] = .string("problem")
+        var laterPathAssessment = earlierPathAssessment
+        laterPathAssessment["overall_effectiveness"] = .string("strong")
+        let input = try makeInput(
+            primaryRuns: [
+                modelRun(
+                    role: .wholeImage,
+                    response: .object(["quality_assessment": .object(earlierPathAssessment)]),
+                    prompt: "path-a"
+                )
+            ],
+            primaryProfile: .qualityOnly,
+            qualityRuns: [
+                modelRun(
+                    role: .wholeImage,
+                    response: .object(["quality_assessment": .object(laterPathAssessment)]),
+                    prompt: "path-B"
+                )
+            ],
+            primaryCreatedAt: 100,
+            qualityCreatedAt: 100,
+            primaryPath: "/sidecars/a.ai.json",
+            qualityPath: "/sidecars/B.quality.ai.json"
+        )
+
+        let selection = QualityAssessmentExtractor.extractBatch(from: [input])
+
+        XCTAssertEqual(selection.contributors.map(\.path), ["/sidecars/a.ai.json", "/sidecars/B.quality.ai.json"])
+        XCTAssertEqual(selection.recordsByRole[.wholeImage]?.overall, .strong)
+        XCTAssertEqual(selection.recordsByRole[.wholeImage]?.promptVersion, "path-B")
+    }
+
     func testCandidateExtractorIgnoresQualityAssessmentBlock() throws {
         let combined = try fixture("whole_image_with_quality_valid")
         guard case .object(var withoutQuality) = combined else {
@@ -155,7 +237,11 @@ final class QualityAssessmentExtractorTests: XCTestCase {
     private func makeInput(
         primaryRuns: [ModelRunRecord],
         primaryProfile: ModelTaskProfile,
-        qualityRuns: [ModelRunRecord]? = nil
+        qualityRuns: [ModelRunRecord]? = nil,
+        primaryCreatedAt: TimeInterval = 100,
+        qualityCreatedAt: TimeInterval = 200,
+        primaryPath: String = "/sidecars/Bird.JPG.ai.json",
+        qualityPath: String = "/sidecars/Bird.JPG.quality.ai.json"
     ) throws -> ResolvedRawSidecarInput {
         let source = SourceImage(
             path: "/photos/Bird.JPG",
@@ -171,21 +257,21 @@ final class QualityAssessmentExtractorTests: XCTestCase {
             source: source,
             runConfiguration: ResolvedRunConfiguration.builtInDefaults.with(taskProfile: primaryProfile),
             modelRuns: primaryRuns,
-            createdAt: Date(timeIntervalSince1970: 100)
+            createdAt: Date(timeIntervalSince1970: primaryCreatedAt)
         )
         let primaryDocument = try RawJSONSidecarDocument(sidecar: primarySidecar)
-        let primaryPath = URL(fileURLWithPath: "/sidecars/Bird.JPG.ai.json")
+        let primaryURL = URL(fileURLWithPath: primaryPath)
         if let qualityRuns {
             let qualitySidecar = RawJSONSidecar(
                 source: source,
                 runConfiguration: ResolvedRunConfiguration.builtInDefaults.with(taskProfile: .qualityOnly),
                 modelRuns: qualityRuns,
-                createdAt: Date(timeIntervalSince1970: 200)
+                createdAt: Date(timeIntervalSince1970: qualityCreatedAt)
             )
             return ResolvedRawSidecarInput(
-                sidecarPath: primaryPath,
+                sidecarPath: primaryURL,
                 document: primaryDocument,
-                qualitySidecarPath: URL(fileURLWithPath: "/sidecars/Bird.JPG.quality.ai.json"),
+                qualitySidecarPath: URL(fileURLWithPath: qualityPath),
                 qualityDocument: try RawJSONSidecarDocument(sidecar: qualitySidecar),
                 sourcePath: URL(fileURLWithPath: source.path),
                 sourceIdentityStatus: .matched,
@@ -194,7 +280,7 @@ final class QualityAssessmentExtractorTests: XCTestCase {
             )
         }
         return ResolvedRawSidecarInput(
-            sidecarPath: primaryPath,
+            sidecarPath: primaryURL,
             document: primaryDocument,
             sourcePath: URL(fileURLWithPath: source.path),
             sourceIdentityStatus: .matched,

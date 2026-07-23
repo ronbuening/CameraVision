@@ -5,6 +5,11 @@ import AISidecarCore
 /// write the same config.json keys (`profile`, `model_context_window`), so
 /// their choice lists and labels must not diverge.
 enum ModelTuning {
+    /// `ModelRunOptions` remains one provenance shape; descriptors only decide which controls are visible.
+    static func supports(_ knob: ModelTuningKnob, in supportedKnobs: Set<ModelTuningKnob>) -> Bool {
+        supportedKnobs.contains(knob)
+    }
+
     /// Built-in rendering profiles ordered by the image size sent to the model.
     static let profileNamesBySize: [String] = ModelInputProfileRegistry.profiles
         .sorted { $0.maxLongEdge < $1.maxLongEdge }

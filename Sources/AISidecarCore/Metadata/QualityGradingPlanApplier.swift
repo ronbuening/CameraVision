@@ -13,7 +13,7 @@ struct QualityGradingPlanApplier {
             return
         }
 
-        let quality = qualityAssessments(from: inputs)
+        let quality = QualityAssessmentExtractor.extractBatch(from: inputs)
         let policy = grading.policy
         let whole = quality.recordsByRole[.wholeImage]
         let subject = quality.recordsByRole[.subjectIsolated]
@@ -143,54 +143,6 @@ struct QualityGradingPlanApplier {
                         + error.localizedDescription
                 ))
         }
-    }
-
-    private func qualityAssessments(from inputs: [ResolvedRawSidecarInput]) -> QualityAssessmentSelection {
-        var contributorByPath: [String: QualityDocumentContributor] = [:]
-        for input in inputs {
-            let primaryPath = input.sidecarPath.standardizedFileURL.path
-            contributorByPath[primaryPath] = QualityDocumentContributor(
-                path: primaryPath,
-                document: input.document
-            )
-            if let qualityPath = input.qualitySidecarPath?.standardizedFileURL.path,
-                let qualityDocument = input.qualityDocument
-            {
-                contributorByPath[qualityPath] = QualityDocumentContributor(
-                    path: qualityPath,
-                    document: qualityDocument
-                )
-            }
-        }
-
-        let contributors = contributorByPath.values.sorted {
-            if $0.document.sidecar.createdAt == $1.document.sidecar.createdAt {
-                return comparePaths($0.path, $1.path)
-            }
-            return $0.document.sidecar.createdAt < $1.document.sidecar.createdAt
-        }
-        var recordsByRole: [ModelInputRole: QualityAssessmentRecord] = [:]
-        var issues: [QualityExtractionIssue] = []
-        for contributor in contributors {
-            let extraction = QualityAssessmentExtractor.extract(
-                from: ResolvedRawSidecarInput(
-                    sidecarPath: URL(fileURLWithPath: contributor.path),
-                    document: contributor.document,
-                    sourcePath: URL(fileURLWithPath: contributor.document.sidecar.source.path),
-                    sourceIdentityStatus: .matched,
-                    relativePath: nil,
-                    warnings: []
-                ))
-            issues.append(contentsOf: extraction.issues)
-            for record in extraction.records {
-                recordsByRole[record.role] = record
-            }
-        }
-        return QualityAssessmentSelection(
-            contributors: contributors,
-            recordsByRole: recordsByRole,
-            issues: issues
-        )
     }
 
     private func qualityExplanation(
@@ -384,17 +336,6 @@ struct QualityGradingPlanApplier {
     }
 }
 
-private struct QualityDocumentContributor {
-    var path: String
-    var document: RawJSONSidecarDocument
-}
-
-private struct QualityAssessmentSelection {
-    var contributors: [QualityDocumentContributor]
-    var recordsByRole: [ModelInputRole: QualityAssessmentRecord]
-    var issues: [QualityExtractionIssue]
-}
-
 private struct TrustedStampedScalars {
     var rating: String?
     var label: String?
@@ -407,13 +348,4 @@ private struct TrustedStampedScalars {
         self.urgency = urgency
         self.pick = pick
     }
-}
-
-private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
-    let lowerLHS = lhs.lowercased()
-    let lowerRHS = rhs.lowercased()
-    if lowerLHS == lowerRHS {
-        return lhs < rhs
-    }
-    return lowerLHS < lowerRHS
 }

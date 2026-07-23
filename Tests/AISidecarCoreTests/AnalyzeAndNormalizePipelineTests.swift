@@ -23,6 +23,7 @@ final class AnalyzeAndNormalizePipelineTests: XCTestCase {
         )
 
         XCTAssertEqual(result.analyzeResult.records.map(\.status), [.written])
+        XCTAssertNil(result.analyzeResult.writtenSidecarsByPath)
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.appendingPathComponent("Bird.JPG.ai.json").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: result.normalizeResult.session.artifacts.reportPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: result.normalizeResult.session.artifacts.summaryPath))

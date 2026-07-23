@@ -105,7 +105,7 @@ public struct NormalizationProgressRecord: Codable, Sendable, Equatable {
 }
 
 /// Append-only JSONL writer for normalization progress records.
-public final class NormalizationProgressLog {
+public final class NormalizationProgressLog: @unchecked Sendable {
     private let writer: JSONLWriter<NormalizationProgressRecord>
 
     public var path: String { writer.path }
@@ -115,12 +115,17 @@ public final class NormalizationProgressLog {
         self.writer = try JSONLWriter(path: path, label: "normalization progress log", fileManager: fileManager)
     }
 
-    /// Append and flush one progress record before the next stage advances.
+    /// Append one progress record before the next stage advances.
     public func append(_ record: NormalizationProgressRecord) throws {
         try writer.append(record)
     }
 
-    /// Close the underlying file handle, surfacing close failures as write errors.
+    /// Synchronize pending records without closing the log.
+    public func flush() throws {
+        try writer.flush()
+    }
+
+    /// Synchronize pending records and close the underlying file handle.
     public func close() throws {
         try writer.close()
     }

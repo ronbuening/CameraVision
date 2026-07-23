@@ -254,6 +254,54 @@ final class ConfigResolutionTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(ResolvedRunConfiguration.self, from: data), configuration)
     }
 
+    func testModelBackendDefaultsToOllamaAndUsesStandardPrecedence() throws {
+        let defaults = try ConfigurationResolver.resolve(
+            environment: [:],
+            defaultConfigPath: missingConfigPath()
+        )
+        XCTAssertEqual(defaults.modelBackend, .ollama)
+
+        let configPath = try writeConfig(#"{ "model_backend": "apple" }"#)
+        let configured = try ConfigurationResolver.resolve(
+            environment: [:],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(configured.modelBackend, .apple)
+
+        let environment = try ConfigurationResolver.resolve(
+            environment: ["AISIDECAR_MODEL_BACKEND": "auto"],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(environment.modelBackend, .auto)
+
+        let commandLine = try ConfigurationResolver.resolve(
+            cli: RunConfigurationOverrides(modelBackend: .ollama),
+            environment: ["AISIDECAR_MODEL_BACKEND": "auto"],
+            defaultConfigPath: configPath
+        )
+        XCTAssertEqual(commandLine.modelBackend, .ollama)
+    }
+
+    func testModelBackendProvenanceIsDefaultElidedAndDecodesLegacyBytes() throws {
+        let defaultData = try JSONEncoder().encode(ResolvedRunConfiguration.builtInDefaults)
+        let defaultObject = try XCTUnwrap(JSONSerialization.jsonObject(with: defaultData) as? [String: Any])
+        XCTAssertNil(defaultObject["model_backend"])
+
+        let legacyData = try JSONSerialization.data(withJSONObject: defaultObject)
+        XCTAssertEqual(
+            try JSONDecoder().decode(ResolvedRunConfiguration.self, from: legacyData).modelBackend,
+            .ollama
+        )
+
+        var apple = ResolvedRunConfiguration.builtInDefaults
+        apple.modelBackend = .apple
+        let appleData = try JSONEncoder().encode(apple)
+        let appleObject = try XCTUnwrap(JSONSerialization.jsonObject(with: appleData) as? [String: Any])
+        XCTAssertEqual(appleObject["model_backend"] as? String, "apple")
+        XCTAssertNil(appleObject["modelBackend"])
+        XCTAssertEqual(try JSONDecoder().decode(ResolvedRunConfiguration.self, from: appleData), apple)
+    }
+
     func testResolvedConfigurationDecodesWhenQualityScanModeKeyIsMissing() throws {
         let data = try JSONEncoder().encode(ResolvedRunConfiguration.builtInDefaults)
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -813,6 +861,7 @@ final class ConfigResolutionTests: XCTestCase {
 
     func testResolvedNormalizationConfigurationRoundTripsAndDefaultsLegacyQualityBlock() throws {
         var current = ResolvedNormalizationConfiguration.builtInDefaults
+        current.stageConcurrency = 3
         current.qualityGrading = ResolvedQualityGradingConfiguration(
             enabled: true,
             conflictPolicy: .refresh,
@@ -823,16 +872,20 @@ final class ConfigResolutionTests: XCTestCase {
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let qualityObject = try XCTUnwrap(object["quality_grading"] as? [String: Any])
         XCTAssertEqual(qualityObject["conflict_policy"] as? String, "refresh")
+        XCTAssertEqual(object["stage_concurrency"] as? Int, 3)
         XCTAssertEqual(try JSONDecoder().decode(ResolvedNormalizationConfiguration.self, from: data), current)
 
         object.removeValue(forKey: "quality_grading")
+        object.removeValue(forKey: "stage_concurrency")
         let legacyData = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         let legacy = try JSONDecoder().decode(ResolvedNormalizationConfiguration.self, from: legacyData)
         XCTAssertEqual(legacy.qualityGrading, .builtInDefaults)
+        XCTAssertNil(legacy.stageConcurrency)
 
         let defaultData = try JSONEncoder().encode(ResolvedNormalizationConfiguration.builtInDefaults)
         let defaultObject = try XCTUnwrap(JSONSerialization.jsonObject(with: defaultData) as? [String: Any])
         XCTAssertNil(defaultObject["quality_grading"])
+        XCTAssertNil(defaultObject["stage_concurrency"])
     }
 
     func testResolvedApplySessionConfigurationRoundTripsAndDefaultsLegacyQualityBlock() throws {

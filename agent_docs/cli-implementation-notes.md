@@ -56,6 +56,84 @@ Model run option defaults: temperature 0, recorded seed, thinking explicitly dis
 `response_repair_attempts` 1. Timeout and retry limit resolve through CLI > environment > config > built-in default;
 HTTP 4xx fails immediately and a malformed HTTP-success envelope has its own single decode retry.
 
+## Vision backend selection and Apple adapter boundary
+
+The Tranche D design-decision authority and completion evidence live in
+`agent_docs/16-refactor-and-optimization-plan.md` under DD-1 through DD-10 and the
+D1–D8 stage-ledger rows. The shipped selection behavior is:
+
+- On analysis-capable command shapes, `model_backend` accepts `ollama`, `apple`,
+  or `auto` through the standard CLI (`--model-backend`) >
+  `AISIDECAR_MODEL_BACKEND` > config > built-in precedence chain. The default is
+  `ollama` and is omitted from run-configuration encoding; non-default values
+  are additive provenance.
+- The factory selects one descriptor for the entire run; it never falls back per
+  image or mixes runtime provenance inside a batch. A pinned backend (including
+  the default `ollama`) comes from configuration alone, so the factory
+  constructs its runner without probing and the runner's own `prepare` — which
+  the pipelines call only when a run has pending model work — stays the
+  fail-closed gate. A fully skipped rerun and dry-run planning therefore do no
+  backend I/O at all, and an unreachable Ollama keeps reporting
+  `E_MODEL_ENDPOINT_UNREACHABLE`; a pinned but unusable Apple backend fails
+  closed with `E_MODEL_BACKEND_UNAVAILABLE`. `auto` is the one shape that must
+  probe: it checks the deterministic production registry in Apple-then-Ollama
+  order, chooses the first available backend, and reports every reason when none
+  is available. A dry-run `auto` skips availability I/O and carries the default
+  backend's untouched runner. The factory stamps the backend it selected into
+  the configuration the pipelines receive, so `run_configuration.model_backend`
+  always names a concrete backend — never `auto` — and an `auto` run that
+  resolves Ollama is byte-identical to a pinned Ollama run.
+- Ollama is the only usable backend today. The Apple descriptor is compiled in,
+  appears in the GUI, and always reports unavailable because current public
+  FoundationModels APIs do not accept image input for this workload. The
+  reserved Apple provenance is `apple-foundation-models`,
+  `system-language-model`, and `system:<macOS build>`. `benchmark` rejects every
+  backend except Ollama.
+- CLI and GUI surfaces consume `VisionBackendDescriptor` metadata for
+  availability, remediation, model discovery, and supported tuning controls.
+  Pipelines receive only `any VisionModelRunner`; they do not branch on backend
+  identity.
+
+### Walkthrough: lighting up Apple vision later (AC16-5)
+
+Once Apple publishes a supported image-input API and suitable test hardware is
+available, ordinary analyze/quality/combined GUI and CLI execution can be lit up
+by changing production code only inside
+`Sources/AISidecarCore/ModelRuntime/AppleFoundationModels/`:
+
+1. Replace the descriptor's always-unavailable result with a guarded probe that
+   requires both the future OS/API and a vision-capable system model. Keep
+   text-only systems unavailable and preserve the existing backend id, display
+   name, and remediation ownership.
+2. Implement the Apple runner's `prepare` using the already-reserved runtime,
+   model, OS-version, and OS-build provenance values. Map unsupported task
+   capabilities to the reserved `E_MODEL_BACKEND_CAPABILITY` error.
+3. Implement `analyze` against the public image-input API. Convert its output to
+   `ModelRunRecord`, honor cancellation and the shared `ModelRunOptions`, and
+   validate the final object with the existing authoritative
+   `JSONSchemaValidator`; any guided-generation or repair bridge remains private
+   to the Apple adapter.
+4. Add offline adapter tests and recorded evidence, then add an explicitly
+   availability-gated live smoke on supported hardware. Keep the existing Apple
+   provenance golden unchanged.
+
+No production edits outside that directory are required for ordinary model
+runs: the registry already orders Apple before Ollama; the factory already owns
+pinned/`auto` selection; config, CLI, and Settings already expose the backend;
+the GUI already renders descriptor guidance and capabilities; and all pipelines
+already depend on `VisionModelRunner`. Extending the Ollama-shaped benchmark is
+separate future scope and is not required to activate Apple for normal analysis.
+If the public API cannot fit these existing seams, that is a new design change,
+not permission to bypass the factory, schema validator, or provenance contract.
+
+Three refinements outside that directory are scheduled to land with the adapter
+rather than being required by it — plan 16's D8 items B1–B3: a recorded-run
+golden pinning the Apple-via-auto sidecar shape (the resolved-backend stamping
+itself already shipped, so `"auto"` can never reach provenance), declaring the
+tuning knobs Apple actually honors instead of today's empty set, and the DD-6
+notice for CLI flags a backend ignores. Each becomes verifiable only once a
+second backend can be selected.
+
 ## Image-quality assessment contract
 
 `analyze --assess-quality` selects the v1.6.0 combined tagging-and-quality

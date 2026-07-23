@@ -115,7 +115,7 @@ public struct ArtifactCleanup {
     /// delete source images, XMP sidecars, backups, derivative cache artifacts,
     /// debug derivatives, or normalization session JSON that can be applied later.
     public func run(rootPath: String, recursive: Bool, dryRun: Bool) throws -> CleanupReport {
-        let root = absoluteURL(for: rootPath)
+        let root = absoluteURL(for: rootPath, fileManager: fileManager, isDirectory: true)
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             throw SidecarError.configInvalid("Cleanup root must be an existing folder: \(root.path)")
@@ -244,7 +244,9 @@ public struct ArtifactCleanup {
         }
 
         return urls.compactMap { url in
-            guard isRegularFile(url), let kind = Self.classify(fileName: url.lastPathComponent) else {
+            guard isRegularFile(url),
+                let kind = Self.classify(fileName: url.lastPathComponent)
+            else {
                 return nil
             }
             if url.lastPathComponent.hasPrefix("."), kind != .atomicWriterTemp {
@@ -262,14 +264,6 @@ public struct ArtifactCleanup {
         .sorted { lhs, rhs in
             lhs.relativePath < rhs.relativePath
         }
-    }
-
-    private func isRegularFile(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
-    }
-
-    private func isDirectory(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
     }
 
     private func isExpiredAtomicWriterTemp(_ url: URL) -> Bool {
@@ -293,16 +287,6 @@ public struct ArtifactCleanup {
             return false
         }
         return UUID(uuidString: String(components[components.count - 2])) != nil
-    }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expanded = (path as NSString).expandingTildeInPath
-        if expanded.hasPrefix("/") {
-            return URL(fileURLWithPath: expanded, isDirectory: true).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expanded, isDirectory: true)
-            .standardizedFileURL
     }
 
     private func relativePath(for url: URL, root: URL) -> String {

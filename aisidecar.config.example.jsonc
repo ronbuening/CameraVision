@@ -42,6 +42,16 @@
   // Use null to write beside source inputs where the command supports that.
   "output_dir": null,
 
+  // Local model backend used by commands that run analysis. Options: "ollama",
+  // "apple", or "auto". The default is "ollama". A pinned backend fails before
+  // model work if unavailable. "auto" chooses one backend for the whole run,
+  // checking Apple first and then Ollama; it never mixes backends within a run.
+  // The Apple backend is currently a deliberately unavailable placeholder until
+  // a public vision-capable Apple on-device model API exists. Benchmark runs
+  // currently support only "ollama".
+  // CLI: --model-backend. Environment: AISIDECAR_MODEL_BACKEND.
+  "model_backend": "ollama",
+
   // Ollama model tag used by analyze, analyze-and-write, and analyze-and-normalize.
   "model": "gemma4:26b-a4b-it-qat",
 
@@ -122,7 +132,8 @@
   // There is no current CLI flag for this key.
   "subject_merge_dominance_threshold": 0.8,
 
-  // Maximum concurrent render/isolation preparation workers. Must be greater than zero.
+  // Maximum concurrent render/isolation workers and normalize folder-scan hash workers.
+  // This shared setting governs both analyze and normalize scans. Must be greater than zero.
   // Use null for the hardware-derived default.
   "stage_concurrency": null,
 

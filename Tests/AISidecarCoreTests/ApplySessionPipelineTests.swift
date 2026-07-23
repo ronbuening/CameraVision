@@ -5,8 +5,8 @@ import XCTest
 @testable import AISidecarCore
 
 final class ApplySessionPipelineTests: XCTestCase {
-    func testDefaultOffApplyMatchesPreQN6ArtifactHashes() throws {
-        let fixture = try makeSessionFixture(dryRun: false)
+    func testDefaultOffApplyMatchesPreQN6ArtifactHashes() async throws {
+        let fixture = try await makeSessionFixture(dryRun: false)
         let output = fixture.root.appendingPathComponent("apply-output")
         let exportTimestamp = Date(timeIntervalSince1970: 1_800_000_450)
         let result = try ApplySessionPipeline(
@@ -53,8 +53,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         XCTAssertEqual(actual, try applyBaselineHashes())
     }
 
-    func testDefaultOffApplyDoesNotReadCurrentQualityInputsOrPlanningSnapshot() throws {
-        let fixture = try makeSessionFixture(dryRun: false)
+    func testDefaultOffApplyDoesNotReadCurrentQualityInputsOrPlanningSnapshot() async throws {
+        let fixture = try await makeSessionFixture(dryRun: false)
         let reads = ApplySessionPlanningReadCounter()
         let pipeline = ApplySessionPipeline(
             snapshotReader: { path in
@@ -78,8 +78,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         XCTAssertEqual(reads.snapshotReadCount, 0)
     }
 
-    func testApplySessionWritesStoredDecisionsAndMergesCurrentXMP() throws {
-        let fixture = try makeSessionFixture(dryRun: false)
+    func testApplySessionWritesStoredDecisionsAndMergesCurrentXMP() async throws {
+        let fixture = try await makeSessionFixture(dryRun: false)
         let output = try temporaryDirectory()
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         try existingDevelopSettingsXMPForApplySession.write(
@@ -110,8 +110,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         )
     }
 
-    func testApplySessionRejectsStaleSourcesUnlessExplicitlyAllowed() throws {
-        let fixture = try makeSessionFixture(dryRun: false)
+    func testApplySessionRejectsStaleSourcesUnlessExplicitlyAllowed() async throws {
+        let fixture = try await makeSessionFixture(dryRun: false)
         try Data("changed source bytes".utf8).write(to: fixture.sourceURL)
 
         let rejectedOutput = try temporaryDirectory()
@@ -145,9 +145,9 @@ final class ApplySessionPipelineTests: XCTestCase {
         )
     }
 
-    func testApplySessionDryRunResolvesMovedSourceRootAndRecomputesTargetPath() throws {
+    func testApplySessionDryRunResolvesMovedSourceRootAndRecomputesTargetPath() async throws {
         let oldPlanOutput = try temporaryDirectory()
-        let fixture = try makeSessionFixture(dryRun: true, normalizationOutput: oldPlanOutput)
+        let fixture = try await makeSessionFixture(dryRun: true, normalizationOutput: oldPlanOutput)
         let movedRoot = try temporaryDirectory()
         let movedSource = movedRoot.appendingPathComponent("Bird.JPG")
         try FileManager.default.moveItem(at: fixture.sourceURL, to: movedSource)
@@ -172,8 +172,32 @@ final class ApplySessionPipelineTests: XCTestCase {
         XCTAssertEqual(result.exportReport?.targetReports.first?.status, .dryRun)
     }
 
-    func testApplySessionInterruptedAfterSourceResolutionDoesNotWriteXMP() throws {
-        let fixture = try makeSessionFixture(dryRun: false)
+    func testApplySessionResolvesSymlinkedSourceImage() async throws {
+        let fixture = try await makeSessionFixture(dryRun: true)
+        let realRoot = try temporaryDirectory()
+        let realSource = realRoot.appendingPathComponent("Bird.JPG")
+        try FileManager.default.moveItem(at: fixture.sourceURL, to: realSource)
+        try FileManager.default.createSymbolicLink(at: fixture.sourceURL, withDestinationURL: realSource)
+
+        let applyOutput = try temporaryDirectory()
+        var configuration = applyConfiguration(outputDir: applyOutput)
+        configuration.dryRun = true
+
+        let result = try applyPipeline().run(
+            sessionPath: fixture.sessionPath,
+            configuration: configuration,
+            timestamp: Date(timeIntervalSince1970: 1_800_000_850)
+        )
+
+        let plan = try XCTUnwrap(result.changePlan.targetPlans.first)
+        XCTAssertEqual(plan.sourceMembers.first?.sourcePath, fixture.sourceURL.path)
+        XCTAssertFalse(result.report.errors.contains { $0.code == .sourceMissing })
+        XCTAssertEqual(result.exportReport?.inputFailures.map(\.error.code), [])
+        XCTAssertEqual(result.exportReport?.targetReports.first?.status, .dryRun)
+    }
+
+    func testApplySessionInterruptedAfterSourceResolutionDoesNotWriteXMP() async throws {
+        let fixture = try await makeSessionFixture(dryRun: false)
         let originalSourceData = try Data(contentsOf: fixture.sourceURL)
         let output = try temporaryDirectory()
         let monitor = InterruptionMonitor()
@@ -199,8 +223,8 @@ final class ApplySessionPipelineTests: XCTestCase {
             })
     }
 
-    func testApplySessionFailsClosedForMalformedCurrentXMP() throws {
-        let fixture = try makeSessionFixture(dryRun: false)
+    func testApplySessionFailsClosedForMalformedCurrentXMP() async throws {
+        let fixture = try await makeSessionFixture(dryRun: false)
         let output = try temporaryDirectory()
         let target = output.appendingPathComponent("Bird.xmp")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -218,8 +242,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), malformed)
     }
 
-    func testApplySessionRestoresBackupAfterValidationFailure() throws {
-        let fixture = try makeSessionFixture(dryRun: false)
+    func testApplySessionRestoresBackupAfterValidationFailure() async throws {
+        let fixture = try await makeSessionFixture(dryRun: false)
         let output = try temporaryDirectory()
         let target = output.appendingPathComponent("Bird.xmp")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -263,8 +287,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         }
     }
 
-    func testApplySessionRejectsDuplicateGroupTargetWithoutTrapping() throws {
-        let fixture = try makeSessionFixture(dryRun: false)
+    func testApplySessionRejectsDuplicateGroupTargetWithoutTrapping() async throws {
+        let fixture = try await makeSessionFixture(dryRun: false)
         var session = try NormalizationSessionReader().read(from: fixture.sessionPath)
         let duplicate = try XCTUnwrap(session.sameBaseNameGroups.first)
         session.sameBaseNameGroups.append(duplicate)
@@ -283,8 +307,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         }
     }
 
-    func testApplySessionRejectsDuplicateStoredWritePlanTargetWithoutTrapping() throws {
-        let fixture = try makeSessionFixture(dryRun: true)
+    func testApplySessionRejectsDuplicateStoredWritePlanTargetWithoutTrapping() async throws {
+        let fixture = try await makeSessionFixture(dryRun: true)
         var session = try NormalizationSessionReader().read(from: fixture.sessionPath)
         let duplicate = try XCTUnwrap(session.xmpWritePlans.first)
         session.xmpWritePlans.append(duplicate)
@@ -305,8 +329,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         }
     }
 
-    func testApplySessionRejectsDuplicateSourceAssetIDWithoutTrapping() throws {
-        let fixture = try makeSessionFixture(dryRun: false)
+    func testApplySessionRejectsDuplicateSourceAssetIDWithoutTrapping() async throws {
+        let fixture = try await makeSessionFixture(dryRun: false)
         var session = try NormalizationSessionReader().read(from: fixture.sessionPath)
         let duplicate = try XCTUnwrap(session.sourceAssets.first)
         session.sourceAssets.append(duplicate)
@@ -325,8 +349,8 @@ final class ApplySessionPipelineTests: XCTestCase {
         }
     }
 
-    func testApplySessionRejectsDuplicateSourceSidecarAssetIDWithoutTrapping() throws {
-        let fixture = try makeSessionFixture(dryRun: false)
+    func testApplySessionRejectsDuplicateSourceSidecarAssetIDWithoutTrapping() async throws {
+        let fixture = try await makeSessionFixture(dryRun: false)
         var session = try NormalizationSessionReader().read(from: fixture.sessionPath)
         let duplicate = try XCTUnwrap(session.sourceAISidecars.first)
         session.sourceAISidecars.append(duplicate)
@@ -348,7 +372,7 @@ final class ApplySessionPipelineTests: XCTestCase {
     private func makeSessionFixture(
         dryRun: Bool,
         normalizationOutput: URL? = nil
-    ) throws -> ApplySessionFixture {
+    ) async throws -> ApplySessionFixture {
         let root = try temporaryDirectory()
         let jsonRoot = root.appendingPathComponent("json")
         let sourceRoot = root.appendingPathComponent("source")
@@ -378,20 +402,22 @@ final class ApplySessionPipelineTests: XCTestCase {
         configuration.normalizationMode = .singleImage
         configuration.dryRun = dryRun
 
-        let result =
-            dryRun
-            ? try NormalizePipeline().runDryRun(
+        let result: NormalizePipelineResult
+        if dryRun {
+            result = try await NormalizePipeline().runDryRun(
                 mode: .fromJSON(path: jsonRoot.path),
                 configuration: configuration,
                 timestamp: Date(timeIntervalSince1970: 1_800_000_400),
                 sessionID: "apply-session-fixture"
             )
-            : try NormalizePipeline().runSessionOnly(
+        } else {
+            result = try await NormalizePipeline().runSessionOnly(
                 mode: .fromJSON(path: jsonRoot.path),
                 configuration: configuration,
                 timestamp: Date(timeIntervalSince1970: 1_800_000_400),
                 sessionID: "apply-session-fixture"
             )
+        }
 
         return ApplySessionFixture(
             root: root,

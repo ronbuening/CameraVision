@@ -1,5 +1,5 @@
 import CoreGraphics
-import CoreImage
+@preconcurrency import CoreImage
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
@@ -48,7 +48,10 @@ public struct WholeImageRenderResult: Sendable, Equatable {
 }
 
 /// Prepares source pixels and writes model-input derivatives.
-public struct ImageRenderer {
+///
+/// Core Image contexts are thread-safe for rendering, so one renderer can serve
+/// every bounded-concurrency worker in an analysis batch.
+public struct ImageRenderer: Sendable {
     private let cache: DerivativeCache
     private let context: CIContext
 

@@ -3,10 +3,16 @@ import Foundation
 /// Markdown summary writer for human-readable Phase 3 normalization review.
 public struct NormalizationSummaryWriter {
     private let fileManager: FileManager
+    private let dataWriter: WriterSupport.DataWriter
 
     /// Create a Markdown writer for human review of normalization sessions.
     public init(fileManager: FileManager = .default) {
+        self.init(fileManager: fileManager, dataWriter: WriterSupport.atomicWrite)
+    }
+
+    init(fileManager: FileManager = .default, dataWriter: @escaping WriterSupport.DataWriter) {
         self.fileManager = fileManager
+        self.dataWriter = dataWriter
     }
 
     /// Render a deterministic Markdown summary from a machine-readable report.
@@ -47,19 +53,9 @@ public struct NormalizationSummaryWriter {
 
     /// Atomically write the Markdown summary artifact.
     public func write(_ report: NormalizationReport, to path: String) throws {
-        do {
-            let data = Data(markdown(for: report).utf8)
-            try AtomicFileWriter.write(data, to: URL(fileURLWithPath: path), fileManager: fileManager)
-        } catch let error as SidecarError {
-            throw error
-        } catch {
-            throw SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Unable to write normalization summary \(path): \(error.localizedDescription)",
-                recoverable: true
-            )
-        }
+        try WriterSupport.writeAndWrap(
+            Data(markdown(for: report).utf8), to: path, typeName: "write normalization summary",
+            fileManager: fileManager, dataWriter: dataWriter)
     }
 
     private func appendAffinity(_ lines: inout [String], report: NormalizationReport) {

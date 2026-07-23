@@ -4,7 +4,7 @@ Version: 1.0
 Date: 2026-07-07
 Depends on: `agent_docs/phase-4-gui-implementation-plan.md` (B0 complete except B0-5/signing/tag), `agent_docs/invariants.md` (all rules apply)
 Audience: junior engineer or Sonnet-level coding agent. Each work item is self-contained: finding, exact location, fix approach, acceptance criteria, and required tests.
-Execution detail: `agent_docs/10-hardening-implementation-plan.md` carries the code-level companion for every R1–R4 item (verified current-code excerpts, proposed code, test skeletons, per-item commits, and the manual release-step runbook). This document stays the source of truth for findings, scope, and order.
+Execution detail: `agent_docs/archive/10-hardening-implementation-plan.md` carries the as-built code-level companion for every R1–R4 item (verified current-code excerpts, proposed code, test skeletons, per-item commits, and the manual release-step runbook). It is archived now that R1–R4 are complete; this document stays the source of truth for findings, scope, and order, and the still-open manual release step's runbook lives in `agent_docs/release-checklist.md` plus plan 06 §4.
 
 ## 0. Where this plan comes from
 
@@ -46,7 +46,7 @@ Work strictly top to bottom. Within a milestone, work items in their numbered or
 4. **R2-1 → R2-7, in order.** First post-beta code milestone.
 5. **R3-1 → R3-11, in order.** R3 and R4 are independent of each other and may swap wholesale if priorities change, but do not interleave them. R3-11's sub-items are each one small commit and may be reordered or individually deferred.
 6. **R4-1 → R4-6, in order.** R4-6 must be coordinated with efficiency-plan P2/P3 (one manifest redesign, not two): execute P2/P3 as part of R4-6, not as a separate later pass.
-7. **Efficiency plan (`agent_docs/05-efficiency-improvement-plan.md`), in its own order table.** Runs after R4 and before M9. Exceptions already scheduled above: P2/P3 land inside R4-6; P4 requires R1-3 to have landed (same file). The efficiency plan is not an open invitation to interleave — items from it run in this slot unless Ron explicitly pulls one forward.
+7. **Refactor/optimization plan (`agent_docs/16-refactor-and-optimization-plan.md`), in its own order (Tranches A → B → C → D).** Runs after R4 and before M9. Its Tranche A absorbs the remaining efficiency-plan items by reference (`agent_docs/05-efficiency-improvement-plan.md` stays the item-level spec; P2/P3 already landed inside R4-6). Tranche D lands the vision-backend abstraction and the dark Apple FoundationModels adapter. Not an open invitation to interleave — items run in this slot unless Ron explicitly pulls one forward. The secondary GUI improvements plan (`agent_docs/17-gui-improvements-plan.md`) runs at maintainer priority after plan 16's Tranches A–C and does not gate M9.
 8. **M9 → M10 (a/b/c) → M11**, unchanged, per `agent_docs/phase-4-gui-implementation-plan.md`.
 9. **After M11:** feature work per `agent_docs/09-post-m11-feature-roadmap.md`.
 

@@ -249,12 +249,3 @@ private func compareMembers(_ lhs: SameBaseNameGroupMember, _ rhs: SameBaseNameG
 private func compareGroups(_ lhs: SameBaseNameGroup, _ rhs: SameBaseNameGroup) -> Bool {
     comparePaths(lhs.targetRelativePath, rhs.targetRelativePath)
 }
-
-private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
-    let lowerLHS = lhs.lowercased()
-    let lowerRHS = rhs.lowercased()
-    if lowerLHS == lowerRHS {
-        return lhs < rhs
-    }
-    return lowerLHS < lowerRHS
-}

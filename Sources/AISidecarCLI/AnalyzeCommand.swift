@@ -50,10 +50,11 @@ struct AnalyzeCommand: AsyncParsableCommand {
             // `--dry-scan` exits after discovery; pipeline-level `--dry-run`
             // still plans sidecars without rendering or writing artifacts.
             let scanner = ImageScanner()
-            let result = try scanner.scan(
+            let result = try await scanner.scan(
                 inputPath: inputPath,
                 recursive: resolved.recursive,
-                identityPolicy: resolved.sourceIdentityPolicy
+                identityPolicy: resolved.sourceIdentityPolicy,
+                stageConcurrency: resolved.stageConcurrency
             )
             let encoder = JSONCoding.jsonlEncoder()
             let data = try encoder.encode(result)
@@ -86,11 +87,12 @@ struct AnalyzeCommand: AsyncParsableCommand {
             return
         }
 
-        let pipeline = AnalyzePipeline(logger: logger, runner: OllamaVisionRunner())
+        let selection = try await VisionModelRunnerFactory().make(for: resolved)
+        let pipeline = AnalyzePipeline(logger: logger, runner: selection.runner)
         let result = try await withAsyncBatchInterruptionExit {
             try await pipeline.run(
                 inputPath: inputPath,
-                configuration: resolved,
+                configuration: selection.configuration,
                 interruptionMonitor: interruptionMonitor
             )
         }

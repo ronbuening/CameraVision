@@ -60,6 +60,22 @@ never uploaded anywhere. The only network call is to your local Ollama endpoint.
 
 ---
 
+## Model backends
+
+Ollama is the only usable inference backend today and remains the default. The
+`model_backend` setting (CLI: `--model-backend`, environment:
+`AISIDECAR_MODEL_BACKEND`) accepts `ollama`, `apple`, or `auto`. A pinned backend
+must be available before model work starts. `auto` chooses one available backend
+for the entire run, preferring Apple and otherwise using Ollama when available;
+it never switches backends between images.
+
+The Apple on-device option is visible so the selection and provenance contract
+is stable, but it deliberately reports unavailable: current public
+FoundationModels releases do not provide image input for this workload. It does
+not perform live Apple inference. Benchmark runs currently support only Ollama.
+
+---
+
 ## Setup
 
 ### 1. Install and start Ollama
@@ -184,10 +200,11 @@ assesses in the same model call, while **High quality** runs a second dedicated
 pass per image, slower but keeping keywords identical to a run without
 assessment. For **Analyze & write XMP** and
 **Normalize**, the experimental **Quality grading** group becomes available when
-assessment is enabled in Step 2. It controls grading for this run, offers opt-in star
-ratings, and lets you preserve, refresh, or overwrite existing culling metadata. While
-assessment is off, grading stays off for that run even if `config.json` enables it by
-default — the wizard never grades a run it did not assess. The
+assessment is enabled in Step 2 and is selected by default when you turn assessment
+on. You can turn grading off independently. It controls grading for this run, offers
+opt-in star ratings, and lets you preserve, refresh, or overwrite existing culling
+metadata. While assessment is off, grading stays off for that run even if `config.json`
+enables it by default — the wizard never grades a run it did not assess. The
 Apply Prior Session path has its own grading switch and always re-grades from the
 current contributor sidecars, never from the saved session preview.
 
@@ -255,7 +272,7 @@ product version.
 
 | Command | Purpose |
 |---|---|
-| `analyze` | Scan images, render model inputs, call Ollama, and write raw `.ai.json` sidecars. |
+| `analyze` | Scan images, render model inputs, call the selected local vision backend, and write raw `.ai.json` sidecars. |
 | `assess-quality` | *(experimental)* Assess perceptual image quality and write quality-only `.quality.ai.json` sidecars. |
 | `write-xmp` | Export accepted candidates to XMP sidecars — or analyze-and-write in one command. |
 | `normalize` | Build normalized batch decisions, sessions, reports, dry-run plans, or normalized XMP writes. |
@@ -451,6 +468,7 @@ A minimal config:
 
 ```json
 {
+  "model_backend": "ollama",
   "model": "gemma4:26b-a4b-it-qat",
   "model_endpoint": "http://localhost:11434",
   "model_timeout_seconds": 180,
@@ -463,12 +481,13 @@ A minimal config:
 
 Frequently used knobs:
 
+- `--model-backend ollama|apple|auto` / `"model_backend"` — select one backend per run. Ollama is the default and only usable backend today; `auto` falls back to it while Apple vision input is unavailable.
 - `--model <tag>` / `"model"` — choose the installed Ollama vision model.
 - `--model-endpoint <url>` / `"model_endpoint"` — point at a non-default Ollama endpoint.
 - `--model-timeout <seconds>` / `"model_timeout_seconds"` — allow slower model requests or cold starts.
 - `--model-retry-limit <n>` / `"model_retry_limit"` — set additional attempts for retryable failures.
 - `--mode whole|subject|both` / `"mode"` — analysis input role.
-- `--stage-concurrency 1` / `"stage_concurrency"` — lower memory pressure by preparing renders serially.
+- `--stage-concurrency 1` / `"stage_concurrency"` — lower memory pressure by serializing render preparation and normalize-folder source hashing.
 - `--gps-context off|coarse|exact` / `"gps_context"` — prompt-only GPS context. Coordinates and GPS-derived location metadata are never exported as keywords.
 - `--existing skip|overwrite|fail` / `"existing"` — how raw `.ai.json` collisions are handled.
 - `--quality-scan-mode combined|sequential` / `"quality_scan_mode"` — with `--assess-quality`: assess in the tagging call, or as a dedicated second pass that keeps tagging output identical to a run without assessment.

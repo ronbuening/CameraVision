@@ -13,14 +13,6 @@ import Observation
 @MainActor
 @Observable
 final class ReviewModel {
-    struct AssetQuality: Equatable {
-        var records: [QualityAssessmentRecord]
-        var issueDiagnostics: [String]
-        var tier: QualityTier?
-        var explanations: [String]
-        var ungradedReason: String?
-    }
-
     struct QualitySummary: Equatable {
         var assessedAssetCount: Int
         var tierCounts: [QualityTier: Int]
@@ -50,7 +42,7 @@ final class ReviewModel {
         var fileName: String
         var fileExtension: String
         var chips: [Chip]
-        var quality: AssetQuality? = nil
+        var quality: ReviewAssetQualityPresentation? = nil
         var id: String { assetID }
     }
 
@@ -63,8 +55,9 @@ final class ReviewModel {
     private(set) var restoredFromRecovery = false
     private(set) var restoredRecoveryDirty = false
     private(set) var editError: String?
-    private(set) var qualityByAssetID: [String: AssetQuality] = [:]
+    private(set) var qualityByAssetID: [String: ReviewAssetQualityPresentation] = [:]
     private(set) var qualityDiagnostics: [String] = []
+    private(set) var assetRows: [AssetRow] = []
 
     /// Autosave policy (FR4-046a defaults): every 25 decisions or 5 minutes.
     private let autosaveDecisionLimit: Int
@@ -73,9 +66,16 @@ final class ReviewModel {
     private let environment: [String: String]
     private let defaultConfigPath: String?
     private let now: () -> Date
+    private let onAssetRowBuilt: (String) -> Void
+    private let loadReviewQuality: @Sendable (NormalizationSessionDocument) -> ReviewQualityLoadResult
     private var changesSinceAutosave = 0
     private var lastAutosaveAt: Date
     private var qualityLoadToken = UUID()
+    private var assetRowsSessionID: String?
+    private var rowIndexByAssetID: [String: Int] = [:]
+    private var chipLocationByDecisionID: [String: ChipLocation] = [:]
+    private var decisionByID: [String: PerAssetNormalizationDecision] = [:]
+    private var decisionOrderByID: [String: Int] = [:]
 
     init(
         stateDirectory: URL = ReviewModel.defaultStateDirectory,
@@ -83,7 +83,11 @@ final class ReviewModel {
         autosaveInterval: TimeInterval = 300,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         defaultConfigPath: String? = nil,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        onAssetRowBuilt: @escaping (String) -> Void = { _ in },
+        loadReviewQuality: @escaping @Sendable (NormalizationSessionDocument) -> ReviewQualityLoadResult = {
+            ReviewQualityLoader().load(for: $0)
+        }
     ) {
         self.stateDirectory = stateDirectory
         self.autosaveDecisionLimit = autosaveDecisionLimit
@@ -91,6 +95,8 @@ final class ReviewModel {
         self.environment = environment
         self.defaultConfigPath = defaultConfigPath
         self.now = now
+        self.onAssetRowBuilt = onAssetRowBuilt
+        self.loadReviewQuality = loadReviewQuality
         self.lastAutosaveAt = now()
         recoveryAvailable = FileManager.default.fileExists(atPath: recoveryURL.path)
     }
@@ -107,45 +113,38 @@ final class ReviewModel {
 
     // MARK: - Derived rows
 
-    var assetRows: [AssetRow] {
-        guard let session else { return [] }
+    private struct ChipLocation {
+        var rowIndex: Int
+        var chipIndex: Int
+    }
+
+    private func rebuildAssetRows(for session: NormalizationSessionDocument) {
         var assetsByID: [String: NormalizationSourceAsset] = [:]
         // Disk imports reject duplicate IDs; first-wins here keeps an invalid in-memory document from trapping UI redraw.
         for asset in session.sourceAssets where assetsByID[asset.assetID] == nil {
             assetsByID[asset.assetID] = asset
         }
+        decisionByID = [:]
+        decisionOrderByID = [:]
+        for (index, decision) in session.perAssetDecisions.enumerated() where decisionByID[decision.decisionID] == nil {
+            decisionByID[decision.decisionID] = decision
+            decisionOrderByID[decision.decisionID] = index
+        }
+
         var rows: [String: AssetRow] = [:]
         for decision in session.perAssetDecisions where isVisibleReviewDecision(decision) {
             let asset = assetsByID[decision.assetID]
-            let keyword = displayKeyword(for: decision)
-            let observation = decision.observations.first
-            var detailParts: [String] = [NormalizationDecisionExplainer.text(for: decision.candidateKind)]
-            if let provenance = observation?.provenance {
-                detailParts.append("from \(provenance.inputRole.rawValue) · \(provenance.sourceField.rawValue)")
-                if let model = provenance.model { detailParts.append(model) }
-            }
-            if let evidence = observation?.evidence {
-                detailParts.append("evidence: \(evidence)")
-            }
-            let chip = Chip(
-                decisionID: decision.decisionID,
-                keyword: keyword,
-                originalKeyword: edits[decision.decisionID] != nil ? baseDisplayKeyword(for: decision) : nil,
-                confidence: observation?.confidence,
-                evidence: observation?.evidence,
-                verdict: verdicts[decision.decisionID] ?? .approved,
-                detail: detailParts.joined(separator: "\n")
-            )
-            rows[
-                decision.assetID,
-                default: AssetRow(
+            if rows[decision.assetID] == nil {
+                rows[decision.assetID] = AssetRow(
                     assetID: decision.assetID,
                     sourcePath: asset?.sourcePath,
                     fileName: asset?.fileName ?? decision.assetID,
                     fileExtension: asset.map { $0.sourceType.rawValue.uppercased() } ?? "",
                     chips: []
                 )
-            ].chips.append(chip)
+                onAssetRowBuilt(decision.assetID)
+            }
+            rows[decision.assetID]?.chips.append(chip(for: decision))
         }
         for asset in session.sourceAssets {
             guard let quality = qualityByAssetID[asset.assetID] else { continue }
@@ -157,10 +156,109 @@ final class ReviewModel {
                     fileExtension: asset.sourceType.rawValue.uppercased(),
                     chips: []
                 )
+                onAssetRowBuilt(asset.assetID)
             }
             rows[asset.assetID]?.quality = quality
         }
-        return rows.values.sorted { $0.fileName.lowercased() < $1.fileName.lowercased() }
+        assetRows = rows.values.sorted(by: Self.compareRows)
+        assetRowsSessionID = session.session.sessionID
+        reindexAssetRows()
+    }
+
+    private func chip(for decision: PerAssetNormalizationDecision) -> Chip {
+        let observation = decision.observations.first
+        var detailParts: [String] = [NormalizationDecisionExplainer.text(for: decision.candidateKind)]
+        if let provenance = observation?.provenance {
+            detailParts.append("from \(provenance.inputRole.rawValue) · \(provenance.sourceField.rawValue)")
+            if let model = provenance.model { detailParts.append(model) }
+        }
+        if let evidence = observation?.evidence {
+            detailParts.append("evidence: \(evidence)")
+        }
+        return Chip(
+            decisionID: decision.decisionID,
+            keyword: displayKeyword(for: decision),
+            originalKeyword: edits[decision.decisionID] != nil ? baseDisplayKeyword(for: decision) : nil,
+            confidence: observation?.confidence,
+            evidence: observation?.evidence,
+            verdict: verdicts[decision.decisionID] ?? .approved,
+            detail: detailParts.joined(separator: "\n")
+        )
+    }
+
+    private func refreshChip(_ decisionID: String) {
+        guard let decision = decisionByID[decisionID], isVisibleReviewDecision(decision) else { return }
+        let refreshed = chip(for: decision)
+        if let location = chipLocationByDecisionID[decisionID] {
+            assetRows[location.rowIndex].chips[location.chipIndex] = refreshed
+            return
+        }
+
+        if let rowIndex = rowIndexByAssetID[decision.assetID] {
+            assetRows[rowIndex].chips.append(refreshed)
+            assetRows[rowIndex].chips.sort {
+                decisionOrderByID[$0.decisionID, default: .max]
+                    < decisionOrderByID[$1.decisionID, default: .max]
+            }
+        } else {
+            let asset = session?.sourceAssets.first { $0.assetID == decision.assetID }
+            assetRows.append(
+                AssetRow(
+                    assetID: decision.assetID,
+                    sourcePath: asset?.sourcePath,
+                    fileName: asset?.fileName ?? decision.assetID,
+                    fileExtension: asset.map { $0.sourceType.rawValue.uppercased() } ?? "",
+                    chips: [refreshed],
+                    quality: qualityByAssetID[decision.assetID]
+                )
+            )
+            onAssetRowBuilt(decision.assetID)
+            assetRows.sort(by: Self.compareRows)
+        }
+        reindexAssetRows()
+    }
+
+    private func synchronizeQualityRows(for sessionDocument: NormalizationSessionDocument) {
+        guard assetRowsSessionID == sessionDocument.session.sessionID else { return }
+        for index in assetRows.indices {
+            assetRows[index].quality = qualityByAssetID[assetRows[index].assetID]
+        }
+        var knownAssetIDs = Set(assetRows.map(\.assetID))
+        for asset in sessionDocument.sourceAssets {
+            guard qualityByAssetID[asset.assetID] != nil, knownAssetIDs.insert(asset.assetID).inserted else { continue }
+            assetRows.append(
+                AssetRow(
+                    assetID: asset.assetID,
+                    sourcePath: asset.sourcePath,
+                    fileName: asset.fileName,
+                    fileExtension: asset.sourceType.rawValue.uppercased(),
+                    chips: [],
+                    quality: qualityByAssetID[asset.assetID]
+                )
+            )
+            onAssetRowBuilt(asset.assetID)
+        }
+        assetRows.removeAll { $0.chips.isEmpty && $0.quality == nil }
+        assetRows.sort(by: Self.compareRows)
+        reindexAssetRows()
+    }
+
+    private func reindexAssetRows() {
+        rowIndexByAssetID = [:]
+        chipLocationByDecisionID = [:]
+        for (rowIndex, row) in assetRows.enumerated() {
+            rowIndexByAssetID[row.assetID] = rowIndex
+            for (chipIndex, chip) in row.chips.enumerated() {
+                chipLocationByDecisionID[chip.decisionID] = ChipLocation(
+                    rowIndex: rowIndex,
+                    chipIndex: chipIndex
+                )
+            }
+        }
+    }
+
+    private static func compareRows(_ lhs: AssetRow, _ rhs: AssetRow) -> Bool {
+        lhs.fileName.lowercased() < rhs.fileName.lowercased()
     }
 
     private func isVisibleReviewDecision(_ decision: PerAssetNormalizationDecision) -> Bool {
@@ -183,7 +281,9 @@ final class ReviewModel {
         Self.qualitySummary(for: qualityByAssetID)
     }
 
-    nonisolated static func qualitySummary(for presentation: [String: AssetQuality]) -> QualitySummary {
+    nonisolated static func qualitySummary(
+        for presentation: [String: ReviewAssetQualityPresentation]
+    ) -> QualitySummary {
         var summary = QualitySummary(
             assessedAssetCount: 0,
             tierCounts: [:],
@@ -235,7 +335,7 @@ final class ReviewModel {
                     qualityGrading: qualityGrading
                 )
                 let result = try await Task.detached(priority: .userInitiated) {
-                    return try NormalizePipeline().runSessionOnly(
+                    return try await NormalizePipeline().runSessionOnly(
                         mode: .fromJSON(path: jsonRoot),
                         configuration: configuration
                     )
@@ -256,6 +356,7 @@ final class ReviewModel {
             cli: NormalizationConfigurationOverrides(
                 recursive: true,
                 outputDir: outputDir,
+                stageConcurrency: nil,
                 sourceRoot: sourceRoot,
                 vocabularyMode: .observedTags,
                 normalizationMode: .singleImage,
@@ -278,127 +379,27 @@ final class ReviewModel {
         restoredRecoveryDirty = false
         editError = nil
         qualityDiagnostics = []
-        qualityByAssetID = Self.qualityPresentation(
-            sourceAssets: sessionDocument.sourceAssets,
-            xmpWritePlans: sessionDocument.xmpWritePlans,
-            extractionByAssetID: [:]
-        )
+        qualityByAssetID = ReviewQualityLoader().plannedPresentation(for: sessionDocument)
+        rebuildAssetRows(for: sessionDocument)
         loadQualityAssessments(for: sessionDocument)
-    }
-
-    nonisolated static func qualityPresentation(
-        sourceAssets: [NormalizationSourceAsset],
-        xmpWritePlans: [NormalizedXMPWritePlan],
-        extractionByAssetID: [String: QualityExtractionResult]
-    ) -> [String: AssetQuality] {
-        struct PlannedQuality {
-            var tier: QualityTier?
-            var explanations: [String]
-            var ungradedReason: String?
-        }
-
-        var planBySource: [String: PlannedQuality] = [:]
-        for writePlan in xmpWritePlans {
-            let plan = writePlan.xmpChangePlan
-            let explanations = plan.qualityExplanation ?? []
-            let ungradedReason = plan.ungradedReasonExplanation
-            guard plan.qualityTier != nil || ungradedReason != nil || !explanations.isEmpty else { continue }
-            let planned = PlannedQuality(
-                tier: plan.qualityTier,
-                explanations: explanations,
-                ungradedReason: ungradedReason
-            )
-            for member in plan.sourceMembers {
-                planBySource[
-                    qualitySourceKey(path: member.sourcePath, relativePath: member.sourceRelativePath)
-                ] = planned
-            }
-        }
-
-        var presentation: [String: AssetQuality] = [:]
-        for asset in sourceAssets {
-            let key = qualitySourceKey(path: asset.sourcePath, relativePath: asset.sourceRelativePath)
-            let extraction = extractionByAssetID[asset.assetID]
-            let planned = planBySource[key]
-            let records = extraction?.records ?? []
-            let issues = extraction?.issues.map(qualityIssueDiagnostic) ?? []
-            guard !records.isEmpty || !issues.isEmpty || planned != nil else { continue }
-            presentation[asset.assetID] = AssetQuality(
-                records: records,
-                issueDiagnostics: issues,
-                tier: planned?.tier,
-                explanations: planned?.explanations ?? [],
-                ungradedReason: planned?.ungradedReason
-            )
-        }
-        return presentation
-    }
-
-    private nonisolated static func qualitySourceKey(path: String?, relativePath: String) -> String {
-        guard let path, !path.isEmpty else { return "relative:\(relativePath)" }
-        return URL(fileURLWithPath: path).standardizedFileURL.path
-    }
-
-    private nonisolated static func qualityIssueDiagnostic(_ issue: QualityExtractionIssue) -> String {
-        switch issue {
-        case .malformedBlock:
-            QualityExtractionIssueCode.malformedBlock.rawValue
-        case .unknownCriterion(let criterion):
-            "\(QualityExtractionIssueCode.unknownCriterion.rawValue): \(criterion)"
-        case .missingOverall:
-            QualityExtractionIssueCode.missingOverall.rawValue
-        case .invalidLevel(let field, let value):
-            "\(QualityExtractionIssueCode.invalidLevel.rawValue): \(field)=\(value)"
-        }
     }
 
     /// Re-resolve current contributor documents and extract assessments away from the UI actor.
     private func loadQualityAssessments(for sessionDocument: NormalizationSessionDocument) {
         let token = UUID()
         qualityLoadToken = token
+        let loadReviewQuality = loadReviewQuality
         Task {
             let loaded = await Task.detached(priority: .utility) {
-                Self.loadQualityExtraction(for: sessionDocument)
+                loadReviewQuality(sessionDocument)
             }.value
             guard qualityLoadToken == token, session?.session.sessionID == sessionDocument.session.sessionID else {
                 return
             }
-            qualityByAssetID = Self.qualityPresentation(
-                sourceAssets: sessionDocument.sourceAssets,
-                xmpWritePlans: sessionDocument.xmpWritePlans,
-                extractionByAssetID: loaded.resultsByAssetID
-            )
+            qualityByAssetID = loaded.presentationByAssetID
             qualityDiagnostics = loaded.diagnostics
+            synchronizeQualityRows(for: sessionDocument)
         }
-    }
-
-    /// Re-read the session's stored sidecar references through the same
-    /// current-pair resolver apply-session grading uses (QN6), so the panel
-    /// shows exactly the contributor documents an apply-time grade would
-    /// consume — no source re-hashing and no second identity gate.
-    nonisolated static func loadQualityExtraction(
-        for sessionDocument: NormalizationSessionDocument
-    ) -> (resultsByAssetID: [String: QualityExtractionResult], diagnostics: [String]) {
-        let resolver = RawJSONSidecarInputResolver()
-        var resultsByAssetID: [String: QualityExtractionResult] = [:]
-        var diagnostics: [String] = []
-        var consumedSidecarPaths: Set<String> = []
-        for record in sessionDocument.sourceAISidecars {
-            let referencePath = URL(fileURLWithPath: record.sidecarPath).standardizedFileURL.path
-            guard !consumedSidecarPaths.contains(referencePath) else { continue }
-            let batch = resolver.resolveCurrentSidecarPair(at: record.sidecarPath)
-            diagnostics.append(contentsOf: batch.failures.map { "\($0.error.code.rawValue): \($0.error.message)" })
-            for input in batch.inputs {
-                consumedSidecarPaths.insert(input.sidecarPath.standardizedFileURL.path)
-                if let qualityPath = input.qualitySidecarPath {
-                    consumedSidecarPaths.insert(qualityPath.standardizedFileURL.path)
-                }
-                if resultsByAssetID[record.sourceAssetID] == nil {
-                    resultsByAssetID[record.sourceAssetID] = QualityAssessmentExtractor.extract(from: input)
-                }
-            }
-        }
-        return (resultsByAssetID, diagnostics)
     }
 
     /// FR4-059: user-initiated file operations surface failures instead of
@@ -453,6 +454,12 @@ final class ReviewModel {
         qualityLoadToken = UUID()
         qualityByAssetID = [:]
         qualityDiagnostics = []
+        assetRows = []
+        assetRowsSessionID = nil
+        rowIndexByAssetID = [:]
+        chipLocationByDecisionID = [:]
+        decisionByID = [:]
+        decisionOrderByID = [:]
     }
 
     // MARK: - Verdicts
@@ -460,6 +467,7 @@ final class ReviewModel {
     func setVerdict(_ verdict: ReviewVerdict, for decisionID: String) {
         guard verdicts[decisionID] != verdict else { return }
         verdicts[decisionID] = verdict
+        refreshChip(decisionID)
         recordChange()
     }
 
@@ -468,19 +476,24 @@ final class ReviewModel {
     }
 
     func acceptAll(assetID: String) {
-        guard let session else { return }
-        for decision in session.perAssetDecisions
-        where decision.assetID == assetID && (decision.status == .accepted || verdicts[decision.decisionID] != nil) {
-            verdicts[decision.decisionID] = .approved
+        guard session != nil else { return }
+        if let rowIndex = rowIndexByAssetID[assetID] {
+            for chipIndex in assetRows[rowIndex].chips.indices {
+                let decisionID = assetRows[rowIndex].chips[chipIndex].decisionID
+                verdicts[decisionID] = .approved
+                assetRows[rowIndex].chips[chipIndex].verdict = .approved
+            }
         }
         recordChange()
     }
 
     /// Batch approve/reject every currently visible chip (FR4-018).
     func setAllVisible(_ verdict: ReviewVerdict) {
-        for row in assetRows {
-            for chip in row.chips {
-                verdicts[chip.decisionID] = verdict
+        for rowIndex in assetRows.indices {
+            for chipIndex in assetRows[rowIndex].chips.indices {
+                let decisionID = assetRows[rowIndex].chips[chipIndex].decisionID
+                verdicts[decisionID] = verdict
+                assetRows[rowIndex].chips[chipIndex].verdict = verdict
             }
         }
         recordChange()
@@ -496,6 +509,7 @@ final class ReviewModel {
         editError = nil
         edits[decisionID] = replacement
         verdicts[decisionID] = .approved
+        refreshChip(decisionID)
         recordChange()
         return true
     }
@@ -516,6 +530,7 @@ final class ReviewModel {
         where isVisibleReviewDecision(decision) && displayKeyword(for: decision).lowercased() == folded {
             edits[decision.decisionID] = replacement
             verdicts[decision.decisionID] = .approved
+            refreshChip(decision.decisionID)
             applied += 1
         }
         if applied > 0 { recordChange() }

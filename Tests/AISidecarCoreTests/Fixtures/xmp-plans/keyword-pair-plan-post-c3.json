@@ -1,0 +1,219 @@
+{
+  "dry_run" : false,
+  "input_failures" : [
+
+  ],
+  "schema_version" : "ai-sidecar-xmp-change-plan/1.2",
+  "target_plans" : [
+    {
+      "backup_plan" : {
+        "backup_required_before_merge" : true,
+        "backup_sidecars" : true,
+        "conflict_policy" : "backup-and-merge"
+      },
+      "candidate_extraction_issues" : [
+
+      ],
+      "existing_policy" : "backup-and-merge",
+      "failures" : [
+
+      ],
+      "flat_keywords_to_add" : [
+        {
+          "candidates" : [
+            {
+              "confidence" : "high",
+              "evidence" : "fixture",
+              "normalized_term" : "Bird",
+              "provenance" : {
+                "input_role" : "whole_image",
+                "model_run_index" : 0,
+                "source_field" : "proposed_keywords",
+                "source_image" : "/photos/Bird.JPG",
+                "source_sidecar" : "/sidecars/Bird.JPG.ai.json"
+              },
+              "term" : "Bird"
+            },
+            {
+              "confidence" : "high",
+              "evidence" : "fixture",
+              "normalized_term" : "bird",
+              "provenance" : {
+                "input_role" : "whole_image",
+                "model_run_index" : 0,
+                "source_field" : "proposed_keywords",
+                "source_image" : "/photos/Bird.NEF",
+                "source_sidecar" : "/sidecars/Bird.NEF.ai.json"
+              },
+              "term" : "bird"
+            }
+          ],
+          "normalized_key" : "bird",
+          "term" : "Bird"
+        },
+        {
+          "candidates" : [
+            {
+              "confidence" : "high",
+              "evidence" : "fixture",
+              "normalized_term" : "portrait",
+              "provenance" : {
+                "input_role" : "whole_image",
+                "model_run_index" : 0,
+                "source_field" : "proposed_keywords",
+                "source_image" : "/photos/Bird.JPG",
+                "source_sidecar" : "/sidecars/Bird.JPG.ai.json"
+              },
+              "term" : "portrait"
+            }
+          ],
+          "normalized_key" : "portrait",
+          "term" : "portrait"
+        },
+        {
+          "candidates" : [
+            {
+              "confidence" : "high",
+              "evidence" : "fixture",
+              "normalized_term" : "wetland",
+              "provenance" : {
+                "input_role" : "whole_image",
+                "model_run_index" : 0,
+                "source_field" : "proposed_keywords",
+                "source_image" : "/photos/Bird.NEF",
+                "source_sidecar" : "/sidecars/Bird.NEF.ai.json"
+              },
+              "term" : "wetland"
+            }
+          ],
+          "normalized_key" : "wetland",
+          "term" : "wetland"
+        }
+      ],
+      "group_warnings" : [
+        {
+          "code" : "E_VALIDATION_FAILED",
+          "message" : "Same-base-name group detected for Bird.xmp using pair scope union.",
+          "recoverable" : true,
+          "stage" : "write"
+        }
+      ],
+      "hierarchical_keywords_to_add" : [
+        {
+          "candidates" : [
+            {
+              "confidence" : "high",
+              "evidence" : "fixture",
+              "normalized_term" : "Bird",
+              "provenance" : {
+                "input_role" : "whole_image",
+                "model_run_index" : 0,
+                "source_field" : "proposed_keywords",
+                "source_image" : "/photos/Bird.JPG",
+                "source_sidecar" : "/sidecars/Bird.JPG.ai.json"
+              },
+              "term" : "Bird"
+            },
+            {
+              "confidence" : "high",
+              "evidence" : "fixture",
+              "normalized_term" : "bird",
+              "provenance" : {
+                "input_role" : "whole_image",
+                "model_run_index" : 0,
+                "source_field" : "proposed_keywords",
+                "source_image" : "/photos/Bird.NEF",
+                "source_sidecar" : "/sidecars/Bird.NEF.ai.json"
+              },
+              "term" : "bird"
+            }
+          ],
+          "normalized_key" : "bird",
+          "term" : "Bird"
+        },
+        {
+          "candidates" : [
+            {
+              "confidence" : "high",
+              "evidence" : "fixture",
+              "normalized_term" : "portrait",
+              "provenance" : {
+                "input_role" : "whole_image",
+                "model_run_index" : 0,
+                "source_field" : "proposed_keywords",
+                "source_image" : "/photos/Bird.JPG",
+                "source_sidecar" : "/sidecars/Bird.JPG.ai.json"
+              },
+              "term" : "portrait"
+            }
+          ],
+          "normalized_key" : "portrait",
+          "term" : "portrait"
+        },
+        {
+          "candidates" : [
+            {
+              "confidence" : "high",
+              "evidence" : "fixture",
+              "normalized_term" : "wetland",
+              "provenance" : {
+                "input_role" : "whole_image",
+                "model_run_index" : 0,
+                "source_field" : "proposed_keywords",
+                "source_image" : "/photos/Bird.NEF",
+                "source_sidecar" : "/sidecars/Bird.NEF.ai.json"
+              },
+              "term" : "wetland"
+            }
+          ],
+          "normalized_key" : "wetland",
+          "term" : "wetland"
+        }
+      ],
+      "pair_scope" : "union",
+      "skipped_candidates" : [
+
+      ],
+      "source_members" : [
+        {
+          "flat_keyword_contribution_count" : 2,
+          "hierarchical_keyword_contribution_count" : 2,
+          "pair_kind" : "jpeg",
+          "selected" : true,
+          "source_file_name" : "Bird.JPG",
+          "source_identity_status" : "skipped",
+          "source_path" : "/photos/Bird.JPG",
+          "source_relative_path" : "Bird.JPG",
+          "source_sidecar_path" : "/sidecars/Bird.JPG.ai.json",
+          "source_sidecar_relative_path" : "Bird.JPG.ai.json",
+          "source_type" : "jpg"
+        },
+        {
+          "flat_keyword_contribution_count" : 2,
+          "hierarchical_keyword_contribution_count" : 2,
+          "pair_kind" : "raw_like",
+          "selected" : true,
+          "source_file_name" : "Bird.NEF",
+          "source_identity_status" : "skipped",
+          "source_path" : "/photos/Bird.NEF",
+          "source_relative_path" : "Bird.NEF",
+          "source_sidecar_path" : "/sidecars/Bird.NEF.ai.json",
+          "source_sidecar_relative_path" : "Bird.NEF.ai.json",
+          "source_type" : "nef"
+        }
+      ],
+      "source_verification_warnings" : [
+
+      ],
+      "status" : "planned",
+      "target_relative_path" : "Bird.xmp",
+      "target_xmp_path" : "/photos/Bird.xmp",
+      "validation_plan" : {
+        "validate_existing_keyword_preservation" : true,
+        "validate_keyword_additions" : true,
+        "validate_readable_xmp" : true,
+        "validate_unmanaged_content_preservation" : true
+      }
+    }
+  ]
+}

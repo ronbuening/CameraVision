@@ -15,8 +15,18 @@ final class NoXMPRegressionTests: XCTestCase {
         let image = try writeTestImage("Analyze.JPG", width: 80, height: 60, in: root)
         let cache = output.appendingPathComponent("cache")
 
-        _ = try await AnalyzeShellPipeline(
+        let context = ModelRuntimeContext(
+            model: "test:model",
+            modelDigest: "sha256:test",
+            runtime: "test",
+            runtimeVersion: "1.0",
+            endpoint: URL(string: "http://localhost:11434")!,
+            installedVisionTags: ["test:model"]
+        )
+
+        _ = try await AnalyzePipeline(
             logger: Logger(sink: { _ in }),
+            runner: RecordedFixtureRunner(fixture: RecordedModelFixture(context: context, records: [])),
             now: fixedDateProvider(Date(timeIntervalSince1970: 1_800_010_000))
         ).run(
             inputPath: image.path,

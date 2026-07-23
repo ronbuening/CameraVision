@@ -68,6 +68,26 @@ final class FolderImportRescanTests: XCTestCase {
     }
 
     @MainActor
+    func testRescanPreservesInventoryOrderAndPublishesCoreDerivedStates() async throws {
+        let folder = try makeFolder("ordered", files: ["C.JPG", "A.JPG", "B.JPG"])
+        try Data(#"{"schema_version":"1"}"#.utf8)
+            .write(to: folder.appendingPathComponent("A.JPG.ai.json"))
+        try Data(#"{"xmp_export":{"target":"B.xmp"}}"#.utf8)
+            .write(to: folder.appendingPathComponent("B.JPG.ai.json"))
+        try Data("x".utf8).write(to: folder.appendingPathComponent("B.xmp"))
+        let expectedInventory = inventory(for: folder, files: ["C.JPG", "A.JPG", "B.JPG"])
+        let model = FolderImportModel(defaults: defaults)
+        model.inventoryProvider = { _, _ in expectedInventory }
+        model.sourceFolder = folder
+
+        await model.rescan()
+
+        XCTAssertEqual(model.assets.map(\.fileName), ["C.JPG", "A.JPG", "B.JPG"])
+        XCTAssertEqual(model.assets.map(\.stateKind), [.discovered, .analyzed, .exported])
+        XCTAssertFalse(model.scanning)
+    }
+
+    @MainActor
     func testScanFailureSurfacesScannerErrorMessage() async {
         let model = FolderImportModel(defaults: defaults)
         let missing = root.appendingPathComponent("does-not-exist", isDirectory: true)

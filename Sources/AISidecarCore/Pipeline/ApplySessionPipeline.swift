@@ -32,6 +32,7 @@ public struct ApplySessionPipeline {
     private let snapshotReader: @Sendable (String) throws -> XMPMetadataSnapshot
     private let currentSidecarPairResolver: (String) -> RawJSONSidecarInputBatch
     private let xmpPipeline: XMPExportPipeline
+    private let invocationEngine: OwnedXMPSidecarEngine?
     private let afterSourceResolution: @Sendable () -> Void
 
     /// Create an apply-session pipeline with injectable collaborators.
@@ -52,11 +53,25 @@ public struct ApplySessionPipeline {
         self.sessionReader = sessionReader ?? NormalizationSessionReader(fileManager: fileManager)
         self.reportWriter = reportWriter
         self.summaryWriter = summaryWriter
-        if let snapshotReader {
-            self.snapshotReader = snapshotReader
+        if snapshotReader == nil, xmpPipeline == nil {
+            let invocationEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
+            self.snapshotReader = { try invocationEngine.readSnapshot(at: $0) }
+            self.xmpPipeline = XMPExportPipeline(fileManager: fileManager, engine: invocationEngine)
+            self.invocationEngine = invocationEngine
         } else {
-            let metadataEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
-            self.snapshotReader = { try metadataEngine.readSnapshot(at: $0) }
+            if let snapshotReader {
+                self.snapshotReader = snapshotReader
+            } else {
+                let metadataEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
+                self.snapshotReader = { try metadataEngine.readSnapshot(at: $0) }
+            }
+            self.xmpPipeline =
+                xmpPipeline
+                ?? XMPExportPipeline(
+                    fileManager: fileManager,
+                    engine: OwnedXMPSidecarEngine(fileManager: fileManager)
+                )
+            self.invocationEngine = nil
         }
         if let currentSidecarPairResolver {
             self.currentSidecarPairResolver = currentSidecarPairResolver
@@ -64,7 +79,6 @@ public struct ApplySessionPipeline {
             let resolver = RawJSONSidecarInputResolver(fileManager: fileManager)
             self.currentSidecarPairResolver = { resolver.resolveCurrentSidecarPair(at: $0) }
         }
-        self.xmpPipeline = xmpPipeline ?? XMPExportPipeline(fileManager: fileManager)
         self.afterSourceResolution = afterSourceResolution
     }
 
@@ -75,6 +89,10 @@ public struct ApplySessionPipeline {
         timestamp: Date = Date(),
         interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> ApplySessionPipelineResult {
+        invocationEngine?.beginPreWriteInvocation()
+        defer {
+            try? invocationEngine?.shutdown()
+        }
         let absoluteSessionPath = absolutePath(for: sessionPath)
         let session = try sessionReader.read(from: absoluteSessionPath)
         let artifacts = NormalizationArtifactPlanner.planApplySession(
@@ -155,7 +173,11 @@ public struct ApplySessionPipeline {
         )
 
         let progressLog = try NormalizationProgressLog(path: artifacts.progressPath, fileManager: fileManager)
+        let progressFlushRegistration = interruptionMonitor?.onInterruption {
+            try? progressLog.flush()
+        }
         defer {
+            progressFlushRegistration?.cancel()
             try? progressLog.close()
         }
         try appendProgress(
@@ -552,22 +574,8 @@ public struct ApplySessionPipeline {
         applyConfiguration: ResolvedApplySessionConfiguration
     ) -> ResolvedXMPExportConfiguration {
         ResolvedXMPExportConfiguration(
-            recursive: false,
-            outputDir: applyConfiguration.outputDir,
-            logLevel: applyConfiguration.logLevel,
-            logFormat: applyConfiguration.logFormat,
-            dryRun: applyConfiguration.dryRun,
-            sourceRoot: applyConfiguration.sourceRoot,
-            sourceVerification: applyConfiguration.sourceVerification,
-            writeFlatKeywords: session.resolvedConfiguration.writeFlatKeywords,
-            writeHierarchicalKeywords: session.resolvedConfiguration.writeHierarchicalKeywords,
-            backupSidecars: applyConfiguration.backupSidecars,
-            xmpConflictPolicy: applyConfiguration.xmpConflictPolicy,
-            minConfidence: session.resolvedConfiguration.minConfidence,
-            allowSpecificTags: session.resolvedConfiguration.allowSpecificTags,
-            pairScope: session.resolvedConfiguration.pairScope,
-            writeAIJSON: false,
-            qualityGrading: applyConfiguration.qualityGrading
+            from: applyConfiguration,
+            sessionConfiguration: session.resolvedConfiguration
         )
     }
 
@@ -577,7 +585,9 @@ public struct ApplySessionPipeline {
         configuration: ResolvedApplySessionConfiguration
     ) -> URL? {
         if let sourceRoot = configuration.sourceRoot {
-            let candidate = relativeComponents(for: asset.sourceRelativePath).reduce(absoluteURL(for: sourceRoot)) {
+            let candidate = relativeComponents(for: asset.sourceRelativePath).reduce(
+                absoluteURL(for: sourceRoot, fileManager: fileManager)
+            ) {
                 $0.appendingPathComponent($1)
             }.standardizedFileURL
             if isRegularFile(candidate) {
@@ -585,7 +595,7 @@ public struct ApplySessionPipeline {
             }
         }
         if let sourcePath = asset.sourcePath {
-            let candidate = absoluteURL(for: sourcePath)
+            let candidate = absoluteURL(for: sourcePath, fileManager: fileManager)
             if isRegularFile(candidate) {
                 return candidate
             }
@@ -701,22 +711,7 @@ public struct ApplySessionPipeline {
     }
 
     private func absolutePath(for path: String) -> String {
-        absoluteURL(for: path).path
-    }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
-    }
-
-    private func isRegularFile(_ url: URL) -> Bool {
-        var isDirectory: ObjCBool = false
-        return fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) && !isDirectory.boolValue
+        absoluteURL(for: path, fileManager: fileManager).path
     }
 
     private func relativeComponents(for path: String) -> [String] {

@@ -188,27 +188,23 @@ public struct NormalizationReport: Codable, Sendable, Equatable {
 public struct NormalizationReportWriter {
     private let fileManager: FileManager
     private let encoder: JSONEncoder
+    private let dataWriter: WriterSupport.DataWriter
 
     /// Create a report writer that uses stable JSON formatting for fixture diffs.
     public init(fileManager: FileManager = .default) {
+        self.init(fileManager: fileManager, dataWriter: WriterSupport.atomicWrite)
+    }
+
+    init(fileManager: FileManager = .default, dataWriter: @escaping WriterSupport.DataWriter) {
         self.fileManager = fileManager
         self.encoder = JSONCoding.documentEncoder()
+        self.dataWriter = dataWriter
     }
 
     /// Atomically write one machine-readable normalization report.
     public func write(_ report: NormalizationReport, to path: String) throws {
-        do {
-            let data = try encoder.encode(report)
-            try AtomicFileWriter.write(data, to: URL(fileURLWithPath: path), fileManager: fileManager)
-        } catch let error as SidecarError {
-            throw error
-        } catch {
-            throw SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Unable to write normalization report \(path): \(error.localizedDescription)",
-                recoverable: true
-            )
-        }
+        try WriterSupport.writeAndWrap(
+            report, to: path, encoder: encoder, typeName: "write normalization report", fileManager: fileManager,
+            dataWriter: dataWriter)
     }
 }

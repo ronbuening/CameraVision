@@ -61,7 +61,9 @@ public struct XMPNaming {
 
         let targetURL: URL
         if let outputDir = configuration.outputDir {
-            targetURL = Self.relativeComponents(for: relativePath).reduce(absoluteURL(for: outputDir)) {
+            targetURL = Self.relativeComponents(for: relativePath).reduce(
+                absoluteURL(for: outputDir, fileManager: fileManager)
+            ) {
                 url, component in
                 url.appendingPathComponent(component)
             }
@@ -90,26 +92,45 @@ public struct XMPNaming {
 
     /// Return `<base>.xmp` for FR2-001, replacing the image extension.
     public static func xmpFileName(for source: SourceImage) -> String {
-        "\(baseName(from: source.fileName)).xmp"
+        xmpFileName(fileName: source.fileName)
     }
 
     /// Return the mirrored `.xmp` relative path for staged output.
     public static func xmpRelativePath(for source: SourceImage) -> String {
-        let components = relativeComponents(for: source.relativePath)
-        guard let fileName = components.last else {
-            return xmpFileName(for: source)
-        }
-        return (Array(components.dropLast()) + ["\(baseName(from: fileName)).xmp"]).joined(separator: "/")
+        xmpRelativePath(relativePath: source.relativePath, fileName: source.fileName)
     }
 
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
+    static func destinationPath(
+        for source: ScanInventoryEntry,
+        outputDir: String?,
+        fileManager: FileManager
+    ) -> String {
+        let relativePath = xmpRelativePath(relativePath: source.relativePath, fileName: source.fileName)
+        let targetURL: URL
+        if let outputDir {
+            targetURL = relativeComponents(for: relativePath).reduce(
+                absoluteURL(for: outputDir, fileManager: fileManager)
+            ) { url, component in
+                url.appendingPathComponent(component)
+            }
+        } else {
+            targetURL = URL(fileURLWithPath: source.path)
+                .deletingLastPathComponent()
+                .appendingPathComponent(xmpFileName(fileName: source.fileName))
         }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
+        return targetURL.standardizedFileURL.path
+    }
+
+    private static func xmpFileName(fileName: String) -> String {
+        "\(baseName(from: fileName)).xmp"
+    }
+
+    private static func xmpRelativePath(relativePath: String, fileName: String) -> String {
+        let components = relativeComponents(for: relativePath)
+        guard let relativeFileName = components.last else {
+            return xmpFileName(fileName: fileName)
+        }
+        return (Array(components.dropLast()) + ["\(baseName(from: relativeFileName)).xmp"]).joined(separator: "/")
     }
 
     private static func baseName(from fileName: String) -> String {

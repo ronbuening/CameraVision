@@ -40,12 +40,12 @@ final class ReviewScaleTests: XCTestCase {
         let rowsSeconds = Date().timeIntervalSince(rowsStart)
         XCTAssertEqual(rows.count, 1500)
 
-        // The UI reads assetRows on every body evaluation; a per-frame budget
-        // needs it well under 100 ms at this scale.
+        // Rows are materialized during session adoption; body evaluation reads
+        // this cached value instead of rebuilding all chips per frame.
         print(
-            "SCALE: session build \(String(format: "%.2f", buildSeconds))s, assetRows \(String(format: "%.0f", rowsSeconds * 1000))ms for \(rows.count) rows"
+            "SCALE: session build \(String(format: "%.2f", buildSeconds))s, cached assetRows access \(String(format: "%.0f", rowsSeconds * 1000))ms for \(rows.count) rows"
         )
-        XCTAssertLessThan(rowsSeconds, 0.1, "assetRows recompute must stay frame-budget friendly")
+        XCTAssertLessThan(rowsSeconds, 0.1, "cached assetRows access must stay frame-budget friendly")
 
         // Verdict churn (approve-all on one asset) must not degrade at scale.
         let verdictStart = Date()

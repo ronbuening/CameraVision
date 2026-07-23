@@ -68,7 +68,59 @@ final class ReviewModelTests: XCTestCase {
         )
     }
 
-    private func makeBaseSession(terms: [String]) throws -> NormalizationSessionDocument {
+    private func qualityPlan(
+        for asset: NormalizationSourceAsset,
+        tier: QualityTier,
+        explanations: [String]
+    ) -> NormalizedXMPWritePlan {
+        let plan = XMPChangePlan(
+            status: .planned,
+            targetXMPPath: "/photos/A.xmp",
+            targetRelativePath: "A.xmp",
+            pairScope: .union,
+            sourceMembers: [
+                SourceMemberPlan(
+                    sourcePath: asset.sourcePath,
+                    sourceRelativePath: asset.sourceRelativePath,
+                    sourceFileName: asset.fileName,
+                    sourceType: asset.sourceType,
+                    sourceSidecarPath: asset.sourceSidecarPath,
+                    sourceSidecarRelativePath: asset.sourceSidecarRelativePath,
+                    sourceIdentityStatus: asset.sourceIdentityStatus ?? .matched,
+                    pairKind: .jpeg,
+                    selected: true,
+                    skipReason: nil,
+                    flatKeywordContributionCount: 0,
+                    hierarchicalKeywordContributionCount: 0
+                )
+            ],
+            flatKeywordsToAdd: [],
+            hierarchicalKeywordsToAdd: [],
+            skippedCandidates: [],
+            candidateExtractionIssues: [],
+            sourceVerificationWarnings: [],
+            groupWarnings: [],
+            existingPolicy: .backupAndMerge,
+            backupPlan: BackupPlan(
+                backupSidecars: true,
+                backupRequiredBeforeMerge: true,
+                conflictPolicy: .backupAndMerge
+            ),
+            validationPlan: .phase2Default,
+            failures: [],
+            qualityExplanation: explanations,
+            qualityTier: tier
+        )
+        return NormalizedXMPWritePlan(
+            xmpChangePlan: plan,
+            flatKeywordProvenance: [],
+            hierarchicalKeywordProvenance: [],
+            normalizationSkips: []
+        )
+    }
+
+    @MainActor
+    private func makeBaseSession(terms: [String]) async throws -> NormalizationSessionDocument {
         let sourceRoot = root.appendingPathComponent("source")
         let jsonRoot = root.appendingPathComponent("json")
         let source = try writeJPEG("A.JPG", in: sourceRoot)
@@ -92,28 +144,54 @@ final class ReviewModelTests: XCTestCase {
         configuration.sourceRoot = sourceRoot.path
         configuration.outputDir = root.appendingPathComponent("artifacts").path
 
-        return try NormalizePipeline().runSessionOnly(
+        return try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration
         ).session
     }
 
     @MainActor
-    private func makeModel(clock: @escaping () -> Date = Date.init, decisionLimit: Int = 25) -> ReviewModel {
+    private func makeModel(
+        clock: @escaping () -> Date = Date.init,
+        decisionLimit: Int = 25,
+        onAssetRowBuilt: @escaping (String) -> Void = { _ in },
+        loadReviewQuality: @escaping @Sendable (NormalizationSessionDocument) -> ReviewQualityLoadResult = {
+            ReviewQualityLoader().load(for: $0)
+        }
+    ) -> ReviewModel {
         ReviewModel(
             stateDirectory: root.appendingPathComponent("state"),
             autosaveDecisionLimit: decisionLimit,
             autosaveInterval: 300,
-            now: clock
+            now: clock,
+            onAssetRowBuilt: onAssetRowBuilt,
+            loadReviewQuality: loadReviewQuality
         )
+    }
+
+    @MainActor
+    private func waitUntil(
+        _ label: String,
+        timeout: Duration = .seconds(2),
+        condition: () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !condition() {
+            guard clock.now < deadline else {
+                XCTFail("Timed out waiting for \(label)")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     // MARK: - Tests
 
     @MainActor
-    func testRowsChipsAndVerdictCounters() throws {
+    func testRowsChipsAndVerdictCounters() async throws {
         let model = makeModel()
-        model.adopt(session: try makeBaseSession(terms: ["bird", "tree", "water"]))
+        model.adopt(session: try await makeBaseSession(terms: ["bird", "tree", "water"]))
 
         XCTAssertEqual(model.assetRows.count, 1)
         let chips = try XCTUnwrap(model.assetRows.first?.chips)
@@ -129,6 +207,94 @@ final class ReviewModelTests: XCTestCase {
 
         model.acceptAll(assetID: model.assetRows[0].assetID)
         XCTAssertEqual(model.approvedCount, 3)
+    }
+
+    @MainActor
+    func testVerdictChangeUpdatesOnlyTouchedCachedRowWithoutRebuildingRows() async throws {
+        var rowBuildCounts: [String: Int] = [:]
+        let model = makeModel(onAssetRowBuilt: { assetID in
+            rowBuildCounts[assetID, default: 0] += 1
+        })
+        var session = try await makeBaseSession(terms: ["bird"])
+        let firstAsset = try XCTUnwrap(session.sourceAssets.first)
+        var secondAsset = firstAsset
+        secondAsset.assetID = "asset-second"
+        secondAsset.sourcePath = root.appendingPathComponent("source/B.JPG").path
+        secondAsset.sourceRelativePath = "B.JPG"
+        secondAsset.fileName = "B.JPG"
+        session.sourceAssets.append(secondAsset)
+        var secondDecision = try XCTUnwrap(session.perAssetDecisions.first)
+        secondDecision.decisionID = "decision-second"
+        secondDecision.assetID = secondAsset.assetID
+        secondDecision.flatKeyword = "tree"
+        session.perAssetDecisions.append(secondDecision)
+
+        model.adopt(session: session)
+        let initialRows = model.assetRows
+        XCTAssertEqual(rowBuildCounts, [firstAsset.assetID: 1, secondAsset.assetID: 1])
+        _ = model.assetRows
+        _ = model.assetRows
+        XCTAssertEqual(rowBuildCounts, [firstAsset.assetID: 1, secondAsset.assetID: 1])
+
+        let firstRow = try XCTUnwrap(initialRows.first { $0.assetID == firstAsset.assetID })
+        let secondRow = try XCTUnwrap(initialRows.first { $0.assetID == secondAsset.assetID })
+        let decisionID = try XCTUnwrap(firstRow.chips.first?.decisionID)
+        model.toggle(decisionID)
+
+        XCTAssertEqual(rowBuildCounts, [firstAsset.assetID: 1, secondAsset.assetID: 1])
+        XCTAssertEqual(model.assetRows.first { $0.assetID == secondAsset.assetID }, secondRow)
+        XCTAssertEqual(
+            model.assetRows.first { $0.assetID == firstAsset.assetID }?.chips.first?.verdict,
+            .rejected
+        )
+    }
+
+    @MainActor
+    func testFirstVerdictOnWithheldDecisionAppendsChipOrCreatesRowInDecisionOrder() async throws {
+        var rowBuildCounts: [String: Int] = [:]
+        let model = makeModel(onAssetRowBuilt: { assetID in
+            rowBuildCounts[assetID, default: 0] += 1
+        })
+        var session = try await makeBaseSession(terms: ["bird", "tree"])
+        let firstAsset = try XCTUnwrap(session.sourceAssets.first)
+        var withheldOnFirstAsset = try XCTUnwrap(session.perAssetDecisions.first)
+        withheldOnFirstAsset.decisionID = "decision-withheld-first"
+        withheldOnFirstAsset.flatKeyword = "water"
+        withheldOnFirstAsset.status = .withheld
+        session.perAssetDecisions.append(withheldOnFirstAsset)
+        var secondAsset = firstAsset
+        secondAsset.assetID = "asset-second"
+        secondAsset.sourcePath = root.appendingPathComponent("source/B.JPG").path
+        secondAsset.sourceRelativePath = "B.JPG"
+        secondAsset.fileName = "B.JPG"
+        session.sourceAssets.append(secondAsset)
+        var withheldOnSecondAsset = withheldOnFirstAsset
+        withheldOnSecondAsset.decisionID = "decision-withheld-second"
+        withheldOnSecondAsset.assetID = secondAsset.assetID
+        withheldOnSecondAsset.flatKeyword = "sky"
+        session.perAssetDecisions.append(withheldOnSecondAsset)
+
+        model.adopt(session: session)
+        XCTAssertEqual(model.assetRows.map(\.assetID), [firstAsset.assetID])
+        XCTAssertEqual(model.assetRows.first?.chips.count, 2)
+
+        model.setVerdict(.rejected, for: withheldOnFirstAsset.decisionID)
+        XCTAssertEqual(
+            model.assetRows.first?.chips.map(\.keyword),
+            ["bird", "tree", "water"],
+            "a newly visible chip joins its existing row in decision order"
+        )
+        XCTAssertEqual(rowBuildCounts[firstAsset.assetID], 1, "appending a chip does not rebuild the row")
+
+        model.setVerdict(.approved, for: withheldOnSecondAsset.decisionID)
+        XCTAssertEqual(
+            model.assetRows.map(\.assetID),
+            [firstAsset.assetID, secondAsset.assetID],
+            "a newly visible asset gains a sorted-in row"
+        )
+        XCTAssertEqual(rowBuildCounts[secondAsset.assetID], 1)
+        XCTAssertEqual(model.assetRows.last?.chips.map(\.keyword), ["sky"])
+        XCTAssertEqual(model.assetRows.last?.chips.first?.verdict, .approved)
     }
 
     @MainActor
@@ -162,6 +328,7 @@ final class ReviewModelTests: XCTestCase {
 
         XCTAssertEqual(configuration.vocabularyMode, .observedTags)
         XCTAssertEqual(configuration.normalizationMode, .singleImage)
+        XCTAssertNil(configuration.stageConcurrency)
         XCTAssertTrue(configuration.qualityGrading.enabled)
         XCTAssertEqual(configuration.qualityGrading.conflictPolicy, .refresh)
         XCTAssertTrue(configuration.qualityGrading.policy.writeRating)
@@ -191,10 +358,12 @@ final class ReviewModelTests: XCTestCase {
         expected.normalizationMode = .singleImage
 
         XCTAssertEqual(configuration, expected)
+        XCTAssertNil(configuration.stageConcurrency)
     }
 
-    func testLoadQualityExtractionReadsCurrentSidecarPairWithoutIdentityGate() throws {
-        let session = try makeBaseSession(terms: ["bird"])
+    @MainActor
+    func testReviewQualityLoaderReadsCurrentSidecarPairWithoutIdentityGate() async throws {
+        let session = try await makeBaseSession(terms: ["bird"])
         let assetID = try XCTUnwrap(session.sourceAssets.first?.assetID)
         XCTAssertFalse(session.sourceAISidecars.isEmpty)
         let jsonRoot = root.appendingPathComponent("json")
@@ -239,33 +408,90 @@ final class ReviewModelTests: XCTestCase {
             .write(to: jsonRoot.appendingPathComponent("A.JPG.quality.ai.json"))
         try Data("modified after analysis".utf8).write(to: root.appendingPathComponent("source/A.JPG"))
 
-        let loaded = ReviewModel.loadQualityExtraction(for: session)
+        let loaded = ReviewQualityLoader().load(for: session)
 
         XCTAssertEqual(loaded.diagnostics, [])
-        XCTAssertEqual(loaded.resultsByAssetID[assetID]?.records.map(\.role), [.wholeImage])
-        XCTAssertEqual(loaded.resultsByAssetID[assetID]?.records.first?.overall, .problem)
+        XCTAssertEqual(loaded.presentationByAssetID[assetID]?.records.map(\.role), [.wholeImage])
+        XCTAssertEqual(loaded.presentationByAssetID[assetID]?.records.first?.overall, .problem)
         XCTAssertEqual(
-            loaded.resultsByAssetID[assetID]?.records.first?.concerns,
+            loaded.presentationByAssetID[assetID]?.records.first?.concerns,
             ["focus misses the subject"]
         )
     }
 
-    func testLoadQualityExtractionSurfacesUnreadableSidecarAsDiagnostic() throws {
-        var session = try makeBaseSession(terms: ["bird"])
+    @MainActor
+    func testReviewQualityLoaderSurfacesUnreadableSidecarAsDiagnostic() async throws {
+        var session = try await makeBaseSession(terms: ["bird"])
         let missing = root.appendingPathComponent("json/Gone.JPG.ai.json").path
         session.sourceAISidecars[0].sidecarPath = missing
 
-        let loaded = ReviewModel.loadQualityExtraction(for: session)
+        let loaded = ReviewQualityLoader().load(for: session)
 
-        XCTAssertTrue(loaded.resultsByAssetID.isEmpty)
+        XCTAssertTrue(loaded.presentationByAssetID.isEmpty)
         XCTAssertEqual(loaded.diagnostics.count, 1)
         XCTAssertTrue(loaded.diagnostics[0].hasPrefix(SidecarErrorCode.validationFailed.rawValue))
     }
 
     @MainActor
-    func testAssetRowsDoesNotTrapOnDuplicateAssetIDInInMemorySession() throws {
+    func testAdoptPublishesPlanOnlyQualityBeforeAsyncReplacement() async throws {
+        var session = try await makeBaseSession(terms: ["bird"])
+        let assetID = try XCTUnwrap(session.sourceAssets.first?.assetID)
+        let asset = try XCTUnwrap(session.sourceAssets.first)
+        session.xmpWritePlans = [qualityPlan(for: asset, tier: .good, explanations: ["tier=good"])]
+        let model = makeModel(loadReviewQuality: { _ in
+            Thread.sleep(forTimeInterval: 0.1)
+            return ReviewQualityLoadResult(
+                presentationByAssetID: [:],
+                diagnostics: ["current contributors loaded"]
+            )
+        })
+
+        model.adopt(session: session)
+
+        XCTAssertEqual(model.qualityByAssetID[assetID]?.tier, .good)
+        XCTAssertEqual(model.qualityDiagnostics, [])
+        try await waitUntil("current quality replacement") {
+            model.qualityDiagnostics == ["current contributors loaded"]
+        }
+        XCTAssertNil(model.qualityByAssetID[assetID])
+    }
+
+    @MainActor
+    func testLaterAdoptionRejectsStaleAsyncQualityLoadByTokenAndSessionID() async throws {
+        let first = try await makeBaseSession(terms: ["bird"])
+        let firstID = first.session.sessionID
+        var second = first
+        second.session.sessionID = "\(firstID)-second"
+        XCTAssertNotEqual(firstID, second.session.sessionID)
+        let model = makeModel(loadReviewQuality: { session in
+            if session.session.sessionID == firstID {
+                Thread.sleep(forTimeInterval: 0.2)
+                return ReviewQualityLoadResult(
+                    presentationByAssetID: [:],
+                    diagnostics: ["stale first load"]
+                )
+            }
+            return ReviewQualityLoadResult(
+                presentationByAssetID: [:],
+                diagnostics: ["current second load"]
+            )
+        })
+
+        model.adopt(session: first)
+        model.adopt(session: second)
+
+        try await waitUntil("second session quality") {
+            model.qualityDiagnostics == ["current second load"]
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(model.session?.session.sessionID, second.session.sessionID)
+        XCTAssertEqual(model.qualityDiagnostics, ["current second load"])
+    }
+
+    @MainActor
+    func testAssetRowsDoesNotTrapOnDuplicateAssetIDInInMemorySession() async throws {
         let model = makeModel()
-        var session = try makeBaseSession(terms: ["bird"])
+        var session = try await makeBaseSession(terms: ["bird"])
         session.sourceAssets.append(try XCTUnwrap(session.sourceAssets.first))
 
         model.adopt(session: session)
@@ -275,9 +501,9 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testAutosaveTriggersOnDecisionLimitAndRecoveryRestores() throws {
+    func testAutosaveTriggersOnDecisionLimitAndRecoveryRestores() async throws {
         let model = makeModel(decisionLimit: 3)
-        model.adopt(session: try makeBaseSession(terms: ["bird", "tree", "water", "rock"]))
+        model.adopt(session: try await makeBaseSession(terms: ["bird", "tree", "water", "rock"]))
         let chips = try XCTUnwrap(model.assetRows.first?.chips)
 
         model.setVerdict(.rejected, for: chips[0].decisionID)
@@ -299,9 +525,9 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testRecoveryRoundTripPreservesSourceRootAndTracksUnsavedRestoredReview() throws {
+    func testRecoveryRoundTripPreservesSourceRootAndTracksUnsavedRestoredReview() async throws {
         let model = makeModel(decisionLimit: 1)
-        model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))
+        model.adopt(session: try await makeBaseSession(terms: ["bird", "tree"]))
         let chips = try XCTUnwrap(model.assetRows.first?.chips)
 
         model.setVerdict(.rejected, for: chips[0].decisionID)
@@ -327,10 +553,10 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testAutosaveTriggersOnElapsedTime() throws {
+    func testAutosaveTriggersOnElapsedTime() async throws {
         var fakeNow = Date(timeIntervalSince1970: 1_800_000_000)
         let model = makeModel(clock: { fakeNow }, decisionLimit: 100)
-        model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))
+        model.adopt(session: try await makeBaseSession(terms: ["bird", "tree"]))
         let chips = try XCTUnwrap(model.assetRows.first?.chips)
 
         model.setVerdict(.rejected, for: chips[0].decisionID)
@@ -342,9 +568,9 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testAutosaveNowFlushesPendingVerdictsBelowCadenceThreshold() throws {
+    func testAutosaveNowFlushesPendingVerdictsBelowCadenceThreshold() async throws {
         let model = makeModel(decisionLimit: 25)
-        model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))
+        model.adopt(session: try await makeBaseSession(terms: ["bird", "tree"]))
         let chips = try XCTUnwrap(model.assetRows.first?.chips)
 
         model.setVerdict(.rejected, for: chips[0].decisionID)
@@ -373,9 +599,9 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testSaveAndImportRoundTripPreservesVerdictsAndEdits() throws {
+    func testSaveAndImportRoundTripPreservesVerdictsAndEdits() async throws {
         let model = makeModel()
-        model.adopt(session: try makeBaseSession(terms: ["bird", "tree"]))
+        model.adopt(session: try await makeBaseSession(terms: ["bird", "tree"]))
         let chips = try XCTUnwrap(model.assetRows.first?.chips)
         let birdChip = try XCTUnwrap(chips.first { $0.keyword == "bird" })
         let treeChip = try XCTUnwrap(chips.first { $0.keyword == "tree" })
@@ -395,7 +621,7 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testSaveWithNoSessionThrowsInsteadOfSilentlySucceeding() throws {
+    func testSaveWithNoSessionThrowsInsteadOfSilentlySucceeding() async throws {
         let model = makeModel()
         XCTAssertFalse(model.canSaveSession)
         let url = root.appendingPathComponent("never-written.json")
@@ -405,16 +631,16 @@ final class ReviewModelTests: XCTestCase {
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
 
-        model.adopt(session: try makeBaseSession(terms: ["bird"]))
+        model.adopt(session: try await makeBaseSession(terms: ["bird"]))
         XCTAssertTrue(model.canSaveSession)
         model.completeCleanly()
         XCTAssertFalse(model.canSaveSession)
     }
 
     @MainActor
-    func testEditEverywhereAppliesToMatchingKeywordsOnly() throws {
+    func testEditEverywhereAppliesToMatchingKeywordsOnly() async throws {
         let model = makeModel()
-        var session = try makeBaseSession(terms: ["bird", "tree"])
+        var session = try await makeBaseSession(terms: ["bird", "tree"])
         let birdDecision = try XCTUnwrap(session.perAssetDecisions.first { $0.flatKeyword == "bird" })
         var withheldBird = birdDecision
         withheldBird.decisionID = "decision-withheld-bird"
@@ -435,9 +661,9 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testEditEverywhereMatchesCanonicalAndSourceTextFallbacks() throws {
+    func testEditEverywhereMatchesCanonicalAndSourceTextFallbacks() async throws {
         let model = makeModel()
-        var session = try makeBaseSession(terms: ["canonical", "source"])
+        var session = try await makeBaseSession(terms: ["canonical", "source"])
         session.perAssetDecisions[0].flatKeyword = nil
         session.perAssetDecisions[0].canonicalPath = "Subject|Wildlife|Birds"
         session.perAssetDecisions[0].sourceText = nil
@@ -459,9 +685,9 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testPipeBearingEditsAreRejectedAndSurfaced() throws {
+    func testPipeBearingEditsAreRejectedAndSurfaced() async throws {
         let model = makeModel()
-        model.adopt(session: try makeBaseSession(terms: ["bird"]))
+        model.adopt(session: try await makeBaseSession(terms: ["bird"]))
         let chip = try XCTUnwrap(model.assetRows.first?.chips.first)
 
         XCTAssertFalse(model.editKeyword(chip.decisionID, to: "Great|Egret"))
@@ -476,9 +702,9 @@ final class ReviewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testCoordinateAndGPSMetadataEditsAreRejectedAndSurfaced() throws {
+    func testCoordinateAndGPSMetadataEditsAreRejectedAndSurfaced() async throws {
         let model = makeModel()
-        model.adopt(session: try makeBaseSession(terms: ["bird"]))
+        model.adopt(session: try await makeBaseSession(terms: ["bird"]))
         let chip = try XCTUnwrap(model.assetRows.first?.chips.first)
 
         XCTAssertFalse(model.editKeyword(chip.decisionID, to: "40, -79"))

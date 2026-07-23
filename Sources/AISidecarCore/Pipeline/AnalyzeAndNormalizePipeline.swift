@@ -23,6 +23,7 @@ public struct AnalyzeAndNormalizePipeline {
     private let analyzePipeline: AnalyzePipeline
     private let normalizePipeline: NormalizePipeline
     private let exportPipeline: XMPExportPipeline
+    private let invocationEngine: OwnedXMPSidecarEngine?
     private let executionRecorder: NormalizationXMPExecutionRecorder
     private let afterNormalization: @Sendable () -> Void
     private let logger: Logger
@@ -35,11 +36,11 @@ public struct AnalyzeAndNormalizePipeline {
     public init(
         fileManager: FileManager = .default,
         analyzePipeline: AnalyzePipeline? = nil,
-        normalizePipeline: NormalizePipeline = NormalizePipeline(),
+        normalizePipeline: NormalizePipeline? = nil,
         exportPipeline: XMPExportPipeline? = nil,
         logger: Logger = Logger(),
         maskProvider: (any ForegroundMaskProvider)? = nil,
-        runner: any VisionModelRunner = OllamaVisionRunner(),
+        runner: any VisionModelRunner,
         now: @escaping @Sendable () -> Date = Date.init,
         afterNormalization: @escaping @Sendable () -> Void = {},
         preScanRawSidecars: (@Sendable (String, ResolvedRunConfiguration) throws -> Set<String>)? = nil
@@ -54,14 +55,31 @@ public struct AnalyzeAndNormalizePipeline {
                 runner: runner,
                 now: now
             )
-        self.normalizePipeline = normalizePipeline
-        self.exportPipeline =
-            exportPipeline
-            ?? XMPExportPipeline(
+        if normalizePipeline == nil, exportPipeline == nil {
+            let invocationEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
+            self.normalizePipeline = NormalizePipeline(
+                snapshotReader: { try invocationEngine.readSnapshot(at: $0) },
+                fileManager: fileManager
+            )
+            self.exportPipeline = XMPExportPipeline(
                 fileManager: fileManager,
+                engine: invocationEngine,
                 logger: logger,
                 now: now
             )
+            self.invocationEngine = invocationEngine
+        } else {
+            self.normalizePipeline = normalizePipeline ?? NormalizePipeline(fileManager: fileManager)
+            self.exportPipeline =
+                exportPipeline
+                ?? XMPExportPipeline(
+                    fileManager: fileManager,
+                    engine: OwnedXMPSidecarEngine(fileManager: fileManager),
+                    logger: logger,
+                    now: now
+                )
+            self.invocationEngine = nil
+        }
         self.executionRecorder = NormalizationXMPExecutionRecorder(fileManager: fileManager)
         self.afterNormalization = afterNormalization
         self.logger = logger
@@ -75,29 +93,45 @@ public struct AnalyzeAndNormalizePipeline {
         normalizationConfiguration: ResolvedNormalizationConfiguration,
         interruptionMonitor: InterruptionMonitor? = nil
     ) async throws -> AnalyzeAndNormalizeResult {
+        invocationEngine?.beginPreWriteInvocation()
+        defer {
+            try? invocationEngine?.shutdown()
+        }
         var preexistingRawSidecars: Set<String> = []
         var preScanFailed = false
         if !normalizationConfiguration.writeAIJSON {
             do {
-                preexistingRawSidecars = try plannedRawSidecarPaths(
+                preexistingRawSidecars = try await RawSidecarBatchHelpers.plannedRawSidecarPaths(
                     inputPath: inputPath,
-                    configuration: runConfiguration
+                    configuration: runConfiguration,
+                    fileManager: fileManager,
+                    preScanRawSidecars: preScanRawSidecars
                 )
             } catch {
                 preScanFailed = true
-                logCleanupWarning("Raw-sidecar pre-scan failed; keeping all raw sidecars.", error: error)
+                RawSidecarBatchHelpers.logCleanupWarning(
+                    "Raw-sidecar pre-scan failed; keeping all raw sidecars.",
+                    error: error,
+                    logger: logger
+                )
             }
         }
         var analyzeConfiguration = runConfiguration
         let shouldClearDerivativeCacheAfterOverallSuccess = analyzeConfiguration.clearDerivativeCacheAfterSuccess
         analyzeConfiguration.clearDerivativeCacheAfterSuccess = false
 
-        let analyzeResult = try await analyzePipeline.run(
+        var analyzeResult = try await analyzePipeline.run(
             inputPath: inputPath,
             configuration: analyzeConfiguration,
-            interruptionMonitor: interruptionMonitor
+            interruptionMonitor: interruptionMonitor,
+            retainsWrittenSidecars: true
         )
-        let rawBatch = rawInputBatch(from: analyzeResult)
+        let rawBatch = RawSidecarBatchHelpers.rawInputBatch(
+            from: analyzeResult,
+            failureContext: "normalization",
+            fileManager: fileManager
+        )
+        analyzeResult.writtenSidecarsByPath = nil
         let resolvedInput = NormalizationInputResolver(fileManager: fileManager).resolve(
             rawSidecarBatch: rawBatch,
             workflow: .analyze,
@@ -108,7 +142,12 @@ public struct AnalyzeAndNormalizePipeline {
         )
 
         if !normalizationConfiguration.writeAIJSON, !preScanFailed {
-            removeNewRawSidecars(from: analyzeResult, preexistingRawSidecars: preexistingRawSidecars)
+            RawSidecarBatchHelpers.removeNewRawSidecars(
+                from: analyzeResult,
+                preexistingRawSidecars: preexistingRawSidecars,
+                fileManager: fileManager,
+                logger: logger
+            )
         }
 
         let normalizeResult = try normalizePipeline.runResolvedInputs(
@@ -134,12 +173,13 @@ public struct AnalyzeAndNormalizePipeline {
         let finalNormalizeResult = try executionRecorder.recordExecution(
             normalizeResult: normalizeResult,
             exportResult: exportResult,
-            progressMessage: "Analyze-and-normalize XMP target processed."
+            progressMessage: "Analyze-and-normalize XMP target processed.",
+            interruptionMonitor: interruptionMonitor
         )
 
         if shouldClearDerivativeCacheAfterOverallSuccess,
-            analyzeSucceeded(analyzeResult),
-            exportSucceeded(exportResult)
+            RawSidecarBatchHelpers.analyzeSucceeded(analyzeResult),
+            RawSidecarBatchHelpers.exportSucceeded(exportResult)
         {
             try DerivativeCache(
                 directoryPath: runConfiguration.derivativeCacheDir,
@@ -155,162 +195,10 @@ public struct AnalyzeAndNormalizePipeline {
         )
     }
 
-    private func rawInputBatch(from analyzeResult: AnalyzeResult) -> RawJSONSidecarInputBatch {
-        let reader = RawJSONSidecarReader(fileManager: fileManager)
-        var inputs: [ResolvedRawSidecarInput] = []
-        var failures: [RawJSONSidecarInputFailure] = []
-
-        for record in analyzeResult.records {
-            guard record.status == .written || record.status == .skippedExisting else {
-                failures.append(rawInputFailure(from: record))
-                continue
-            }
-            guard let sidecarPath = record.sidecarPath else {
-                failures.append(rawInputFailure(from: record))
-                continue
-            }
-            let sidecarURL = URL(fileURLWithPath: sidecarPath).standardizedFileURL
-            do {
-                let document = try reader.read(from: sidecarURL)
-                inputs.append(
-                    ResolvedRawSidecarInput(
-                        sidecarPath: sidecarURL,
-                        document: document,
-                        sourcePath: URL(fileURLWithPath: document.sidecar.source.path).standardizedFileURL,
-                        sourceIdentityStatus: .matched,
-                        relativePath: SidecarNaming.sidecarRelativePath(for: document.sidecar.source),
-                        warnings: []
-                    )
-                )
-            } catch let error as SidecarError {
-                failures.append(
-                    RawJSONSidecarInputFailure(sidecarPath: sidecarURL, relativePath: record.relativePath, error: error)
-                )
-            } catch {
-                failures.append(
-                    RawJSONSidecarInputFailure(
-                        sidecarPath: sidecarURL,
-                        relativePath: record.relativePath,
-                        error: SidecarError(
-                            code: .validationFailed,
-                            stage: .scan,
-                            message: "Unable to read analyze output \(sidecarPath): \(error.localizedDescription)",
-                            recoverable: true
-                        )
-                    )
-                )
-            }
-        }
-
-        // Sequential quality runs emit one record per pass; pair each
-        // .quality.ai.json document with its tagging primary the same way the
-        // disk-scan resolver does, so grading sees the quality data.
-        let grouped = RawJSONSidecarInputResolver(fileManager: fileManager).groupedSidecarInputs(inputs)
-        return RawJSONSidecarInputBatch(inputs: grouped, failures: failures)
-    }
-
-    private func rawInputFailure(from record: ProgressRecord) -> RawJSONSidecarInputFailure {
-        let path = record.sidecarPath ?? record.sourcePath ?? "analyze-output"
-        return RawJSONSidecarInputFailure(
-            sidecarPath: URL(fileURLWithPath: path).standardizedFileURL,
-            relativePath: record.relativePath,
-            error: record.errors.first
-                ?? SidecarError(
-                    code: .validationFailed,
-                    stage: .write,
-                    message: "Analyze did not produce a successful raw sidecar for normalization.",
-                    recoverable: true
-                )
-        )
-    }
-
-    private func plannedRawSidecarPaths(
-        inputPath: String,
-        configuration: ResolvedRunConfiguration
-    ) throws -> Set<String> {
-        if let preScanRawSidecars {
-            return try preScanRawSidecars(inputPath, configuration)
-        }
-        let scan = try ImageScanner(fileManager: fileManager).scan(
-            inputPath: inputPath,
-            recursive: configuration.recursive,
-            identityPolicy: configuration.sourceIdentityPolicy
-        )
-        var planned = SidecarNaming.plan(for: scan.images, outputDir: configuration.outputDir)
-            .entries
-            .map(\.sidecarPath)
-        if configuration.taskProfile == .taggingWithQuality, configuration.qualityScanMode == .sequential {
-            // The sequential quality pass writes .quality.ai.json siblings;
-            // preexisting ones must survive the temporary-sidecar cleanup too.
-            planned += SidecarNaming.plan(for: scan.images, outputDir: configuration.outputDir, kind: .quality)
-                .entries
-                .map(\.sidecarPath)
-        }
-        return Set(planned.filter { fileManager.fileExists(atPath: $0) })
-    }
-
-    private func removeNewRawSidecars(from analyzeResult: AnalyzeResult, preexistingRawSidecars: Set<String>) {
-        for record in analyzeResult.records where record.status == .written {
-            guard let sidecarPath = record.sidecarPath, !preexistingRawSidecars.contains(sidecarPath) else {
-                continue
-            }
-            do {
-                try fileManager.removeItem(atPath: sidecarPath)
-            } catch {
-                logCleanupWarning("Unable to remove temporary raw sidecar: \(sidecarPath)", error: error)
-            }
-        }
-    }
-
-    private func logCleanupWarning(_ message: String, error: Error) {
-        let sidecarError =
-            error as? SidecarError
-            ?? SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "\(message) \(error.localizedDescription)",
-                recoverable: true
-            )
-        try? logger.log(
-            LogRecord(
-                level: .warn,
-                event: "pipeline.raw_sidecar_cleanup_warning",
-                message: message,
-                errors: [sidecarError]
-            ))
-    }
-
     private func xmpConfiguration(
         from configuration: ResolvedNormalizationConfiguration
     ) -> ResolvedXMPExportConfiguration {
-        ResolvedXMPExportConfiguration(
-            recursive: configuration.recursive,
-            outputDir: configuration.outputDir,
-            logLevel: configuration.logLevel,
-            logFormat: configuration.logFormat,
-            dryRun: configuration.dryRun,
-            sourceRoot: configuration.sourceRoot,
-            sourceVerification: configuration.sourceVerification,
-            writeFlatKeywords: configuration.writeFlatKeywords,
-            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
-            backupSidecars: configuration.backupSidecars,
-            xmpConflictPolicy: configuration.xmpConflictPolicy,
-            minConfidence: configuration.minConfidence,
-            allowSpecificTags: configuration.allowSpecificTags,
-            pairScope: configuration.pairScope,
-            writeAIJSON: configuration.writeAIJSON,
-            qualityGrading: configuration.qualityGrading
-        )
+        ResolvedXMPExportConfiguration(from: configuration)
     }
 
-    private func analyzeSucceeded(_ result: AnalyzeResult) -> Bool {
-        !result.interrupted && result.records.allSatisfy { $0.status != .failed }
-    }
-
-    private func exportSucceeded(_ result: XMPExportPipelineResult) -> Bool {
-        guard !result.interrupted, let report = result.report else {
-            return false
-        }
-        return report.failedCount == 0 && report.targetReports.allSatisfy { $0.status != .failed }
-    }
 }

@@ -1,11 +1,14 @@
 import CoreGraphics
-import CoreImage
+@preconcurrency import CoreImage
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
 /// Runs the Phase 1 subject-isolation chain without caching native renders.
-public struct SubjectIsolationService {
+///
+/// Core Image contexts are thread-safe for rendering, so one service can serve
+/// every bounded-concurrency worker in an analysis batch.
+public struct SubjectIsolationService: Sendable {
     private let cache: DerivativeCache
     private let maskProvider: any ForegroundMaskProvider
     private let context: CIContext

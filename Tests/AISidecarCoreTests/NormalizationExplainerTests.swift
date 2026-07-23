@@ -34,7 +34,7 @@ final class NormalizationExplainerTests: XCTestCase {
 
     // MARK: - Rollup against a real pipeline session
 
-    private func makeSession() throws -> NormalizationSessionDocument {
+    private func makeSession() async throws -> NormalizationSessionDocument {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let jsonRoot = root.appendingPathComponent("json")
@@ -63,7 +63,7 @@ final class NormalizationExplainerTests: XCTestCase {
         configuration.sourceRoot = sourceRoot.path
         configuration.outputDir = root.appendingPathComponent("out").path
 
-        let result = try NormalizePipeline().runSessionOnly(
+        let result = try await NormalizePipeline().runSessionOnly(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration,
             timestamp: Date(timeIntervalSince1970: 1_800_000_400),
@@ -100,8 +100,8 @@ final class NormalizationExplainerTests: XCTestCase {
         )
     }
 
-    func testRollupGroupsAcrossAssetsAndFindsKeyword() throws {
-        let session = try makeSession()
+    func testRollupGroupsAcrossAssetsAndFindsKeyword() async throws {
+        let session = try await makeSession()
         let summaries = NormalizationDecisionExplainer.summaries(for: session)
         XCTAssertFalse(summaries.isEmpty)
 
@@ -120,8 +120,8 @@ final class NormalizationExplainerTests: XCTestCase {
         XCTAssertTrue(lines.contains { $0.contains("carried over as an unreviewed fallback tag") })
     }
 
-    func testRollupCountsDistinctAssetsWhenOneAssetHasMachineAndUserContextDecisions() throws {
-        var session = try makeSession()
+    func testRollupCountsDistinctAssetsWhenOneAssetHasMachineAndUserContextDecisions() async throws {
+        var session = try await makeSession()
         let index = try XCTUnwrap(session.perAssetDecisions.firstIndex { $0.flatKeyword == "bird" })
         session.perAssetDecisions[index].status = .withheld
         var userContext = session.perAssetDecisions[index]
@@ -143,8 +143,8 @@ final class NormalizationExplainerTests: XCTestCase {
         XCTAssertEqual(repeatedAssetIDs, repeatedAssetIDs.sorted())
     }
 
-    func testNeedsAttentionFilterMatchesSummaryFlags() throws {
-        let session = try makeSession()
+    func testNeedsAttentionFilterMatchesSummaryFlags() async throws {
+        let session = try await makeSession()
         let flagged = NormalizationDecisionExplainer.needsAttention(in: session)
         let all = NormalizationDecisionExplainer.summaries(for: session)
         XCTAssertEqual(flagged.map(\.keyword), all.filter(\.needsAttention).map(\.keyword))

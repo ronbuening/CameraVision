@@ -85,9 +85,10 @@ final class AssetPreviewTests: XCTestCase {
     /// so the test controls which derivatives "exist" regardless of the
     /// machine's real shared cache.
     private func materializeFixture(
+        for sourceURL: URL,
         wholeImageExists: Bool,
         subjectExists: Bool
-    ) throws -> String {
+    ) throws {
         var sidecar = try loadFixture()
         for index in sidecar.derivatives.indices {
             let role = sidecar.derivatives[index].role
@@ -100,9 +101,8 @@ final class AssetPreviewTests: XCTestCase {
         }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        let sidecarURL = root.appendingPathComponent("rewritten.ai.json")
+        let sidecarURL = URL(fileURLWithPath: sourceURL.path + SidecarNaming.taggingSuffix)
         try encoder.encode(sidecar).write(to: sidecarURL)
-        return sidecarURL.path
     }
 
     func testRecordedFixtureUsesMachineNeutralPaths() throws {
@@ -116,11 +116,12 @@ final class AssetPreviewTests: XCTestCase {
 
     func testPreviewDetailsDecodeRealPipelineSidecar() throws {
         let sourceURL = try writeJPEG("DSC_0421.jpg")
-        let sidecarPath = try materializeFixture(wholeImageExists: false, subjectExists: false)
+        try materializeFixture(for: sourceURL, wholeImageExists: false, subjectExists: false)
 
         let details = AssetPreviewDetails.load(
             sourcePath: sourceURL.path,
-            rawSidecarPath: sidecarPath
+            relativePath: sourceURL.lastPathComponent,
+            outputDir: nil
         )
 
         XCTAssertEqual(details.modelRunCount, 2)
@@ -136,22 +137,39 @@ final class AssetPreviewTests: XCTestCase {
 
     func testPreviewPrefersCachedDerivativesWhenPresent() throws {
         let sourceURL = try writeJPEG("DSC_0421.jpg")
-        let sidecarPath = try materializeFixture(wholeImageExists: true, subjectExists: true)
+        try materializeFixture(for: sourceURL, wholeImageExists: true, subjectExists: true)
 
         let details = AssetPreviewDetails.load(
             sourcePath: sourceURL.path,
-            rawSidecarPath: sidecarPath
+            relativePath: sourceURL.lastPathComponent,
+            outputDir: nil
         )
 
         XCTAssertNotNil(details.fullImage)
         XCTAssertNotNil(details.subjectImage, "subject panel shows when the cached derivative exists (FR4-014)")
     }
 
+    func testPreviewFallsBackToSourceWhenCachedWholeImageCannotDecode() throws {
+        let sourceURL = try writeJPEG("fallback.jpg")
+        try materializeFixture(for: sourceURL, wholeImageExists: true, subjectExists: false)
+        try Data("not an image".utf8).write(to: root.appendingPathComponent("derivative-whole_image.jpg"))
+
+        let details = AssetPreviewDetails.load(
+            sourcePath: sourceURL.path,
+            relativePath: sourceURL.lastPathComponent,
+            outputDir: nil
+        )
+
+        XCTAssertNotNil(details.fullImage)
+        XCTAssertNil(details.subjectImage)
+    }
+
     func testPreviewDetailsWithoutSidecarStillLoadsSource() throws {
         let sourceURL = try writeJPEG("plain.jpg")
         let details = AssetPreviewDetails.load(
             sourcePath: sourceURL.path,
-            rawSidecarPath: root.appendingPathComponent("missing.ai.json").path
+            relativePath: sourceURL.lastPathComponent,
+            outputDir: nil
         )
         XCTAssertNotNil(details.fullImage)
         XCTAssertNil(details.instanceCount)
@@ -166,7 +184,8 @@ final class AssetPreviewTests: XCTestCase {
 
         let details = AssetPreviewDetails.load(
             sourcePath: sourceURL.path,
-            rawSidecarPath: sidecarURL.path
+            relativePath: sourceURL.lastPathComponent,
+            outputDir: nil
         )
 
         XCTAssertNotNil(details.fullImage)
@@ -180,12 +199,27 @@ final class AssetPreviewTests: XCTestCase {
 
         let details = AssetPreviewDetails.load(
             sourcePath: sourceURL.path,
-            rawSidecarPath: sidecarURL.path,
+            relativePath: sourceURL.lastPathComponent,
+            outputDir: nil,
             fileManager: fileManager
         )
 
         XCTAssertNotNil(details.fullImage)
         XCTAssertEqual(details.sidecarErrors, ["sidecar unreadable: unreadable.jpg.ai.json"])
+    }
+
+    func testPreviewDecodeRespectsMaxPixel() throws {
+        let sourceURL = try writeJPEG("large-preview.jpg", width: 640, height: 400)
+
+        let details = AssetPreviewDetails.load(
+            sourcePath: sourceURL.path,
+            relativePath: sourceURL.lastPathComponent,
+            outputDir: nil,
+            maxPixel: 128
+        )
+
+        let image = try XCTUnwrap(details.fullImage)
+        XCTAssertLessThanOrEqual(max(image.width, image.height), 128)
     }
 
     func testThumbnailDecodeRespectsMaxPixelAndFailsCleanly() throws {

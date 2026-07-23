@@ -51,6 +51,9 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Option(help: "Ollama model tag for analyze-and-normalize.")
     var model: String?
 
+    @Option(help: "Vision model backend for analyze-and-normalize: ollama, apple, or auto.")
+    var modelBackend: ModelBackend?
+
     @Option(help: "Ollama endpoint URL for analyze-and-normalize.")
     var modelEndpoint: String?
 
@@ -84,7 +87,7 @@ struct NormalizeCommand: AsyncParsableCommand {
     @Flag(help: "Clear the derivative cache after successful analyze-and-normalize.")
     var clearDerivativeCacheAfterSuccess = false
 
-    @Option(help: "Maximum concurrent render/isolation preparation workers for analyze-and-normalize.")
+    @Option(help: "Maximum concurrent source-identity hashing and analyze render/isolation workers.")
     var stageConcurrency: Int?
 
     @Option(help: "Schema-constrained repair attempts after invalid model JSON or schema failure.")
@@ -198,8 +201,8 @@ struct NormalizeCommand: AsyncParsableCommand {
         let interruptionMonitor = InterruptionMonitor()
         interruptionMonitor.installSignalHandlers()
         if resolved.sessionOnly {
-            let result = try withBatchInterruptionExit {
-                try NormalizePipeline().runSessionOnly(
+            let result = try await withAsyncBatchInterruptionExit {
+                try await NormalizePipeline().runSessionOnly(
                     mode: mode,
                     configuration: resolved,
                     interruptionMonitor: interruptionMonitor
@@ -219,15 +222,15 @@ struct NormalizeCommand: AsyncParsableCommand {
             return
         }
         if resolved.dryRun {
-            let result = try withBatchInterruptionExit {
-                try NormalizePipeline().runDryRun(
+            let result = try await withAsyncBatchInterruptionExit {
+                try await NormalizePipeline().runDryRun(
                     mode: mode,
                     configuration: resolved,
                     interruptionMonitor: interruptionMonitor
                 )
             }
             if let changePlan = result.changePlan {
-                try writeChangePlan(changePlan)
+                try CommandOutputHelpers.writeChangePlan(changePlan)
             }
             // The change plan's failedCount covers the report's input errors plus
             // failed target plans, so the printed plan and the exit status agree.
@@ -242,29 +245,36 @@ struct NormalizeCommand: AsyncParsableCommand {
         case .analyze(let inputPath):
             let runConfiguration = try ConfigurationResolver.resolve(cli: runOverrides)
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
+            let selection = try await VisionModelRunnerFactory().make(for: runConfiguration)
             let result = try await withAsyncBatchInterruptionExit {
-                try await AnalyzeAndNormalizePipeline(logger: logger).run(
+                try await AnalyzeAndNormalizePipeline(logger: logger, runner: selection.runner).run(
                     inputPath: inputPath,
-                    runConfiguration: runConfiguration,
+                    runConfiguration: selection.configuration,
                     normalizationConfiguration: resolved,
                     interruptionMonitor: interruptionMonitor
                 )
             }
-            writeEssentialSummary(result.normalizeResult.report)
+            CommandOutputHelpers.writeEssentialSummary(
+                prefix: "normalize",
+                report: result.normalizeResult.report
+            )
             try enforceBatchExitPolicy(
                 failureCount: failureCount(for: result.normalizeResult.report),
                 interrupted: result.analyzeResult.interrupted || result.exportResult.interrupted
             )
         case .fromJSON, .fileList:
             let logger = Logger(minimumLevel: resolved.logLevel, format: resolved.logFormat)
-            let result = try withBatchInterruptionExit {
-                try NormalizeAndWritePipeline(logger: logger).run(
+            let result = try await withAsyncBatchInterruptionExit {
+                try await NormalizeAndWritePipeline(logger: logger).run(
                     mode: mode,
                     configuration: resolved,
                     interruptionMonitor: interruptionMonitor
                 )
             }
-            writeEssentialSummary(result.normalizeResult.report)
+            CommandOutputHelpers.writeEssentialSummary(
+                prefix: "normalize",
+                report: result.normalizeResult.report
+            )
             try enforceBatchExitPolicy(
                 failureCount: failureCount(for: result.normalizeResult.report),
                 interrupted: result.exportResult.interrupted
@@ -283,6 +293,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             assessQuality: assessQuality,
             existing: existing,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
             modelRetryLimit: modelRetryLimit,
@@ -317,7 +328,7 @@ struct NormalizeCommand: AsyncParsableCommand {
         )
     }
 
-    private var normalizationOverrides: NormalizationConfigurationOverrides {
+    var normalizationOverrides: NormalizationConfigurationOverrides {
         NormalizationConfigurationOverrides(
             recursive: recursive ? true : nil,
             outputDir: outputDir,
@@ -325,19 +336,26 @@ struct NormalizeCommand: AsyncParsableCommand {
             logLevel: logLevel,
             logFormat: logFormat,
             dryRun: dryRun ? true : nil,
+            stageConcurrency: stageConcurrency,
             sourceRoot: sourceRoot,
             sourceVerification: sourceVerification,
-            writeFlatKeywords: pairedFlag(positive: writeFlatKeywords, negative: noWriteFlatKeywords),
-            writeHierarchicalKeywords: pairedFlag(
+            writeFlatKeywords: CommandOutputHelpers.pairedFlag(
+                positive: writeFlatKeywords,
+                negative: noWriteFlatKeywords
+            ),
+            writeHierarchicalKeywords: CommandOutputHelpers.pairedFlag(
                 positive: writeHierarchicalKeywords,
                 negative: noWriteHierarchicalKeywords
             ),
-            backupSidecars: pairedFlag(positive: backupSidecars, negative: noBackupSidecars),
+            backupSidecars: CommandOutputHelpers.pairedFlag(
+                positive: backupSidecars,
+                negative: noBackupSidecars
+            ),
             xmpConflictPolicy: xmpConflictPolicy,
             minConfidence: minConfidence,
             allowSpecificTags: allowSpecificTags ? true : nil,
             pairScope: pairScope,
-            writeAIJSON: pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON),
+            writeAIJSON: CommandOutputHelpers.pairedFlag(positive: writeAIJSON, negative: noWriteAIJSON),
             vocabularyPath: vocabulary,
             vocabularyMode: vocabularyMode,
             normalizationMode: normalizationMode,
@@ -367,6 +385,7 @@ struct NormalizeCommand: AsyncParsableCommand {
             qualityScanMode: qualityScanMode,
             outputDir: outputDir,
             model: model,
+            modelBackend: modelBackend,
             modelEndpoint: modelEndpoint,
             modelTimeoutSeconds: modelTimeout,
             modelRetryLimit: modelRetryLimit,
@@ -382,31 +401,6 @@ struct NormalizeCommand: AsyncParsableCommand {
             modelResponseRepairAttempts: modelResponseRepairAttempts,
             gpsContext: gpsContext
         )
-    }
-
-    private func pairedFlag(positive: Bool, negative: Bool) -> Bool? {
-        if positive {
-            return true
-        }
-        if negative {
-            return false
-        }
-        return nil
-    }
-
-    private func writeChangePlan(_ changePlan: XMPChangePlanDocument) throws {
-        let encoder = JSONCoding.documentEncoder(iso8601Dates: false)
-        let data = try encoder.encode(changePlan)
-        FileHandle.standardOutput.write(data)
-        FileHandle.standardOutput.write(Data("\n".utf8))
-    }
-
-    private func writeEssentialSummary(_ report: NormalizationReport) {
-        let exportReport = report.xmpExportReport
-        let written = exportReport?.writtenCount ?? 0
-        let failed = exportReport?.failedCount ?? report.errors.count
-        let line = "normalize complete: \(written) written, \(failed) failed."
-        FileHandle.standardOutput.write(Data((line + "\n").utf8))
     }
 
     private func failureCount(for report: NormalizationReport) -> Int {

@@ -3,9 +3,15 @@ import Foundation
 /// Markdown summary writer for human-readable XMP export results.
 public struct XMPExportSummaryWriter {
     private let fileManager: FileManager
+    private let dataWriter: WriterSupport.DataWriter
 
     public init(fileManager: FileManager = .default) {
+        self.init(fileManager: fileManager, dataWriter: WriterSupport.atomicWrite)
+    }
+
+    init(fileManager: FileManager = .default, dataWriter: @escaping WriterSupport.DataWriter) {
         self.fileManager = fileManager
+        self.dataWriter = dataWriter
     }
 
     public func markdown(for report: XMPExportReport) -> String {
@@ -41,18 +47,8 @@ public struct XMPExportSummaryWriter {
     }
 
     public func write(_ report: XMPExportReport, to path: String) throws {
-        do {
-            let data = Data(markdown(for: report).utf8)
-            try AtomicFileWriter.write(data, to: URL(fileURLWithPath: path), fileManager: fileManager)
-        } catch let error as SidecarError {
-            throw error
-        } catch {
-            throw SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Unable to write XMP export summary \(path): \(error.localizedDescription)",
-                recoverable: true
-            )
-        }
+        try WriterSupport.writeAndWrap(
+            Data(markdown(for: report).utf8), to: path, typeName: "write XMP export summary",
+            fileManager: fileManager, dataWriter: dataWriter)
     }
 }

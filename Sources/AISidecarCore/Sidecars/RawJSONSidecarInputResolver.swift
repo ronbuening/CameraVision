@@ -83,7 +83,7 @@ public struct RawJSONSidecarInputResolver {
         fromJSONPath: String,
         configuration: ResolvedXMPExportConfiguration
     ) throws -> RawJSONSidecarInputBatch {
-        let inputURL = absoluteURL(for: fromJSONPath)
+        let inputURL = absoluteURL(for: fromJSONPath, fileManager: fileManager)
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: inputURL.path, isDirectory: &isDirectory) else {
             throw validationError("Raw sidecar input path does not exist: \(inputURL.path)", recoverable: false)
@@ -99,14 +99,14 @@ public struct RawJSONSidecarInputResolver {
         }
 
         var candidateURLs = [inputURL]
-        let sibling = siblingSidecarURL(for: inputURL)
+        let sibling = SidecarNaming.siblingSidecarURL(for: inputURL)
         if isRegularFile(sibling) {
             candidateURLs.append(sibling)
         }
         let inputs = try candidateURLs.map {
             try resolveCandidate($0, relativePath: $0.lastPathComponent, configuration: configuration)
         }
-        return RawJSONSidecarInputBatch(inputs: groupedSidecarInputs(inputs), failures: [])
+        return RawJSONSidecarInputBatch(inputs: SidecarNaming.groupedSidecarInputs(inputs), failures: [])
     }
 
     /// Re-read one stored sidecar reference and whichever current pair member still exists.
@@ -117,7 +117,7 @@ public struct RawJSONSidecarInputResolver {
     /// display surfaces (the GUI's quality panel) use the same path so what they show is
     /// what apply-time grading would consume.
     public func resolveCurrentSidecarPair(at sidecarPath: String) -> RawJSONSidecarInputBatch {
-        let referenceURL = absoluteURL(for: sidecarPath)
+        let referenceURL = absoluteURL(for: sidecarPath, fileManager: fileManager)
         guard isRawSidecar(referenceURL) else {
             return RawJSONSidecarInputBatch(
                 inputs: [],
@@ -134,7 +134,7 @@ public struct RawJSONSidecarInputResolver {
             )
         }
 
-        let siblingURL = siblingSidecarURL(for: referenceURL)
+        let siblingURL = SidecarNaming.siblingSidecarURL(for: referenceURL)
         let candidateURLs = [referenceURL, siblingURL]
             .reduce(into: [URL]()) { result, candidate in
                 guard isRegularFile(candidate), !result.contains(candidate) else {
@@ -188,7 +188,7 @@ public struct RawJSONSidecarInputResolver {
             }
         }
         return RawJSONSidecarInputBatch(
-            inputs: groupedSidecarInputs(inputs),
+            inputs: SidecarNaming.groupedSidecarInputs(inputs),
             failures: failures.sorted {
                 comparePaths($0.sidecarPath.path, $1.sidecarPath.path)
             }
@@ -220,7 +220,7 @@ public struct RawJSONSidecarInputResolver {
         failures.sort {
             comparePaths($0.relativePath ?? $0.sidecarPath.path, $1.relativePath ?? $1.sidecarPath.path)
         }
-        return RawJSONSidecarInputBatch(inputs: groupedSidecarInputs(inputs), failures: failures)
+        return RawJSONSidecarInputBatch(inputs: SidecarNaming.groupedSidecarInputs(inputs), failures: failures)
     }
 
     private func resolveCandidate(
@@ -258,7 +258,8 @@ public struct RawJSONSidecarInputResolver {
     ) throws -> URL? {
         let sourceRelativePath = sidecar.source.relativePath.trimmingCharacters(in: .whitespacesAndNewlines)
         if let sourceRoot = configuration.sourceRoot, !sourceRelativePath.isEmpty {
-            let candidate = absoluteURL(for: sourceRoot).appendingPathComponent(sourceRelativePath).standardizedFileURL
+            let candidate = absoluteURL(for: sourceRoot, fileManager: fileManager)
+                .appendingPathComponent(sourceRelativePath).standardizedFileURL
             if isRegularFile(candidate) {
                 return candidate
             }
@@ -271,7 +272,7 @@ public struct RawJSONSidecarInputResolver {
             }
         }
 
-        let sibling = siblingSourceURL(for: sidecarURL)
+        let sibling = SidecarNaming.siblingSourceURL(for: sidecarURL)
         if isRegularFile(sibling) {
             return sibling
         }
@@ -343,7 +344,7 @@ public struct RawJSONSidecarInputResolver {
         recursive: Bool
     ) throws -> (urls: [URL], failures: [RawJSONSidecarInputFailure]) {
         if recursive {
-            let enumerationFailures = SynchronousInputFailureAccumulator()
+            let enumerationFailures = SynchronousCallbackAccumulator<RawJSONSidecarInputFailure>()
             guard
                 let enumerator = fileManager.enumerator(
                     at: root,
@@ -410,103 +411,12 @@ public struct RawJSONSidecarInputResolver {
     }
 
     private func isRawSidecar(_ url: URL) -> Bool {
-        sidecarKind(for: url) != nil
+        SidecarNaming.sidecarKind(for: url) != nil
     }
 
     private func shouldIgnore(url: URL, root: URL) -> Bool {
         let components = relativePath(for: url, root: root).split(separator: "/").map(String.init)
         return components.contains { $0.hasPrefix(".") }
-    }
-
-    private func siblingSourceURL(for sidecarURL: URL) -> URL {
-        let sourceFileName = sidecarBaseFileName(for: sidecarURL) ?? sidecarURL.lastPathComponent
-        return sidecarURL.deletingLastPathComponent().appendingPathComponent(sourceFileName).standardizedFileURL
-    }
-
-    private func siblingSidecarURL(for sidecarURL: URL) -> URL {
-        guard let kind = sidecarKind(for: sidecarURL), let baseName = sidecarBaseFileName(for: sidecarURL) else {
-            return sidecarURL
-        }
-        let siblingSuffix: String
-        switch kind {
-        case .tagging:
-            siblingSuffix = SidecarNaming.qualitySuffix
-        case .quality:
-            siblingSuffix = SidecarNaming.taggingSuffix
-        }
-        return sidecarURL.deletingLastPathComponent()
-            .appendingPathComponent("\(baseName)\(siblingSuffix)")
-            .standardizedFileURL
-    }
-
-    /// Fold `.quality.ai.json` inputs into their tagging siblings.
-    ///
-    /// Internal so the analyze-and-* pipelines can apply the same pairing to
-    /// records produced by an in-process sequential quality run.
-    func groupedSidecarInputs(_ inputs: [ResolvedRawSidecarInput]) -> [ResolvedRawSidecarInput] {
-        let grouped = Dictionary(grouping: inputs) { sidecarPairingKey(for: $0.sidecarPath) }
-        return grouped.values.compactMap { group in
-            // Existing Phase 2 consumers keep the tagging document as their
-            // primary input; quality data rides beside it for grading.
-            let tagging = group.first { sidecarKind(for: $0.sidecarPath) == .tagging }
-            let quality = group.first { sidecarKind(for: $0.sidecarPath) == .quality }
-            guard var primary = tagging ?? quality else {
-                return nil
-            }
-            if let quality {
-                primary.qualitySidecarPath = quality.sidecarPath
-                primary.qualityDocument = quality.document
-                if quality.sidecarPath != primary.sidecarPath {
-                    primary.warnings.append(contentsOf: quality.warnings)
-                    if quality.sourceIdentityStatus == .mismatched {
-                        primary.sourceIdentityStatus = .mismatched
-                    }
-                }
-            }
-            return primary
-        }
-        .sorted {
-            comparePaths($0.relativePath ?? $0.sidecarPath.path, $1.relativePath ?? $1.sidecarPath.path)
-        }
-    }
-
-    private func sidecarPairingKey(for url: URL) -> String {
-        url.deletingLastPathComponent()
-            .appendingPathComponent(sidecarBaseFileName(for: url) ?? url.lastPathComponent)
-            .standardizedFileURL.path
-    }
-
-    private func sidecarBaseFileName(for url: URL) -> String? {
-        guard let kind = sidecarKind(for: url) else {
-            return nil
-        }
-        let suffix: String
-        switch kind {
-        case .tagging:
-            suffix = SidecarNaming.taggingSuffix
-        case .quality:
-            suffix = SidecarNaming.qualitySuffix
-        }
-        return String(url.lastPathComponent.dropLast(suffix.count))
-    }
-
-    private func sidecarKind(for url: URL) -> RawSidecarKind? {
-        let fileName = url.lastPathComponent.lowercased()
-        if fileName.hasSuffix(SidecarNaming.qualitySuffix) {
-            return .quality
-        }
-        if fileName.hasSuffix(SidecarNaming.taggingSuffix) {
-            return .tagging
-        }
-        return nil
-    }
-
-    private func isRegularFile(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
-    }
-
-    private func isDirectory(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
     }
 
     private func sorted(_ urls: [URL], root: URL) -> [URL] {
@@ -527,16 +437,6 @@ public struct RawJSONSidecarInputResolver {
         return String(path.dropFirst(rootPath.count))
     }
 
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
-    }
-
     private func validationError(_ message: String, recoverable: Bool) -> SidecarError {
         SidecarError(code: .validationFailed, stage: .scan, message: message, recoverable: recoverable)
     }
@@ -544,23 +444,4 @@ public struct RawJSONSidecarInputResolver {
     private func sourceIdentityMismatch(_ message: String) -> SidecarError {
         SidecarError(code: .sourceIdentityMismatch, stage: .scan, message: message, recoverable: true)
     }
-}
-
-/// FileManager enumeration invokes its error callback synchronously. This box
-/// gives that callback reference semantics without suggesting cross-task use.
-private final class SynchronousInputFailureAccumulator: @unchecked Sendable {
-    private(set) var values: [RawJSONSidecarInputFailure] = []
-
-    func append(_ value: RawJSONSidecarInputFailure) {
-        values.append(value)
-    }
-}
-
-private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
-    let lowerLHS = lhs.lowercased()
-    let lowerRHS = rhs.lowercased()
-    if lowerLHS == lowerRHS {
-        return lhs < rhs
-    }
-    return lowerLHS < lowerRHS
 }

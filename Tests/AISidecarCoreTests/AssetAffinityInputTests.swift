@@ -26,7 +26,7 @@ final class AssetAffinityInputTests: XCTestCase {
         XCTAssertEqual(inputs.lensIdentityClass, "nikkor 500pf")
     }
 
-    func testGPSPresenceIsRecordedWithoutPersistingCoordinates() throws {
+    func testGPSPresenceIsRecordedWithoutPersistingCoordinates() async throws {
         let root = try temporaryDirectory()
         addTeardownBlock {
             try? FileManager.default.removeItem(at: root)
@@ -35,7 +35,7 @@ final class AssetAffinityInputTests: XCTestCase {
         let list = root.appendingPathComponent("images.txt")
         try "GPSBird.JPG\n".write(to: list, atomically: true, encoding: .utf8)
 
-        let batch = try NormalizationInputResolver().resolve(
+        let batch = try await NormalizationInputResolver().resolve(
             mode: .fileList(path: list.path),
             configuration: .builtInDefaults
         )

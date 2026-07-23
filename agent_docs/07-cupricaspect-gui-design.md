@@ -2,7 +2,7 @@
 
 Version: 0.5 (v0.5: further alpha-build Settings/estimate fixes per requirements v0.12 / plan 08 R1 — Settings `CONFIGURATION` gains persistent defaults for stage concurrency and existing-XMP conflict policy (the Options control inherits the latter by seeding from config); the existing-`.ai.json` control relabeled on Options and Settings so it names the program's own analysis sidecars rather than reading as XMP handling; the Working-step seconds-per-image computed against images actually processed so skip-heavy re-runs read correctly. v0.4: alpha-build Options-page and navigation fixes per requirements v0.11 / plan 08 R1 — Step 3 vision-model dropdown as a per-run override, EXISTING XMP control in Advanced defaulting to backup-and-merge, non-destructive Back from Review with a confirmed re-run; RAW+JPEG PAIRING design/code drift flagged. v0.3: normalization screens replaced by the Inspector + session context panel per requirements v0.7 — the prototypes' keep/merge/rename/drop table is void, resolution 10; vocabulary editor deferred. v0.2: Wizard-first MVP scoping, Ollama status policy, single window.)
 Date: 2026-07-08
-Design source: Claude Design handoff bundle at `agent_docs/gui-wrapper-for-cameravision/` (project "GUI wrapper for CameraVision", root component `CupricAspect.dc.html`)
+Design source: Claude Design handoff bundle at `agent_docs/archive/gui-wrapper-for-cameravision/` (project "GUI wrapper for CameraVision", root component `CupricAspect.dc.html`)
 Companion docs: `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` (v0.11), `agent_docs/phase-4-gui-implementation-plan.md` (v0.7)
 Audience: junior engineer or Sonnet-level coding agent.
 

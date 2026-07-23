@@ -86,7 +86,7 @@ public struct XMPExportProgressRecord: Codable, Sendable, Equatable {
 }
 
 /// Append-only JSONL writer for XMP target progress records.
-public final class XMPExportProgressLog {
+public final class XMPExportProgressLog: @unchecked Sendable {
     private let writer: JSONLWriter<XMPExportProgressRecord>
 
     public var path: String { writer.path }
@@ -95,12 +95,17 @@ public final class XMPExportProgressLog {
         self.writer = try JSONLWriter(path: path, label: "XMP export progress log", fileManager: fileManager)
     }
 
-    /// Append and flush one target record before the batch advances.
+    /// Append one target record before the batch advances.
     public func append(_ record: XMPExportProgressRecord) throws {
         try writer.append(record)
     }
 
-    /// Close the underlying file handle, surfacing close failures as write errors.
+    /// Synchronize pending records without closing the log.
+    public func flush() throws {
+        try writer.flush()
+    }
+
+    /// Synchronize pending records and close the underlying file handle.
     public func close() throws {
         try writer.close()
     }

@@ -284,9 +284,25 @@ public struct OllamaVisionRunner: VisionModelRunner {
     /// List installed vision-capable model tags (CORE-8, Phase 4 Settings):
     /// the same `/api/tags` + `/api/show` probing `prepare` performs, without
     /// requiring any particular tag to exist. Serial per invariant 15.
-    public func listInstalledVisionTags(endpoint: URL) async throws -> [String] {
-        let tags = try await getTags(endpoint: endpoint)
-        return await installedVisionTags(from: tags, endpoint: endpoint).tags
+    public func listInstalledVisionTags(
+        endpoint: URL,
+        timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
+    ) async throws -> [String] {
+        let tags = try await getTags(endpoint: endpoint, timeoutSeconds: timeoutSeconds)
+        return await installedVisionTags(from: tags, endpoint: endpoint, timeoutSeconds: timeoutSeconds).tags
+    }
+
+    /// Answer the availability question only: is this endpoint serving Ollama?
+    ///
+    /// Deliberately one `/api/version` request. Enumerating vision tags answers
+    /// a different question (which models can be chosen) at the cost of an
+    /// `/api/show` per installed model, and `prepare` re-runs that enumeration
+    /// anyway before any model work.
+    public func probeReachability(
+        endpoint: URL,
+        timeoutSeconds: Double = ModelRunOptions.default.timeoutSeconds
+    ) async throws {
+        _ = try await getVersion(endpoint: endpoint, timeoutSeconds: timeoutSeconds)
     }
 
     private func getTags(
@@ -588,7 +604,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
             rawResponseText: rawResponseText,
             parsedResponseJSON: evaluation.parsedResponseJSON,
             jsonValid: evaluation.jsonValid,
-            durationMs: durationMs(from: startedAt, to: now()),
+            durationMs: Timestamp.durationMs(from: startedAt, to: now()),
             runtimeMetrics: runtimeMetrics,
             error: evaluation.error
         )
@@ -681,7 +697,7 @@ public struct OllamaVisionRunner: VisionModelRunner {
             rawResponseText: rawResponseText,
             parsedResponseJSON: parsedResponseJSON,
             jsonValid: jsonValid,
-            durationMs: durationMs(from: startedAt, to: now()),
+            durationMs: Timestamp.durationMs(from: startedAt, to: now()),
             runtimeMetrics: runtimeMetrics,
             error: error,
             responseAttempts: responseAttempts
@@ -714,10 +730,6 @@ public struct OllamaVisionRunner: VisionModelRunner {
                 "Ollama model tag not found or not vision-capable: \(model). Installed vision-capable tags: \(installed)\(probeDetail)",
             recoverable: false
         )
-    }
-
-    private func durationMs(from start: Date, to end: Date) -> Int {
-        max(0, Int((end.timeIntervalSince(start) * 1_000).rounded()))
     }
 
     private static func normalizedDigest(_ digest: String) -> String {

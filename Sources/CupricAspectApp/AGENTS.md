@@ -2,7 +2,7 @@
 
 This is the Phase 4 GUI target (`swift run CupricAspect`). Before changing anything here, read:
 
-1. `agent_docs/07-cupricaspect-gui-design.md` — the binding visual design spec (tokens, aperture component, per-screen layouts). The design handoff bundle it was extracted from lives in `agent_docs/gui-wrapper-for-cameravision/`.
+1. `agent_docs/07-cupricaspect-gui-design.md` — the binding visual design spec (tokens, aperture component, per-screen layouts). The design handoff bundle it was extracted from lives in `agent_docs/archive/gui-wrapper-for-cameravision/`.
 2. `agent_docs/04-gui-sidecar-tagger-mvp-requirements.md` — functional requirements (FR4-*, AC4-*).
 3. `agent_docs/phase-4-gui-implementation-plan.md` — milestone status and remaining work (M9–M11); execution order is owned by `agent_docs/08-post-review-hardening-plan.md` §1.1. Implement one milestone or work item at a time.
 

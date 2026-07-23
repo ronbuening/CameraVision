@@ -2,129 +2,19 @@ import AISidecarCore
 import Foundation
 import Observation
 
-/// User-adjustable run options (Wizard Step 3). Values map one-to-one onto
-/// Core enums (FR4-044); resolved against the shared config.json via
-/// `ConfigurationResolver` so GUI and CLI defaults can never diverge.
-@MainActor
-@Observable
-final class AnalysisOptions {
-    private let environment: [String: String]
-    private let defaultConfigPath: String?
-
-    var mode: AnalysisMode = .both
-    var gps: GPSContextMode = .coarse
-    var existing: ExistingPolicy = .skip
-    var concurrency = 1
-    var advancedOpen = false
-    var modelOverride: String?
-    var xmpConflictPolicy: XMPConflictPolicy = ResolvedApplySessionConfiguration.builtInDefaults.xmpConflictPolicy
-    var assessQuality = false
-    var qualityScanMode: QualityScanMode = ResolvedRunConfiguration.builtInDefaults.qualityScanMode
-    var qualityGradingEnabled = false
-    var qualityWriteRating = QualityGradingPolicy.builtInDefaults.writeRating
-    var qualityConflictPolicy = ResolvedQualityGradingConfiguration.builtInDefaults.conflictPolicy
-    /// Rendering profile name controlling the image size sent to the model.
-    var profile: String = ModelInputProfile.defaultProfile.name
-    /// Ollama num_ctx token window requested per model call.
-    var contextWindow: Int = ResolvedRunConfiguration.builtInDefaults.modelContextWindow
-
-    /// Resolved display values (model tag, endpoint) from the config chain.
-    private(set) var resolvedModel = ""
-    private(set) var resolvedEndpoint = ""
-    private(set) var defaultsLoaded = false
-
-    init(
-        environment: [String: String] = ProcessInfo.processInfo.environment,
-        defaultConfigPath: String? = nil
-    ) {
-        self.environment = environment
-        self.defaultConfigPath = defaultConfigPath
-    }
-
-    var effectiveModel: String {
-        modelOverride ?? resolvedModel
-    }
-
-    func loadResolvedDefaults() {
-        guard
-            let resolved = try? ConfigurationResolver.resolve(
-                environment: environment,
-                defaultConfigPath: defaultConfigPath
-            )
-        else { return }
-        resolvedModel = resolved.model
-        resolvedEndpoint = resolved.modelEndpoint.absoluteString
-        guard !defaultsLoaded else { return }
-        defaultsLoaded = true
-        mode = resolved.mode
-        gps = resolved.gpsContext
-        existing = resolved.existing
-        concurrency = min(8, max(1, resolved.stageConcurrency))
-        profile = resolved.profile
-        contextWindow = resolved.modelContextWindow
-        assessQuality = resolved.taskProfile == .taggingWithQuality
-        qualityScanMode = resolved.qualityScanMode
-        if let exportDefaults = try? ConfigurationResolver.resolveApplySession(
-            environment: environment,
-            defaultConfigPath: defaultConfigPath
-        ) {
-            xmpConflictPolicy = exportDefaults.xmpConflictPolicy
-            qualityGradingEnabled = exportDefaults.qualityGrading.enabled
-            qualityWriteRating = exportDefaults.qualityGrading.policy.writeRating
-            qualityConflictPolicy = exportDefaults.qualityGrading.conflictPolicy
-        }
-    }
-
-    func resetToResolvedDefaults() {
-        defaultsLoaded = false
-        loadResolvedDefaults()
-    }
-
-    /// Build the run configuration: UI choices as CLI-equivalent overrides on
-    /// top of config.json/environment/defaults.
-    func buildConfiguration(recursive: Bool, outputDir: String?) throws -> ResolvedRunConfiguration {
-        try ConfigurationResolver.resolve(
-            cli: RunConfigurationOverrides(
-                mode: mode,
-                existing: existing,
-                recursive: recursive,
-                qualityAssessment: assessQuality,
-                qualityScanMode: qualityScanMode,
-                outputDir: outputDir,
-                model: modelOverride,
-                profile: profile,
-                stageConcurrency: concurrency,
-                gpsContext: gps,
-                modelContextWindow: contextWindow
-            ),
-            environment: environment,
-            defaultConfigPath: defaultConfigPath
-        )
-    }
-
-    func qualityGradingOverrides(enabled: Bool? = nil) -> QualityGradingConfigurationOverrides {
-        QualityGradingConfigurationOverrides(
-            enabled: enabled ?? qualityGradingEnabled,
-            conflictPolicy: qualityConflictPolicy,
-            writeRating: qualityWriteRating
-        )
-    }
-
-    func qualityGradingOverrides(controlsEnabled: Bool) -> QualityGradingConfigurationOverrides {
-        guard controlsEnabled else {
-            return QualityGradingConfigurationOverrides(enabled: false)
-        }
-        return qualityGradingOverrides()
-    }
-}
-
-/// Ollama connectivity per FR4-051: checked on demand (launch, entering
+/// Backend connectivity per FR4-051: checked on demand (launch, entering
 /// options, pre-run, manual refresh) — never polled.
 enum PreflightState: Equatable {
     case unknown
     case checking
-    case ready(model: String, digest: String, runtimeVersion: String)
-    case failed(message: String)
+    case ready(
+        backendID: ModelBackend,
+        backendDisplayName: String,
+        model: String,
+        digest: String,
+        runtimeVersion: String
+    )
+    case failed(backendID: ModelBackend, backendDisplayName: String, message: String)
 }
 
 /// Outcome summary of a completed analysis run (Wizard Step 5 until M4's
@@ -170,6 +60,13 @@ final class AnalysisRunModel {
 
     private var monitor: InterruptionMonitor?
     private var preflightGeneration = 0
+    private let backendRegistry: VisionBackendRegistry
+    private let runnerFactory: VisionModelRunnerFactory
+
+    init(backendRegistry: VisionBackendRegistry = .live) {
+        self.backendRegistry = backendRegistry
+        self.runnerFactory = VisionModelRunnerFactory(registry: backendRegistry)
+    }
 
     var progressFraction: Double {
         total > 0 ? min(1, Double(done) / Double(total)) : 0
@@ -197,18 +94,31 @@ final class AnalysisRunModel {
         let generation = preflightGeneration
         preflight = .checking
         Task {
+            var requestedBackend = options.resolvedBackend
+            var descriptor: (any VisionBackendDescriptor)?
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
-                let runtime = try await OllamaVisionRunner().prepare(configuration: configuration)
+                requestedBackend = configuration.modelBackend
+                let resolvedDescriptor = try await runnerFactory.resolveBackend(for: configuration)
+                descriptor = resolvedDescriptor
+                let runner = resolvedDescriptor.makeRunner()
+                let runtime = try await runner.prepare(configuration: configuration)
                 guard generation == preflightGeneration else { return }
                 preflight = .ready(
+                    backendID: resolvedDescriptor.id,
+                    backendDisplayName: resolvedDescriptor.displayName,
                     model: runtime.model,
                     digest: runtime.modelDigest,
                     runtimeVersion: runtime.runtimeVersion
                 )
             } catch {
                 guard generation == preflightGeneration else { return }
-                preflight = .failed(message: Self.guidance(for: error))
+                let failedDescriptor = descriptor ?? displayDescriptor(for: requestedBackend)
+                preflight = .failed(
+                    backendID: failedDescriptor?.id ?? requestedBackend,
+                    backendDisplayName: failedDescriptor?.displayName ?? requestedBackend.displayName,
+                    message: Self.guidance(for: error, descriptor: failedDescriptor)
+                )
             }
         }
     }
@@ -243,13 +153,18 @@ final class AnalysisRunModel {
         }
 
         Task {
+            var descriptor: (any VisionBackendDescriptor)?
             do {
                 let configuration = try options.buildConfiguration(recursive: recursive, outputDir: outputDir)
-                let pipeline = AnalyzePipeline(logger: GUILog.shared.makeLogger(), runner: OllamaVisionRunner())
+                descriptor = displayDescriptor(for: configuration.modelBackend)
+                // The factory gates a pinned backend inside `prepare`, so a run
+                // whose images are all skipped still needs no backend I/O.
+                let selection = try await runnerFactory.make(for: configuration)
+                let pipeline = AnalyzePipeline(logger: GUILog.shared.makeLogger(), runner: selection.runner)
                 let result = try await Task.detached(priority: .userInitiated) {
                     try await pipeline.run(
                         inputPath: inputPath,
-                        configuration: configuration,
+                        configuration: selection.configuration,
                         interruptionMonitor: monitor,
                         writesBatchArtifacts: false,
                         progressHandler: { continuation.yield($0) }
@@ -260,7 +175,7 @@ final class AnalysisRunModel {
                 phase = .finished(Self.outcome(from: result.records, interrupted: result.interrupted))
             } catch {
                 continuation.finish()
-                phase = .failed(message: Self.guidance(for: error))
+                phase = .failed(message: Self.guidance(for: error, descriptor: descriptor))
             }
         }
     }
@@ -361,18 +276,42 @@ final class AnalysisRunModel {
         return rank(rhs) > rank(lhs) ? rhs : lhs
     }
 
-    /// User-facing message for preflight/run failures; mirrors the README's
-    /// Ollama troubleshooting guidance for the common cases.
-    private static func guidance(for error: Error) -> String {
+    func descriptor(for backend: ModelBackend) -> (any VisionBackendDescriptor)? {
+        displayDescriptor(for: backend)
+    }
+
+    func resolveBackend(for configuration: ResolvedRunConfiguration) async throws -> any VisionBackendDescriptor {
+        try await runnerFactory.resolveBackend(for: configuration)
+    }
+
+    func supportedTuningKnobs(for backend: ModelBackend) -> Set<ModelTuningKnob> {
+        displayDescriptor(for: backend)?.supportedTuningKnobs ?? []
+    }
+
+    private func displayDescriptor(for backend: ModelBackend) -> (any VisionBackendDescriptor)? {
+        if case .ready(let backendID, _, _, _, _) = preflight,
+            backend == .auto || backend == backendID,
+            let descriptor = backendRegistry.descriptor(for: backendID)
+        {
+            return descriptor
+        }
+        if backend != .auto {
+            return backendRegistry.descriptor(for: backend)
+        }
+        return backendRegistry.descriptor(for: .ollama) ?? backendRegistry.descriptors.first
+    }
+
+    /// User-facing preflight/run remediation comes from the selected backend descriptor.
+    private static func guidance(for error: Error, descriptor: (any VisionBackendDescriptor)?) -> String {
         guard let sidecarError = error as? SidecarError else {
             return error.localizedDescription
         }
         switch sidecarError.code {
-        case .modelEndpointUnreachable:
-            return
-                "Ollama isn't reachable. If it's installed, open the Ollama app (or run `ollama serve`); if not, download it from \(RuntimeGuidanceModel.downloadURL). Then retry."
+        case .modelEndpointUnreachable, .modelBackendUnavailable:
+            return descriptor?.guidance.preflightUnavailableMessage ?? sidecarError.message
         case .modelTagNotFound:
-            return sidecarError.message + " Pull it with `ollama pull <tag>` or pick an installed vision model."
+            guard let help = descriptor?.guidance.modelNotFoundHelp else { return sidecarError.message }
+            return sidecarError.message + " " + help
         default:
             return sidecarError.message
         }

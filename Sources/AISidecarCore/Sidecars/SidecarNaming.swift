@@ -56,7 +56,7 @@ public enum SidecarNaming {
         for source: SourceImage,
         kind: RawSidecarKind = .tagging
     ) -> String {
-        "\(source.fileName)\(suffix(for: kind))"
+        sidecarFileName(fileName: source.fileName, kind: kind)
     }
 
     /// Return the mirrored relative path used under `--output-dir`.
@@ -64,11 +64,7 @@ public enum SidecarNaming {
         for source: SourceImage,
         kind: RawSidecarKind = .tagging
     ) -> String {
-        let components = relativeComponents(for: source.relativePath)
-        guard let fileName = components.last else {
-            return sidecarFileName(for: source, kind: kind)
-        }
-        return (Array(components.dropLast()) + ["\(fileName)\(suffix(for: kind))"]).joined(separator: "/")
+        sidecarRelativePath(relativePath: source.relativePath, fileName: source.fileName, kind: kind)
     }
 
     /// Resolve the concrete sidecar path for beside-source or mirrored output.
@@ -77,17 +73,65 @@ public enum SidecarNaming {
         outputDir: String?,
         kind: RawSidecarKind = .tagging
     ) -> String {
+        destinationPath(
+            sourcePath: source.path,
+            relativePath: source.relativePath,
+            fileName: source.fileName,
+            outputDir: outputDir,
+            kind: kind
+        )
+    }
+
+    /// Resolve a sidecar without forcing discovery-only callers to hash the source.
+    static func destinationPath(
+        for source: ScanInventoryEntry,
+        outputDir: String?,
+        kind: RawSidecarKind = .tagging
+    ) -> String {
+        destinationPath(
+            sourcePath: source.path,
+            relativePath: source.relativePath,
+            fileName: source.fileName,
+            outputDir: outputDir,
+            kind: kind
+        )
+    }
+
+    /// Resolve a sidecar when a Core presentation boundary has only source location data.
+    static func destinationPath(
+        sourcePath: String,
+        relativePath: String,
+        outputDir: String?,
+        kind: RawSidecarKind = .tagging
+    ) -> String {
+        destinationPath(
+            sourcePath: sourcePath,
+            relativePath: relativePath,
+            fileName: URL(fileURLWithPath: sourcePath).lastPathComponent,
+            outputDir: outputDir,
+            kind: kind
+        )
+    }
+
+    private static func destinationPath(
+        sourcePath: String,
+        relativePath: String,
+        fileName: String,
+        outputDir: String?,
+        kind: RawSidecarKind
+    ) -> String {
         let destination: URL
         if let outputDir {
             destination = appendRelativeSidecarPath(
-                for: source,
+                relativePath: relativePath,
+                fileName: fileName,
                 to: URL(fileURLWithPath: (outputDir as NSString).expandingTildeInPath),
                 kind: kind
             )
         } else {
-            destination = URL(fileURLWithPath: source.path)
+            destination = URL(fileURLWithPath: sourcePath)
                 .deletingLastPathComponent()
-                .appendingPathComponent(sidecarFileName(for: source, kind: kind))
+                .appendingPathComponent(sidecarFileName(fileName: fileName, kind: kind))
         }
         return destination.standardizedFileURL.path
     }
@@ -140,14 +184,115 @@ public enum SidecarNaming {
         return SidecarPlan(entries: entries, collisions: collisions)
     }
 
+    static func siblingSourceURL(for sidecarURL: URL) -> URL {
+        let sourceFileName = sidecarBaseFileName(for: sidecarURL) ?? sidecarURL.lastPathComponent
+        return sidecarURL.deletingLastPathComponent().appendingPathComponent(sourceFileName).standardizedFileURL
+    }
+
+    static func siblingSidecarURL(for sidecarURL: URL) -> URL {
+        guard let kind = sidecarKind(for: sidecarURL), let baseName = sidecarBaseFileName(for: sidecarURL) else {
+            return sidecarURL
+        }
+        let siblingSuffix: String
+        switch kind {
+        case .tagging:
+            siblingSuffix = qualitySuffix
+        case .quality:
+            siblingSuffix = taggingSuffix
+        }
+        return sidecarURL.deletingLastPathComponent()
+            .appendingPathComponent("\(baseName)\(siblingSuffix)")
+            .standardizedFileURL
+    }
+
+    /// Fold `.quality.ai.json` inputs into their tagging siblings.
+    ///
+    /// Internal so the analyze-and-* pipelines can apply the same pairing to
+    /// records produced by an in-process sequential quality run.
+    static func groupedSidecarInputs(_ inputs: [ResolvedRawSidecarInput]) -> [ResolvedRawSidecarInput] {
+        let grouped = Dictionary(grouping: inputs) { sidecarPairingKey(for: $0.sidecarPath) }
+        return grouped.values.compactMap { group in
+            // Existing Phase 2 consumers keep the tagging document as their
+            // primary input; quality data rides beside it for grading.
+            let tagging = group.first { sidecarKind(for: $0.sidecarPath) == .tagging }
+            let quality = group.first { sidecarKind(for: $0.sidecarPath) == .quality }
+            guard var primary = tagging ?? quality else {
+                return nil
+            }
+            if let quality {
+                primary.qualitySidecarPath = quality.sidecarPath
+                primary.qualityDocument = quality.document
+                if quality.sidecarPath != primary.sidecarPath {
+                    primary.warnings.append(contentsOf: quality.warnings)
+                    if quality.sourceIdentityStatus == .mismatched {
+                        primary.sourceIdentityStatus = .mismatched
+                    }
+                }
+            }
+            return primary
+        }
+        .sorted {
+            comparePaths($0.relativePath ?? $0.sidecarPath.path, $1.relativePath ?? $1.sidecarPath.path)
+        }
+    }
+
+    static func sidecarPairingKey(for url: URL) -> String {
+        url.deletingLastPathComponent()
+            .appendingPathComponent(sidecarBaseFileName(for: url) ?? url.lastPathComponent)
+            .standardizedFileURL.path
+    }
+
+    static func sidecarBaseFileName(for url: URL) -> String? {
+        guard let kind = sidecarKind(for: url) else {
+            return nil
+        }
+        let suffix: String
+        switch kind {
+        case .tagging:
+            suffix = taggingSuffix
+        case .quality:
+            suffix = qualitySuffix
+        }
+        return String(url.lastPathComponent.dropLast(suffix.count))
+    }
+
+    static func sidecarKind(for url: URL) -> RawSidecarKind? {
+        let fileName = url.lastPathComponent.lowercased()
+        if fileName.hasSuffix(qualitySuffix) {
+            return .quality
+        }
+        if fileName.hasSuffix(taggingSuffix) {
+            return .tagging
+        }
+        return nil
+    }
+
     private static func appendRelativeSidecarPath(
-        for source: SourceImage,
+        relativePath: String,
+        fileName: String,
         to base: URL,
         kind: RawSidecarKind
     ) -> URL {
-        relativeComponents(for: sidecarRelativePath(for: source, kind: kind)).reduce(base) { url, component in
-            url.appendingPathComponent(component)
+        relativeComponents(for: sidecarRelativePath(relativePath: relativePath, fileName: fileName, kind: kind))
+            .reduce(base) { url, component in
+                url.appendingPathComponent(component)
+            }
+    }
+
+    private static func sidecarFileName(fileName: String, kind: RawSidecarKind) -> String {
+        "\(fileName)\(suffix(for: kind))"
+    }
+
+    private static func sidecarRelativePath(
+        relativePath: String,
+        fileName: String,
+        kind: RawSidecarKind
+    ) -> String {
+        let components = relativeComponents(for: relativePath)
+        guard let relativeFileName = components.last else {
+            return sidecarFileName(fileName: fileName, kind: kind)
         }
+        return (Array(components.dropLast()) + ["\(relativeFileName)\(suffix(for: kind))"]).joined(separator: "/")
     }
 
     private static func suffix(for kind: RawSidecarKind) -> String {

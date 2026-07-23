@@ -5,7 +5,7 @@ import XCTest
 @testable import AISidecarCore
 
 final class NormalizeQualityDefaultOffIdentityTests: XCTestCase {
-    func testDefaultOffRunMatchesPreQN3ArtifactHashes() throws {
+    func testDefaultOffRunMatchesPreQN3ArtifactHashes() async throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let jsonRoot = root.appendingPathComponent("json")
@@ -46,7 +46,7 @@ final class NormalizeQualityDefaultOffIdentityTests: XCTestCase {
         configuration.qualityGrading = .builtInDefaults
 
         let normalizationTimestamp = Date(timeIntervalSince1970: 1_800_000_100)
-        let normalizeResult = try NormalizePipeline().runWritePlan(
+        let normalizeResult = try await NormalizePipeline().runWritePlan(
             mode: .fromJSON(path: jsonRoot.path),
             configuration: configuration,
             timestamp: normalizationTimestamp,

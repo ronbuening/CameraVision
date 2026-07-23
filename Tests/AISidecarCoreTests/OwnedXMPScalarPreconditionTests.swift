@@ -4,6 +4,163 @@ import XCTest
 @testable import AISidecarCore
 
 final class OwnedXMPScalarPreconditionTests: XCTestCase {
+    func testPlanPreviewAndApplyReuseOnePreWriteParseButValidationReadsFreshBytes() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Cached-Prewrite.xmp")
+        try Data(existingRatingThreeXMP.utf8).write(to: target)
+        let counter = XMPParseCounter()
+        let engine = OwnedXMPSidecarEngine(parseObserver: counter.record)
+        _ = try engine.prepare(configuration: .builtInDefaults)
+        defer { try? engine.shutdown() }
+        let request = XMPWriteRequest(
+            plan: changePlan(
+                targetPath: target.path,
+                scalar: .rating,
+                plannedValue: "4",
+                existingValue: "3",
+                action: .overwrite
+            )
+        )
+
+        XCTAssertEqual(try engine.readSnapshot(at: target.path).rating, "3")
+        XCTAssertEqual(try engine.preview(request).resultingRating, "4")
+        let result = try engine.apply(request)
+
+        XCTAssertEqual(result.resultingRating, "4")
+        XCTAssertEqual(counter.count(for: .preWrite), 1)
+        XCTAssertEqual(counter.count(for: .validation), 2)
+        XCTAssertEqual(try engine.validateReadable(at: target.path).rating, "4")
+        XCTAssertEqual(counter.count(for: .validation), 3)
+    }
+
+    func testApplyDetectsExternalReplacementAfterCachedPreview() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Externally-Replaced.xmp")
+        try Data(existingRatingThreeXMP.utf8).write(to: target)
+        let replacementData = Data(existingRatingFiveXMP.utf8)
+        let engine = OwnedXMPSidecarEngine()
+        _ = try engine.prepare(configuration: .builtInDefaults)
+        defer { try? engine.shutdown() }
+        let request = XMPWriteRequest(
+            plan: changePlan(
+                targetPath: target.path,
+                scalar: .rating,
+                plannedValue: "4",
+                existingValue: "3",
+                action: .overwrite
+            )
+        )
+
+        XCTAssertEqual(try engine.preview(request).resultingRating, "4")
+        try replacementData.write(to: target, options: .atomic)
+
+        XCTAssertThrowsError(try engine.apply(request)) { error in
+            XCTAssertTrue(error is XMPScalarWritePreconditionFailure)
+        }
+        XCTAssertEqual(try Data(contentsOf: target), replacementData)
+    }
+
+    func testApplyDetectsSameSizeInPlaceRewriteAfterCachedPreview() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Rewritten-In-Place.xmp")
+        try Data(existingRatingThreeXMP.utf8).write(to: target)
+        // Same byte count as the original, rewritten through the existing
+        // file: inode and size stay identical, so only the mtime component of
+        // the identity key or the content hash can catch this mutation.
+        let rewrittenData = Data(existingRatingFiveXMP.utf8)
+        XCTAssertEqual(rewrittenData.count, Data(existingRatingThreeXMP.utf8).count)
+        let engine = OwnedXMPSidecarEngine()
+        _ = try engine.prepare(configuration: .builtInDefaults)
+        defer { try? engine.shutdown() }
+        let request = XMPWriteRequest(
+            plan: changePlan(
+                targetPath: target.path,
+                scalar: .rating,
+                plannedValue: "4",
+                existingValue: "3",
+                action: .overwrite
+            )
+        )
+
+        XCTAssertEqual(try engine.preview(request).resultingRating, "4")
+        let handle = try FileHandle(forWritingTo: target)
+        try handle.write(contentsOf: rewrittenData)
+        try handle.close()
+
+        XCTAssertThrowsError(try engine.apply(request)) { error in
+            XCTAssertTrue(error is XMPScalarWritePreconditionFailure)
+        }
+        XCTAssertEqual(try Data(contentsOf: target), rewrittenData)
+    }
+
+    func testApplyDetectsInPlaceRewriteEvenWhenModificationTimeIsRestored() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Backdated-Rewrite.xmp")
+        try Data(existingRatingThreeXMP.utf8).write(to: target)
+        let pinnedModificationDate = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes(
+            [.modificationDate: pinnedModificationDate], ofItemAtPath: target.path
+        )
+        let cachedModificationDate = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: target.path)[.modificationDate] as? Date
+        )
+        let rewrittenData = Data(existingRatingFiveXMP.utf8)
+        XCTAssertEqual(rewrittenData.count, Data(existingRatingThreeXMP.utf8).count)
+        let engine = OwnedXMPSidecarEngine()
+        _ = try engine.prepare(configuration: .builtInDefaults)
+        defer { try? engine.shutdown() }
+        let request = XMPWriteRequest(
+            plan: changePlan(
+                targetPath: target.path,
+                scalar: .rating,
+                plannedValue: "4",
+                existingValue: "3",
+                action: .overwrite
+            )
+        )
+
+        XCTAssertEqual(try engine.preview(request).resultingRating, "4")
+        let handle = try FileHandle(forWritingTo: target)
+        try handle.write(contentsOf: rewrittenData)
+        try handle.close()
+        // Backdating the rewrite to the pinned mtime makes inode, size, and
+        // mtime all match the cached identity: only the content hash can
+        // expose this mutation, on any filesystem's mtime granularity.
+        try FileManager.default.setAttributes(
+            [.modificationDate: pinnedModificationDate], ofItemAtPath: target.path
+        )
+        XCTAssertEqual(
+            try FileManager.default.attributesOfItem(atPath: target.path)[.modificationDate] as? Date,
+            cachedModificationDate
+        )
+
+        XCTAssertThrowsError(try engine.apply(request)) { error in
+            XCTAssertTrue(error is XMPScalarWritePreconditionFailure)
+        }
+        XCTAssertEqual(try Data(contentsOf: target), rewrittenData)
+    }
+
+    func testPreWriteCacheDoesNotCrossEngineInvocations() throws {
+        let root = try temporaryDirectory()
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let target = root.appendingPathComponent("Invocation-Boundary.xmp")
+        try Data(existingRatingThreeXMP.utf8).write(to: target)
+        let counter = XMPParseCounter()
+        let engine = OwnedXMPSidecarEngine(parseObserver: counter.record)
+
+        for _ in 0..<2 {
+            _ = try engine.prepare(configuration: .builtInDefaults)
+            XCTAssertEqual(try engine.readSnapshot(at: target.path).rating, "3")
+            try engine.shutdown()
+        }
+
+        XCTAssertEqual(counter.count(for: .preWrite), 2)
+    }
+
     func testPreviewAndApplyRejectStaleMutatingScalarPlansWithoutChangingBytes() throws {
         let root = try temporaryDirectory()
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
@@ -271,6 +428,21 @@ final class OwnedXMPScalarPreconditionTests: XCTestCase {
             action: .skipExisting
         )
         return plan
+    }
+}
+
+private final class XMPParseCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var counts: [XMPDocumentParsePurpose: Int] = [:]
+
+    func record(_ purpose: XMPDocumentParsePurpose) {
+        lock.withLock {
+            counts[purpose, default: 0] += 1
+        }
+    }
+
+    func count(for purpose: XMPDocumentParsePurpose) -> Int {
+        lock.withLock { counts[purpose, default: 0] }
     }
 }
 

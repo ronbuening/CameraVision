@@ -3,6 +3,51 @@ import XCTest
 @testable import AISidecarCore
 
 final class AssetAffinityGraphTests: XCTestCase {
+    func testNeighborIndexPreservesEdgeOrderDirectionAndThreshold() {
+        let components = AssetAffinityComponentScoreRecord(
+            gearScore: 0,
+            primaryAvailableWeight: 1,
+            primaryEvidenceCount: 1,
+            basisSignals: ["filename_sequence"],
+            gearOnly: false
+        )
+        let nodes = (1...3).map { index in
+            NormalizationAffinityNodeRecord(
+                nodeID: "node-\(index)",
+                groupID: "group-\(index)",
+                memberAssetIDs: ["asset-\(index)"]
+            )
+        }
+        let graph = AssetAffinityGraph(
+            nodes: nodes,
+            edges: [
+                AssetAffinityEdgeRecord(
+                    fromNodeID: "node-1",
+                    toNodeID: "node-3",
+                    affinity: 0.8,
+                    scoreBand: "strong",
+                    components: components
+                ),
+                AssetAffinityEdgeRecord(
+                    fromNodeID: "node-2",
+                    toNodeID: "node-1",
+                    affinity: 0.6,
+                    scoreBand: "moderate",
+                    components: components
+                ),
+            ],
+            clusters: [],
+            nodeIDByAssetID: ["asset-1": "node-1", "asset-2": "node-2", "asset-3": "node-3"]
+        )
+
+        XCTAssertEqual(graph.nodeByID["node-2"], nodes[1])
+        let neighbors = graph.neighbors(of: "node-1", minimumAffinity: 0.5)
+        XCTAssertEqual(neighbors.map(\.nodeID), ["node-3", "node-2"])
+        XCTAssertEqual(neighbors.map(\.affinity), [0.8, 0.6])
+        XCTAssertEqual(graph.neighbors(of: "node-1", minimumAffinity: 0.7).map(\.nodeID), ["node-3"])
+        XCTAssertTrue(graph.neighbors(of: "missing", minimumAffinity: 0).isEmpty)
+    }
+
     func testSameBaseNameMembersCollapseToOneAffinityNode() {
         var raw = phase3Asset(index: 1, relativePath: "Bird.NEF", sameBaseNameGroupID: "group-000001")
         var jpeg = phase3Asset(index: 2, relativePath: "Bird.JPG", sameBaseNameGroupID: "group-000001")

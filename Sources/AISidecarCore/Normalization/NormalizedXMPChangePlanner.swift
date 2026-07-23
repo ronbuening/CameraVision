@@ -14,6 +14,7 @@ public struct NormalizedXMPChangePlanResult: Sendable, Equatable {
 /// Converts Phase 3 decisions into shared Phase 2 XMP change-plan records.
 public struct NormalizedXMPChangePlanner {
     private let fileManager: FileManager
+    private let assembler = XMPChangePlanAssembler()
 
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -170,46 +171,41 @@ public struct NormalizedXMPChangePlanner {
             failures.append(emptySelectionError(group: group, pairScope: configuration.pairScope))
         }
 
-        var plan = XMPChangePlan(
-            status: failures.isEmpty ? .planned : .failed,
-            targetXMPPath: targetPath,
-            targetRelativePath: group.targetRelativePath,
-            pairScope: configuration.pairScope,
-            sourceMembers: group.memberAssetIDs.compactMap {
-                sourceMemberPlan(
-                    assetID: $0,
-                    selected: selectedIDs.contains($0),
-                    asset: assetsByID[$0],
-                    sidecar: sidecarsByAssetID[$0],
-                    rawSidecarInput: gradingInputsByAssetID[$0],
-                    decisions: groupDecisions,
-                    pairScope: configuration.pairScope,
-                    includesQualityProvenance: configuration.qualityGrading.enabled
-                )
-            },
-            flatKeywordsToAdd: flat.keywords,
-            hierarchicalKeywordsToAdd: hierarchical.keywords,
-            skippedCandidates: groupSkips.map(skippedCandidate),
-            candidateExtractionIssues: [],
-            sourceVerificationWarnings: group.memberAssetIDs
-                .compactMap { sidecarsByAssetID[$0] }
-                .flatMap(\.warnings),
-            groupWarnings: groupWarnings(group: group, pairScope: configuration.pairScope),
-            existingPolicy: configuration.xmpConflictPolicy,
-            backupPlan: BackupPlan(
-                backupSidecars: configuration.backupSidecars,
-                backupRequiredBeforeMerge: configuration.xmpConflictPolicy == .backupAndMerge,
-                conflictPolicy: configuration.xmpConflictPolicy
+        let plan = assembler.assemble(
+            XMPChangePlanAssembler.TargetContent(
+                targetXMPPath: targetPath,
+                targetRelativePath: group.targetRelativePath,
+                sourceMembers: group.memberAssetIDs.compactMap {
+                    sourceMemberPlan(
+                        assetID: $0,
+                        selected: selectedIDs.contains($0),
+                        asset: assetsByID[$0],
+                        sidecar: sidecarsByAssetID[$0],
+                        rawSidecarInput: gradingInputsByAssetID[$0],
+                        decisions: groupDecisions,
+                        pairScope: configuration.pairScope,
+                        includesQualityProvenance: configuration.qualityGrading.enabled
+                    )
+                },
+                flatKeywords: flat.keywords,
+                hierarchicalKeywords: hierarchical.keywords,
+                skippedCandidates: groupSkips.map(skippedCandidate),
+                candidateExtractionIssues: [],
+                sourceVerificationWarnings: group.memberAssetIDs
+                    .compactMap { sidecarsByAssetID[$0] }
+                    .flatMap(\.warnings),
+                groupWarnings: groupWarnings(group: group, pairScope: configuration.pairScope),
+                failures: failures,
+                gradingInputs: group.selectedAssetIDs.compactMap { gradingInputsByAssetID[$0] }
             ),
-            validationPlan: .phase2Default,
-            failures: failures
-        )
-        QualityGradingPlanApplier().apply(
-            to: &plan,
-            inputs: group.selectedAssetIDs.compactMap { gradingInputsByAssetID[$0] },
-            grading: configuration.qualityGrading,
-            writeFlatKeywords: configuration.writeFlatKeywords,
-            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
+            settings: XMPChangePlanAssembler.Settings(
+                pairScope: configuration.pairScope,
+                conflictPolicy: configuration.xmpConflictPolicy,
+                backupSidecars: configuration.backupSidecars,
+                writeFlatKeywords: configuration.writeFlatKeywords,
+                writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
+                qualityGrading: configuration.qualityGrading
+            ),
             snapshotReader: snapshotReader
         )
         return NormalizedXMPWritePlan(
@@ -228,7 +224,8 @@ public struct NormalizedXMPChangePlanner {
         guard writeEnabled else {
             return ([], [])
         }
-        var accumulators: [String: PlannedKeywordAccumulator] = [:]
+        var contributions: [PlannedKeyword] = []
+        var decisionsByKey: [String: [PerAssetNormalizationDecision]] = [:]
         for decision in decisions {
             let term: String?
             let exportEnabled: Bool
@@ -245,27 +242,50 @@ public struct NormalizedXMPChangePlanner {
                 continue
             }
             let key = KeywordTextNormalizer.deduplicationKey(for: normalizedTerm)
-            var accumulator =
-                accumulators[key]
-                ?? PlannedKeywordAccumulator(
+            contributions.append(
+                PlannedKeyword(
                     term: normalizedTerm,
                     normalizedKey: key,
-                    bag: bag
+                    candidates: decision.observations.map { extractedCandidate(from: $0) }
                 )
-            accumulator.decisions.append(decision)
-            accumulator.candidates.append(contentsOf: decision.observations.map { extractedCandidate(from: $0) })
-            accumulators[key] = accumulator
+            )
+            decisionsByKey[key, default: []].append(decision)
         }
-        let sorted = accumulators.values.sorted { comparePaths($0.term, $1.term) }
-        return (
-            sorted.map {
-                PlannedKeyword(
-                    term: $0.term,
-                    normalizedKey: $0.normalizedKey,
-                    candidates: $0.candidates.sorted(by: compareExtractedCandidates)
-                )
-            },
-            sorted.map(\.provenance)
+        let keywords = assembler.mergeKeywords(
+            contributions,
+            keywordOrder: .termSorted,
+            candidateOrder: .provenanceSorted
+        )
+        let provenance = keywords.map { keyword in
+            keywordProvenance(
+                for: keyword,
+                bag: bag,
+                decisions: decisionsByKey[keyword.normalizedKey, default: []]
+            )
+        }
+        return (keywords, provenance)
+    }
+
+    private func keywordProvenance(
+        for keyword: PlannedKeyword,
+        bag: NormalizedXMPKeywordBag,
+        decisions: [PerAssetNormalizationDecision]
+    ) -> NormalizedXMPKeywordProvenance {
+        let sortedDecisions = decisions.sorted(by: compareDecisions)
+        return NormalizedXMPKeywordProvenance(
+            term: keyword.term,
+            normalizedKey: keyword.normalizedKey,
+            keywordBag: bag,
+            decisionIDs: uniqueStrings(sortedDecisions.map(\.decisionID)),
+            assetIDs: uniqueStrings(sortedDecisions.map(\.assetID)),
+            stages: uniqueStages(sortedDecisions.map(\.stage)),
+            candidateKinds: uniqueCandidateKinds(sortedDecisions.map(\.candidateKind)),
+            canonicalPaths: uniqueStrings(sortedDecisions.compactMap(\.canonicalPath)),
+            observationIDs: uniqueStrings(sortedDecisions.flatMap { $0.observations.map(\.observationID) }),
+            sourceTexts: uniqueStrings(sortedDecisions.compactMap(\.sourceText)),
+            contextTypes: uniqueContextTypes(sortedDecisions.compactMap(\.contextType)),
+            governingRules: uniqueStrings(sortedDecisions.compactMap(\.governingRule)),
+            supportingAssetIDs: uniqueStrings(sortedDecisions.flatMap(\.supportingAssetIDs))
         )
     }
 
@@ -312,24 +332,27 @@ public struct NormalizedXMPChangePlanner {
         } else {
             sourceSidecarPath = nil
         }
-        return SourceMemberPlan(
-            sourcePath: sourcePath,
-            sourceRelativePath: asset.sourceRelativePath,
-            sourceFileName: asset.fileName,
-            sourceType: asset.sourceType,
-            sourceSidecarPath: sourceSidecarPath,
-            sourceSidecarRelativePath: sidecar?.relativePath,
-            sourceIdentityStatus: asset.sourceIdentityStatus ?? .skipped,
-            pairKind: XMPSourcePairKind(sourceType: asset.sourceType),
-            selected: selected,
-            skipReason: selected ? nil : skipReason(pairScope: pairScope),
-            flatKeywordContributionCount: assetDecisions.filter { $0.flatKeyword != nil && $0.exportFlatKeyword }.count,
-            hierarchicalKeywordContributionCount: assetDecisions.filter {
-                $0.hierarchicalKeyword != nil && $0.exportHierarchicalKeyword
-            }.count,
-            qualitySidecarPath: selected && includesQualityProvenance
-                ? distinctQualitySidecarPath(for: rawSidecarInput)
-                : nil
+        return assembler.sourceMemberPlan(
+            XMPChangePlanAssembler.SourceMemberContent(
+                sourcePath: sourcePath,
+                sourceRelativePath: asset.sourceRelativePath,
+                sourceFileName: asset.fileName,
+                sourceType: asset.sourceType,
+                sourceSidecarPath: sourceSidecarPath,
+                sourceSidecarRelativePath: sidecar?.relativePath,
+                sourceIdentityStatus: asset.sourceIdentityStatus ?? .skipped,
+                pairKind: XMPSourcePairKind(sourceType: asset.sourceType),
+                selected: selected,
+                flatKeywordContributionCount: assetDecisions.filter {
+                    $0.flatKeyword != nil && $0.exportFlatKeyword
+                }.count,
+                hierarchicalKeywordContributionCount: assetDecisions.filter {
+                    $0.hierarchicalKeyword != nil && $0.exportHierarchicalKeyword
+                }.count,
+                qualityInput: rawSidecarInput,
+                includesQualityProvenance: includesQualityProvenance
+            ),
+            pairScope: pairScope
         )
     }
 
@@ -357,16 +380,6 @@ public struct NormalizedXMPChangePlanner {
         return result
     }
 
-    private func distinctQualitySidecarPath(for input: ResolvedRawSidecarInput?) -> String? {
-        guard let input,
-            let qualitySidecarPath = input.qualitySidecarPath?.standardizedFileURL.path,
-            qualitySidecarPath != input.sidecarPath.standardizedFileURL.path
-        else {
-            return nil
-        }
-        return qualitySidecarPath
-    }
-
     private func targetInfos(
         groups: [NormalizationSourceGroup],
         assetsByID: [String: NormalizationSourceAsset],
@@ -392,7 +405,9 @@ public struct NormalizedXMPChangePlanner {
     ) -> (path: String, failure: SidecarError?) {
         if let outputDir {
             return (
-                relativeComponents(for: group.targetRelativePath).reduce(absoluteURL(for: outputDir)) {
+                relativeComponents(for: group.targetRelativePath).reduce(
+                    absoluteURL(for: outputDir, fileManager: fileManager)
+                ) {
                     $0.appendingPathComponent($1)
                 }.standardizedFileURL.path,
                 nil
@@ -411,7 +426,7 @@ public struct NormalizedXMPChangePlanner {
             return (target.path, nil)
         }
         let fallback = relativeComponents(for: group.targetRelativePath)
-            .reduce(absoluteURL(for: inputBasePath)) { $0.appendingPathComponent($1) }
+            .reduce(absoluteURL(for: inputBasePath, fileManager: fileManager)) { $0.appendingPathComponent($1) }
             .standardizedFileURL
             .path
         return (
@@ -480,20 +495,9 @@ public struct NormalizedXMPChangePlanner {
         )
     }
 
-    private func skipReason(pairScope: XMPPairScope) -> XMPSourceMemberSkipReason? {
-        switch pairScope {
-        case .union:
-            return nil
-        case .rawOnly:
-            return .pairScopeRawOnly
-        case .jpegOnly:
-            return .pairScopeJPEGOnly
-        }
-    }
-
     private func skippedCandidate(_ skip: NormalizationCandidateSkip) -> SkippedCandidate {
         SkippedCandidate(
-            reason: SkippedCandidateReason(normalizationReason: skip.reason),
+            reason: skip.reason,
             candidate: nil,
             term: skip.term ?? skip.canonicalPath,
             normalizedTerm: skip.normalizedTerm
@@ -509,16 +513,6 @@ public struct NormalizedXMPChangePlanner {
             provenance: observation.provenance
         )
     }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
-    }
 }
 
 private struct UnsafeKeywordDecision {
@@ -532,94 +526,6 @@ private struct TargetInfo {
     var failure: SidecarError?
 }
 
-private struct PlannedKeywordAccumulator {
-    var term: String
-    var normalizedKey: String
-    var bag: NormalizedXMPKeywordBag
-    var decisions: [PerAssetNormalizationDecision] = []
-    var candidates: [ExtractedCandidate] = []
-
-    var provenance: NormalizedXMPKeywordProvenance {
-        let sortedDecisions = decisions.sorted(by: compareDecisions)
-        return NormalizedXMPKeywordProvenance(
-            term: term,
-            normalizedKey: normalizedKey,
-            keywordBag: bag,
-            decisionIDs: uniqueStrings(sortedDecisions.map(\.decisionID)),
-            assetIDs: uniqueStrings(sortedDecisions.map(\.assetID)),
-            stages: uniqueStages(sortedDecisions.map(\.stage)),
-            candidateKinds: uniqueCandidateKinds(sortedDecisions.map(\.candidateKind)),
-            canonicalPaths: uniqueStrings(sortedDecisions.compactMap(\.canonicalPath)),
-            observationIDs: uniqueStrings(sortedDecisions.flatMap { $0.observations.map(\.observationID) }),
-            sourceTexts: uniqueStrings(sortedDecisions.compactMap(\.sourceText)),
-            contextTypes: uniqueContextTypes(sortedDecisions.compactMap(\.contextType)),
-            governingRules: uniqueStrings(sortedDecisions.compactMap(\.governingRule)),
-            supportingAssetIDs: uniqueStrings(sortedDecisions.flatMap(\.supportingAssetIDs))
-        )
-    }
-}
-
-extension SkippedCandidateReason {
-    fileprivate init(normalizationReason: NormalizationCandidateSkipReason) {
-        switch normalizationReason {
-        case .belowConfidenceThreshold:
-            self = .belowConfidenceThreshold
-        case .unmatchedVocabulary:
-            self = .unmatchedVocabulary
-        case .directApplyWithheld:
-            self = .directApplyWithheld
-        case .directApplyFlatOnly:
-            self = .directApplyFlatOnly
-        case .requiresReview:
-            self = .requiresReview
-        case .specificTagPolicy:
-            self = .specificTagPolicy
-        case .containsHierarchySeparator:
-            self = .containsHierarchySeparator
-        case .emptyAfterNormalization:
-            self = .emptyAfterNormalization
-        case .duplicate:
-            self = .duplicate
-        case .disabledFlatExport:
-            self = .disabledFlatExport
-        case .disabledHierarchicalExport:
-            self = .disabledHierarchicalExport
-        case .coordinateLikeTerm:
-            self = .coordinateLikeTerm
-        case .gpsOnlyEvidence:
-            self = .gpsOnlyEvidence
-        case .speciesWithoutBiologicalGenre:
-            self = .speciesWithoutBiologicalGenre
-        case .unknownSessionContextRejected:
-            self = .unknownSessionContextRejected
-        case .unknownSessionContextFlatOnly:
-            self = .unknownSessionContextFlatOnly
-        case .weakLocalAgreement:
-            self = .weakLocalAgreement
-        case .lowSupportMass:
-            self = .lowSupportMass
-        case .lowSupportingNeighborCount:
-            self = .lowSupportingNeighborCount
-        case .lowMaxSupportingAffinity:
-            self = .lowMaxSupportingAffinity
-        case .blockedDirectConflict:
-            self = .blockedDirectConflict
-        case .blockedLocalConflictMass:
-            self = .blockedLocalConflictMass
-        case .gearOnlyAffinity:
-            self = .gearOnlyAffinity
-        case .globalBackstopThreshold:
-            self = .globalBackstopThreshold
-        case .sessionContextConflict:
-            self = .sessionContextConflict
-        case .userReviewRejected:
-            self = .userReviewRejected
-        case .userReviewDeferred:
-            self = .userReviewDeferred
-        }
-    }
-}
-
 private func compareDecisions(_ lhs: PerAssetNormalizationDecision, _ rhs: PerAssetNormalizationDecision) -> Bool {
     if lhs.assetID == rhs.assetID {
         return lhs.decisionID < rhs.decisionID
@@ -629,19 +535,6 @@ private func compareDecisions(_ lhs: PerAssetNormalizationDecision, _ rhs: PerAs
 
 private func compareSkips(_ lhs: NormalizationCandidateSkip, _ rhs: NormalizationCandidateSkip) -> Bool {
     lhs.skipID < rhs.skipID
-}
-
-private func compareExtractedCandidates(_ lhs: ExtractedCandidate, _ rhs: ExtractedCandidate) -> Bool {
-    if lhs.provenance.sourceSidecar == rhs.provenance.sourceSidecar {
-        if lhs.provenance.modelRunIndex == rhs.provenance.modelRunIndex {
-            if lhs.provenance.sourceField == rhs.provenance.sourceField {
-                return lhs.term < rhs.term
-            }
-            return lhs.provenance.sourceField.rawValue < rhs.provenance.sourceField.rawValue
-        }
-        return lhs.provenance.modelRunIndex < rhs.provenance.modelRunIndex
-    }
-    return comparePaths(lhs.provenance.sourceSidecar, rhs.provenance.sourceSidecar)
 }
 
 private func uniqueStrings(_ values: [String]) -> [String] {
@@ -682,13 +575,4 @@ private func uniqueContextTypes(_ values: [NormalizationSessionContextType]) -> 
 
 private func relativeComponents(for relativePath: String) -> [String] {
     relativePath.split(separator: "/").map(String.init)
-}
-
-private func comparePaths(_ lhs: String, _ rhs: String) -> Bool {
-    let lowerLHS = lhs.lowercased()
-    let lowerRHS = rhs.lowercased()
-    if lowerLHS == lowerRHS {
-        return lhs < rhs
-    }
-    return lowerLHS < lowerRHS
 }

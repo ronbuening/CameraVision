@@ -24,6 +24,7 @@ public struct NormalizePipeline {
     private let reportWriter: NormalizationReportWriter
     private let summaryWriter: NormalizationSummaryWriter
     private let snapshotReader: @Sendable (String) throws -> XMPMetadataSnapshot
+    private let snapshotEngine: OwnedXMPSidecarEngine?
 
     public init(
         inputResolver: NormalizationInputResolver = NormalizationInputResolver(),
@@ -39,9 +40,11 @@ public struct NormalizePipeline {
         self.summaryWriter = summaryWriter
         if let snapshotReader {
             self.snapshotReader = snapshotReader
+            self.snapshotEngine = nil
         } else {
             let metadataEngine = OwnedXMPSidecarEngine(fileManager: fileManager)
             self.snapshotReader = { try metadataEngine.readSnapshot(at: $0) }
+            self.snapshotEngine = metadataEngine
         }
     }
 
@@ -52,8 +55,8 @@ public struct NormalizePipeline {
         timestamp: Date = Date(),
         sessionID: String = UUID().uuidString,
         interruptionMonitor: InterruptionMonitor? = nil
-    ) throws -> NormalizePipelineResult {
-        try run(
+    ) async throws -> NormalizePipelineResult {
+        try await run(
             mode: mode,
             configuration: configuration,
             timestamp: timestamp,
@@ -70,8 +73,8 @@ public struct NormalizePipeline {
         timestamp: Date = Date(),
         sessionID: String = UUID().uuidString,
         interruptionMonitor: InterruptionMonitor? = nil
-    ) throws -> NormalizePipelineResult {
-        try run(
+    ) async throws -> NormalizePipelineResult {
+        try await run(
             mode: mode,
             configuration: configuration,
             timestamp: timestamp,
@@ -88,8 +91,8 @@ public struct NormalizePipeline {
         timestamp: Date = Date(),
         sessionID: String = UUID().uuidString,
         interruptionMonitor: InterruptionMonitor? = nil
-    ) throws -> NormalizePipelineResult {
-        try run(
+    ) async throws -> NormalizePipelineResult {
+        try await run(
             mode: mode,
             configuration: configuration,
             timestamp: timestamp,
@@ -108,14 +111,16 @@ public struct NormalizePipeline {
         includeXMPPlans: Bool = true,
         interruptionMonitor: InterruptionMonitor? = nil
     ) throws -> NormalizePipelineResult {
-        return try runResolvedInput(
-            input,
-            configuration: configuration,
-            timestamp: timestamp,
-            sessionID: sessionID,
-            includeXMPPlans: includeXMPPlans,
-            interruptionMonitor: interruptionMonitor
-        )
+        try withSnapshotInvocation {
+            try runResolvedInput(
+                input,
+                configuration: configuration,
+                timestamp: timestamp,
+                sessionID: sessionID,
+                includeXMPPlans: includeXMPPlans,
+                interruptionMonitor: interruptionMonitor
+            )
+        }
     }
 
     private func run(
@@ -125,16 +130,34 @@ public struct NormalizePipeline {
         sessionID: String,
         includeXMPPlans: Bool,
         interruptionMonitor: InterruptionMonitor?
-    ) throws -> NormalizePipelineResult {
-        let input = try inputResolver.resolve(mode: mode, configuration: configuration)
-        return try runResolvedInput(
-            input,
-            configuration: configuration,
-            timestamp: timestamp,
-            sessionID: sessionID,
-            includeXMPPlans: includeXMPPlans,
-            interruptionMonitor: interruptionMonitor
-        )
+    ) async throws -> NormalizePipelineResult {
+        try await withAsyncSnapshotInvocation {
+            let input = try await inputResolver.resolve(mode: mode, configuration: configuration)
+            return try runResolvedInput(
+                input,
+                configuration: configuration,
+                timestamp: timestamp,
+                sessionID: sessionID,
+                includeXMPPlans: includeXMPPlans,
+                interruptionMonitor: interruptionMonitor
+            )
+        }
+    }
+
+    private func withSnapshotInvocation<Result>(_ body: () throws -> Result) rethrows -> Result {
+        snapshotEngine?.beginPreWriteInvocation()
+        defer {
+            try? snapshotEngine?.shutdown()
+        }
+        return try body()
+    }
+
+    private func withAsyncSnapshotInvocation<Result>(_ body: () async throws -> Result) async rethrows -> Result {
+        snapshotEngine?.beginPreWriteInvocation()
+        defer {
+            try? snapshotEngine?.shutdown()
+        }
+        return try await body()
     }
 
     private func runResolvedInput(
@@ -150,11 +173,9 @@ public struct NormalizePipeline {
             configuration: xmpExportConfiguration(from: configuration)
         )
         let vocabulary = try loadVocabulary(configuration, extractionResults: extractionResults)
-        try CandidateCanonicalizer.preflightSessionContext(
-            configuration: configuration,
-            vocabulary: vocabulary
-        )
-        let canonicalization = try CandidateCanonicalizer(vocabulary: vocabulary).canonicalize(
+        let canonicalizer = CandidateCanonicalizer(vocabulary: vocabulary)
+        try canonicalizer.preflightSessionContext(configuration: configuration)
+        let canonicalization = try canonicalizer.canonicalize(
             extractionResults: extractionResults,
             input: input,
             configuration: configuration
@@ -231,7 +252,11 @@ public struct NormalizePipeline {
         }
 
         let progressLog = try NormalizationProgressLog(path: artifactPlan.progressPath)
+        let progressFlushRegistration = interruptionMonitor?.onInterruption {
+            try? progressLog.flush()
+        }
         defer {
+            progressFlushRegistration?.cancel()
             try? progressLog.close()
         }
         try appendProgressRecords(
@@ -438,24 +463,7 @@ public struct NormalizePipeline {
     private func xmpExportConfiguration(
         from configuration: ResolvedNormalizationConfiguration
     ) -> ResolvedXMPExportConfiguration {
-        ResolvedXMPExportConfiguration(
-            recursive: configuration.recursive,
-            outputDir: configuration.outputDir,
-            logLevel: configuration.logLevel,
-            logFormat: configuration.logFormat,
-            dryRun: configuration.dryRun,
-            sourceRoot: configuration.sourceRoot,
-            sourceVerification: configuration.sourceVerification,
-            writeFlatKeywords: configuration.writeFlatKeywords,
-            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
-            backupSidecars: configuration.backupSidecars,
-            xmpConflictPolicy: configuration.xmpConflictPolicy,
-            minConfidence: configuration.minConfidence,
-            allowSpecificTags: configuration.allowSpecificTags,
-            pairScope: configuration.pairScope,
-            writeAIJSON: configuration.writeAIJSON,
-            qualityGrading: configuration.qualityGrading
-        )
+        ResolvedXMPExportConfiguration(from: configuration)
     }
 
     private func qualityPlanningConfiguration(

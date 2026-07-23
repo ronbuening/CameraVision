@@ -14,10 +14,9 @@ struct Step3OptionsView: View {
     @Bindable var runModel: AnalysisRunModel
     var importModel: FolderImportModel
     var normalizationModel: NormalizationModel?
+    @Bindable var visionTagsModel: VisionTagsModel
 
     @Environment(\.cvTheme) private var theme
-    @State private var visionTags: [String] = []
-    @State private var visionTagState: VisionTagState = .idle
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -35,17 +34,30 @@ struct Step3OptionsView: View {
 
             HStack(spacing: 14) {
                 renderModeCard
-                modelCard
+                RunModelPickerCard(
+                    options: options,
+                    runModel: runModel,
+                    importModel: importModel,
+                    visionTagsModel: visionTagsModel
+                )
             }
             .padding(.top, 14)
 
-            if Self.qualityGradingAvailability(action: action, assessQuality: options.assessQuality).isVisible {
-                qualityGradingCard
+            let gradingAvailability = Self.qualityGradingAvailability(
+                action: action,
+                assessQuality: options.assessQuality
+            )
+            if gradingAvailability.isVisible {
+                QualityGradingOptionsCard(options: options, availability: gradingAvailability)
                     .padding(.top, 14)
             }
 
-            advancedCard
-                .padding(.top, 14)
+            AdvancedOptionsCard(
+                options: options,
+                backendID: runModel.descriptor(for: options.resolvedBackend)?.id,
+                supportedTuningKnobs: runModel.supportedTuningKnobs(for: options.resolvedBackend)
+            )
+            .padding(.top, 14)
 
             if action == .normalize, let normalizationModel {
                 SessionContextPanel(model: normalizationModel)
@@ -55,7 +67,7 @@ struct Step3OptionsView: View {
         .padding(EdgeInsets(top: 26, leading: 34, bottom: 40, trailing: 34))
         .onAppear {
             options.loadResolvedDefaults()
-            refreshVisionTags()
+            Task { await loadVisionTagsIfNeeded() }
             runPreflight()
         }
     }
@@ -116,7 +128,7 @@ struct Step3OptionsView: View {
 
     private var renderModeCard: some View {
         VStack(alignment: .leading, spacing: 9) {
-            sectionLabel("RENDER MODE")
+            WizardSectionLabel(text: "RENDER MODE", color: theme.textFaint)
             CVSegmentedControl(
                 options: AnalysisMode.allCases,
                 selection: $options.mode,
@@ -135,394 +147,6 @@ struct Step3OptionsView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
     }
 
-    private var modelCard: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 7) {
-                Text("Vision model")
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(theme.text)
-                modelPicker
-                Text("this run only — Settings sets the saved default")
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(theme.textFaint)
-                if let status = modelStatusText {
-                    Text(status)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(modelStatusIsWarning ? theme.danger : theme.textFaint)
-                        .lineLimit(2)
-                }
-            }
-            Spacer()
-            preflightBadge
-        }
-        .padding(EdgeInsets(top: 15, leading: 17, bottom: 15, trailing: 17))
-        .frame(maxWidth: .infinity)
-        .background(theme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
-    }
-
-    private var qualityGradingCard: some View {
-        let availability = Self.qualityGradingAvailability(action: action, assessQuality: options.assessQuality)
-        return VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("QUALITY")
-            if !availability.controlsEnabled {
-                Text(Self.gradingRequiresAssessmentExplanation)
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(theme.accent.accent)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle("Quality grading", isOn: $options.qualityGradingEnabled)
-                    .toggleStyle(.switch)
-                    .tint(theme.accent.accent)
-
-                Divider().overlay(theme.border)
-
-                Toggle("Write star ratings", isOn: $options.qualityWriteRating)
-                    .toggleStyle(.checkbox)
-                Text(Self.ratingOptInRationale)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(theme.textFaint)
-
-                HStack(spacing: 12) {
-                    Text("Existing culling metadata")
-                        .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(theme.text)
-                    Spacer()
-                    qualityConflictPolicyPicker
-                }
-            }
-            .disabled(!availability.controlsEnabled)
-            .opacity(availability.controlsEnabled ? 1 : 0.5)
-        }
-        .padding(EdgeInsets(top: 15, leading: 17, bottom: 15, trailing: 17))
-        .background(theme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
-    }
-
-    private var qualityConflictPolicyPicker: some View {
-        Picker("", selection: $options.qualityConflictPolicy) {
-            Text(ScalarConflictPolicy.preserve.wizardLabel).tag(ScalarConflictPolicy.preserve)
-            Text(ScalarConflictPolicy.refresh.wizardLabel).tag(ScalarConflictPolicy.refresh)
-            Text(ScalarConflictPolicy.overwrite.wizardLabel).tag(ScalarConflictPolicy.overwrite)
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .fixedSize()
-    }
-
-    private var modelPicker: some View {
-        HStack(spacing: 8) {
-            Menu {
-                Button {
-                    selectModelOverride(nil)
-                } label: {
-                    let label =
-                        options.resolvedModel.isEmpty
-                        ? "Use Settings default" : "Use Settings default: \(options.resolvedModel)"
-                    if options.modelOverride == nil {
-                        Label(label, systemImage: "checkmark")
-                    } else {
-                        Text(label)
-                    }
-                }
-                Divider()
-                ForEach(visionTags, id: \.self) { tag in
-                    Button {
-                        selectModelOverride(tag)
-                    } label: {
-                        if tag == options.effectiveModel {
-                            Label(tag, systemImage: "checkmark")
-                        } else {
-                            Text(tag)
-                        }
-                    }
-                }
-                if visionTags.isEmpty {
-                    Button("No vision models found") {}.disabled(true)
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(options.effectiveModel.isEmpty ? "—" : options.effectiveModel)
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Text("▾").font(.system(size: 9))
-                }
-                .foregroundStyle(theme.text)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 11)
-                .frame(maxWidth: 280, alignment: .leading)
-                .background(theme.panel2)
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(theme.border))
-            }
-            .menuStyle(.borderlessButton)
-
-            Button {
-                refreshVisionTags()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.textDim)
-            }
-            .buttonStyle(.plain)
-            .help("Refresh installed models")
-        }
-    }
-
-    private var modelStatusText: String? {
-        switch visionTagState {
-        case .idle:
-            nil
-        case .loading:
-            "loading installed models…"
-        case .loaded where visionTags.isEmpty:
-            "No installed vision models found at this endpoint."
-        case .loaded where !options.effectiveModel.isEmpty && !visionTags.contains(options.effectiveModel):
-            "\(options.effectiveModel) is not installed or is not vision-capable at this endpoint."
-        case .loaded:
-            nil
-        case .failed(let message):
-            "Model list unavailable: \(message)"
-        }
-    }
-
-    private var modelStatusIsWarning: Bool {
-        switch visionTagState {
-        case .loaded:
-            !visionTags.isEmpty && !options.effectiveModel.isEmpty && !visionTags.contains(options.effectiveModel)
-        case .failed:
-            true
-        default:
-            false
-        }
-    }
-
-    @ViewBuilder
-    private var preflightBadge: some View {
-        switch runModel.preflight {
-        case .unknown, .checking:
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text("checking…")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(theme.textDim)
-            }
-        case .ready:
-            HStack(spacing: 5) {
-                Circle().fill(theme.green).frame(width: 7, height: 7)
-                Text("ready")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(theme.green)
-            }
-        case .failed(let message):
-            HStack(spacing: 8) {
-                VStack(alignment: .trailing, spacing: 2) {
-                    HStack(spacing: 5) {
-                        Circle().fill(theme.danger).frame(width: 7, height: 7)
-                        Text("unavailable")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(theme.danger)
-                    }
-                    Text(message)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(theme.textDim)
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 320)
-                }
-                Button("Retry") {
-                    runPreflight()
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundStyle(theme.accent.accent)
-            }
-        }
-    }
-
-    private var advancedCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                options.advancedOpen.toggle()
-            } label: {
-                HStack(spacing: 9) {
-                    Text("▶")
-                        .font(.system(size: 11))
-                        .foregroundStyle(theme.textDim)
-                        .rotationEffect(.degrees(options.advancedOpen ? 90 : 0))
-                    Text("Advanced flags")
-                        .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(theme.text)
-                    Text(
-                        "gps · existing .ai.json · existing xmp · concurrency · image size · context window · quality scan"
-                    )
-                        .font(.system(size: 11))
-                        .foregroundStyle(theme.textFaint)
-                    Spacer()
-                }
-                .padding(EdgeInsets(top: 13, leading: 17, bottom: 13, trailing: 17))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if options.advancedOpen {
-                Divider().overlay(theme.border)
-                Grid(alignment: .leading, horizontalSpacing: 22, verticalSpacing: 16) {
-                    GridRow {
-                        advancedGroup("GPS CONTEXT") {
-                            CVSegmentedControl(
-                                options: GPSContextMode.allCases,
-                                selection: $options.gps,
-                                label: { $0.rawValue.capitalized }
-                            )
-                        }
-                        advancedGroup("EXISTING .AI.JSON SIDECARS") {
-                            CVSegmentedControl(
-                                options: ExistingPolicy.allCases,
-                                selection: $options.existing,
-                                label: { $0.rawValue.capitalized }
-                            )
-                        }
-                    }
-                    GridRow {
-                        advancedGroup("EXISTING XMP") {
-                            CVSegmentedControl(
-                                options: XMPConflictPolicy.allCases,
-                                selection: $options.xmpConflictPolicy,
-                                label: xmpPolicyLabel
-                            )
-                        }
-                        advancedGroup("CONCURRENCY") {
-                            HStack(spacing: 0) {
-                                stepButton("−") { options.concurrency = max(1, options.concurrency - 1) }
-                                Text("\(options.concurrency)")
-                                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                                    .frame(width: 32)
-                                stepButton("+") { options.concurrency = min(8, options.concurrency + 1) }
-                            }
-                            .background(theme.panel2)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border))
-                        }
-                    }
-                    GridRow {
-                        advancedGroup("MODEL IMAGE SIZE") {
-                            CVSegmentedControl(
-                                options: ModelTuning.profileNamesBySize,
-                                selection: $options.profile,
-                                label: { ModelTuning.imageSizeLabel(forProfileNamed: $0) }
-                            )
-                        }
-                        advancedGroup("MODEL CONTEXT WINDOW") {
-                            contextWindowMenu
-                        }
-                    }
-                    GridRow {
-                        advancedGroup("QUALITY SCAN") {
-                            CVSegmentedControl(
-                                options: QualityScanMode.allCases,
-                                selection: $options.qualityScanMode,
-                                label: { $0.wizardLabel }
-                            )
-                            .disabled(!options.assessQuality)
-                            .opacity(options.assessQuality ? 1 : 0.5)
-                        }
-                    }
-                }
-                .padding(EdgeInsets(top: 14, leading: 17, bottom: 18, trailing: 17))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Existing .ai.json: the tool's own analysis files, not your .xmp.")
-                    Text("Merge keeps keywords already in your .xmp; Backup & Merge writes a .xmp.bak first.")
-                    Text(
-                        "Image size: longest edge of the render sent to the model — smaller is faster, larger keeps fine detail."
-                    )
-                    Text(
-                        "Context window: Ollama num_ctx tokens per call — match it to what the model supports; Default lets Ollama decide."
-                    )
-                    Text(Self.qualityScanFootnote)
-                }
-                .font(.system(size: 11))
-                .foregroundStyle(theme.textFaint)
-                .padding(EdgeInsets(top: 0, leading: 17, bottom: 16, trailing: 17))
-            }
-        }
-        .background(theme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.border))
-    }
-
-    private func advancedGroup(_ label: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionLabel(label)
-            content()
-        }
-    }
-
-    private var contextWindowMenu: some View {
-        Menu {
-            ForEach(ModelTuning.contextWindowChoices, id: \.self) { tokens in
-                Button {
-                    options.contextWindow = tokens
-                } label: {
-                    if tokens == options.contextWindow {
-                        Label(ModelTuning.contextWindowLabel(tokens), systemImage: "checkmark")
-                    } else {
-                        Text(ModelTuning.contextWindowLabel(tokens))
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text(ModelTuning.contextWindowLabel(options.contextWindow))
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                Text("▾").font(.system(size: 9))
-            }
-            .foregroundStyle(theme.text)
-            .padding(.vertical, 6)
-            .padding(.horizontal, 11)
-            .background(theme.panel2)
-            .clipShape(RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(theme.border))
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help("Ollama num_ctx tokens requested per model call")
-    }
-
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10.5, weight: .semibold))
-            .kerning(0.5)
-            .foregroundStyle(theme.textFaint)
-    }
-
-    private func xmpPolicyLabel(_ policy: XMPConflictPolicy) -> String {
-        switch policy {
-        case .fail: "Fail"
-        case .merge: "Merge"
-        case .backupAndMerge: "Backup & Merge"
-        }
-    }
-
-    private func stepButton(_ glyph: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(glyph)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(theme.text)
-                .frame(width: 32, height: 30)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func selectModelOverride(_ tag: String?) {
-        options.modelOverride = tag
-        runPreflight()
-    }
-
     private func runPreflight() {
         runModel.checkPreflight(
             options: options,
@@ -531,52 +155,16 @@ struct Step3OptionsView: View {
         )
     }
 
-    private func refreshVisionTags() {
-        guard visionTagState != .loading else { return }
-        guard let endpoint = URL(string: options.resolvedEndpoint) else {
-            visionTags = []
-            visionTagState = .failed(message: "Invalid model endpoint.")
-            return
-        }
-        visionTagState = .loading
-        Task {
-            do {
-                let tags = try await VisionTagLoader.listInstalledVisionTags(endpoint: endpoint)
-                await MainActor.run {
-                    visionTags = tags
-                    visionTagState = .loaded
-                }
-            } catch {
-                let message = (error as? SidecarError)?.message ?? error.localizedDescription
-                await MainActor.run {
-                    visionTags = []
-                    visionTagState = .failed(message: message)
-                }
-            }
-        }
-    }
-}
-
-/// One picker-label wording for the scalar-conflict policy, shared by the
-/// Step 3 grading group and the apply-session card and pinned by tests so it
-/// cannot drift from the CLI docs' phrasing.
-extension ScalarConflictPolicy {
-    var wizardLabel: String {
-        switch self {
-        case .preserve: "Preserve — never replace existing values"
-        case .refresh: "Refresh — replace only values this app wrote before"
-        case .overwrite: "Overwrite — always replace"
-        }
-    }
-}
-
-/// One picker-label wording for the quality scan mode, shared by the Step 3
-/// advanced card and the Settings sheet and pinned by tests.
-extension QualityScanMode {
-    var wizardLabel: String {
-        switch self {
-        case .combined: "Normal"
-        case .sequential: "High quality"
+    private func loadVisionTagsIfNeeded() async {
+        do {
+            let configuration = try options.buildConfiguration(
+                recursive: importModel.recursive,
+                outputDir: importModel.outputFolder?.path
+            )
+            let descriptor = try await runModel.resolveBackend(for: configuration)
+            await visionTagsModel.loadIfNeeded(descriptor: descriptor, configuration: configuration)
+        } catch {
+            visionTagsModel.fail(message: (error as? SidecarError)?.message ?? error.localizedDescription)
         }
     }
 }

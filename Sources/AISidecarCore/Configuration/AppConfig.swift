@@ -9,6 +9,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
     public var qualityScanMode: QualityScanMode?
     public var outputDir: String?
     public var model: String?
+    public var modelBackend: ModelBackend?
     public var modelEndpoint: String?
     public var modelKeepAlive: String?
     public var modelTimeoutSeconds: Double?
@@ -86,6 +87,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         case qualityScanMode = "quality_scan_mode"
         case outputDir = "output_dir"
         case model
+        case modelBackend = "model_backend"
         case modelEndpoint = "model_endpoint"
         case modelKeepAlive = "model_keep_alive"
         case modelTimeoutSeconds = "model_timeout_seconds"
@@ -159,6 +161,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         qualityScanMode: QualityScanMode? = nil,
         outputDir: String? = nil,
         model: String? = nil,
+        modelBackend: ModelBackend? = nil,
         modelEndpoint: String? = nil,
         modelKeepAlive: String? = nil,
         modelTimeoutSeconds: Double? = nil,
@@ -230,6 +233,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.qualityScanMode = qualityScanMode
         self.outputDir = outputDir
         self.model = model
+        self.modelBackend = modelBackend
         self.modelEndpoint = modelEndpoint
         self.modelKeepAlive = modelKeepAlive
         self.modelTimeoutSeconds = modelTimeoutSeconds
@@ -321,6 +325,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         self.qualityScanMode = try container.decodeIfPresent(QualityScanMode.self, forKey: .qualityScanMode)
         self.outputDir = try container.decodeIfPresent(String.self, forKey: .outputDir)
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
+        self.modelBackend = try container.decodeIfPresent(ModelBackend.self, forKey: .modelBackend)
         self.modelEndpoint = try container.decodeIfPresent(String.self, forKey: .modelEndpoint)
         self.modelKeepAlive = try container.decodeIfPresent(String.self, forKey: .modelKeepAlive)
         self.modelTimeoutSeconds = try container.decodeIfPresent(Double.self, forKey: .modelTimeoutSeconds)
@@ -456,6 +461,7 @@ public struct AppConfig: Codable, Sendable, Equatable {
         try container.encodeIfPresent(qualityScanMode, forKey: .qualityScanMode)
         try container.encodeIfPresent(outputDir, forKey: .outputDir)
         try container.encodeIfPresent(model, forKey: .model)
+        try container.encodeIfPresent(modelBackend, forKey: .modelBackend)
         try container.encodeIfPresent(modelEndpoint, forKey: .modelEndpoint)
         try container.encodeIfPresent(modelKeepAlive, forKey: .modelKeepAlive)
         try container.encodeIfPresent(modelTimeoutSeconds, forKey: .modelTimeoutSeconds)

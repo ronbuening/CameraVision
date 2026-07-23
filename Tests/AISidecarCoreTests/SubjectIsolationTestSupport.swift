@@ -63,3 +63,17 @@ struct StaticForegroundMaskProvider: ForegroundMaskProvider {
         return foreground.composited(over: background).cropped(to: bounds)
     }
 }
+
+enum InjectedForegroundMaskError: LocalizedError {
+    case failure
+
+    var errorDescription: String? {
+        "Injected foreground mask failure."
+    }
+}
+
+struct ThrowingForegroundMaskProvider: ForegroundMaskProvider {
+    func foregroundMasks(in _: CIImage, dimensions _: PixelDimensions) async throws -> ForegroundMaskResult {
+        throw InjectedForegroundMaskError.failure
+    }
+}

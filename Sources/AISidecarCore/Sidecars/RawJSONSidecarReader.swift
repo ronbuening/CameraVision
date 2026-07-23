@@ -14,7 +14,7 @@ public struct RawJSONSidecarReader {
 
     /// Read a raw sidecar document from a filesystem path.
     public func read(from path: String) throws -> RawJSONSidecarDocument {
-        try read(from: absoluteURL(for: path))
+        try read(from: absoluteURL(for: path, fileManager: fileManager))
     }
 
     /// Read a raw sidecar document from a file URL.
@@ -32,6 +32,13 @@ public struct RawJSONSidecarReader {
                 recoverable: true
             )
         }
+    }
+
+    // Preview presentation historically decoded the typed sidecar without the
+    // export reader's schema-envelope gate. Keep that tolerant behavior while
+    // moving the decoding boundary into Core.
+    func decodeForPreview(from data: Data) throws -> RawJSONSidecar {
+        try JSONCoding.decoder().decode(RawJSONSidecar.self, from: data)
     }
 
     private func validateRawSidecarEnvelope(data: Data, path: String) throws {
@@ -84,15 +91,5 @@ public struct RawJSONSidecarReader {
 
     private func validationError(_ message: String, recoverable: Bool) -> SidecarError {
         SidecarError(code: .validationFailed, stage: .scan, message: message, recoverable: recoverable)
-    }
-
-    private func absoluteURL(for path: String) -> URL {
-        let expandedPath = (path as NSString).expandingTildeInPath
-        if expandedPath.hasPrefix("/") {
-            return URL(fileURLWithPath: expandedPath).standardizedFileURL
-        }
-        return URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-            .appendingPathComponent(expandedPath)
-            .standardizedFileURL
     }
 }

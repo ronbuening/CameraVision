@@ -270,6 +270,60 @@ public struct ResolvedXMPExportConfiguration: Codable, Sendable, Equatable {
         self.qualityGrading = qualityGrading
     }
 
+    init(from configuration: ResolvedNormalizationConfiguration) {
+        self.init(
+            recursive: configuration.recursive,
+            outputDir: configuration.outputDir,
+            logLevel: configuration.logLevel,
+            logFormat: configuration.logFormat,
+            dryRun: configuration.dryRun,
+            sourceRoot: configuration.sourceRoot,
+            sourceVerification: configuration.sourceVerification,
+            writeFlatKeywords: configuration.writeFlatKeywords,
+            writeHierarchicalKeywords: configuration.writeHierarchicalKeywords,
+            backupSidecars: configuration.backupSidecars,
+            xmpConflictPolicy: configuration.xmpConflictPolicy,
+            minConfidence: configuration.minConfidence,
+            allowSpecificTags: configuration.allowSpecificTags,
+            pairScope: configuration.pairScope,
+            writeAIJSON: configuration.writeAIJSON,
+            qualityGrading: configuration.qualityGrading
+        )
+    }
+
+    init(resolvingRawSidecarInputFrom configuration: ResolvedNormalizationConfiguration) {
+        self.init(from: configuration)
+        // This adapter historically supplied no grading block because raw-sidecar
+        // discovery consumes only source/input policy. Preserve that exact shape.
+        qualityGrading = .builtInDefaults
+    }
+
+    init(
+        from applyConfiguration: ResolvedApplySessionConfiguration,
+        sessionConfiguration: ResolvedNormalizationConfiguration
+    ) {
+        // Apply-session keeps output and write-safety controls live while replaying
+        // the keyword-selection policy frozen into the reviewed session.
+        self.init(
+            recursive: false,
+            outputDir: applyConfiguration.outputDir,
+            logLevel: applyConfiguration.logLevel,
+            logFormat: applyConfiguration.logFormat,
+            dryRun: applyConfiguration.dryRun,
+            sourceRoot: applyConfiguration.sourceRoot,
+            sourceVerification: applyConfiguration.sourceVerification,
+            writeFlatKeywords: sessionConfiguration.writeFlatKeywords,
+            writeHierarchicalKeywords: sessionConfiguration.writeHierarchicalKeywords,
+            backupSidecars: applyConfiguration.backupSidecars,
+            xmpConflictPolicy: applyConfiguration.xmpConflictPolicy,
+            minConfidence: sessionConfiguration.minConfidence,
+            allowSpecificTags: sessionConfiguration.allowSpecificTags,
+            pairScope: sessionConfiguration.pairScope,
+            writeAIJSON: false,
+            qualityGrading: applyConfiguration.qualityGrading
+        )
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         recursive = try container.decode(Bool.self, forKey: .recursive)
@@ -351,6 +405,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
     public var existing: ExistingPolicy?
     public var assessQuality: Bool
     public var model: String?
+    public var modelBackend: ModelBackend?
     public var modelEndpoint: String?
     public var modelTimeoutSeconds: Double?
     public var modelRetryLimit: Int?
@@ -392,6 +447,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         existing: ExistingPolicy? = nil,
         assessQuality: Bool = false,
         model: String? = nil,
+        modelBackend: ModelBackend? = nil,
         modelEndpoint: String? = nil,
         modelTimeoutSeconds: Double? = nil,
         modelRetryLimit: Int? = nil,
@@ -432,6 +488,7 @@ public struct XMPExportInvocationRequest: Sendable, Equatable {
         self.existing = existing
         self.assessQuality = assessQuality
         self.model = model
+        self.modelBackend = modelBackend
         self.modelEndpoint = modelEndpoint
         self.modelTimeoutSeconds = modelTimeoutSeconds
         self.modelRetryLimit = modelRetryLimit
@@ -536,6 +593,7 @@ public enum XMPExportInvocationValidator {
             ("existing", request.existing != nil),
             ("assess-quality", request.assessQuality),
             ("model", request.model != nil),
+            ("model-backend", request.modelBackend != nil),
             ("model-endpoint", request.modelEndpoint != nil),
             ("model-timeout", request.modelTimeoutSeconds != nil),
             ("model-retry-limit", request.modelRetryLimit != nil),

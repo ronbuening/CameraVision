@@ -100,26 +100,22 @@ public struct BatchSummary: Codable, Sendable, Equatable {
 public struct BatchSummaryWriter {
     private let fileManager: FileManager
     private let encoder: JSONEncoder
+    private let dataWriter: WriterSupport.DataWriter
 
     public init(fileManager: FileManager = .default) {
+        self.init(fileManager: fileManager, dataWriter: WriterSupport.atomicWrite)
+    }
+
+    init(fileManager: FileManager = .default, dataWriter: @escaping WriterSupport.DataWriter) {
         self.fileManager = fileManager
         self.encoder = JSONCoding.documentEncoder()
+        self.dataWriter = dataWriter
     }
 
     /// Write the summary with the Phase 1 atomic artifact contract.
     public func write(_ summary: BatchSummary, to path: String) throws {
-        do {
-            let data = try encoder.encode(summary)
-            try AtomicFileWriter.write(data, to: URL(fileURLWithPath: path), fileManager: fileManager)
-        } catch let error as SidecarError {
-            throw error
-        } catch {
-            throw SidecarError(
-                code: .writeFailed,
-                stage: .write,
-                message: "Unable to encode batch summary \(path): \(error.localizedDescription)",
-                recoverable: true
-            )
-        }
+        try WriterSupport.writeAndWrap(
+            summary, to: path, encoder: encoder, typeName: "encode batch summary", fileManager: fileManager,
+            dataWriter: dataWriter)
     }
 }
