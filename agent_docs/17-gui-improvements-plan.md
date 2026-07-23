@@ -19,11 +19,69 @@ Audience: junior engineer or Sonnet-level coding agent executing one work item a
 
 | Order | Item | Why first |
 |---|---|---|
-| 1 | I1 Accessibility pass | Highest user value; self-contained; touches many files, so landing it before other view edits minimizes conflicts |
-| 2 | I2 Review filter/search | Biggest ergonomic win; establishes the filter-bar component I3 builds on |
-| 3 | I3 Keyboard triage | Rides on I2's row focus model |
-| 4 | I4 Inline error component | Unifies surfaces the earlier items touched |
-| 5 | I5 ETA stat · I6 Drop feedback | Small independent wins, any order |
+| 1 | I7 Move quality grading to the Step 5 write boundary | Corrects the workflow before I1/I2 revise and test the same Step 5 surfaces |
+| 2 | I1 Accessibility pass | Highest remaining user value; self-contained; touches many files, so landing it before other view edits minimizes conflicts |
+| 3 | I2 Review filter/search | Biggest ergonomic win; establishes the filter-bar component I3 builds on |
+| 4 | I3 Keyboard triage | Rides on I2's row focus model |
+| 5 | I4 Inline error component | Unifies surfaces the earlier items touched |
+| 6 | I5 ETA stat · I6 Drop feedback | Small independent wins, any order |
+
+---
+
+### I7. Move quality grading to the Step 5 write boundary
+
+- **Priority:** HIGH · **Effort:** Medium · **Risk:** Medium (session-preview and export-option timing)
+
+**Problem (verified).** Step 2's **Assess image quality** choice controls whether the model records an assessment
+in raw sidecars. Step 3 separately asks whether to export derived quality metadata to XMP. Although those are
+different operations, presenting the grading switch before analysis makes it look as if the Step 2 selection was
+lost and asks for a write decision before the user has reviewed the results. The actual guarded XMP operation
+already starts from Step 5 and is fronted by the authoritative dry-run change plan.
+
+The current early placement is partly structural: `WizardFlowModel.handleRunPhase` passes the Step 3 grading
+overrides into `ReviewModel.buildSession` or `NormalizationModel.run`, and session-only normalization uses an
+enabled grading configuration to persist preview tiers, explanations, and quality keywords in
+`xmpWritePlans`. Apply-time grading already re-resolves the current raw-sidecar contributors and current XMP, so
+this preview dependency is not a reason to make the user commit to writing quality metadata in Step 3.
+
+**Change.**
+1. Keep Step 2 **Assess image quality** and Step 3 Advanced **Quality scan** (`Normal` / `High quality`) unchanged:
+   they control model work. Remove the **Quality grading** group from Step 3 for analyze/write/normalize runs.
+2. Present the grading master switch, star-rating opt-in, and culling-metadata conflict policy on both Step 5 XMP
+   write surfaces (`Step5ReviewView` for Analyze & write XMP and `NormalizationInspectorView` for Normalize),
+   immediately beside or immediately before the corresponding Write XMP action. Analyze-only Step 5 shows no
+   grading controls.
+3. Keep Apply Session's grading controls on its current Step 3. That path performs no analysis or Step 5 review;
+   its Step 3 is already the write-configuration boundary.
+4. Seed the moved controls from the same resolved `xmp_quality_*` defaults and retain edits across non-destructive
+   Step 2/3/5 navigation. The Step 2 assessment choice only governs whether grading controls are available; it
+   must not silently select or clear the separate write choice.
+5. Decouple session construction from the pending write choice. Review must continue to show the raw quality
+   assessment independently of grading. Do not persist transient Step 5 export intent into a saved normalization
+   session merely to obtain a preview. If pre-write tier presentation remains desirable, expose or reuse a
+   read-only Core derivation that does not claim scalar conflict outcomes; otherwise show derived tiers first in
+   the authoritative dry-run change plan.
+6. At **Write XMP**, project the current Step 5 controls into `ExportModel.plan`. The resulting dry-run plan remains
+   the source of truth for quality keywords, labels, urgency, flags, optional ratings, conflict handling, and the
+   eventual confirmed write. Closing the plan, changing a grading control, and planning again must replace the
+   stale plan.
+
+**Tests.**
+- Pin the visibility matrix: write/normalize Step 5 show grading controls; analyze Step 5 does not; Apply Session
+  retains its existing controls.
+- Pin that Step 3 no longer owns or renders the grading group, while its quality-scan mode still maps into the
+  analysis configuration.
+- Verify assessment-off makes Step 5 grading unavailable without clearing retained grading choices.
+- Verify session construction is independent of the pending XMP grading switch and still loads raw assessment
+  records for Review.
+- Verify `WizardFlowModel.startExport` passes the latest Step 5 grading overrides into the dry-run plan for both
+  write and normalize, and that changing the controls causes a replacement plan.
+- Run focused GUI tests, full `swift test`, `swift build --product CupricAspect`, formatting, and the manual
+  Step 2 → Step 5 write/normalize/apply navigation matrix.
+
+**Acceptance.** No analyze-capable path asks whether to write quality metadata before Step 5. Step 5 places the
+choice next to the XMP action, the reviewed dry-run plan accurately reflects the latest selection, raw assessment
+review remains available without grading, and all XMP writes retain the existing guarded export pipeline.
 
 ---
 
@@ -128,4 +186,4 @@ Audience: junior engineer or Sonnet-level coding agent executing one work item a
 
 | Item | State | Date | Notes |
 |---|---|---|---|
-| I1–I6 | pending | | starts after plan 16 Tranches A–C |
+| I1–I7 | pending | | I7 is first; plan 16 Tranches A–C are complete |
