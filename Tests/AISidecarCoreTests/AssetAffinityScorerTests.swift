@@ -70,18 +70,20 @@ final class AssetAffinityScorerTests: XCTestCase {
 
     func testLargeBatchCandidateGenerationUsesBoundedDeterministicWindows() {
         let profile = AssetAffinityProfile.resolved(name: .conservative, minAffinityForConsensus: nil)
-        let nodes = (0..<505).map { index in
-            ScoringNode(
-                node: NormalizationAffinityNodeRecord(
-                    nodeID: String(format: "group-%06d", index + 1),
-                    groupID: String(format: "group-%06d", index + 1),
-                    memberAssetIDs: [String(format: "asset-%06d", index + 1)]
-                ),
-                inputs: affinityInputs(
-                    assetID: String(format: "asset-%06d", index + 1),
-                    relativePath: String(format: "seq/IMG_%04d.JPG", index + 1)
-                )
+        var nodes: [ScoringNode] = []
+        nodes.reserveCapacity(505)
+        for index in 0..<505 {
+            let ordinal = index + 1
+            let groupID = String(format: "group-%06d", ordinal)
+            let assetID = String(format: "asset-%06d", ordinal)
+            let relativePath = String(format: "seq/IMG_%04d.JPG", ordinal)
+            let node = NormalizationAffinityNodeRecord(
+                nodeID: groupID,
+                groupID: groupID,
+                memberAssetIDs: [assetID]
             )
+            let inputs = affinityInputs(assetID: assetID, relativePath: relativePath)
+            nodes.append(ScoringNode(node: node, inputs: inputs))
         }
 
         let pairs = CandidateNeighborGenerator().candidatePairs(nodes: nodes, profile: profile)
