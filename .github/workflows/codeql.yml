@@ -31,14 +31,17 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Initialize CodeQL
-        # github/codeql-action is GitHub's own action; kept on the v3 major tag.
+        # github/codeql-action is GitHub's own action; kept on the v4 major tag.
         # Pin to a commit SHA if you want to eliminate tag drift here too.
         uses: github/codeql-action/init@v4
         with:
-          language: swift
+          languages: swift
+          build-mode: manual
 
       - name: Build
-        run: swift build --build-tests
+        # CodeQL's macOS tracer can otherwise make SwiftPM select x86_64 on
+        # ARM runners. Keep the scan on the runner's native architecture.
+        run: swift build --build-tests --arch arm64
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
